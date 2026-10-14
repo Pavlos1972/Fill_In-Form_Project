@@ -376,7 +376,7 @@ tfoot td { background: var(--surface-2); font-weight: 600; font-variant-numeric:
     { id: 'kids', title: 'Children', blocks: [
       { list: 'kids' },
       { fields: [N('n_kids')] },
-      { note: '<b>Changes:</b> back to the table layout you had before, with a notes area added. Education stage is still worked out from the date of birth.', cls: 'new' }
+      { note: '<b>Changes:</b> each child is now a spread-out card, modelled on the Debts layout, with a notes area. Education stage is still worked out from the date of birth.', cls: 'new' }
     ] },
 
     { id: 'q_risk', adv: 1, title: 'Personal risk quotes', blocks: [
@@ -510,7 +510,7 @@ tfoot td { background: var(--surface-2); font-weight: 600; font-variant-numeric:
       { k: 'inst', l: 'Instalment (R p.m.)', num: 1 }, { k: 'bal', l: 'Balance (R)', num: 1 }, { k: 'asset', l: 'Asset value (R)', num: 1 },
       { k: 'cl', l: 'Credit life with lender', o: YN }, { k: 'surety', l: 'Surety signed', o: ['Yes', 'No', 'Unsure'] }
     ], sum: { inst: 'Total monthly', bal: 'Total liabilities', asset: 'Total assets' } },
-    kids: { title: 'Children', add: 'Add child', cols: [
+    kids: { cards: 'Child', title: 'Children', add: 'Add child', cols: [
       { k: 'name', l: 'Name & surname' }, { k: 'gender', l: 'Gender', o: ['Female', 'Male'] }, { k: 'dob', l: 'Date of birth (yyyy-mm-dd)' },
       { k: 'stage', l: 'Education stage (from date of birth)', calc: 1 }, { k: 'cost', l: 'Monthly cost (R)', num: 1 }
     ], sum: { cost: 'Total childcare' } },
