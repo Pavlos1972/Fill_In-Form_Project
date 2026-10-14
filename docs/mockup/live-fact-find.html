@@ -270,9 +270,10 @@ tfoot td { background: var(--surface-2); font-weight: 600; font-variant-numeric:
         { id: 'disp', l: 'Disposable income (R)', t: 'txt', calc: function () { return S.net && S.net.v && S.exp && S.exp.v ? fmt(num(S.net.v) - num(S.exp.v)) : ''; } },
         { id: 'marital', l: 'Marital status', t: 'sel', o: ['Single', 'Married in community of property', 'Married out of community (with accrual)', 'Married out of community (no accrual)', 'Customary marriage', 'Civil union', 'Life partner', 'Divorced', 'Widowed'] },
         { id: 'sp_name', l: 'Spouse / partner name', t: 'txt', risky: 1 },
+        { id: 'sp_tel', l: 'Spouse telephone number', t: 'txt', risky: 1, isnew: 1 },
         { id: 'sp_occ', l: 'Spouse occupation', t: 'txt' }
       ] },
-      { note: '<b>Direct Net Income</b> is worked out automatically from the gross income, using the SARS income tax tables, so you no longer type it into TaxTim. <b>Take-home net income</b> stays a separate field: what the employer actually pays after all deductions. <b>Spouse income, spouse date of birth and spouse smoker are removed</b> (handled in the spouse\'s own Fact Find).', cls: 'new' },
+      { note: '<b>Direct Net Income</b> is worked out automatically from the gross income, using the SARS income tax tables, so you no longer type it into TaxTim. <b>Take-home net income</b> stays a separate field: what the employer actually pays after all deductions. <b>Spouse income, spouse date of birth and spouse smoker are removed</b> (handled in the spouse\'s own Fact Find). <b>Spouse telephone number added.</b>', cls: 'new' },
       { note: '<b>About the calculation:</b> the figure above uses 2025/26 SARS rates for illustration (annual tax on gross × 12, less the age rebate, ÷ 12). It has not been compared with TaxTim yet. We would check it against several of your real TaxTim results before relying on it.' }
     ] },
     { id: 'occ', title: 'Occupation', blocks: [
@@ -305,7 +306,7 @@ tfoot td { background: var(--surface-2); font-weight: 600; font-variant-numeric:
         { id: 'd_tot', l: 'Total (must be 100%)', t: 'txt', calc: function () { var t = 0, any = 0; ['d_desk', 'd_supo', 'd_trav', 'd_sups', 'd_light', 'd_mod', 'd_heavy'].forEach(function (k) { if (S[k] && S[k].v !== '') { any = 1; t += num(S[k].v); } }); return any ? t + '%' : ''; } },
         { id: 'd_desc', l: 'Brief description of duties', t: 'area', wide: 1 }
       ] },
-      { note: '<b>Changes:</b> <b>"What does the company do?"</b> is back. Use <b>Look up online</b> and the software searches the web for the employer and proposes a short summary for you to accept or edit. For a business owner the form now asks for the type of ownership (sole proprietor, partnership, company and so on), whether there are partners, and lists each partner or shareholder with their percentage. These feed the Buy & Sell cover.', cls: 'new' }
+      { note: '<b>Changes:</b> <b>"What does the company do?"</b> is back. Use <b>Look up online</b> and the software searches the web for the employer and proposes a short summary for you to accept or edit. For a business owner the form now asks for the type of ownership (sole proprietor, partnership, company and so on), whether there are partners, and lists each partner or shareholder with their <b>name, ID number, cell number and shareholding %</b>. These feed the Buy & Sell cover.', cls: 'new' }
     ] },
     { id: 'cover', title: 'Existing cover & retirement', blocks: [
       { title: 'Personal risk cover', fields: [
@@ -375,7 +376,7 @@ tfoot td { background: var(--surface-2); font-weight: 600; font-variant-numeric:
     { id: 'kids', title: 'Children', blocks: [
       { list: 'kids' },
       { fields: [N('n_kids')] },
-      { note: '<b>Changes:</b> same card layout as Debts, and a notes area was added. Education stage is still worked out from the date of birth.', cls: 'new' }
+      { note: '<b>Changes:</b> back to the table layout you had before, with a notes area added. Education stage is still worked out from the date of birth.', cls: 'new' }
     ] },
 
     { id: 'q_risk', adv: 1, title: 'Personal risk quotes', blocks: [
@@ -469,7 +470,7 @@ tfoot td { background: var(--surface-2); font-weight: 600; font-variant-numeric:
         { id: 'bs_own', l: 'Partner completes own Fact Find', t: 'sel', o: YN },
         N('n_bs')
       ] },
-      { note: 'Partner names, shareholding % and dates of birth come from the <b>Partners and shareholders</b> list on the Occupation page, so they are captured once and used here.', cls: 'new' },
+      { note: 'Partner names, ID numbers, cell numbers and shareholding % come from the <b>Partners and shareholders</b> list on the Occupation page, so they are captured once and used here.', cls: 'new' },
       { title: 'Contingent liability', fields: [
         { id: 'cl_req', l: 'Contingent liability quote', t: 'sel', o: REQ },
         { id: 'cl_lender', l: 'Lender / credit provider', t: 'txt' },
@@ -501,7 +502,7 @@ tfoot td { background: var(--surface-2); font-weight: 600; font-variant-numeric:
       { k: 'val', l: 'Current value (R)', num: 1 }, { k: 'prem', l: 'Monthly premium (R p.m.)', num: 1, isnew: 1 }, { k: 'broker', l: 'Broker on record', o: BROKER }
     ], sum: { val: 'Total value', prem: 'Total monthly' } },
     shares: { title: 'Partners and shareholders', add: 'Add partner / shareholder', cols: [
-      { k: 'name', l: 'Name' }, { k: 'role', l: 'Role', o: ['Partner', 'Co-shareholder', 'Director', 'Other'] }, { k: 'pct', l: 'Shareholding %', num: 1 }, { k: 'dob', l: 'Date of birth' }, { k: 'contact', l: 'Contact details' }
+      { k: 'name', l: 'Full name' }, { k: 'id', l: 'ID number' }, { k: 'cell', l: 'Cell number' }, { k: 'pct', l: 'Shareholding %', num: 1 }
     ], sum: {} },
     debts: { cards: 'Debt', title: 'Debts', add: 'Add debt', cols: [
       { k: 'prov', l: 'Loan provider / bank', o: BANKS }, { k: 'type', l: 'Type', o: ['Home loan', 'Vehicle finance', 'Credit card', 'Personal loan', 'Revolving credit', 'Other'] },
@@ -509,7 +510,7 @@ tfoot td { background: var(--surface-2); font-weight: 600; font-variant-numeric:
       { k: 'inst', l: 'Instalment (R p.m.)', num: 1 }, { k: 'bal', l: 'Balance (R)', num: 1 }, { k: 'asset', l: 'Asset value (R)', num: 1 },
       { k: 'cl', l: 'Credit life with lender', o: YN }, { k: 'surety', l: 'Surety signed', o: ['Yes', 'No', 'Unsure'] }
     ], sum: { inst: 'Total monthly', bal: 'Total liabilities', asset: 'Total assets' } },
-    kids: { cards: 'Child', title: 'Children', add: 'Add child', cols: [
+    kids: { title: 'Children', add: 'Add child', cols: [
       { k: 'name', l: 'Name & surname' }, { k: 'gender', l: 'Gender', o: ['Female', 'Male'] }, { k: 'dob', l: 'Date of birth (yyyy-mm-dd)' },
       { k: 'stage', l: 'Education stage (from date of birth)', calc: 1 }, { k: 'cost', l: 'Monthly cost (R)', num: 1 }
     ], sum: { cost: 'Total childcare' } },
@@ -525,7 +526,7 @@ tfoot td { background: var(--surface-2); font-weight: 600; font-variant-numeric:
       { k: 'ins', l: 'Insurer', o: INS, isnew: 1 }, { k: 'monthly', l: 'Monthly amount (R p.m.)', num: 1, isnew: 1 }, { k: 'lump', l: 'Lump sum (R)', num: 1, isnew: 1 }
     ], sum: {} }
   };
-  var DOCS = ['Existing life policy schedules', 'Group risk benefit summary', 'Retirement annuity statements', 'Pension / provident statement', 'Investment statements', 'Bond / loan statements', 'Medical aid membership letter'];
+  var DOCS = ['Existing life policy schedules', 'Group risk benefit summary', 'Retirement annuity statements', 'Pension / provident statement', 'Investment statements'];
   var LOOKUP = {
     co_does: 'Public primary school offering education from Grade R to Grade 7. (Example summary, found online. Check before accepting.)',
     biz_does: 'Example: a small business summary found online. Check before accepting.'
