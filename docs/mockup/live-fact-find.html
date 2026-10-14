@@ -415,7 +415,7 @@ tfoot td { background: var(--surface-2); font-weight: 600; font-variant-numeric:
     ] },
     { id: 'q_calc', adv: 1, title: 'Risk calculation', blocks: [
       { title: 'Life cover: fractured cover', fields: riskCalc('lc').concat([
-        { id: 'lc_f_aci', l: 'Annual contribution increase (ACI)', t: 'sel', o: ACI, opt: 1 },
+        { id: 'lc_f_aci', l: 'ACI', t: 'sel', o: ACI, opt: 1 },
         { id: 'lc_f_aciv', l: 'ACI value', t: 'txt', opt: 1 },
         { id: 'lc_wol', l: 'Life cover (WOL) ABI', t: 'txt', opt: 1 },
         { id: 'lc_ccabi', l: 'Childcare ABI', t: 'txt', opt: 1 }
@@ -425,13 +425,12 @@ tfoot td { background: var(--surface-2); font-weight: 600; font-variant-numeric:
         { id: 'lc_term', l: 'Term', t: 'sel', o: ['WOL', 'Fixed term', 'Other'], opt: 1 },
         { id: 'lc_termv', l: 'Term value', t: 'txt', opt: 1 },
         { id: 'lc_aci', l: 'ACI', t: 'sel', o: ACI, opt: 1 },
-        { id: 'lc_abiv', l: 'ABI value', t: 'txt', opt: 1 },
+        { id: 'lc_abiv', l: 'ABI', t: 'txt', opt: 1 },
         N('lc_cmt', 'Comments')
       ] },
       { title: 'Permanent disability: fractured cover', fields: riskCalc('pd').concat([
-        { id: 'pd_f_aci', l: 'Annual contribution increase (ACI)', t: 'sel', o: ACI, opt: 1 },
+        { id: 'pd_f_aci', l: 'ACI', t: 'sel', o: ACI, opt: 1 },
         { id: 'pd_f_aciv', l: 'ACI value', t: 'txt', opt: 1 },
-        { id: 'pd_wol', l: 'Life cover (WOL) ABI', t: 'txt', opt: 1 },
         { id: 'pd_ccabi', l: 'Childcare ABI', t: 'txt', opt: 1 }
       ]) },
       { title: 'Permanent disability: standard', fields: [
@@ -439,13 +438,13 @@ tfoot td { background: var(--surface-2); font-weight: 600; font-variant-numeric:
         { id: 'pd_term', l: 'Term', t: 'sel', o: ['To age 65', 'To age 70', 'Fixed term', 'Other'], opt: 1 },
         { id: 'pd_aci', l: 'ACI', t: 'sel', o: ACI, opt: 1 },
         { id: 'pd_aciv', l: 'ACI value', t: 'txt', opt: 1 },
-        { id: 'pd_abiv', l: 'ABI value', t: 'txt', opt: 1 },
+        { id: 'pd_abiv', l: 'ABI', t: 'txt', opt: 1 },
         N('pd_cmt', 'Comments')
       ] },
       { title: 'Dread disease', fields: [
         { id: 'dd_cover', l: 'Dread disease cover (R)', t: 'txt', opt: 1 },
         { id: 'dd_aci', l: 'ACI', t: 'sel', o: ['Fixed', 'Age-rated', 'Other'], opt: 1 },
-        { id: 'dd_abiv', l: 'ABI value', t: 'txt', opt: 1 },
+        { id: 'dd_abiv', l: 'ABI', t: 'txt', opt: 1 },
         N('dd_cmt', 'Comments')
       ] },
       { title: 'Income protection / sickness benefit', fields: [
@@ -453,7 +452,7 @@ tfoot td { background: var(--surface-2); font-weight: 600; font-variant-numeric:
         { id: 'ip_amt', l: 'Insured amount (R p.m.)', t: 'txt', opt: 1 },
         { id: 'ip_wait', l: 'Waiting period', t: 'sel', o: ['7 days', '14 days', '1 month', '3 months', 'Other'], opt: 1 },
         { id: 'ip_aci', l: 'ACI', t: 'sel', o: ['Fixed', 'Age-rated', 'Other'], opt: 1 },
-        { id: 'ip_abiv', l: 'ABI value', t: 'txt', opt: 1 },
+        { id: 'ip_abiv', l: 'ABI', t: 'txt', opt: 1 },
         N('ip_cmt', 'Comments')
       ] },
       { note: '<b>Changes:</b> follows the Fact Find. The four fractured-cover lines (household net income, childcare, debt repayments, total needed) are <b>calculated for you</b> from the take-home income, children and debts already captured, for both life cover and permanent disability. Nothing is pre-filled: the old defaults (3%, 5%, R500 000, 1 month, "??") are gone.', cls: 'new' }
