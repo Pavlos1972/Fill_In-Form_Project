@@ -132,6 +132,27 @@ tfoot td { background: var(--surface-2); font-weight: 600; font-variant-numeric:
 .summary b { display: block; font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .summary span { font-size: 11px; color: var(--muted); }
 .foot { margin-top: 16px; font-size: 12px; color: var(--muted); }
+.rowcard { border: 1px solid var(--line); border-radius: 8px; padding: 12px 16px 16px; margin-bottom: 12px; background: var(--surface); }
+.rowcard.s-heard { background: var(--accent-soft); border-color: var(--accent); }
+.rowcard.s-verify { background: var(--warn-soft); border-color: var(--warn); }
+.rowcard.flash { animation: cardflash 1.6s ease-out; }
+@keyframes cardflash { from { box-shadow: 0 0 0 4px var(--accent); } to { box-shadow: 0 0 0 0 transparent; } }
+@media (prefers-reduced-motion: reduce) { .rowcard.flash { animation: none; } }
+.rowhead { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.rowhead b { font-weight: 600; }
+.rowcard .grid { grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 14px 22px; }
+.rowcard .f input, .rowcard .f select { padding-right: 9px; background: var(--surface); }
+.rowcard .f input[readonly] { background: var(--calc-soft); color: var(--calc); }
+.sumstrip { display: flex; flex-wrap: wrap; gap: 6px 22px; padding: 10px 14px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 6px; font-variant-numeric: tabular-nums; margin-bottom: 10px; }
+.sumstrip span { color: var(--muted); }
+.sumstrip b { margin-left: 6px; font-weight: 600; }
+.lnk { font-size: 12px; color: var(--accent); text-decoration: none; white-space: nowrap; }
+.lnk:hover { text-decoration: underline; }
+.lookup { background: none; border: 0; color: var(--accent); cursor: pointer; font-size: 12px; padding: 0; white-space: nowrap; }
+.lookup:hover { text-decoration: underline; }
+.f > span.l .rt { display: inline-flex; gap: 8px; align-items: center; }
+.empty-list { padding: 14px; color: var(--muted); border: 1px dashed var(--line); border-radius: 6px; margin-bottom: 10px; }
+.sub { font-size: 13px; color: var(--muted); margin: -4px 0 10px; }
 </style>
 
 <div class="top">
@@ -190,9 +211,33 @@ tfoot td { background: var(--surface-2); font-weight: 600; font-variant-numeric:
   var INS = ['Old Mutual', 'Momentum', 'Liberty', 'Sanlam', 'Discovery', 'BrightRock', 'Hollard', 'Assupol', 'Clientele', 'Other'];
   var BANKS = ['Nedbank', 'FNB', 'Investec', 'Standard Bank', 'ABSA', 'Discovery Bank', 'Capitec', 'Wesbank', 'Other'];
   var WHO = ['Client', 'Spouse', 'Joint', 'Business'];
+  var ACI = ['Fixed', 'CPI', 'None'], REQ = ['Request a quote', 'Not required'];
+  var N = function (id, l) { return { id: id, l: l || 'Notes', t: 'area', wide: 1, opt: 1 }; };
+
+  /* ---------- Direct Net Income (illustrative SARS calculation) ---------- */
+  var BRK = [[237100, 0, .18, 0], [370500, 42678, .26, 237100], [512800, 77362, .31, 370500], [673000, 121475, .36, 512800], [857900, 179147, .39, 673000], [1817000, 251258, .41, 857900], [1e12, 644489, .45, 1817000]];
+  function directNet() {
+    var g = num(S.gross && S.gross.v); if (!g) return '';
+    var ann = g * 12, tax = 0, i;
+    for (i = 0; i < BRK.length; i++) if (ann <= BRK[i][0]) { tax = BRK[i][1] + BRK[i][2] * (ann - BRK[i][3]); break; }
+    var m = /(\d{4})/.exec((S.dob && S.dob.v) || ''), age = m ? 2026 - parseInt(m[1], 10) : 40;
+    var rebate = 17235 + (age >= 65 ? 9444 : 0) + (age >= 75 ? 3145 : 0);
+    tax = Math.max(0, tax - rebate);
+    return fmt((ann - tax) / 12);
+  }
+  var kidsTotal = function () { return R.kids.reduce(function (a, r) { return a + num(r.d.cost); }, 0); };
+  var debtTotal = function () { return R.debts.reduce(function (a, r) { return a + num(r.d.inst); }, 0); };
+  function riskCalc(p) {
+    return [
+      { id: p + '_hh', l: 'Household net income (R)', t: 'txt', calc: function () { return S.net && S.net.v ? fmt(num(S.net.v)) : ''; } },
+      { id: p + '_cc', l: 'Minus childcare costs (R)', t: 'txt', calc: function () { return R.kids.length ? fmt(kidsTotal()) : ''; } },
+      { id: p + '_dr', l: 'Minus debt repayments (R)', t: 'txt', calc: function () { return R.debts.length ? fmt(debtTotal()) : ''; } },
+      { id: p + '_need', l: 'Total household income needed (R)', t: 'txt', calc: function () { return S.net && S.net.v ? fmt(num(S.net.v) - kidsTotal() - debtTotal()) : ''; } }
+    ];
+  }
 
   var SECTIONS = [
-    { id: 'info', title: 'Client info', tier: 'A', blocks: [
+    { id: 'info', title: 'Client info', blocks: [
       { fields: [
         { id: 'consent', l: 'Consent to record and transcribe', t: 'sel', o: YN },
         { id: 'advisor', l: 'Advisor', t: 'txt', preset: 'Paul Kafentzis' },
@@ -211,36 +256,44 @@ tfoot td { background: var(--surface-2); font-weight: 600; font-variant-numeric:
         { id: 'nat', l: 'Nationality', t: 'sel', o: ['South African', 'Other'] },
         { id: 'smoker', l: 'Smoker', t: 'sel', o: ['Non-smoker', 'Smoker'] },
         { id: 'ref', l: 'Referral from', t: 'sel', o: ['D&R Marketing', 'Current client', 'Referral prospect', 'Spouse', 'Other'] },
-        { id: 'edu', l: 'Highest education', t: 'sel', o: ['Matric', 'Matric & diploma', '4-year diploma', '3-year degree', 'Postgraduate', 'Other'] }
+        { id: 'edu', l: 'Highest education', t: 'sel', o: ['Matric', 'Matric & diploma', '4-year diploma', '3-year degree', 'Postgraduate', 'Other'] },
+        { id: 'edu_notes', l: 'Qualification details', t: 'area', wide: 1, isnew: 1 }
       ] },
-      { note: '<b>Changes:</b> consent tick added at the top (POPIA). The duplicate "ID or Passport" field is gone. Surname and first name are separate so spelling can be checked. Advisor, date and meeting type are pre-set, not spoken.' }
+      { note: '<b>Changes:</b> <b>Qualification details</b> text box added under Highest education. Consent tick added at the top (POPIA). The duplicate "ID or Passport" field is gone and the name is split into first name and surname.' }
     ] },
-    { id: 'income', title: 'Income & household', tier: 'A', blocks: [
+    { id: 'income', title: 'Income & household', blocks: [
       { fields: [
         { id: 'gross', l: 'Gross monthly income (R)', t: 'txt', risky: 1 },
-        { id: 'net', l: 'Take-home monthly income (R)', t: 'txt', risky: 1 },
+        { id: 'dnet', l: 'Direct Net Income (R p.m.)', t: 'txt', link: ['Check on TaxTim', 'https://www.taxtim.com/za/calculators/income-tax'], isnew: 1, calc: directNet },
+        { id: 'net', l: 'Take-home net income (R p.m.)', t: 'txt', risky: 1 },
         { id: 'exp', l: 'Monthly expenses / budget (R)', t: 'txt', risky: 1 },
-        { id: 'disp', l: 'Disposable income (R)', t: 'txt', calc: function () { return S.net && S.exp ? fmt(num(S.net.v) - num(S.exp.v)) : ''; } },
+        { id: 'disp', l: 'Disposable income (R)', t: 'txt', calc: function () { return S.net && S.net.v && S.exp && S.exp.v ? fmt(num(S.net.v) - num(S.exp.v)) : ''; } },
         { id: 'marital', l: 'Marital status', t: 'sel', o: ['Single', 'Married in community of property', 'Married out of community (with accrual)', 'Married out of community (no accrual)', 'Customary marriage', 'Civil union', 'Life partner', 'Divorced', 'Widowed'] },
         { id: 'sp_name', l: 'Spouse / partner name', t: 'txt', risky: 1 },
-        { id: 'sp_dob', l: 'Spouse date of birth', t: 'txt', risky: 1 },
-        { id: 'sp_smoker', l: 'Spouse smoker', t: 'sel', o: ['Non-smoker', 'Smoker'] },
-        { id: 'sp_occ', l: 'Spouse occupation', t: 'txt' },
-        { id: 'sp_gross', l: 'Spouse gross income (R)', t: 'txt', risky: 1, isnew: 1 },
-        { id: 'sp_net', l: 'Spouse take-home income (R)', t: 'txt', risky: 1, isnew: 1 },
-        { id: 'hh', l: 'Household take-home (R)', t: 'txt', calc: function () { return S.net && S.net.v ? fmt(num(S.net.v) + num((S.sp_net || {}).v)) : ''; } }
+        { id: 'sp_occ', l: 'Spouse occupation', t: 'txt' }
       ] },
-      { note: '<b>Changes:</b> five overlapping income lines reduced to three questions you can say out loud. Disposable income is calculated. <b>Spouse income added</b>, because household income feeds the risk calculation. Spouse fields would only appear when marital status is not Single.' }
+      { note: '<b>Direct Net Income</b> is worked out automatically from the gross income, using the SARS income tax tables, so you no longer type it into TaxTim. <b>Take-home net income</b> stays a separate field: what the employer actually pays after all deductions. <b>Spouse income, spouse date of birth and spouse smoker are removed</b> (handled in the spouse\'s own Fact Find).', cls: 'new' },
+      { note: '<b>About the calculation:</b> the figure above uses 2025/26 SARS rates for illustration (annual tax on gross × 12, less the age rebate, ÷ 12). It has not been compared with TaxTim yet. We would check it against several of your real TaxTim results before relying on it.' }
     ] },
-    { id: 'occ', title: 'Occupation', tier: 'A', blocks: [
+    { id: 'occ', title: 'Occupation', blocks: [
       { title: 'Work', fields: [
         { id: 'employed', l: 'Employed', t: 'sel', o: YN },
         { id: 'employer', l: 'Employer', t: 'txt' },
+        { id: 'co_does', l: 'What does the company do?', t: 'area', wide: 1, lookup: 'employer', isnew: 1 },
         { id: 'bizowner', l: 'Business owner', t: 'sel', o: YN },
         { id: 'occ', l: 'Occupation', t: 'txt' },
         { id: 'ft', l: 'Full time or contract', t: 'sel', o: ['Full time', 'Contract'] },
         { id: 'years', l: 'Years in this occupation', t: 'txt' }
       ] },
+      { title: 'Business owner details', cond: function () { return S.bizowner.v === 'Yes'; }, condMsg: 'These fields appear when Business owner is set to Yes. Set it to Yes above to see them.', fields: [
+        { id: 'biz_name', l: 'Business name', t: 'txt', isnew: 1 },
+        { id: 'biz_struct', l: 'Type of ownership', t: 'sel', o: ['Sole proprietor', 'Partnership', 'Private company (Pty) Ltd', 'Close corporation', 'Trust', 'Other'], isnew: 1 },
+        { id: 'biz_does', l: 'What does the business do?', t: 'area', wide: 1, lookup: 'biz_name', isnew: 1 },
+        { id: 'biz_partners', l: 'Has partners or co-owners', t: 'sel', o: YN, isnew: 1 },
+        { id: 'biz_pct', l: 'Your shareholding / interest %', t: 'txt', isnew: 1 },
+        { id: 'biz_loans', l: 'Business loans / surety signed', t: 'sel', o: ['Yes', 'No', 'Unsure'] }
+      ] },
+      { title: 'Partners and shareholders', cond: function () { return S.bizowner.v === 'Yes' && S.biz_partners.v === 'Yes'; }, condMsg: 'Partner and shareholder details appear when Business owner = Yes and Has partners = Yes.', list: 'shares' },
       { title: 'Duties split (proposed from the description, you confirm)', fields: [
         { id: 'd_desk', l: 'Deskbound / office %', t: 'txt' },
         { id: 'd_supo', l: 'Supervising staff in office %', t: 'txt' },
@@ -252,9 +305,9 @@ tfoot td { background: var(--surface-2); font-weight: 600; font-variant-numeric:
         { id: 'd_tot', l: 'Total (must be 100%)', t: 'txt', calc: function () { var t = 0, any = 0; ['d_desk', 'd_supo', 'd_trav', 'd_sups', 'd_light', 'd_mod', 'd_heavy'].forEach(function (k) { if (S[k] && S[k].v !== '') { any = 1; t += num(S[k].v); } }); return any ? t + '%' : ''; } },
         { id: 'd_desc', l: 'Brief description of duties', t: 'area', wide: 1 }
       ] },
-      { note: '<b>Changes:</b> hearing seven percentages from a client is unreliable. The client describes the job, the software proposes a split, and you confirm it. The total checks itself. Business Assurance questions would open only when Business owner = Yes.' }
+      { note: '<b>Changes:</b> <b>"What does the company do?"</b> is back. Use <b>Look up online</b> and the software searches the web for the employer and proposes a short summary for you to accept or edit. For a business owner the form now asks for the type of ownership (sole proprietor, partnership, company and so on), whether there are partners, and lists each partner or shareholder with their percentage. These feed the Buy & Sell cover.', cls: 'new' }
     ] },
-    { id: 'cover', title: 'Existing cover & retirement', tier: 'A', blocks: [
+    { id: 'cover', title: 'Existing cover & retirement', blocks: [
       { title: 'Personal risk cover', fields: [
         { id: 'has_risk', l: 'Has personal risk cover', t: 'sel', o: YN },
         { id: 'joint', l: 'Joint cover with spouse', t: 'sel', o: YN },
@@ -262,38 +315,48 @@ tfoot td { background: var(--surface-2); font-weight: 600; font-variant-numeric:
       ] },
       { list: 'risk' },
       { title: 'Retirement funding', list: 'ret' },
-      { note: '<b>Changes:</b> "Cover 2 / Cover 3" fixed slots become a list that grows. Pension / provident now has a <b>monthly contribution</b>, which was missing. The separate "Client to send through / Draw an Astute Report" dropdowns move to the <b>Documents to request</b> checklist.' }
+      { fields: [N('n_cover')] },
+      { note: '<b>Changes:</b> notes field added.' }
     ] },
-    { id: 'inv', title: 'Investments', tier: 'A', blocks: [
+    { id: 'inv', title: 'Investments', blocks: [
       { list: 'inv' },
-      { note: '<b>Changes:</b> <b>Monthly premium (R p.m.) added.</b> Three fixed investment blocks became one growing list, with a single pick-or-type provider field. <b>Bank Savings section removed.</b>', cls: 'new' }
+      { fields: [N('n_inv')] },
+      { note: '<b>Changes:</b> notes field added. Monthly premium (R p.m.) and the removal of Bank Savings stay as agreed.', cls: 'new' }
     ] },
-    { id: 'other', title: 'Medical, will & short-term', tier: 'A', blocks: [
-      { title: 'Medical aid and gap cover', fields: [
+    { id: 'other', title: 'Medical, will & short-term', blocks: [
+      { title: 'Medical aid', fields: [
         { id: 'ma', l: 'Medical aid', t: 'sel', o: ['Medical aid', 'Hospital plan', 'None'] },
         { id: 'ma_prov', l: 'Medical aid provider', t: 'sel', o: ['Discovery Health', 'Momentum', 'Bonitas', 'Bestmed', 'Fedhealth', 'Medihelp', 'KeyHealth', 'Medshield', 'GEMS', 'POLMED', 'Other'] },
         { id: 'ma_plan', l: 'Plan', t: 'txt', risky: 1 },
-        { id: 'ma_broker', l: 'Broker', t: 'sel', o: ['Through company', 'Privately paid, no broker', 'Privately paid, other broker', 'Paul K'] },
+        { id: 'ma_broker', l: 'Medical aid broker', t: 'sel', o: ['Through company', 'Privately paid, no broker', 'Privately paid, other broker', 'Paul K'] },
+        N('n_ma')
+      ] },
+      { title: 'Gap cover', fields: [
         { id: 'gap', l: 'Gap cover', t: 'sel', o: YN },
-        { id: 'gap_prov', l: 'Gap cover provider', t: 'txt' }
+        { id: 'gap_prov', l: 'Gap cover provider', t: 'txt' },
+        { id: 'gap_broker', l: 'Gap cover broker', t: 'sel', o: ['Through company', 'Privately paid, no broker', 'Privately paid, other broker', 'Paul K'], isnew: 1 },
+        N('n_gap')
       ] },
       { title: 'Will', fields: [
         { id: 'will', l: 'Has a will', t: 'sel', o: YN },
         { id: 'will_up', l: 'Will is up to date', t: 'sel', o: YN },
         { id: 'will_where', l: 'Held with', t: 'sel', o: ['Capital Legacy', 'Other provider'] },
-        { id: 'will_date', l: 'Last updated', t: 'txt' }
+        { id: 'will_broker', l: 'Will broker', t: 'sel', o: ['Paul K', 'Other broker', 'None'], isnew: 1 },
+        { id: 'will_date', l: 'Last updated', t: 'txt' },
+        N('n_will')
       ] },
       { title: 'Short-term insurance', fields: [
         { id: 'sti', l: 'Has short-term insurance', t: 'sel', o: ['Yes', 'No', 'Handled by spouse'] },
-        { id: 'sti_broker', l: 'Broker', t: 'sel', o: ['Cameron Maritz', 'Other broker'] },
+        { id: 'sti_broker', l: 'Short-term broker', t: 'sel', o: ['Cameron Maritz', 'Other broker'] },
         { id: 'sti_car', l: 'Car', t: 'sel', o: YN },
         { id: 'sti_house', l: 'Household contents', t: 'sel', o: YN },
         { id: 'sti_struct', l: 'Structural', t: 'sel', o: YN },
-        { id: 'sti_biz', l: 'Business', t: 'sel', o: YN }
+        { id: 'sti_biz', l: 'Business', t: 'sel', o: YN },
+        N('n_sti')
       ] },
-      { note: '<b>Changes:</b> dropdowns simplified to Yes / No. "N/A" and "See Notes" removed everywhere. What you want done about each item (quotes, who calls the client) moved to the Advisor tab.' }
+      { note: '<b>Changes:</b> <b>Gap cover and Will each have their own Broker field.</b> A notes field was added to every group.', cls: 'new' }
     ] },
-    { id: 'health', title: 'Health', tier: 'A', blocks: [
+    { id: 'health', title: 'Health', blocks: [
       { fields: [
         { id: 'h_gen', l: 'General health good', t: 'sel', o: YN },
         { id: 'h_dia', l: 'Diabetes / high sugar', t: 'sel', o: YN },
@@ -301,20 +364,126 @@ tfoot td { background: var(--surface-2); font-weight: 600; font-variant-numeric:
         { id: 'h_bp', l: 'High blood pressure', t: 'sel', o: YN },
         { id: 'h_bmi', l: 'High BMI', t: 'sel', o: YN },
         { id: 'h_oth', l: 'Other health issues', t: 'sel', o: YN },
-        { id: 'h_notes', l: 'Health notes', t: 'area', wide: 1 }
-      ] },
-      { note: '<b>Changes:</b> the pre-set "No" on cholesterol is gone. Silence never becomes "No" on a health question. Six separate notes boxes became one.' }
+        N('h_notes', 'Health notes')
+      ] }
     ] },
-    { id: 'debts', title: 'Debts', tier: 'A', blocks: [
+    { id: 'debts', title: 'Debts', blocks: [
       { list: 'debts' },
-      { note: '<b>Changes:</b> ten fixed blocks (about 150 boxes) became one growing table, one row per debt. The two description boxes merged. <b>Mr / Mrs</b> became <b>Client / Spouse / Joint / Business</b>. Totals are calculated.', cls: 'new' }
+      { fields: [N('n_debts')] },
+      { note: '<b>Changes:</b> each debt is now its own spread-out card with room for every field, instead of a cramped table row. A notes area was added.', cls: 'new' }
     ] },
-    { id: 'kids', title: 'Children', tier: 'A', blocks: [
+    { id: 'kids', title: 'Children', blocks: [
       { list: 'kids' },
-      { note: '<b>Changes:</b> six fixed rows became a growing list. <b>Education stage is worked out from the date of birth</b> instead of being asked. Total childcare is calculated.', cls: 'new' }
+      { fields: [N('n_kids')] },
+      { note: '<b>Changes:</b> same card layout as Debts, and a notes area was added. Education stage is still worked out from the date of birth.', cls: 'new' }
     ] },
-    { id: 'adv', title: 'Advisor actions', tier: 'C', blocks: [
-      { adv: 1 }
+
+    { id: 'q_risk', adv: 1, title: 'Personal risk quotes', blocks: [
+      { title: 'FNA quote', fields: [
+        { id: 'fna_req', l: 'FNA quote', t: 'sel', o: ['Request a quote', 'Not required', 'No FNA done'] },
+        { id: 'fna_ins', l: 'Insurer', t: 'sel', o: INS, isnew: 1 }
+      ] },
+      { title: 'Shortfall quote', fields: [
+        { id: 'sf_req', l: 'Shortfall quote', t: 'sel', o: REQ },
+        { id: 'sf_ins', l: 'Insurer', t: 'sel', o: INS, isnew: 1 }
+      ] },
+      { title: 'Reduced quotes', list: 'redq' },
+      { fields: [{ id: 'pref_spend', l: 'Preferred monthly spend (R)', t: 'txt', opt: 1 }, N('n_q_risk')] },
+      { note: '<b>Changes:</b> FNA and Shortfall are now generic requests that can go to <b>any insurer</b>, with a new <b>Insurer</b> dropdown. Reduced quotes are a list, so you can add as many as you need, each with its own insurer and monthly amount.', cls: 'new' }
+    ] },
+    { id: 'q_ret', adv: 1, title: 'Retirement & investment quotes', blocks: [
+      { title: 'Retirement goal analysis (RGAR)', fields: [
+        { id: 'rgar_req', l: 'RGAR', t: 'sel', o: ['Request an RGAR', 'Not required'] },
+        { id: 'ret_age', l: 'Retirement age', t: 'sel', o: ['50', '55', '60', '65', '70'], isnew: 1 },
+        { id: 'ret_net', l: 'Net amount (today\'s terms) (R)', t: 'txt', isnew: 1 }
+      ] },
+      { title: 'Retirement annuity quotes', list: 'raq' },
+      { title: 'Education goal analysis (EGAR)', fields: [{ id: 'egar_req', l: 'EGAR', t: 'sel', o: ['Request an EGAR', 'Not required'] }] },
+      { title: 'Investment quotes', list: 'invq' },
+      { fields: [N('n_q_ret')] },
+      { note: '<b>Changes:</b> RGAR now holds both <b>Retirement age</b> and <b>Net amount (today\'s terms)</b>. Retirement annuity and investment quotes are lists. Each quote takes an <b>Insurer</b> from a dropdown plus a <b>monthly amount and/or a lump sum</b>. Investment quotes use the same format and add a purpose (children\'s education or general investing). EGAR is unchanged.', cls: 'new' }
+    ] },
+    { id: 'q_ref', adv: 1, title: 'Referrals & documents', blocks: [
+      { title: 'Referrals', fields: [
+        { id: 'ref_sti', l: 'Short-term (Cameron)', t: 'sel', o: ['Cameron to contact client', 'Must not contact client', 'Client has own broker', 'Not interested'] },
+        { id: 'ref_med', l: 'Medical & gap (Valerie)', t: 'sel', o: ['Valerie to contact for medical aid', 'Valerie to contact for gap cover', 'Valerie to contact for both', 'Not required'] },
+        { id: 'ref_will', l: 'Will (Capital Legacy)', t: 'sel', o: ['Capital Legacy to contact client', 'Has updated will', 'Not interested'] }
+      ] },
+      { docs: 1 },
+      { note: 'Referrals are unchanged. The documents checklist replaces the "Client to send through / Draw an Astute Report" dropdowns.' }
+    ] },
+    { id: 'q_calc', adv: 1, title: 'Risk calculation', blocks: [
+      { title: 'Life cover: fractured cover', fields: riskCalc('lc').concat([
+        { id: 'lc_f_aci', l: 'Annual contribution increase (ACI)', t: 'sel', o: ACI, opt: 1 },
+        { id: 'lc_f_aciv', l: 'ACI value', t: 'txt', opt: 1 },
+        { id: 'lc_wol', l: 'Life cover (WOL) ABI', t: 'txt', opt: 1 },
+        { id: 'lc_ccabi', l: 'Childcare ABI', t: 'txt', opt: 1 }
+      ]) },
+      { title: 'Life cover: standard', fields: [
+        { id: 'lc_sa', l: 'Sum assured (R)', t: 'txt', opt: 1 },
+        { id: 'lc_term', l: 'Term', t: 'sel', o: ['WOL', 'Fixed term', 'Other'], opt: 1 },
+        { id: 'lc_termv', l: 'Term value', t: 'txt', opt: 1 },
+        { id: 'lc_aci', l: 'ACI', t: 'sel', o: ACI, opt: 1 },
+        { id: 'lc_aciv', l: 'ACI value', t: 'txt', opt: 1 },
+        { id: 'lc_abiv', l: 'ABI value', t: 'txt', opt: 1 },
+        N('lc_cmt', 'Comments')
+      ] },
+      { title: 'Permanent disability: fractured cover', fields: riskCalc('pd').concat([
+        { id: 'pd_f_aci', l: 'Annual contribution increase (ACI)', t: 'sel', o: ACI, opt: 1 },
+        { id: 'pd_f_aciv', l: 'ACI value', t: 'txt', opt: 1 },
+        { id: 'pd_wol', l: 'Life cover (WOL) ABI', t: 'txt', opt: 1 },
+        { id: 'pd_ccabi', l: 'Childcare ABI', t: 'txt', opt: 1 }
+      ]) },
+      { title: 'Permanent disability: standard', fields: [
+        { id: 'pd_sa', l: 'Sum assured (R)', t: 'txt', opt: 1 },
+        { id: 'pd_term', l: 'Term', t: 'sel', o: ['To age 65', 'To age 70', 'Fixed term', 'Other'], opt: 1 },
+        { id: 'pd_aci', l: 'ACI', t: 'sel', o: ACI, opt: 1 },
+        { id: 'pd_aciv', l: 'ACI value', t: 'txt', opt: 1 },
+        { id: 'pd_abiv', l: 'ABI value', t: 'txt', opt: 1 },
+        N('pd_cmt', 'Comments')
+      ] },
+      { title: 'Dread disease', fields: [
+        { id: 'dd_cover', l: 'Dread disease cover (R)', t: 'txt', opt: 1 },
+        { id: 'dd_aci', l: 'ACI', t: 'sel', o: ['Fixed', 'Age-rated', 'Other'], opt: 1 },
+        { id: 'dd_aciv', l: 'ACI value', t: 'txt', opt: 1 },
+        { id: 'dd_abiv', l: 'ABI value', t: 'txt', opt: 1 },
+        N('dd_cmt', 'Comments')
+      ] },
+      { title: 'Income protection / sickness benefit', fields: [
+        { id: 'ip_age', l: 'Income protection age', t: 'sel', o: ['65', '70'], opt: 1 },
+        { id: 'ip_amt', l: 'Insured amount (R p.m.)', t: 'txt', opt: 1 },
+        { id: 'ip_wait', l: 'Waiting period', t: 'sel', o: ['7 days', '14 days', '1 month', '3 months', 'Other'], opt: 1 },
+        { id: 'ip_aci', l: 'ACI', t: 'sel', o: ['Fixed', 'Age-rated', 'Other'], opt: 1 },
+        { id: 'ip_aciv', l: 'ACI value', t: 'txt', opt: 1 },
+        { id: 'ip_abiv', l: 'ABI value', t: 'txt', opt: 1 },
+        N('ip_cmt', 'Comments')
+      ] },
+      { note: '<b>Changes:</b> follows the Fact Find. The four fractured-cover lines (household net income, childcare, debt repayments, total needed) are <b>calculated for you</b> from the take-home income, children and debts already captured, for both life cover and permanent disability. Nothing is pre-filled: the old defaults (3%, 5%, R500 000, 1 month, "??") are gone.', cls: 'new' }
+    ] },
+    { id: 'q_biz', adv: 1, title: 'Business assurance', blocks: [
+      { title: 'Buy & Sell', fields: [
+        { id: 'bs_req', l: 'Buy & Sell quote', t: 'sel', o: REQ },
+        { id: 'bs_ins', l: 'Insurer', t: 'sel', o: INS },
+        { id: 'bs_value', l: 'Agreed cover value (R)', t: 'txt' },
+        { id: 'bs_basis', l: 'Basis of value', t: 'sel', o: ['Formal valuation', 'Shareholders agreement', 'Agreed between parties'] },
+        { id: 'bs_own', l: 'Partner completes own Fact Find', t: 'sel', o: YN },
+        N('n_bs')
+      ] },
+      { note: 'Partner names, shareholding % and dates of birth come from the <b>Partners and shareholders</b> list on the Occupation page, so they are captured once and used here.', cls: 'new' },
+      { title: 'Contingent liability', fields: [
+        { id: 'cl_req', l: 'Contingent liability quote', t: 'sel', o: REQ },
+        { id: 'cl_lender', l: 'Lender / credit provider', t: 'txt' },
+        { id: 'cl_bal', l: 'Loan account balance (R)', t: 'txt' },
+        { id: 'cl_life', l: 'Life to be insured', t: 'txt' }
+      ] },
+      { title: 'Keyman', fields: [
+        { id: 'km_req', l: 'Keyman quote', t: 'sel', o: REQ },
+        { id: 'km_name', l: 'Keyman name', t: 'txt' },
+        { id: 'km_role', l: 'Keyman role', t: 'txt' },
+        { id: 'km_amt', l: 'Cover amount (R)', t: 'txt' },
+        { id: 'km_basis', l: 'Basis of cover amount', t: 'sel', o: ['Multiple of salary', 'Profit contribution', 'Replacement cost', 'Other'] }
+      ] },
+      { note: 'In the finished form this section would show only when Business owner = Yes.' }
     ] }
   ];
 
@@ -323,7 +492,7 @@ tfoot td { background: var(--surface-2); font-weight: 600; font-variant-numeric:
       { k: 'prov', l: 'Provider', o: INS }, { k: 'spend', l: 'Spend (R p.m.)', num: 1 }, { k: 'broker', l: 'Broker on record', o: BROKER }, { k: 'notes', l: 'Notes' }
     ], sum: { spend: 'Total spend' } },
     ret: { title: 'Retirement funding', add: 'Add fund', cols: [
-      { k: 'type', l: 'Type', o: ['Retirement annuity', 'Pension fund', 'Provident fund'] }, { k: 'prov', l: 'Provider / administrator', o: INS.concat(['Allan Gray', 'Other']) },
+      { k: 'type', l: 'Type', o: ['Retirement annuity', 'Pension fund', 'Provident fund'] }, { k: 'prov', l: 'Provider / administrator', o: INS.concat(['Allan Gray']) },
       { k: 'val', l: 'Value (R)', num: 1 }, { k: 'contrib', l: 'Monthly contribution (R p.m.)', num: 1, isnew: 1 }, { k: 'broker', l: 'Broker on record', o: BROKER }
     ], sum: { contrib: 'Total contributions' } },
     inv: { title: 'Investments', add: 'Add investment', cols: [
@@ -331,37 +500,45 @@ tfoot td { background: var(--surface-2); font-weight: 600; font-variant-numeric:
       { k: 'prov', l: 'Provider', o: ['Old Mutual', 'Momentum', 'Sanlam', 'Liberty', 'Discovery Invest', 'Allan Gray', 'Coronation', 'Ninety One', 'PSG', 'Sygnia', 'Satrix', '10X', 'Glacier', 'Other'] },
       { k: 'val', l: 'Current value (R)', num: 1 }, { k: 'prem', l: 'Monthly premium (R p.m.)', num: 1, isnew: 1 }, { k: 'broker', l: 'Broker on record', o: BROKER }
     ], sum: { val: 'Total value', prem: 'Total monthly' } },
-    debts: { title: 'Debts', add: 'Add debt', cols: [
-      { k: 'prov', l: 'Provider', o: BANKS }, { k: 'type', l: 'Type', o: ['Home loan', 'Vehicle finance', 'Credit card', 'Personal loan', 'Revolving credit', 'Other'] },
+    shares: { title: 'Partners and shareholders', add: 'Add partner / shareholder', cols: [
+      { k: 'name', l: 'Name' }, { k: 'role', l: 'Role', o: ['Partner', 'Co-shareholder', 'Director', 'Other'] }, { k: 'pct', l: 'Shareholding %', num: 1 }, { k: 'dob', l: 'Date of birth' }, { k: 'contact', l: 'Contact details' }
+    ], sum: {} },
+    debts: { cards: 'Debt', title: 'Debts', add: 'Add debt', cols: [
+      { k: 'prov', l: 'Loan provider / bank', o: BANKS }, { k: 'type', l: 'Type', o: ['Home loan', 'Vehicle finance', 'Credit card', 'Personal loan', 'Revolving credit', 'Other'] },
       { k: 'desc', l: 'Description' }, { k: 'owner', l: 'Owner', o: WHO }, { k: 'payer', l: 'Payer', o: WHO }, { k: 'term', l: 'Term left' },
       { k: 'inst', l: 'Instalment (R p.m.)', num: 1 }, { k: 'bal', l: 'Balance (R)', num: 1 }, { k: 'asset', l: 'Asset value (R)', num: 1 },
-      { k: 'cl', l: 'Credit life', o: YN }, { k: 'surety', l: 'Surety', o: ['Yes', 'No', 'Unsure'] }
+      { k: 'cl', l: 'Credit life with lender', o: YN }, { k: 'surety', l: 'Surety signed', o: ['Yes', 'No', 'Unsure'] }
     ], sum: { inst: 'Total monthly', bal: 'Total liabilities', asset: 'Total assets' } },
-    kids: { title: 'Children', add: 'Add child', cols: [
+    kids: { cards: 'Child', title: 'Children', add: 'Add child', cols: [
       { k: 'name', l: 'Name & surname' }, { k: 'gender', l: 'Gender', o: ['Female', 'Male'] }, { k: 'dob', l: 'Date of birth (yyyy-mm-dd)' },
       { k: 'stage', l: 'Education stage (from date of birth)', calc: 1 }, { k: 'cost', l: 'Monthly cost (R)', num: 1 }
-    ], sum: { cost: 'Total childcare' } }
+    ], sum: { cost: 'Total childcare' } },
+    redq: { cards: 'Reduced quote', title: 'Reduced quotes', add: 'Add reduced quote', cols: [
+      { k: 'req', l: 'Request', o: REQ }, { k: 'ins', l: 'Insurer', o: INS, isnew: 1 }, { k: 'amt', l: 'Monthly amount (R p.m.)', num: 1 }
+    ], sum: {} },
+    raq: { cards: 'RA quote', title: 'Retirement annuity quotes', add: 'Add RA quote', cols: [
+      { k: 'req', l: 'Request', o: ['Request a quote', 'Not required', 'Cannot afford now', 'Not interested'] }, { k: 'ins', l: 'Insurer', o: INS, isnew: 1 },
+      { k: 'monthly', l: 'Monthly amount (R p.m.)', num: 1, isnew: 1 }, { k: 'lump', l: 'Lump sum (R)', num: 1, isnew: 1 }
+    ], sum: {} },
+    invq: { cards: 'Investment quote', title: 'Investment quotes', add: 'Add investment quote', cols: [
+      { k: 'purpose', l: 'Purpose', o: ['Children\'s education', 'General investing'] }, { k: 'product', l: 'Product', o: ['Tax-free savings', 'Endowment', 'Unit trust / voluntary funds', 'Other'] },
+      { k: 'ins', l: 'Insurer', o: INS, isnew: 1 }, { k: 'monthly', l: 'Monthly amount (R p.m.)', num: 1, isnew: 1 }, { k: 'lump', l: 'Lump sum (R)', num: 1, isnew: 1 }
+    ], sum: {} }
+  };
+  var DOCS = ['Existing life policy schedules', 'Group risk benefit summary', 'Retirement annuity statements', 'Pension / provident statement', 'Investment statements', 'Bond / loan statements', 'Medical aid membership letter'];
+  var LOOKUP = {
+    co_does: 'Public primary school offering education from Grade R to Grade 7. (Example summary, found online. Check before accepting.)',
+    biz_does: 'Example: a small business summary found online. Check before accepting.'
   };
 
-  var ADV = [
-    { h: 'Personal risk cover', f: [['FNA quote', ['Request BR FNA quote', 'Request other insurer quote', 'No FNA done']], ['Shortfall quote', ['Request BR shortfall quote', 'Not required']], ['Reduced quote #1', ['Request BR reduced quote', 'Not required']], ['Preferred monthly spend (R)', null]] },
-    { h: 'Retirement', f: [['RGAR', ['Request an RGAR', 'Not required']], ['Retirement age', ['50', '55', '60', '65', '70']], ['RA quote', ['Request OM Optimal RA quote', 'Cannot afford now', 'Not interested']], ['Lump sum amount (R)', null]] },
-    { h: 'Investment & education', f: [['EGAR', ['Request an EGAR', 'Not required']], ['General investing quote', ['Request OM Tax-Free quote', 'Request OM Endowment quote', 'Cannot afford now']]] },
-    { h: 'Referrals', f: [['Short-term (Cameron)', ['Cameron to contact client', 'Must not contact client', 'Client has own broker']], ['Medical & gap (Valerie)', ['Valerie to contact for M/A', 'Valerie to contact for gap cover', 'Not required']], ['Will (Capital Legacy)', ['CL to contact client', 'Has updated will', 'Not interested']]] },
-    { h: 'Risk calculation', f: [['Life cover sum assured (R)', null], ['Disability sum assured (R)', null], ['Dread disease cover (R)', null], ['Income protection (R p.m.)', null], ['Escalation (ACI / ABI)', ['Fixed', 'CPI', 'Age-rated', 'None']]] }
-  ];
-  var DOCS = ['Existing life policy schedules', 'Group risk benefit summary', 'Retirement annuity statements', 'Pension / provident statement', 'Investment statements', 'Bond / loan statements', 'Medical aid membership letter'];
-
   /* ---------- state ---------- */
-  var S, R, DOC, cur, step, flashId;
+  var S, R, DOC, cur, step, flashId, FIELDS = {};
+  function eachField(fn) { SECTIONS.forEach(function (s) { s.blocks.forEach(function (b) { (b.fields || []).forEach(fn); }); }); }
+  eachField(function (f) { FIELDS[f.id] = f; });
   function initState() {
-    S = {}; R = { risk: [], ret: [], inv: [], debts: [], kids: [] }; DOC = {}; step = 0; flashId = null;
-    SECTIONS.forEach(function (s) { s.blocks.forEach(function (b) { (b.fields || []).forEach(function (f) { S[f.id] = { v: f.preset || '', st: f.preset ? 'preset' : (f.calc ? 'calc' : 'empty') }; }); }); });
-    DOC.a = 1;
+    S = {}; R = { risk: [], ret: [], inv: [], shares: [], debts: [], kids: [], redq: [], raq: [], invq: [] }; DOC = {}; step = 0; flashId = null;
+    eachField(function (f) { S[f.id] = { v: f.preset || '', st: f.preset ? 'preset' : (f.calc ? 'calc' : 'empty') }; });
   }
-  var FIELDS = {};
-  SECTIONS.forEach(function (s) { s.blocks.forEach(function (b) { (b.fields || []).forEach(function (f) { FIELDS[f.id] = f; }); }); });
-
   function setF(id, v, st) { S[id] = { v: v, st: st || (FIELDS[id] && FIELDS[id].risky ? 'verify' : 'heard') }; flashId = id; }
   function addRow(list, row, st) { var r = { d: row, st: st || 'heard', flash: 1 }; R[list].push(r); return r; }
 
@@ -373,10 +550,10 @@ tfoot td { background: var(--surface-2); font-weight: 600; font-variant-numeric:
     { w: 'q', t: 'Great. What is your first name and surname, and when were you born?' },
     { w: 'a', t: 'Thandi Dlamini, D-L-A-M-I-N-I. I was born on 14 March 1986.', run: function () { setF('fname', 'Thandi', 'heard'); setF('sname', 'Dlamini'); setF('dob', '14 March 1986'); }, got: ['First name: Thandi', 'Surname: Dlamini', 'DOB: 14 March 1986'], v: 2 },
     { w: 'a', t: 'Sorry, the dog is barking. Be quiet!', skip: 1 },
-    { w: 'q', t: 'What do you do for work and what is your take-home pay a month?' },
-    { w: 'a', t: 'I am a teacher at a primary school. About thirty-two thousand after tax.', run: function () { setF('occ', 'Teacher'); FIELDS.occ.risky = 0; S.occ.st = 'heard'; setF('employed', 'Yes', 'heard'); setF('net', 'R 32 000'); setF('d_desk', '60', 'heard'); setF('d_supo', '40', 'heard'); S.d_desk.st = S.d_supo.st = 'suggest'; }, got: ['Occupation: Teacher', 'Employed: Yes', 'Take-home: R 32 000', 'Duties split proposed'], v: 1 },
+    { w: 'q', t: 'What do you do for work, who for, and what do you earn?' },
+    { w: 'a', t: 'I am a teacher at Sample Primary School. I earn about forty thousand gross, and thirty-two thousand after everything comes off.', run: function () { setF('occ', 'Teacher', 'heard'); setF('employed', 'Yes', 'heard'); setF('employer', 'Sample Primary School', 'heard'); setF('gross', 'R 40 000'); setF('net', 'R 32 000'); setF('d_desk', '60', 'suggest'); setF('d_supo', '40', 'suggest'); }, got: ['Occupation: Teacher', 'Employer: Sample Primary School', 'Gross: R 40 000', 'Take-home: R 32 000', 'Duties split proposed'], v: 2 },
     { w: 'q', t: 'Are you married, and does your spouse work?' },
-    { w: 'a', t: 'Married out of community with accrual. My husband is an engineer, he takes home about forty-five.', run: function () { setF('marital', 'Married out of community (with accrual)', 'heard'); setF('sp_occ', 'Engineer', 'heard'); setF('sp_net', 'R 45 000'); }, got: ['Marital: out of community (accrual)', 'Spouse occupation: Engineer', 'Spouse take-home: R 45 000'], v: 1 },
+    { w: 'a', t: 'Married out of community with accrual. My husband is an engineer.', run: function () { setF('marital', 'Married out of community (with accrual)', 'heard'); setF('sp_occ', 'Engineer', 'heard'); }, got: ['Marital: out of community (accrual)', 'Spouse occupation: Engineer'] },
     { w: 'q', t: 'Do you have any loans or a bond?' },
     { w: 'a', t: 'We have a bond with Nedbank. About eleven thousand four hundred a month, one point two million still owing, eighteen years to go. It is in both our names.', run: function () { addRow('debts', { prov: 'Nedbank', type: 'Home loan', desc: 'House', owner: 'Joint', payer: 'Joint', term: '18 years', inst: '11 400', bal: '1 200 000', asset: '', cl: '', surety: '' }, 'verify'); }, got: ['Debt: Nedbank home loan', 'R 11 400 p.m.', 'Balance R 1 200 000'], v: 2 },
     { w: 'q', t: 'And children?' },
@@ -393,18 +570,21 @@ tfoot td { background: var(--surface-2); font-weight: 600; font-variant-numeric:
   }
   function resetAll() { initState(); LOG = []; seed(); redraw(); }
   function seed() {
-    // start part-way through the call so the page is complete at rest
-    for (var i = 0; i < 11; i++) playStep();
+    for (var i = 0; i < 12; i++) playStep();
     S.nat = { v: 'South African', st: 'confirmed' };
     S.ref = { v: 'D&R Marketing', st: 'confirmed' };
     S.cell = { v: '082 555 0148', st: 'verify' };
     S.pemail = { v: 'thandi.d@example.co.za', st: 'verify' };
+    S.bizowner = { v: 'No', st: 'heard' };
     flashId = null;
     R.risk.push({ d: { prov: 'Old Mutual', spend: '1 850', broker: 'Other broker', notes: 'Life and dread disease' }, st: 'heard' });
     R.inv.push({ d: { type: 'Tax-free savings', prov: 'Satrix', val: '48 000', prem: '1 000', broker: 'None' }, st: 'heard' });
     R.ret.push({ d: { type: 'Retirement annuity', prov: 'Momentum', val: '215 000', contrib: '1 500', broker: 'Other broker' }, st: 'verify' });
+    R.redq.push({ d: { req: 'Request a quote', ins: 'BrightRock', amt: '1 200' }, st: 'confirmed' });
+    R.raq.push({ d: { req: 'Request a quote', ins: 'Old Mutual', monthly: '2 000', lump: '' }, st: 'confirmed' });
+    R.invq.push({ d: { purpose: 'Children\'s education', product: 'Tax-free savings', ins: 'Old Mutual', monthly: '1 500', lump: '' }, st: 'confirmed' });
     DOC['Existing life policy schedules'] = 1;
-    R.debts.forEach(function (r) { r.flash = 0; }); LOG.forEach(function () {});
+    R.debts.concat(R.kids).forEach(function (r) { r.flash = 0; });
   }
 
   /* ---------- rendering ---------- */
@@ -416,88 +596,100 @@ tfoot td { background: var(--surface-2); font-weight: 600; font-variant-numeric:
   function fieldHTML(f) {
     var cell = S[f.id], st = cell.st, v = f.calc ? f.calc() : cell.v;
     if (f.calc) st = 'calc';
-    var dis = (st === 'calc' || st === 'preset') ? ' readonly' : '';
+    if (f.opt && st === 'empty') st = 'empty';
+    var ro = (st === 'calc' || st === 'preset') ? ' readonly' : '';
     var inner;
     if (f.t === 'sel') {
-      inner = '<select data-f="' + f.id + '"' + (dis ? ' disabled' : '') + '><option value="">&nbsp;</option>' + f.o.map(function (o) { return '<option' + (o === v ? ' selected' : '') + '>' + esc(o) + '</option>'; }).join('') + '</select>';
+      inner = '<select data-f="' + f.id + '"' + (ro ? ' disabled' : '') + '><option value="">&nbsp;</option>' + f.o.map(function (o) { return '<option' + (o === v ? ' selected' : '') + '>' + esc(o) + '</option>'; }).join('') + '</select>';
     } else if (f.t === 'area') {
       inner = '<textarea data-f="' + f.id + '">' + esc(v) + '</textarea>';
     } else {
-      inner = '<input data-f="' + f.id + '" value="' + esc(v) + '"' + dis + ' autocomplete="off">';
+      inner = '<input data-f="' + f.id + '" value="' + esc(v) + '"' + ro + ' autocomplete="off">';
     }
     var nw = f.isnew ? ' <span class="badge newcol">new</span>' : '';
-    return '<label class="f s-' + st + (f.wide ? ' wide' : '') + (flashId === f.id ? ' flash' : '') + '"><span class="l"><span>' + esc(f.l) + nw + '</span></span><span class="box">' + inner + (f.t === 'area' ? '' : '<span class="st">' + badge(st, f.id) + '</span>') + '</span></label>';
+    var rt = '';
+    if (f.link) rt += '<a class="lnk" href="' + f.link[1] + '" target="_blank" rel="noopener">' + esc(f.link[0]) + ' ↗</a>';
+    if (f.lookup) rt += '<button type="button" class="lookup" data-lookup="' + f.id + '">Look up online</button>';
+    if (f.t === 'area' && !f.opt) rt += badge(st, f.id);
+    return '<label class="f s-' + st + (f.wide ? ' wide' : '') + (flashId === f.id ? ' flash' : '') + '"><span class="l"><span>' + esc(f.l) + nw + '</span>' + (rt ? '<span class="rt">' + rt + '</span>' : '') + '</span><span class="box">' + inner + (f.t === 'area' ? '' : '<span class="st">' + badge(st, f.id) + '</span>') + '</span></label>';
+  }
+  function cellHTML(L, key, i, c, r, inCard) {
+    var v = r.d[c.k];
+    if (c.calc) v = stage(r.d.dob);
+    var at = ' data-l="' + key + '" data-i="' + i + '" data-k="' + c.k + '"';
+    var ctl = c.o
+      ? '<select' + at + '><option value="">&nbsp;</option>' + c.o.map(function (o) { return '<option' + (o === v ? ' selected' : '') + '>' + esc(o) + '</option>'; }).join('') + '</select>'
+      : '<input' + at + ' value="' + esc(v) + '"' + (c.calc ? ' readonly' : '') + ' autocomplete="off">';
+    if (inCard) return '<label class="f"><span class="l"><span>' + esc(c.l) + (c.isnew ? ' <span class="badge newcol">new</span>' : '') + '</span></span><span class="box">' + ctl + '</span></label>';
+    return '<td' + (c.num ? ' class="num"' : '') + '>' + ctl + '</td>';
+  }
+  function sums(L, rows) {
+    return Object.keys(L.sum).map(function (k) {
+      var c = L.cols.filter(function (x) { return x.k === k; })[0];
+      return '<span>' + esc(L.sum[k]) + '<b>' + fmt(rows.reduce(function (a, r) { return a + num(r.d[k]); }, 0)) + '</b></span>';
+    }).join('');
   }
   function listHTML(key) {
-    var L = LISTS[key], rows = R[key];
-    var h = '<div class="tablewrap"><table><thead><tr>' + L.cols.map(function (c) { return '<th>' + esc(c.l) + (c.isnew ? ' <span class="badge newcol">new</span>' : '') + '</th>'; }).join('') + '<th>Status</th><th></th></tr></thead><tbody>';
-    rows.forEach(function (r, i) {
-      h += '<tr class="s-' + r.st + (r.flash ? ' flash' : '') + '">';
-      L.cols.forEach(function (c) {
-        var v = r.d[c.k];
-        if (c.calc) v = stage(r.d.dob);
-        var cls = c.num ? ' class="num"' : '';
-        if (c.o) h += '<td><select data-l="' + key + '" data-i="' + i + '" data-k="' + c.k + '"><option value="">&nbsp;</option>' + c.o.map(function (o) { return '<option' + (o === v ? ' selected' : '') + '>' + esc(o) + '</option>'; }).join('') + '</select></td>';
-        else h += '<td' + cls + '><input data-l="' + key + '" data-i="' + i + '" data-k="' + c.k + '" value="' + esc(v) + '"' + (c.calc ? ' readonly' : '') + '></td>';
+    var L = LISTS[key], rows = R[key], h = '';
+    if (L.cards) {
+      if (!rows.length) h += '<div class="empty-list">Nothing yet. A card is added when the client mentions one.</div>';
+      rows.forEach(function (r, i) {
+        h += '<div class="rowcard s-' + r.st + (r.flash ? ' flash' : '') + '"><div class="rowhead"><b>' + esc(L.cards) + ' ' + (i + 1) + '</b>' +
+          ((r.st === 'heard' || r.st === 'verify') ? badge(r.st, 'row:' + key + ':' + i) : '<span class="badge confirmed">confirmed</span>') +
+          '<span class="grow"></span><button type="button" class="x" data-del="' + key + ':' + i + '" aria-label="Remove">✕ Remove</button></div><div class="grid">' +
+          L.cols.map(function (c) { return cellHTML(L, key, i, c, r, true); }).join('') + '</div></div>';
       });
-      h += '<td>' + (r.st === 'heard' || r.st === 'verify' ? badge(r.st, 'row:' + key + ':' + i) : badge(r.st === 'empty' ? 'confirmed' : r.st, '')) + '</td><td><button type="button" class="x" data-del="' + key + ':' + i + '" aria-label="Remove row">✕</button></td></tr>';
+      if (rows.length && Object.keys(L.sum).length) h += '<div class="sumstrip">' + sums(L, rows) + '</div>';
+      return h + '<button type="button" class="addrow" data-add="' + key + '">+ ' + esc(L.add) + '</button>';
+    }
+    h = '<div class="tablewrap"><table><thead><tr>' + L.cols.map(function (c) { return '<th>' + esc(c.l) + (c.isnew ? ' <span class="badge newcol">new</span>' : '') + '</th>'; }).join('') + '<th>Status</th><th></th></tr></thead><tbody>';
+    rows.forEach(function (r, i) {
+      h += '<tr class="s-' + r.st + '">' + L.cols.map(function (c) { return cellHTML(L, key, i, c, r, false); }).join('') +
+        '<td>' + (r.st === 'heard' || r.st === 'verify' ? badge(r.st, 'row:' + key + ':' + i) : badge('confirmed', '')) + '</td><td><button type="button" class="x" data-del="' + key + ':' + i + '" aria-label="Remove row">✕</button></td></tr>';
     });
-    if (!rows.length) h += '<tr><td colspan="' + (L.cols.length + 2) + '" style="padding:14px;color:var(--muted)">Nothing yet. A row is added when the client mentions one.</td></tr>';
+    if (!rows.length) h += '<tr><td colspan="' + (L.cols.length + 2) + '" style="padding:14px;color:var(--muted)">Nothing yet.</td></tr>';
     h += '</tbody>';
-    var keys = Object.keys(L.sum);
-    if (rows.length && keys.length) {
+    if (rows.length && Object.keys(L.sum).length) {
       h += '<tfoot><tr>' + L.cols.map(function (c) { return '<td' + (c.num ? ' class="num"' : '') + '>' + (L.sum[c.k] ? fmt(rows.reduce(function (a, r) { return a + num(r.d[c.k]); }, 0)) : '') + '</td>'; }).join('') + '<td colspan="2"><span class="badge calc">calc</span></td></tr></tfoot>';
     }
-    h += '</table></div><button type="button" class="addrow" data-add="' + key + '">+ ' + esc(L.add) + '</button>';
-    return h;
+    return h + '</table></div><button type="button" class="addrow" data-add="' + key + '">+ ' + esc(L.add) + '</button>';
   }
   function stage(dob) {
     var m = /^(\d{4})/.exec(dob || ''); if (!m) return '';
     var age = 2026 - parseInt(m[1], 10);
     return age < 3 ? 'Not yet in school' : age < 6 ? 'Pre-school' : age < 13 ? 'Primary' : age < 19 ? 'High school' : 'Tertiary';
   }
-  function advHTML() {
-    var h = '<div class="note"><b>Your decisions, not the client\'s.</b> These stay out of the live capture. You complete them during or after the call. Defaults are never pre-filled.</div>';
-    ADV.forEach(function (g) {
-      h += '<div class="block-title">' + esc(g.h) + '</div><div class="grid adv">';
-      g.f.forEach(function (f) {
-        h += '<label class="f s-empty"><span class="l"><span>' + esc(f[0]) + '</span></span><span class="box">' + (f[1] ? '<select><option>&nbsp;</option>' + f[1].map(function (o) { return '<option>' + esc(o) + '</option>'; }).join('') + '</select>' : '<input autocomplete="off">') + '</span></label>';
-      });
-      h += '</div>';
-    });
-    h += '<div class="block-title">Documents to request <span class="badge newcol">new</span></div>';
-    DOCS.forEach(function (d, i) { h += '<label class="check"><input type="checkbox" data-doc="' + esc(d) + '"' + (DOC[d] ? ' checked' : '') + '> ' + esc(d) + '</label>'; });
-    h += '<div class="note" style="margin-top:12px"><b>Replaces</b> the "Client to send through / Draw an Astute Report" dropdown that appeared against each cover, fund and investment. Risk-calculation fields (life, disability, dread disease, income protection) sit here as well, with the page 20 copy-paste errors fixed.</div>';
-    return h;
+  function docsHTML() {
+    return '<div class="block-title">Documents to request <span class="badge newcol">new</span></div>' + DOCS.map(function (d) { return '<label class="check"><input type="checkbox" data-doc="' + esc(d) + '"' + (DOC[d] ? ' checked' : '') + '> ' + esc(d) + '</label>'; }).join('');
   }
   function counts(sec) {
     var tot = 0, fill = 0, ver = 0;
     sec.blocks.forEach(function (b) {
-      (b.fields || []).forEach(function (f) { var st = S[f.id].st; if (f.calc || st === 'preset') return; tot++; if (st !== 'empty') fill++; if (st === 'verify') ver++; });
+      if (b.cond && !b.cond()) return;
+      (b.fields || []).forEach(function (f) { var st = S[f.id].st; if (f.calc || f.opt || st === 'preset') return; tot++; if (st !== 'empty') fill++; if (st === 'verify') ver++; });
       if (b.list) { var n = R[b.list].length; fill += n; tot += n; R[b.list].forEach(function (r) { if (r.st === 'verify') ver++; }); }
     });
     return { tot: tot, fill: fill, ver: ver };
   }
   function redraw() {
-    var nav = '<div class="sep">Client answers</div>';
-    var A = 0, V = 0, E = 0;
-    SECTIONS.forEach(function (s, i) {
-      if (s.id === 'adv') nav += '<div class="sep">Advisor</div>';
-      var c = counts(s); if (s.tier === 'A') { A += c.fill; V += c.ver; E += c.tot - c.fill; }
-      nav += '<button type="button" data-sec="' + s.id + '"' + (s.id === cur ? ' aria-current="true"' : '') + '><span>' + esc(s.title) + '</span><span class="n">' + (s.id === 'adv' ? '' : c.fill + '/' + c.tot) + '</span></button>';
+    var nav = '<div class="sep">Client answers</div>', A = 0, V = 0, E = 0, lastAdv = false;
+    SECTIONS.forEach(function (s) {
+      if (s.adv && !lastAdv) { nav += '<div class="sep">Advisor</div>'; lastAdv = true; }
+      var c = counts(s); if (!s.adv) { A += c.fill; V += c.ver; E += c.tot - c.fill; }
+      nav += '<button type="button" data-sec="' + s.id + '"' + (s.id === cur ? ' aria-current="true"' : '') + '><span>' + esc(s.title) + '</span><span class="n">' + (s.adv ? '' : c.fill + '/' + c.tot) + '</span></button>';
     });
     $('#nav').innerHTML = nav;
     var sec = SECTIONS.filter(function (s) { return s.id === cur; })[0];
-    var h = '<header><h2>' + esc(sec.title) + '</h2><span class="tier ' + (sec.tier === 'C' ? 'c' : '') + '">' + (sec.tier === 'C' ? 'Advisor only' : 'Filled live') + '</span></header>';
+    var h = '<header><h2>' + esc(sec.title) + '</h2><span class="tier ' + (sec.adv ? 'c' : '') + '">' + (sec.adv ? 'Advisor only' : 'Filled live') + '</span></header>';
     sec.blocks.forEach(function (b) {
-      if (b.adv) { h += advHTML(); return; }
+      if (b.docs) { h += docsHTML(); return; }
       if (b.note) { h += '<div class="note ' + (b.cls || '') + '">' + b.note + '</div>'; return; }
+      if (b.cond && !b.cond()) { h += '<div class="block-title">' + esc(b.title) + '</div><div class="note">' + esc(b.condMsg) + '</div>'; return; }
       if (b.title) h += '<div class="block-title">' + esc(b.title) + '</div>';
       if (b.fields) h += '<div class="grid">' + b.fields.map(fieldHTML).join('') + '</div>';
       if (b.list) { h += (b.title ? '' : '<div class="block-title">' + esc(LISTS[b.list].title) + '</div>') + listHTML(b.list); }
     });
     $('#main').innerHTML = h;
-    // log
     $('#log').innerHTML = LOG.map(function (m) {
       if (m.skip) return '<div class="msg skip"><span class="who">Client · ignored (general conversation)</span>' + esc(m.t) + '</div>';
       return '<div class="msg ' + m.w + '"><span class="who">' + (m.w === 'q' ? 'You asked' : 'Client said') + '</span>' + esc(m.t) +
@@ -511,9 +703,14 @@ tfoot td { background: var(--surface-2); font-weight: 600; font-variant-numeric:
 
   /* ---------- events ---------- */
   document.addEventListener('click', function (e) {
-    var t = e.target.closest('[data-sec],[data-accept],[data-add],[data-del]');
+    var t = e.target.closest('[data-sec],[data-accept],[data-add],[data-del],[data-lookup]');
     if (!t) return;
     if (t.dataset.sec) { cur = t.dataset.sec; redraw(); return; }
+    if (t.dataset.lookup) {
+      var id = t.dataset.lookup; t.textContent = 'Searching…';
+      setTimeout(function () { S[id] = { v: LOOKUP[id], st: 'heard' }; flashId = id; redraw(); }, 700);
+      return;
+    }
     if (t.dataset.accept) {
       var a = t.dataset.accept;
       if (a.indexOf('row:') === 0) { var p = a.split(':'); R[p[1]][+p[2]].st = 'confirmed'; } else { S[a].st = 'confirmed'; }
@@ -533,7 +730,7 @@ tfoot td { background: var(--surface-2); font-weight: 600; font-variant-numeric:
 
   cur = 'info';
   initState(); seed(); redraw();
-  var secs = 760 + 0, tick = function () { secs++; var h = Math.floor(secs / 3600), m = Math.floor(secs % 3600 / 60), s = secs % 60; $('#clock').textContent = [h, m, s].map(function (x) { return (x < 10 ? '0' : '') + x; }).join(':'); };
+  var secs = 760, tick = function () { secs++; var h = Math.floor(secs / 3600), m = Math.floor(secs % 3600 / 60), s = secs % 60; $('#clock').textContent = [h, m, s].map(function (x) { return (x < 10 ? '0' : '') + x; }).join(':'); };
   setInterval(tick, 1000);
 })();
 </script>
