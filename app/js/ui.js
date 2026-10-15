@@ -5,11 +5,24 @@
   var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
   var DRAFT_KEY = 'wr-fact-find-draft';
 
-  var state, cur = 'info', fileHandle = null, dirty = false, lastSaved = null, toastTimer = null;
+  var state, cur = 'info', fileHandle = null, fileBase = '', dirty = false, lastSaved = null, toastTimer = null;
   var ctx = function () { return store.ctxFor(state); };
 
   /* ---------- drafts and saving ---------- */
-  function saveDraft() { try { localStorage.setItem(DRAFT_KEY, store.toJSON(state)); } catch (e) { /* storage unavailable */ } }
+  function saveDraft() { try { localStorage.setItem(DRAFT_KEY, store.toJSON(state)); localStorage.setItem(DRAFT_KEY + '-file', fileBase); } catch (e) { /* storage unavailable */ } }
+  /* The file a client was last opened from or saved to is remembered, so Save writes back to it even after Chrome is closed. */
+  function idb(fn) {
+    return new Promise(function (resolve) {
+      try {
+        var rq = indexedDB.open('wr-fact-find', 1);
+        rq.onupgradeneeded = function () { rq.result.createObjectStore('h'); };
+        rq.onsuccess = function () { try { fn(rq.result.transaction('h', 'readwrite').objectStore('h'), resolve); } catch (e) { resolve(null); } };
+        rq.onerror = function () { resolve(null); };
+      } catch (e) { resolve(null); }
+    });
+  }
+  function rememberHandle(h) { return idb(function (st, done) { var r = h ? st.put(h, 'current') : st.delete('current'); r.onsuccess = function () { done(true); }; r.onerror = function () { done(null); }; }); }
+  function recallHandle() { return idb(function (st, done) { var r = st.get('current'); r.onsuccess = function () { done(r.result || null); }; r.onerror = function () { done(null); }; }); }
   function loadDraft() { try { var t = localStorage.getItem(DRAFT_KEY); return t ? store.fromJSON(t) : null; } catch (e) { return null; } }
   function touch() { dirty = true; saveDraft(); refreshChrome(); }
   function toast(msg) {
@@ -20,42 +33,57 @@
     var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
     document.body.appendChild(a); a.click(); a.remove(); setTimeout(function () { URL.revokeObjectURL(a.href); }, 2000);
   }
-  /* Uses the Windows "Save as" dialog where the browser offers it (Edge, Chrome), otherwise a normal download. */
-  function writeFile(blob, name, type, ext, handle) {
+  /* Uses the Windows "Save as" dialog where the browser offers it (Chrome, Edge), otherwise a normal download.
+     With a remembered file it writes straight back to that file. The dialog remembers the last folder for each kind of file. */
+  function writeFile(blob, name, type, ext, handle, id) {
     if (!window.showSaveFilePicker) { download(blob, name); return Promise.resolve(null); }
-    var open = handle ? Promise.resolve(handle) : window.showSaveFilePicker({ suggestedName: name, types: [{ description: type, accept: (function () { var a = {}; a[blob.type] = [ext]; return a; })() }] });
+    var accept = {}; accept[blob.type] = [ext];
+    var open = handle
+      ? Promise.resolve(handle.requestPermission ? handle.requestPermission({ mode: 'readwrite' }) : 'granted').then(function (p) { if (p !== 'granted') throw new Error('Chrome did not allow changes to that file.'); return handle; })
+      : window.showSaveFilePicker({ id: id, suggestedName: name, types: [{ description: type, accept: accept }] });
     return open.then(function (h) { return h.createWritable().then(function (w) { return w.write(blob).then(function () { return w.close(); }); }).then(function () { return h; }); });
   }
+  function currentBase() { return fileBase || store.baseFileName(state); }
   function saveJson(forceAs) {
     var blob = new Blob([store.toJSON(state)], { type: 'application/json' });
-    writeFile(blob, store.baseFileName(state) + '.json', 'Fact Find', '.json', forceAs ? null : fileHandle).then(function (h) {
-      if (h) fileHandle = h;
+    writeFile(blob, currentBase() + '.json', 'Fact Find', '.json', forceAs ? null : fileHandle, 'fact-find-data').then(function (h) {
+      if (h) { fileHandle = h; fileBase = h.name.replace(/\.json$/i, ''); rememberHandle(h); }
+      else if (!fileBase) fileBase = currentBase();
       dirty = false; lastSaved = new Date(); saveDraft(); refreshChrome(); toast('Saved.');
     }).catch(function (e) { if (e && e.name !== 'AbortError') toast('Could not save: ' + e.message); });
   }
   function makePdf() { return FF.pdf.build(state); }
   function savePdf() {
     var blob = makePdf().output('blob');
-    writeFile(blob, store.baseFileName(state) + '.pdf', 'PDF document', '.pdf', null)
+    writeFile(blob, currentBase() + '.pdf', 'PDF document', '.pdf', null, 'fact-find-pdf')
       .then(function () { toast('PDF saved.'); })
       .catch(function (e) { if (e && e.name !== 'AbortError') toast('Could not save the PDF: ' + e.message); });
   }
   function previewPdf() {
     var url = URL.createObjectURL(makePdf().output('blob'));
     var w = window.open(url, '_blank');
-    if (!w) download(makePdf().output('blob'), store.baseFileName(state) + '.pdf');
+    if (!w) download(makePdf().output('blob'), currentBase() + '.pdf');
   }
-  function openFile(file) {
+  /* Opens a saved client. With Chrome's file picker the file is remembered, so Save writes back to it. */
+  function openFile(file, handle) {
     var r = new FileReader();
     r.onload = function () {
-      try { state = store.fromJSON(r.result); fileHandle = null; dirty = false; cur = 'info'; saveDraft(); redraw(); toast('Opened ' + file.name); }
-      catch (e) { toast(e.message || 'Could not open that file.'); }
+      try {
+        state = store.fromJSON(r.result); fileHandle = handle || null; fileBase = file.name.replace(/\.json$/i, '');
+        dirty = false; cur = 'info'; rememberHandle(handle || null); saveDraft(); redraw(); toast('Opened ' + file.name);
+      } catch (e) { toast(e.message || 'Could not open that file.'); }
     };
     r.readAsText(file);
   }
+  function chooseFile() {
+    if (!window.showOpenFilePicker) { $('#fileIn').click(); return; }
+    window.showOpenFilePicker({ id: 'fact-find-data', types: [{ description: 'Fact Find', accept: { 'application/json': ['.json'] } }] })
+      .then(function (hs) { return hs[0].getFile().then(function (f) { openFile(f, hs[0]); }); })
+      .catch(function (e) { if (e && e.name !== 'AbortError') toast('Could not open: ' + e.message); });
+  }
   function newClient() {
     if (dirty && !window.confirm('Start a new Fact Find? Changes you have not saved will be lost.')) return;
-    state = store.blank(); fileHandle = null; dirty = false; lastSaved = null; cur = 'info'; saveDraft(); redraw();
+    state = store.blank(); fileHandle = null; fileBase = ''; rememberHandle(null); dirty = false; lastSaved = null; cur = 'info'; saveDraft(); redraw();
   }
 
   /* ---------- rendering ---------- */
@@ -166,7 +194,7 @@
     var name = store.clientName(state);
     $('#clientName').textContent = name || 'New client';
     document.title = 'Fact Find' + (name ? ' - ' + name : '');
-    $('#saveState').textContent = dirty ? 'Unsaved changes' : (lastSaved ? 'Saved ' + lastSaved.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '');
+    $('#saveState').textContent = (fileBase ? fileBase + ' · ' : '') + (dirty ? 'unsaved changes' : (lastSaved ? 'saved ' + lastSaved.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'no changes'));
     var A = 0, V = 0, E = 0;
     schema.sections.forEach(function (s) {
       var c = store.counts(state, s);
@@ -270,7 +298,7 @@
   window.addEventListener('beforeunload', function (e) { if (dirty) { e.preventDefault(); e.returnValue = ''; } });
 
   $('#btnNew').addEventListener('click', newClient);
-  $('#btnOpen').addEventListener('click', function () { $('#fileIn').click(); });
+  $('#btnOpen').addEventListener('click', chooseFile);
   $('#fileIn').addEventListener('change', function (e) { if (e.target.files[0]) openFile(e.target.files[0]); e.target.value = ''; });
   $('#btnSave').addEventListener('click', function () { saveJson(false); });
   $('#btnSaveAs').addEventListener('click', function () { saveJson(true); });
@@ -309,6 +337,8 @@
 
   /* Start from the last draft on this computer, if any. */
   state = loadDraft() || store.blank();
+  try { fileBase = localStorage.getItem(DRAFT_KEY + '-file') || ''; } catch (e) { fileBase = ''; }
+  recallHandle().then(function (h) { if (h && fileBase) { fileHandle = h; } });
   dirty = false;
   window.FF.app = { get state() { return state; }, redraw: redraw, setState: function (s) { state = s; redraw(); }, makePdf: makePdf };
   redraw();
