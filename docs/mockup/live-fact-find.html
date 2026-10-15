@@ -223,7 +223,8 @@ tfoot td { background: var(--surface-2); font-weight: 600; font-variant-numeric:
     var m = /(\d{4})/.exec((S.dob && S.dob.v) || ''), age = m ? 2026 - parseInt(m[1], 10) : 40;
     var rebate = 17235 + (age >= 65 ? 9444 : 0) + (age >= 75 ? 3145 : 0);
     tax = Math.max(0, tax - rebate);
-    return fmt((ann - tax) / 12);
+    var uif = Math.min(g, 17712) * 0.01;
+    return fmt((ann - tax) / 12 - uif);
   }
   var kidsTotal = function () { return R.kids.reduce(function (a, r) { return a + num(r.d.cost); }, 0); };
   var debtTotal = function () { return R.debts.reduce(function (a, r) { return a + num(r.d.inst); }, 0); };
@@ -274,7 +275,7 @@ tfoot td { background: var(--surface-2); font-weight: 600; font-variant-numeric:
         { id: 'sp_occ', l: 'Spouse occupation', t: 'txt' }
       ] },
       { note: '<b>Direct Net Income</b> is worked out automatically from the gross income, using the SARS income tax tables, so you no longer type it into TaxTim. <b>Take-home net income</b> stays a separate field: what the employer actually pays after all deductions. <b>Spouse income, spouse date of birth and spouse smoker are removed</b> (handled in the spouse\'s own Fact Find). <b>Spouse telephone number added.</b>', cls: 'new' },
-      { note: '<b>About the calculation:</b> the figure above uses 2025/26 SARS rates for illustration (annual tax on gross × 12, less the age rebate, ÷ 12). It has not been compared with TaxTim yet. We would check it against several of your real TaxTim results before relying on it.' }
+      { note: '<b>About the calculation:</b> the figure is the monthly gross less PAYE and UIF, using the 2025/26 SARS rates. It matches all five of your TaxTim examples to the cent (R20 000 to R100 000 gross). The rates will be updated for the current tax year in the real build.' }
     ] },
     { id: 'occ', title: 'Occupation', blocks: [
       { title: 'Work', fields: [

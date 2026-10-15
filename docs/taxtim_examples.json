@@ -1,0 +1,35 @@
+{
+  "source": "TaxTim income tax calculator, tax year 2026 (Mar 2025 - Feb 2026), no pension, under 65",
+  "examples": [
+    {
+      "gross_monthly": 20000,
+      "paye": 2183.08,
+      "uif": 177.12,
+      "take_home": 17639.8
+    },
+    {
+      "gross_monthly": 40000,
+      "paye": 7839.33,
+      "uif": 177.12,
+      "take_home": 31983.55
+    },
+    {
+      "gross_monthly": 60000,
+      "paye": 15020.17,
+      "uif": 177.12,
+      "take_home": 44802.71
+    },
+    {
+      "gross_monthly": 80000,
+      "paye": 22990.33,
+      "uif": 177.12,
+      "take_home": 56832.55
+    },
+    {
+      "gross_monthly": 100000,
+      "paye": 31190.33,
+      "uif": 177.12,
+      "take_home": 68632.55
+    }
+  ]
+}
