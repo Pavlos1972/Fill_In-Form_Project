@@ -81,3 +81,11 @@ test('file name follows the meeting date and client', () => {
   const s = fresh(); set(s, 'fname', 'Thandi'); set(s, 'sname', 'Dlamini');
   assert.strictEqual(store.baseFileName(s), 'Fact Find - 2026-10-15 - Thandi Dlamini');
 });
+test('each debt has an Other bank box and its own notes', () => {
+  const cols = schema.lists.debts.cols.map(c => c.k);
+  assert.ok(cols.includes('prov_other') && cols.includes('notes'));
+  const s = fresh(); store.addRow(s, 'debts', { prov: 'Other', prov_other: 'Bidvest Bank', notes: 'Settling early' });
+  const back = store.fromJSON(store.toJSON(s));
+  assert.strictEqual(back.l.debts[0].d.prov_other, 'Bidvest Bank');
+  assert.strictEqual(back.l.debts[0].d.notes, 'Settling early');
+});

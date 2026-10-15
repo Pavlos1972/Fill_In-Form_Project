@@ -3,7 +3,7 @@
 (function () {
   var FF = window.FF, util = FF.util, schema = FF.schema, calc = FF.calc, store = FF.store;
 
-  var ACCENT = [27, 134, 184], ACCENT_SOFT = [225, 241, 248], INK = [19, 34, 44], MUTED = [89, 106, 118], LINE = [208, 220, 228], PALE = [246, 249, 251];
+  var ACCENT = [193, 95, 60], ACCENT_SOFT = [246, 227, 218], INK = [20, 20, 19], MUTED = [107, 106, 99], LINE = [220, 215, 201], PALE = [248, 245, 238];
   var M = 14, W = 210, PAGE_H = 297, CW = W - 2 * M;
 
   /* Standard PDF fonts cannot show every character. Keep to what they can. */
@@ -50,7 +50,7 @@
     y = ty + 8;
 
     function sectionHeading(title) {
-      ensure(24);
+      ensure(52);
       doc.setFillColor.apply(doc, ACCENT); doc.rect(M, y, CW, 7, 'F');
       doc.setFont('helvetica', 'bold'); doc.setFontSize(10.5); doc.setTextColor(255, 255, 255); doc.text(t(title.toUpperCase()), M + 2.5, y + 4.9);
       y += 10;
@@ -74,7 +74,7 @@
       }
       if (L.cards) {
         rows.forEach(function (r, i) {
-          var items = L.cols.map(function (c) { return { label: t(c.l.replace(/ \(from date of birth\)/, '')), value: cellText(c, r) }; });
+          var items = L.cols.map(function (c) { return { label: t(c.l.replace(/ \(from date of birth\)/, '')), value: cellText(c, r), wide: !!c.wide }; });
           ensure(40);
           table({ head: [[{ content: L.cards + ' ' + (i + 1), colSpan: 4 }]], body: fieldRows(items), columnStyles: PAIR_COLS });
           y -= 2;

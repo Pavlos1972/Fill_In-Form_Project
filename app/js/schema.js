@@ -27,22 +27,28 @@
   }
 
   var sections = [
-    { id: 'info', title: 'Client info', blocks: [
-      { fields: [
+    { id: 'info', title: 'Client info', roomy: 1, blocks: [
+      { title: 'Meeting', fields: [
         { id: 'consent', l: 'Consent to record and transcribe', t: 'sel', o: YN },
         { id: 'advisor', l: 'Advisor', t: 'txt', preset: 'Paul Kafentzis' },
         { id: 'date', l: 'Date completed', t: 'txt', preset: '@today' },
-        { id: 'meet', l: 'Type of meeting', t: 'sel', o: ['Teams Meeting', 'Telephonic Meeting', 'Physical Meeting', 'Other'], preset: 'Teams Meeting' },
+        { id: 'meet', l: 'Type of meeting', t: 'sel', o: ['Teams Meeting', 'Telephonic Meeting', 'Physical Meeting', 'Other'], preset: 'Teams Meeting' }
+      ] },
+      { title: 'Client', fields: [
         { id: 'fname', l: 'First name', t: 'txt' },
         { id: 'sname', l: 'Surname', t: 'txt', risky: 1 },
         { id: 'dob', l: 'Date of birth', t: 'txt', risky: 1, hint: 'e.g. 1986-03-14' },
         { id: 'idtype', l: 'ID or passport', t: 'sel', o: ['ID', 'Passport'] },
         { id: 'idno', l: 'ID / passport number', t: 'txt', risky: 1 },
-        { id: 'tax', l: 'Income tax number', t: 'txt', risky: 1 },
+        { id: 'tax', l: 'Income tax number', t: 'txt', risky: 1 }
+      ] },
+      { title: 'Contact details', fields: [
         { id: 'cell', l: 'Cell number', t: 'txt', risky: 1 },
         { id: 'work', l: 'Work number', t: 'txt', risky: 1 },
         { id: 'pemail', l: 'Personal email', t: 'txt', risky: 1 },
-        { id: 'wemail', l: 'Work email', t: 'txt', risky: 1 },
+        { id: 'wemail', l: 'Work email', t: 'txt', risky: 1 }
+      ] },
+      { title: 'Background', fields: [
         { id: 'nat', l: 'Nationality', t: 'sel', o: ['South African', 'Other'] },
         { id: 'smoker', l: 'Smoker', t: 'sel', o: ['Non-smoker', 'Smoker'] },
         { id: 'ref', l: 'Referral from', t: 'sel', o: ['D&R Marketing', 'Current client', 'Referral prospect', 'Spouse', 'Other'] },
@@ -51,7 +57,7 @@
       ] }
     ] },
 
-    { id: 'income', title: 'Income & household', blocks: [
+    { id: 'income', roomy: 1, title: 'Income & household', blocks: [
       { fields: [
         { id: 'gross', l: 'Gross monthly income (R)', t: 'txt', risky: 1 },
         { id: 'dnet', l: 'Direct Net Income (R p.m.)', t: 'txt', calc: 'dnet', link: ['Check on TaxTim', 'https://www.taxtim.com/za/calculators/income-tax'] },
@@ -115,7 +121,7 @@
       { fields: [N('n_inv')] }
     ] },
 
-    { id: 'other', title: 'Medical, will & short-term', blocks: [
+    { id: 'other', roomy: 1, title: 'Medical, will & short-term', blocks: [
       { title: 'Medical aid', fields: [
         { id: 'ma', l: 'Medical aid', t: 'sel', o: ['Medical aid', 'Hospital plan', 'None'] },
         { id: 'ma_prov', l: 'Medical aid provider', t: 'sel', free: 1, o: ['Discovery Health', 'Momentum', 'Bonitas', 'Bestmed', 'Fedhealth', 'Medihelp', 'KeyHealth', 'Medshield', 'GEMS', 'POLMED', 'Other'] },
@@ -148,7 +154,7 @@
       ] }
     ] },
 
-    { id: 'health', title: 'Health', blocks: [
+    { id: 'health', roomy: 1, title: 'Health', blocks: [
       { fields: [
         { id: 'h_gen', l: 'General health good', t: 'sel', o: YN },
         { id: 'h_dia', l: 'Diabetes / high sugar', t: 'sel', o: YN },
@@ -186,7 +192,7 @@
       { title: 'Investment quotes', list: 'invq' },
       { fields: [N('n_q_ret')] }
     ] },
-    { id: 'q_ref', adv: 1, title: 'Referrals & documents', blocks: [
+    { id: 'q_ref', adv: 1, roomy: 1, title: 'Referrals & documents', blocks: [
       { title: 'Referrals', fields: [
         { id: 'ref_sti', l: 'Short-term (Cameron)', t: 'sel', o: ['Cameron to contact client', 'Must not contact client', 'Client has own broker', 'Not interested'] },
         { id: 'ref_med', l: 'Medical & gap (Valerie)', t: 'sel', o: ['Valerie to contact for medical aid', 'Valerie to contact for gap cover', 'Valerie to contact for both', 'Not required'] },
@@ -243,7 +249,7 @@
         N('ip_cmt', 'Comments')
       ] }
     ] },
-    { id: 'q_biz', adv: 1, title: 'Business assurance', cond: BIZ, condMsg: 'Business assurance applies only when Business owner is set to Yes on the Occupation page.', blocks: [
+    { id: 'q_biz', adv: 1, roomy: 1, title: 'Business assurance', cond: BIZ, condMsg: 'Business assurance applies only when Business owner is set to Yes on the Occupation page.', blocks: [
       { title: 'Buy & Sell', help: 'Partner names, ID numbers, cell numbers and shareholding % come from the Partners and shareholders list on the Occupation page.', fields: [
         { id: 'bs_req', l: 'Buy & Sell quote', t: 'sel', o: REQ },
         { id: 'bs_ins', l: 'Insurer', t: 'sel', free: 1, o: INS },
@@ -287,10 +293,11 @@
       { k: 'name', l: 'Full name' }, { k: 'id', l: 'ID number' }, { k: 'cell', l: 'Cell number' }, { k: 'pct', l: 'Shareholding %', num: 1 }
     ], sum: {} },
     debts: { cards: 'Debt', title: 'Debts', add: 'Add debt', cols: [
-      { k: 'prov', l: 'Loan provider / bank', o: BANKS, free: 1 }, { k: 'type', l: 'Type', o: ['Home loan', 'Vehicle finance', 'Credit card', 'Personal loan', 'Revolving credit', 'Other'] },
+      { k: 'prov', l: 'Loan provider / bank', o: BANKS }, { k: 'prov_other', l: 'Other (if the bank is not in the list)' }, { k: 'type', l: 'Type', o: ['Home loan', 'Vehicle finance', 'Credit card', 'Personal loan', 'Revolving credit', 'Other'] },
       { k: 'desc', l: 'Description' }, { k: 'owner', l: 'Owner', o: WHO }, { k: 'payer', l: 'Payer', o: WHO }, { k: 'term', l: 'Term left' },
       { k: 'inst', l: 'Instalment (R p.m.)', num: 1 }, { k: 'bal', l: 'Balance (R)', num: 1 }, { k: 'asset', l: 'Asset value (R)', num: 1 },
-      { k: 'cl', l: 'Credit life with lender', o: YN }, { k: 'surety', l: 'Surety signed', o: ['Yes', 'No', 'Unsure'] }
+      { k: 'cl', l: 'Credit life with lender', o: YN }, { k: 'surety', l: 'Surety signed', o: ['Yes', 'No', 'Unsure'] },
+      { k: 'notes', l: 'Notes', t: 'area', wide: 1 }
     ], sum: { inst: 'Total monthly', bal: 'Total liabilities', asset: 'Total assets' } },
     kids: { cards: 'Child', title: 'Children', add: 'Add child', cols: [
       { k: 'name', l: 'Name & surname' }, { k: 'gender', l: 'Gender', o: ['Female', 'Male'] }, { k: 'dob', l: 'Date of birth' },
