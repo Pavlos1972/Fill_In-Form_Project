@@ -62,7 +62,15 @@
       });
     });
     s.docs = j.docs || {};
+    tidyAmounts(s);
     return s;
+  }
+  /* Older drafts and files may hold amounts typed as plain numbers. Show them all as Rand with two decimals. */
+  function tidyAmounts(s) {
+    Object.keys(schema.fieldsById).forEach(function (id) { var d = schema.fieldsById[id]; if (d.money && s.f[id]) s.f[id].v = util.formatMoney(s.f[id].v); });
+    Object.keys(schema.lists).forEach(function (k) {
+      schema.lists[k].cols.forEach(function (c) { if (c.money) s.l[k].forEach(function (r) { r.d[c.k] = util.formatMoney(r.d[c.k]); }); });
+    });
   }
   function toJSON(state) { state.modified = new Date().toISOString(); return JSON.stringify(state, null, 2); }
 
