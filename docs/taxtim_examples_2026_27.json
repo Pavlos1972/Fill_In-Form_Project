@@ -1,0 +1,25 @@
+{
+  "source": "TaxTim income tax calculator, current tax year (2026/27), no pension, under 65",
+  "examples": [
+    {
+      "gross_monthly": 20000,
+      "take_home": 17707.88
+    },
+    {
+      "gross_monthly": 40000,
+      "take_home": 32138.13
+    },
+    {
+      "gross_monthly": 60000,
+      "take_home": 45086.8
+    },
+    {
+      "gross_monthly": 80000,
+      "take_home": 57165.13
+    },
+    {
+      "gross_monthly": 100000,
+      "take_home": 68965.13
+    }
+  ]
+}

@@ -215,13 +215,13 @@ tfoot td { background: var(--surface-2); font-weight: 600; font-variant-numeric:
   var N = function (id, l) { return { id: id, l: l || 'Notes', t: 'area', wide: 1, opt: 1 }; };
 
   /* ---------- Direct Net Income (illustrative SARS calculation) ---------- */
-  var BRK = [[237100, 0, .18, 0], [370500, 42678, .26, 237100], [512800, 77362, .31, 370500], [673000, 121475, .36, 512800], [857900, 179147, .39, 673000], [1817000, 251258, .41, 857900], [1e12, 644489, .45, 1817000]];
+  var BRK = [[245100, 0, .18, 0], [383100, 44118, .26, 245100], [530200, 79998, .31, 383100], [695800, 125599, .36, 530200], [887000, 185215, .39, 695800], [1878600, 259783, .41, 887000], [1e12, 659969, .45, 1878600]];
   function directNet() {
     var g = num(S.gross && S.gross.v); if (!g) return '';
     var ann = g * 12, tax = 0, i;
     for (i = 0; i < BRK.length; i++) if (ann <= BRK[i][0]) { tax = BRK[i][1] + BRK[i][2] * (ann - BRK[i][3]); break; }
     var m = /(\d{4})/.exec((S.dob && S.dob.v) || ''), age = m ? 2026 - parseInt(m[1], 10) : 40;
-    var rebate = 17235 + (age >= 65 ? 9444 : 0) + (age >= 75 ? 3145 : 0);
+    var rebate = 17820 + (age >= 65 ? 9765 : 0) + (age >= 75 ? 3249 : 0);
     tax = Math.max(0, tax - rebate);
     var uif = Math.min(g, 17712) * 0.01;
     return fmt((ann - tax) / 12 - uif);
@@ -275,7 +275,7 @@ tfoot td { background: var(--surface-2); font-weight: 600; font-variant-numeric:
         { id: 'sp_occ', l: 'Spouse occupation', t: 'txt' }
       ] },
       { note: '<b>Direct Net Income</b> is worked out automatically from the gross income, using the SARS income tax tables, so you no longer type it into TaxTim. <b>Take-home net income</b> stays a separate field: what the employer actually pays after all deductions. <b>Spouse income, spouse date of birth and spouse smoker are removed</b> (handled in the spouse\'s own Fact Find). <b>Spouse telephone number added.</b>', cls: 'new' },
-      { note: '<b>About the calculation:</b> the figure is the monthly gross less PAYE and UIF, using the 2025/26 SARS rates. It matches all five of your TaxTim examples to the cent (R20 000 to R100 000 gross). The rates will be updated for the current tax year in the real build.' }
+      { note: '<b>About the calculation:</b> the figure is the monthly gross less PAYE and UIF, using the 2026/27 SARS rates. It matches all five of your TaxTim results to the cent (R20 000 to R100 000 gross, no pension, under 65). Pension contributions and medical credits are not included yet.' }
     ] },
     { id: 'occ', title: 'Occupation', blocks: [
       { title: 'Work', fields: [
