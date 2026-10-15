@@ -40,14 +40,14 @@
       after();
     }
     /* ----- first page header ----- */
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(15); doc.setTextColor.apply(doc, ACCENT); doc.text('WEALTH REVOLUTION', M, 17);
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor.apply(doc, MUTED); doc.text('INSURANCE & INVESTMENT BROKERS', M, 21.5);
-    doc.setDrawColor.apply(doc, ACCENT); doc.setLineWidth(0.6); doc.line(M, 24, W - M, 24);
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(18); doc.setTextColor.apply(doc, INK); doc.text('CLIENT FACT FIND', M, 35);
+    var logo = FF.logo, lw = 46, lh = lw * logo.h / logo.w;
+    doc.addImage(logo.data, 'PNG', M, 8, lw, lh);
+    doc.setDrawColor.apply(doc, ACCENT); doc.setLineWidth(0.6); doc.line(M, 8 + lh + 3, W - M, 8 + lh + 3);
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(18); doc.setTextColor.apply(doc, INK); var ty = 8 + lh + 12; doc.text('CLIENT FACT FIND', M, ty);
     doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor.apply(doc, MUTED);
-    doc.text(t(name), W - M, 31, { align: 'right' });
-    doc.text('Completed ' + t(state.f.date.v) + '  |  Advisor ' + t(state.f.advisor.v), W - M, 36, { align: 'right' });
-    y = 42;
+    doc.text(t(name), W - M, ty - 4, { align: 'right' });
+    doc.text('Completed ' + t(state.f.date.v) + '  |  Advisor ' + t(state.f.advisor.v), W - M, ty + 1, { align: 'right' });
+    y = ty + 8;
 
     function sectionHeading(title) {
       ensure(24);
@@ -56,7 +56,7 @@
       y += 10;
     }
     function blockTitle(title) {
-      ensure(18);
+      ensure(34);
       doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor.apply(doc, ACCENT); doc.text(t(title), M, y + 3);
       y += 5;
     }
