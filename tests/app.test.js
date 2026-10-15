@@ -36,11 +36,11 @@ test('disposable income and the risk calculation use take-home, childcare and de
   const s = fresh(); set(s, 'net', '32000'); set(s, 'exp', '20000');
   store.addRow(s, 'debts', { inst: '11 400' }); store.addRow(s, 'kids', { dob: '2019-08-22', cost: '2 500' });
   const c = store.ctxFor(s);
-  assert.strictEqual(calc.field('disp', c), 'R 12 000');
-  assert.strictEqual(calc.field('hh', c), 'R 32 000');
-  assert.strictEqual(calc.field('cc', c), 'R 2 500');
-  assert.strictEqual(calc.field('dr', c), 'R 11 400');
-  assert.strictEqual(calc.field('need', c), 'R 18 100');
+  assert.strictEqual(calc.field('disp', c), 'R 12 000.00');
+  assert.strictEqual(calc.field('hh', c), 'R 32 000.00');
+  assert.strictEqual(calc.field('cc', c), 'R 2 500.00');
+  assert.strictEqual(calc.field('dr', c), 'R 11 400.00');
+  assert.strictEqual(calc.field('need', c), 'R 18 100.00');
 });
 test('education stage comes from the date of birth', () => {
   const s = fresh(); const c = store.ctxFor(s);

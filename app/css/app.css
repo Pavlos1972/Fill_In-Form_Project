@@ -209,3 +209,35 @@ th { background: var(--accent-soft); color: var(--accent); }
 .roomy .help { margin-bottom: 18px; }
 .roomy .check { padding: 9px 0; font-size: 15px; }
 .roomy .note { padding: 14px 16px; }
+
+/* 12-column pages: each field says how many columns it takes. */
+.grid.g12 { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); }
+.g12 > .f { grid-column: span var(--s, 4); }
+@media (max-width: 1100px) { .g12 > .f { grid-column: span 6; } .g12 > .f.wide { grid-column: span 12; } }
+@media (max-width: 640px) { .g12 > .f { grid-column: span 12; } }
+.nonebox { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--muted); cursor: pointer; white-space: nowrap; }
+.nonebox input { width: auto; min-height: 0; margin: 0; accent-color: var(--accent); }
+.f > span.l { align-items: baseline; }
+
+/* A page that fits one screen: tighter rhythm. */
+.main.roomy.fit { padding: 20px 30px 24px; }
+.fit header { margin-bottom: 4px; }
+.fit .grid { gap: 14px 22px; }
+.fit .f { gap: 5px; }
+.fit .f input, .fit .f select { min-height: 40px; }
+.fit .f textarea { min-height: 40px; height: 40px; }
+.fit .block-title { margin: 18px 0 10px; }
+.fit header + .block-title { margin-top: 10px; }
+
+dialog { border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--ink); padding: 22px 24px; width: min(480px, 92vw); }
+dialog::backdrop { background: rgba(20, 20, 19, .55); }
+dialog h2 { margin: 0 0 8px; font-size: 18px; }
+dialog .f { margin-top: 12px; }
+dialog .f input, dialog .f select { padding-right: 9px; background: var(--surface); }
+.dlg-actions { display: flex; gap: 8px; margin-top: 16px; align-items: center; }
+/* Keep label rows the same height so boxes line up, even when a row has a tick box. */
+.f > span.l { min-height: 22px; align-items: center; }
+.main .f .nonebox input { width: 14px; height: 14px; min-height: 0; padding: 0; border: 0; background: none; }
+.f.s-preset .st { display: none; }
+.f.s-preset input, .f.s-preset select { padding-right: 9px; }
+.f.s-calc input { padding-right: 74px; }

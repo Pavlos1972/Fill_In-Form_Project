@@ -76,14 +76,17 @@
     if (def.t === 'area') return '<textarea ' + attrs + '>' + esc(v) + '</textarea>';
     return '<input ' + attrs + ' value="' + esc(v) + '"' + (disabled ? ' readonly' : '') + ' autocomplete="off">';
   }
-  function fieldHTML(f) {
-    var c = state.f[f.id], st = c.st, v = c.v;
+  function fieldHTML(f, g12) {
+    var c = state.f[f.id], st = c.st, v = c.v, isNone = !!f.none && v === 'None';
     if (f.calc) { v = FF.calc.field(f.calc, ctx()); st = 'calc'; }
     var rt = f.link ? '<a class="lnk" href="' + f.link[1] + '" target="_blank" rel="noopener">' + esc(f.link[0]) + ' ↗</a>' : '';
+    if (f.lookup) rt += '<button type="button" class="lookup" data-lookup="' + f.id + '">Look up online</button>';
+    if (f.none) rt += '<label class="nonebox"><input type="checkbox" data-none="' + f.id + '"' + (isNone ? ' checked' : '') + '> ' + esc(f.none) + '</label>';
     if (f.t === 'area' && !f.opt) rt += badge(st, 'f:' + f.id);
     var attrs = 'data-f="' + f.id + '"' + (f.hint ? ' placeholder="' + esc(f.hint) + '"' : '');
-    return '<label class="f s-' + st + (f.wide ? ' wide' : '') + '" data-field="' + f.id + '"><span class="l"><span>' + esc(f.l) + '</span>' + (rt ? '<span class="rt">' + rt + '</span>' : '') + '</span>' +
-      '<span class="box">' + control(attrs, f, v, !!f.calc) + (f.t === 'area' ? '' : '<span class="st">' + badge(st, 'f:' + f.id) + '</span>') + '</span>' +
+    var style = g12 ? ' style="--s:' + (f.wide ? 12 : (f.s || 4)) + '"' : '';
+    return '<label class="f s-' + st + (f.wide ? ' wide' : '') + '" data-field="' + f.id + '"' + style + '><span class="l"><span>' + esc(f.l) + '</span>' + (rt ? '<span class="rt">' + rt + '</span>' : '') + '</span>' +
+      '<span class="box">' + control(attrs, f, v, !!f.calc || isNone) + (f.t === 'area' ? '' : '<span class="st">' + badge(st, 'f:' + f.id) + '</span>') + '</span>' +
       '<span class="warn" data-warn="' + f.id + '" hidden></span></label>';
   }
   function cellHTML(key, i, c, r, card) {
@@ -136,7 +139,7 @@
       if (!calc.showIf(b.cond, c)) { h += '<div class="block-title">' + esc(b.title) + '</div><div class="note">' + esc(b.condMsg) + '</div>'; return; }
       if (b.title) h += '<div class="block-title">' + esc(b.title) + '</div>';
       if (b.help) h += '<p class="help">' + esc(b.help) + '</p>';
-      if (b.fields) h += '<div class="grid">' + b.fields.map(fieldHTML).join('') + '</div>';
+      if (b.fields) h += '<div class="grid' + (b.layout === 'g12' ? ' g12' : '') + '">' + b.fields.map(function (f) { return fieldHTML(f, b.layout === 'g12'); }).join('') + '</div>';
       if (b.docs) h += docsHTML();
       if (b.list) { if (!b.title && schema.lists[b.list].title !== sec.title) h += '<div class="block-title">' + esc(schema.lists[b.list].title) + '</div>'; h += listHTML(b.list); }
     });
@@ -146,7 +149,7 @@
   function redraw() {
     renderNav();
     var sec = schema.sections.filter(function (x) { return x.id === cur; })[0], main = $('#main');
-    main.className = 'main' + (sec.roomy ? ' roomy' : '') + (sec.adv ? ' advisor' : '');
+    main.className = 'main' + (sec.roomy ? ' roomy' : '') + (sec.fit ? ' fit' : '') + (sec.adv ? ' advisor' : '');
     main.innerHTML = sectionHTML(sec);
     refreshChrome(); refreshWarnings();
   }
@@ -215,9 +218,10 @@
   schema.sections.forEach(function (s) { calc.condFields(s.cond).concat([].concat.apply([], s.blocks.map(function (b) { return calc.condFields(b.cond); }))).forEach(function (id) { condIds[id] = 1; }); });
 
   document.addEventListener('click', function (e) {
-    var t = e.target.closest('[data-sec],[data-accept],[data-add],[data-del],[data-goto],[data-usedob]');
+    var t = e.target.closest('[data-sec],[data-accept],[data-add],[data-del],[data-goto],[data-usedob],[data-lookup]');
     if (!t) return;
     if (t.dataset.sec) { cur = t.dataset.sec; redraw(); window.scrollTo(0, 0); return; }
+    if (t.dataset.lookup) { doLookup(t); return; }
     if (t.dataset.goto) {
       cur = t.dataset.goto; redraw();
       if (t.dataset.gofield) { var el = document.querySelector('[data-f="' + t.dataset.gofield + '"]'); if (el) el.focus(); }
@@ -234,13 +238,31 @@
   });
   document.addEventListener('change', function (e) {
     var t = e.target;
+    if (t.dataset.none) {
+      store.setField(state, t.dataset.none, t.checked ? 'None' : '');
+      var wrapN = t.closest('.f'); if (wrapN) wrapN.outerHTML = fieldHTML(schema.fieldsById[t.dataset.none], !!document.querySelector('.g12'));
+      touch(); refreshLive();
+      if (!t.checked) { var back = document.querySelector('[data-f="' + t.dataset.none + '"]'); if (back) back.focus(); }
+      return;
+    }
     if (t.dataset.f) {
-      store.setField(state, t.dataset.f, t.value.trim() === '' ? '' : t.value);
+      var def = schema.fieldsById[t.dataset.f], val = t.value.trim() === '' ? '' : t.value;
+      if (def && def.money) { val = util.formatMoney(val); t.value = val; }
+      store.setField(state, t.dataset.f, val);
       var wrap = t.closest('.f'); if (wrap) { wrap.className = wrap.className.replace(/\bs-\w+/, 's-' + state.f[t.dataset.f].st); var b = wrap.querySelector('.st'); if (b) b.innerHTML = badge(state.f[t.dataset.f].st, 'f:' + t.dataset.f); }
       touch();
       if (condIds[t.dataset.f]) { redraw(); var again = document.querySelector('[data-f="' + t.dataset.f + '"]'); if (again) again.focus(); } else refreshLive();
     } else if (t.dataset.l) {
-      store.setCell(state, t.dataset.l, +t.dataset.i, t.dataset.k, t.value);
+      var key = t.dataset.l, i = +t.dataset.i, k = t.dataset.k, col = schema.lists[key].cols.filter(function (c) { return c.k === k; })[0], row0 = state.l[key][i];
+      var v2 = t.value;
+      if (col && col.money) { v2 = util.formatMoney(v2); t.value = v2; }
+      /* A child's education stage follows the date of birth until it is set by hand. */
+      var autoStage = key === 'kids' && k === 'dob' && (row0.d.stage === '' || row0.d.stage === FF.calc.rowCalc('stage', row0, ctx()));
+      store.setCell(state, key, i, k, v2);
+      if (autoStage) {
+        row0.d.stage = FF.calc.rowCalc('stage', row0, ctx());
+        var sel = document.querySelector('[data-l="kids"][data-i="' + i + '"][data-k="stage"]'); if (sel) sel.value = row0.d.stage;
+      }
       var row = t.closest('.rowcard, tr'); if (row) row.className = row.className.replace(/\bs-(heard|verify)\b/, 's-confirmed');
       touch(); refreshLive();
     } else if (t.dataset.doc) { state.docs[t.dataset.doc] = t.checked ? 1 : 0; touch(); }
@@ -255,6 +277,35 @@
   $('#btnPreview').addEventListener('click', previewPdf);
   $('#btnPdf').addEventListener('click', savePdf);
   document.addEventListener('keydown', function (e) { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); saveJson(false); } });
+
+  /* ---------- online look-up of what a company does ---------- */
+  function doLookup(btn) {
+    var id = btn.dataset.lookup, def = schema.fieldsById[id], nameId = def.lookup, name = String(state.f[nameId].v || '').trim();
+    var set = FF.lookup.getSettings();
+    if (!name) { toast('Enter the ' + schema.fieldsById[nameId].l.toLowerCase() + ' first.'); return; }
+    if (!set.apiKey) { openSettings(); toast('Add your Anthropic API key first.'); return; }
+    var old = btn.textContent; btn.textContent = 'Searching…'; btn.disabled = true;
+    FF.lookup.run({ apiKey: set.apiKey, model: set.model, name: name, kind: id === 'biz_does' ? 'business' : 'company' }).then(function (text) {
+      store.setField(state, id, text, text.indexOf('Could not identify') === 0 ? 'empty' : 'heard');
+      touch(); redraw();
+    }, function (err) { btn.textContent = old; btn.disabled = false; toast(err.message); });
+  }
+  function openSettings() {
+    var set = FF.lookup.getSettings(), dlg = $('#settings');
+    $('#setKey').value = set.apiKey;
+    $('#setModel').innerHTML = FF.lookup.MODELS.map(function (m) { return '<option value="' + m.id + '"' + (m.id === set.model ? ' selected' : '') + '>' + esc(m.label) + '</option>'; }).join('');
+    $('#setResult').textContent = '';
+    dlg.showModal();
+  }
+  $('#btnSettings').addEventListener('click', openSettings);
+  $('#setCancel').addEventListener('click', function () { $('#settings').close(); });
+  $('#setSave').addEventListener('click', function () {
+    FF.lookup.saveSettings({ apiKey: $('#setKey').value, model: $('#setModel').value }); $('#settings').close(); toast('Settings saved.');
+  });
+  $('#setTest').addEventListener('click', function () {
+    var out = $('#setResult'); out.textContent = 'Testing…';
+    FF.lookup.run({ apiKey: $('#setKey').value.trim(), model: $('#setModel').value, name: 'Old Mutual', kind: 'company' }).then(function (t) { out.textContent = 'Working. Example: ' + t; }, function (e) { out.textContent = e.message; });
+  });
 
   /* Start from the last draft on this computer, if any. */
   state = loadDraft() || store.blank();

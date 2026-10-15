@@ -31,6 +31,10 @@ Open `app/index.html` in Microsoft Edge or Google Chrome. There is nothing to in
 
 When a new tax year starts (1 March), add its brackets and rebates to `app/js/tax.js`, add that year's TaxTim results to `docs/`, and extend `tests/tax.test.js`. The tests must pass before the new tables are used.
 
+## Company look-up
+
+The "Look up online" button next to "What does the company do?" asks Claude, with web search, for a short description. Click **Settings** and paste an Anthropic API key (from console.anthropic.com). Web search must be switched on for the Anthropic account. The key is stored only in this browser.
+
 ## Not built yet
 
-Live capture from Teams (audio, speech-to-text, Claude filling the fields), the online company look-up.
+Live capture from Teams (audio, speech-to-text, Claude filling the fields).
