@@ -89,3 +89,11 @@ test('each debt has an Other bank box and its own notes', () => {
   assert.strictEqual(back.l.debts[0].d.prov_other, 'Bidvest Bank');
   assert.strictEqual(back.l.debts[0].d.notes, 'Settling early');
 });
+
+test('amounts saved as plain numbers by an earlier version are tidied when reopened', () => {
+  const s = fresh(); s.f.gross.v = '120000'; s.f.net.v = '80200'; store.addRow(s, 'debts', { inst: '11400' });
+  const back = store.fromJSON(JSON.stringify(s));
+  assert.strictEqual(back.f.gross.v, 'R 120 000.00');
+  assert.strictEqual(back.f.net.v, 'R 80 200.00');
+  assert.strictEqual(back.l.debts[0].d.inst, 'R 11 400.00');
+});
