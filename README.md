@@ -33,4 +33,4 @@ When a new tax year starts (1 March), add its brackets and rebates to `app/js/ta
 
 ## Not built yet
 
-Live capture from Teams (audio, speech-to-text, Claude filling the fields), the online company look-up, and a final logo file for the PDF header.
+Live capture from Teams (audio, speech-to-text, Claude filling the fields), the online company look-up.
