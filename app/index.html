@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fact Find</title>
+<style>
+  html { color-scheme: light; }
+  body { margin: 0; font: 14px/1.45 system-ui, "Segoe UI", sans-serif; padding-inline: 16px; padding-block: 14px 40px; }
+</style>
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<div class="top">
+  <h1>Fact Find</h1>
+  <span class="who">Client <b id="clientName">New client</b></span>
+  <span class="savestate" id="saveState"></span>
+  <span class="grow"></span>
+  <div class="actions">
+    <button class="btn ghost small" id="btnNew" type="button">New</button>
+    <button class="btn ghost small" id="btnOpen" type="button">Open…</button>
+    <button class="btn small" id="btnSave" type="button">Save</button>
+    <button class="btn ghost small" id="btnSaveAs" type="button">Save as…</button>
+    <button class="btn ghost small" id="btnPreview" type="button">Preview PDF</button>
+    <button class="btn small" id="btnPdf" type="button">Save PDF</button>
+  </div>
+  <input type="file" id="fileIn" accept=".json,application/json" hidden>
+</div>
+
+<div class="app">
+  <nav class="nav" id="nav" aria-label="Sections"></nav>
+  <main class="main" id="main"></main>
+  <aside class="side">
+    <div class="card"><h3>Progress</h3>
+      <div class="summary">
+        <div><b id="sFilled">0</b><span>filled</span></div>
+        <div><b id="sVerify">0</b><span>to verify</span></div>
+        <div><b id="sEmpty">0</b><span>not asked</span></div>
+      </div>
+    </div>
+    <div class="card"><h3>Checks</h3><div class="checks" id="checks"></div></div>
+    <div class="card"><h3>This Fact Find</h3><div class="meta" id="meta"></div></div>
+  </aside>
+</div>
+<div class="toast" id="toast" hidden></div>
+
+<script src="vendor/jspdf.umd.min.js"></script>
+<script src="vendor/jspdf.plugin.autotable.min.js"></script>
+<script src="js/util.js"></script>
+<script src="js/tax.js"></script>
+<script src="js/schema.js"></script>
+<script src="js/calc.js"></script>
+<script src="js/validate.js"></script>
+<script src="js/store.js"></script>
+<script src="js/pdf.js"></script>
+<script src="js/ui.js"></script>
+</body>
+</html>
