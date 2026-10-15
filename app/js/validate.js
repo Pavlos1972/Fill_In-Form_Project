@@ -8,7 +8,7 @@
 
   /* Returns [{ id, msg }] for a field, or [{ list, i, msg }] for a list row. */
   function check(ctx) {
-    var out = [], v = function (id) { return ctx.v(id).trim(); };
+    var out = [], v = function (id) { var x = ctx.v(id).trim(); return x === 'None' ? '' : x; };
     function warn(id, msg) { out.push({ id: id, msg: msg }); }
 
     var idno = v('idno').replace(/\s/g, '');

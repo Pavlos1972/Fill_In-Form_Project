@@ -17,6 +17,7 @@
   <span class="savestate" id="saveState"></span>
   <span class="grow"></span>
   <div class="actions">
+    <button class="btn ghost small" id="btnSettings" type="button">Settings</button>
     <button class="btn ghost small" id="btnNew" type="button">New</button>
     <button class="btn ghost small" id="btnOpen" type="button">Open…</button>
     <button class="btn small" id="btnSave" type="button">Save</button>
@@ -42,6 +43,14 @@
     <div class="card"><h3>This Fact Find</h3><div class="meta" id="meta"></div></div>
   </aside>
 </div>
+<dialog id="settings">
+  <h2>Settings</h2>
+  <p class="help">The company look-up asks Claude to search the web. It needs an Anthropic API key. The key is kept only in this browser on this computer.</p>
+  <label class="f"><span class="l"><span>Anthropic API key</span></span><input id="setKey" type="password" autocomplete="off" placeholder="sk-ant-..."></label>
+  <label class="f"><span class="l"><span>Model</span></span><select id="setModel"></select></label>
+  <p class="help" id="setResult"></p>
+  <div class="dlg-actions"><button class="btn ghost small" id="setTest" type="button">Test</button><span class="grow"></span><button class="btn ghost small" id="setCancel" type="button">Cancel</button><button class="btn small" id="setSave" type="button">Save</button></div>
+</dialog>
 <div class="toast" id="toast" hidden></div>
 
 <script src="vendor/jspdf.umd.min.js"></script>
@@ -52,6 +61,7 @@
 <script src="js/calc.js"></script>
 <script src="js/validate.js"></script>
 <script src="js/store.js"></script>
+<script src="js/lookup.js"></script>
 <script src="assets/logo.js"></script>
 <script src="js/pdf.js"></script>
 <script src="js/ui.js"></script>

@@ -9,7 +9,12 @@ test('numbers typed in South African style are understood', () => {
   assert.strictEqual(u.num('abc'), 0);
 });
 test('money formatting', () => {
-  assert.strictEqual(u.money(11400), 'R 11 400');
+  assert.strictEqual(u.money(11400), 'R 11 400.00');
+  assert.strictEqual(u.formatMoney('80200'), 'R 80 200.00');
+  assert.strictEqual(u.formatMoney('R 1,200,000'), 'R 1 200 000.00');
+  assert.strictEqual(u.formatMoney('32,5'), 'R 32.50');
+  assert.strictEqual(u.formatMoney('about 5'), 'about 5');
+  assert.strictEqual(u.formatMoney(''), '');
   assert.strictEqual(u.money2(32138.13), 'R 32 138.13');
 });
 test('dates in common forms', () => {

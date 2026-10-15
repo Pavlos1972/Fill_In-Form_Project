@@ -15,10 +15,18 @@
     return isNaN(n) ? 0 : n;
   }
   function group(intStr) { return intStr.replace(/\B(?=(\d{3})+(?!\d))/g, ' '); }
-  function money(n) { return 'R ' + group(String(Math.round(n))); }
+  /* Rand amounts are always shown with a Rand sign and two decimals, e.g. R 80 200.00 */
   function money2(n) {
     var neg = n < 0, s = Math.abs(n).toFixed(2).split('.');
     return (neg ? '-' : '') + 'R ' + group(s[0]) + '.' + s[1];
+  }
+  var money = money2;
+  /* Tidy what was typed in an amount box: "80200" -> "R 80 200.00". Text that is not an amount is left alone. */
+  function formatMoney(v) {
+    var s = String(v == null ? '' : v).trim();
+    if (s === '') return '';
+    if (!/^[Rr]?[\s\d.,\-]*\d[\s\d.,]*$/.test(s)) return v;
+    return money2(num(s));
   }
 
   /* Parse a date typed in any common form. Returns {y,m,d} or null. */
@@ -69,5 +77,5 @@
     for (var i = 12; i >= 0; i--) { var n = +s[i]; if (alt) { n *= 2; if (n > 9) n -= 9; } sum += n; alt = !alt; }
     return sum % 10 === 0;
   }
-  return { num: num, money: money, money2: money2, parseDate: parseDate, ageAt: ageAt, isoToday: isoToday, longDate: longDate, dobFromSaId: dobFromSaId, saIdValid: saIdValid };
+  return { num: num, money: money, money2: money2, formatMoney: formatMoney, parseDate: parseDate, ageAt: ageAt, isoToday: isoToday, longDate: longDate, dobFromSaId: dobFromSaId, saIdValid: saIdValid };
 });
