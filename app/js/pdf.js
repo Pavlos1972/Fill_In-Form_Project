@@ -3,14 +3,15 @@
 (function () {
   var FF = window.FF, util = FF.util, schema = FF.schema, calc = FF.calc, store = FF.store;
 
-  var ACCENT = [193, 95, 60], ACCENT_SOFT = [246, 227, 218], INK = [20, 20, 19], MUTED = [107, 106, 99], LINE = [220, 215, 201], PALE = [248, 245, 238];
+  /* Colours taken from the Wealth Revolution logo: its blue (#27A8E0) and grey. DEEP is a darker blue for small text so it stays readable. */
+  var ACCENT = [39, 168, 224], DEEP = [18, 118, 168], ACCENT_SOFT = [225, 243, 251], INK = [40, 40, 42], MUTED = [110, 110, 113], LINE = [205, 222, 232], PALE = [243, 249, 252];
   var M = 14, W = 210, PAGE_H = 297, CW = W - 2 * M;
 
   /* Standard PDF fonts cannot show every character. Keep to what they can. */
   function t(s) {
     return String(s == null ? '' : s).replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/[–—]/g, '-').replace(/ /g, ' ').replace(/[^\x09\x0a\x0d\x20-\x7e¡-ÿ]/g, '?');
   }
-  function fieldValue(f, state, ctx) { return f.calc ? calc.field(f.calc, ctx) : state.f[f.id].v; }
+  function fieldValue(f, state, ctx) { return f.calc ? calc.field(f.calc, ctx) : (f.money ? util.formatMoney(state.f[f.id].v) : state.f[f.id].v); }
 
   /* label/value pairs two to a row; wide boxes (notes) take a full row */
   function fieldRows(items) {
@@ -25,7 +26,7 @@
   }
   var GRID = {
     theme: 'grid', styles: { font: 'helvetica', fontSize: 8.5, cellPadding: { top: 1.6, bottom: 1.6, left: 2, right: 2 }, lineColor: LINE, lineWidth: 0.2, textColor: INK, overflow: 'linebreak', valign: 'middle' },
-    headStyles: { fillColor: ACCENT_SOFT, textColor: ACCENT, fontStyle: 'bold', fontSize: 8.5, lineColor: LINE }
+    headStyles: { fillColor: ACCENT_SOFT, textColor: DEEP, fontStyle: 'bold', fontSize: 8.5, lineColor: LINE }
   };
   var PAIR_COLS = { 0: { cellWidth: 37, textColor: MUTED, fillColor: PALE, fontSize: 8 }, 1: { cellWidth: 54 }, 2: { cellWidth: 37, textColor: MUTED, fillColor: PALE, fontSize: 8 }, 3: { cellWidth: 54 } };
 
@@ -57,7 +58,7 @@
     }
     function blockTitle(title) {
       ensure(34);
-      doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor.apply(doc, ACCENT); doc.text(t(title), M, y + 3);
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor.apply(doc, DEEP); doc.text(t(title), M, y + 3);
       y += 5;
     }
     function fieldsTable(fields, head) {
@@ -68,7 +69,7 @@
     function listBlock(key) {
       var L = schema.lists[key], rows = state.l[key];
       if (!rows.length) { table({ body: [[{ content: 'None recorded.', styles: { textColor: MUTED, fontStyle: 'italic' } }]], columnStyles: { 0: { cellWidth: CW } } }); return; }
-      function cellText(c, r) { return t(c.calc ? calc.rowCalc(c.calc, r, ctx) : r.d[c.k]); }
+      function cellText(c, r) { return t(c.calc ? calc.rowCalc(c.calc, r, ctx) : (c.money ? util.formatMoney(r.d[c.k]) : r.d[c.k])); }
       function totals() {
         return Object.keys(L.sum).map(function (k) { return [t(L.sum[k]), util.money(rows.reduce(function (a, r) { return a + util.num(r.d[k]); }, 0))]; });
       }
@@ -100,7 +101,7 @@
         if (!calc.showIf(b.cond, ctx)) return;
         if (b.title) blockTitle(b.title);
         if (b.fields) fieldsTable(b.fields);
-        if (b.docs) table({ body: schema.docs.map(function (d) { return [d, state.docs[d] ? 'Requested' : '']; }), columnStyles: { 0: { cellWidth: CW - 40 }, 1: { cellWidth: 40, fontStyle: 'bold', textColor: ACCENT } } });
+        if (b.docs) table({ body: schema.docs.map(function (d) { return [d, state.docs[d] ? 'Requested' : '']; }), columnStyles: { 0: { cellWidth: CW - 40 }, 1: { cellWidth: 40, fontStyle: 'bold', textColor: DEEP } } });
         if (b.list) { if (!b.title && schema.lists[b.list].title !== sec.title) blockTitle(schema.lists[b.list].title); listBlock(b.list); }
       });
       y += 2;
@@ -111,7 +112,7 @@
     for (var p = 1; p <= pages; p++) {
       doc.setPage(p);
       if (p > 1) {
-        doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor.apply(doc, ACCENT); doc.text('WEALTH REVOLUTION', M, 10);
+        doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor.apply(doc, DEEP); doc.text('WEALTH REVOLUTION', M, 10);
         doc.setFont('helvetica', 'normal'); doc.setTextColor.apply(doc, MUTED); doc.text('Client Fact Find - ' + t(name), W - M, 10, { align: 'right' });
         doc.setDrawColor.apply(doc, LINE); doc.setLineWidth(0.2); doc.line(M, 12, W - M, 12);
       }
