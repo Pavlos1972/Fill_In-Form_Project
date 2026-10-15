@@ -90,7 +90,7 @@
     var L = schema.lists[key], v = c.calc ? FF.calc.rowCalc(c.calc, r, ctx()) : r.d[c.k];
     var at = 'data-l="' + key + '" data-i="' + i + '" data-k="' + c.k + '"';
     var ctl = control(at, c, v, !!c.calc);
-    if (card) return '<label class="f"><span class="l"><span>' + esc(c.l) + '</span></span><span class="box">' + ctl + '</span><span class="warn" data-rwarn="' + key + ':' + i + '" hidden></span></label>';
+    if (card) return '<label class="f' + (c.wide ? ' wide' : '') + '"><span class="l"><span>' + esc(c.l) + '</span></span><span class="box">' + ctl + '</span><span class="warn" data-rwarn="' + key + ':' + i + '" hidden></span></label>';
     return '<td' + (c.num ? ' class="num"' : '') + '>' + ctl + '</td>';
   }
   function sumHTML(key) {
@@ -144,7 +144,10 @@
   }
 
   function redraw() {
-    renderNav(); $('#main').innerHTML = sectionHTML(schema.sections.filter(function (s) { return s.id === cur; })[0]);
+    renderNav();
+    var sec = schema.sections.filter(function (x) { return x.id === cur; })[0], main = $('#main');
+    main.className = 'main' + (sec.roomy ? ' roomy' : '') + (sec.adv ? ' advisor' : '');
+    main.innerHTML = sectionHTML(sec);
     refreshChrome(); refreshWarnings();
   }
   function renderNav() {
