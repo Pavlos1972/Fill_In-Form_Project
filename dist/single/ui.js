@@ -9,7 +9,7 @@
   var ctx = function () { return store.ctxFor(state); };
 
   /* ---------- drafts and saving ---------- */
-  function saveDraft() { try { localStorage.setItem(DRAFT_KEY, store.toJSON(state)); localStorage.setItem(DRAFT_KEY + '-file', fileBase); } catch (e) { /* storage unavailable */ } }
+  function saveDraft() { try { localStorage.setItem(DRAFT_KEY, store.toJSON(state)); localStorage.setItem(DRAFT_KEY + '-file', fileBase); localStorage.setItem(DRAFT_KEY + '-dirty', dirty ? '1' : '0'); } catch (e) { /* storage unavailable */ } }
   /* The file a client was last opened from or saved to is remembered, so Save writes back to it even after Chrome is closed. */
   function idb(fn) {
     return new Promise(function (resolve) {
@@ -341,11 +341,15 @@
     FF.lookup.run({ apiKey: $('#setKey').value.trim(), model: $('#setModel').value, name: 'Old Mutual', kind: 'company' }).then(function (t) { out.textContent = 'Working. Example: ' + t; }, function (e) { out.textContent = e.message; });
   });
 
-  /* Start from the last draft on this computer, if any. */
-  state = loadDraft() || store.blank();
-  try { fileBase = localStorage.getItem(DRAFT_KEY + '-file') || ''; } catch (e) { fileBase = ''; }
-  recallHandle().then(function (h) { if (h && fileBase) { fileHandle = h; } });
-  dirty = false;
+  /* Open on a fresh page. The last client comes back only if it had unsaved changes. */
+  var restored = null;
+  try { if (localStorage.getItem(DRAFT_KEY + '-dirty') === '1') restored = loadDraft(); } catch (e) { restored = null; }
+  state = restored || store.blank();
+  try { fileBase = restored ? (localStorage.getItem(DRAFT_KEY + '-file') || '') : ''; } catch (e) { fileBase = ''; }
+  if (restored) recallHandle().then(function (h) { if (h && fileBase) { fileHandle = h; } });
+  else rememberHandle(null);
+  dirty = !!restored;
   window.FF.app = { get state() { return state; }, redraw: redraw, setState: function (s) { state = s; redraw(); }, makePdf: makePdf };
   redraw();
+  if (restored) toast('Restored your unsaved changes for ' + (store.clientName(state) || 'the last client') + '.');
 })();
