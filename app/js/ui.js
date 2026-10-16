@@ -35,18 +35,24 @@
   }
   /* Uses the Windows "Save as" dialog where the browser offers it (Chrome, Edge), otherwise a normal download.
      With a remembered file it writes straight back to that file. The dialog remembers the last folder for each kind of file. */
-  function writeFile(blob, name, type, ext, handle, id) {
+  function writeFile(blob, name, type, ext, handle, id, startIn) {
     if (!window.showSaveFilePicker) { download(blob, name); return Promise.resolve(null); }
     var accept = {}; accept[blob.type] = [ext];
     var open = handle
       ? Promise.resolve(handle.requestPermission ? handle.requestPermission({ mode: 'readwrite' }) : 'granted').then(function (p) { if (p !== 'granted') throw new Error('Chrome did not allow changes to that file.'); return handle; })
-      : window.showSaveFilePicker({ id: id, suggestedName: name, types: [{ description: type, accept: accept }] });
+      : window.showSaveFilePicker(pickerOptions(name, type, accept, id, startIn));
     return open.then(function (h) { return h.createWritable().then(function (w) { return w.write(blob).then(function () { return w.close(); }); }).then(function () { return h; }); });
+  }
+  /* The picker opens beside the client's saved file when there is one, otherwise in the folder it last used for this kind of file. */
+  function pickerOptions(name, type, accept, id, startIn) {
+    var o = { suggestedName: name, types: [{ description: type, accept: accept }] };
+    if (startIn) o.startIn = startIn; else o.id = id;
+    return o;
   }
   function currentBase() { return fileBase || store.baseFileName(state); }
   function saveJson(forceAs) {
     var blob = new Blob([store.toJSON(state)], { type: 'application/json' });
-    writeFile(blob, currentBase() + '.json', 'Fact Find', '.json', forceAs ? null : fileHandle, 'fact-find-data').then(function (h) {
+    writeFile(blob, currentBase() + '.json', 'Fact Find', '.json', forceAs ? null : fileHandle, 'fact-find-data', fileHandle).then(function (h) {
       if (h) { fileHandle = h; fileBase = h.name.replace(/\.json$/i, ''); rememberHandle(h); }
       else if (!fileBase) fileBase = currentBase();
       dirty = false; lastSaved = new Date(); saveDraft(); refreshChrome(); toast('Saved.');
@@ -55,7 +61,7 @@
   function makePdf() { return FF.pdf.build(state); }
   function savePdf() {
     var blob = makePdf().output('blob');
-    writeFile(blob, currentBase() + '.pdf', 'PDF document', '.pdf', null, 'fact-find-pdf')
+    writeFile(blob, currentBase() + '.pdf', 'PDF document', '.pdf', null, 'fact-find-pdf', fileHandle)
       .then(function () { toast('PDF saved.'); })
       .catch(function (e) { if (e && e.name !== 'AbortError') toast('Could not save the PDF: ' + e.message); });
   }
