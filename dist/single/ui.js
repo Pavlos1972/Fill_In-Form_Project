@@ -210,7 +210,14 @@
     $('#sFilled').textContent = A; $('#sVerify').textContent = V; $('#sEmpty').textContent = E;
     var dtext = '<span>Version <b>' + schema.version + '</b>, ' + schema.released + '</span>';
     var tax = FF.tax.taxYearFor(calc.meetingDate(ctx()));
+    refreshKey();
     $('#meta').innerHTML = dtext + '<span>Tax tables <b>' + tax + '</b></span><span>Advisor <b>' + esc(state.f.advisor.v) + '</b></span>';
+  }
+  /* The top bar counts down to the day the Anthropic key stops working. */
+  function refreshKey() {
+    var el = $('#keyState'), st = FF.lookup.keyStatus(FF.lookup.getSettings());
+    el.textContent = st.text; el.hidden = !st.text;
+    el.style.color = st.level === 'expired' ? '#ff8a80' : (st.level === 'soon' || st.level === 'unset') ? '#f5c451' : '';
   }
   /* Update calculated boxes, totals and warnings in place so the cursor never jumps. */
   function refreshLive() {
@@ -326,15 +333,17 @@
   }
   function openSettings() {
     var set = FF.lookup.getSettings(), dlg = $('#settings');
-    $('#setKey').value = set.apiKey;
+    $('#setKey').value = set.apiKey; $('#setExpires').value = set.expires;
     $('#setModel').innerHTML = FF.lookup.MODELS.map(function (m) { return '<option value="' + m.id + '"' + (m.id === set.model ? ' selected' : '') + '>' + esc(m.label) + '</option>'; }).join('');
     $('#setResult').textContent = '';
     dlg.showModal();
   }
   $('#btnSettings').addEventListener('click', openSettings);
+  $('#keyState').addEventListener('click', openSettings);
+  $('#keyState').addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openSettings(); } });
   $('#setCancel').addEventListener('click', function () { $('#settings').close(); });
   $('#setSave').addEventListener('click', function () {
-    FF.lookup.saveSettings({ apiKey: $('#setKey').value, model: $('#setModel').value }); $('#settings').close(); toast('Settings saved.');
+    FF.lookup.saveSettings({ apiKey: $('#setKey').value, model: $('#setModel').value, expires: $('#setExpires').value }); $('#settings').close(); refreshKey(); toast('Settings saved.');
   });
   $('#setTest').addEventListener('click', function () {
     var out = $('#setResult'); out.textContent = 'Testing…';
