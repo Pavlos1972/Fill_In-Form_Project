@@ -44,3 +44,15 @@ test('problems are explained in plain words', async () => {
   await assert.rejects(L.run({ apiKey: 'k', name: 'X', fetchImpl: reply(400, { error: { message: 'The web search tool is not enabled for this organization' } }) }), /Web search is not switched on/);
   await assert.rejects(L.run({ apiKey: 'k', name: 'X', fetchImpl: () => Promise.reject(new TypeError('Failed to fetch')) }), /Could not reach Anthropic/);
 });
+
+test('the top bar counts down the days to the key expiry date', () => {
+  const now = new Date(2026, 9, 16);
+  assert.strictEqual(L.keyStatus({ apiKey: '' }, now).text, '');
+  assert.strictEqual(L.keyStatus({ apiKey: 'k', expires: '' }, now).level, 'unset');
+  const a = L.keyStatus({ apiKey: 'k', expires: '2026-11-15' }, now);
+  assert.deepStrictEqual([a.level, a.days, a.text], ['ok', 30, 'Key: 30 days left']);
+  assert.strictEqual(L.keyStatus({ apiKey: 'k', expires: '2026-10-30' }, now).level, 'soon');
+  assert.strictEqual(L.keyStatus({ apiKey: 'k', expires: '2026-10-17' }, now).text, 'Key: 1 day left');
+  assert.strictEqual(L.keyStatus({ apiKey: 'k', expires: '2026-10-16' }, now).text, 'Key expires today');
+  assert.strictEqual(L.keyStatus({ apiKey: 'k', expires: '2026-10-15' }, now).level, 'expired');
+});

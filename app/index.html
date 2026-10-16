@@ -15,6 +15,7 @@
   <h1>Fact Find</h1>
   <span class="who">Client <b id="clientName">New client</b></span>
   <span class="savestate" id="saveState"></span>
+  <span class="savestate" id="keyState" role="button" tabindex="0" title="Anthropic key. Click to open Settings." style="cursor:pointer;margin-left:12px" hidden></span>
   <span class="grow"></span>
   <div class="actions">
     <button class="btn ghost small" id="btnSettings" type="button">Settings</button>
@@ -48,6 +49,8 @@
   <p class="help">The company look-up asks Claude to search the web. It needs an Anthropic API key. The key is kept only in this browser on this computer.</p>
   <label class="f"><span class="l"><span>Anthropic API key</span></span><input id="setKey" type="password" autocomplete="off" placeholder="sk-ant-..."></label>
   <label class="f"><span class="l"><span>Model</span></span><select id="setModel"></select></label>
+  <label class="f"><span class="l"><span>Key expires on</span></span><input id="setExpires" type="date"></label>
+  <p class="help">Enter the date shown as "Expires" next to the key in the Anthropic console. The top bar then counts down the days. <a href="https://platform.claude.com/dashboard" target="_blank" rel="noopener">Open the console ↗</a></p>
   <p class="help" id="setResult"></p>
   <div class="dlg-actions"><button class="btn ghost small" id="setTest" type="button">Test</button><span class="grow"></span><button class="btn ghost small" id="setCancel" type="button">Cancel</button><button class="btn small" id="setSave" type="button">Save</button></div>
 </dialog>
@@ -55,15 +58,15 @@
 
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jspdf.plugin.autotable.min.js"></script>
-<script src="js/util.js?v=20261016b"></script>
-<script src="js/tax.js?v=20261016b"></script>
-<script src="js/schema.js?v=20261016b"></script>
-<script src="js/calc.js?v=20261016b"></script>
-<script src="js/validate.js?v=20261016b"></script>
-<script src="js/store.js?v=20261016b"></script>
-<script src="js/lookup.js?v=20261016b"></script>
-<script src="assets/logo.js?v=20261016b"></script>
-<script src="js/pdf.js?v=20261016b"></script>
-<script src="js/ui.js?v=20261016b"></script>
+<script src="js/util.js?v=20261016c"></script>
+<script src="js/tax.js?v=20261016c"></script>
+<script src="js/schema.js?v=20261016c"></script>
+<script src="js/calc.js?v=20261016c"></script>
+<script src="js/validate.js?v=20261016c"></script>
+<script src="js/store.js?v=20261016c"></script>
+<script src="js/lookup.js?v=20261016c"></script>
+<script src="assets/logo.js?v=20261016c"></script>
+<script src="js/pdf.js?v=20261016c"></script>
+<script src="js/ui.js?v=20261016c"></script>
 </body>
 </html>

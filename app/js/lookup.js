@@ -16,10 +16,22 @@
   var SETTINGS_KEY = 'wr-fact-find-settings';
 
   function getSettings() {
-    try { var s = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}'); return { apiKey: s.apiKey || '', model: s.model || DEFAULT_MODEL }; }
-    catch (e) { return { apiKey: '', model: DEFAULT_MODEL }; }
+    try { var s = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}'); return { apiKey: s.apiKey || '', model: s.model || DEFAULT_MODEL, expires: s.expires || '' }; }
+    catch (e) { return { apiKey: '', model: DEFAULT_MODEL, expires: '' }; }
   }
-  function saveSettings(s) { try { localStorage.setItem(SETTINGS_KEY, JSON.stringify({ apiKey: String(s.apiKey || '').trim(), model: s.model || DEFAULT_MODEL })); return true; } catch (e) { return false; } }
+  function saveSettings(s) { try { localStorage.setItem(SETTINGS_KEY, JSON.stringify({ apiKey: String(s.apiKey || '').trim(), model: s.model || DEFAULT_MODEL, expires: String(s.expires || '').trim() })); return true; } catch (e) { return false; } }
+
+  /* How the top bar describes the key: nothing without a key, then days left until the date typed in Settings. */
+  function keyStatus(set, now) {
+    if (!set.apiKey) return { level: 'none', text: '' };
+    var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(set.expires || '');
+    if (!m) return { level: 'unset', text: 'Key: add expiry date' };
+    var t = now || new Date(), end = new Date(+m[1], +m[2] - 1, +m[3]), today = new Date(t.getFullYear(), t.getMonth(), t.getDate());
+    var days = Math.round((end - today) / 86400000);
+    if (days < 0) return { level: 'expired', days: days, text: 'Key expired. Renew it in Settings' };
+    if (days === 0) return { level: 'soon', days: 0, text: 'Key expires today' };
+    return { level: days <= 14 ? 'soon' : 'ok', days: days, text: 'Key: ' + days + (days === 1 ? ' day' : ' days') + ' left' };
+  }
 
   function promptFor(name, kind) {
     var what = kind === 'business' ? 'the business' : 'the company or organisation';
@@ -80,5 +92,5 @@
     }
     return step(0);
   }
-  return { DEFAULT_MODEL: DEFAULT_MODEL, MODELS: MODELS, getSettings: getSettings, saveSettings: saveSettings, buildRequest: buildRequest, extractText: extractText, run: run, ENDPOINT: ENDPOINT };
+  return { DEFAULT_MODEL: DEFAULT_MODEL, MODELS: MODELS, getSettings: getSettings, saveSettings: saveSettings, keyStatus: keyStatus, buildRequest: buildRequest, extractText: extractText, run: run, ENDPOINT: ENDPOINT };
 });
