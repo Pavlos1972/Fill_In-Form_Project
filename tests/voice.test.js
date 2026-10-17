@@ -541,3 +541,53 @@ test('a statement about a box elsewhere is not turned into a new debt', () => {
   assert.strictEqual(V.parseCommand('add a debt', idx).type, 'addrow');
   assert.deepStrictEqual(require('../app/js/schema.js').lists.debts.cols.map(c => c.k).slice(0, 3), ['type', 'prov', 'prov_other']);   // Type comes before the loan provider
 });
+
+/* ---- ID numbers, passports and whole names said in one breath ---- */
+test('"my name is John Snow and my ID is 7212095268086" fills the names and the ID number, with no help from Claude', () => {
+  const p = planOf('my name is John Snow and my ID is 7212095268086');
+  assert.strictEqual(brief(p), 'fill:fname=John fill:idno=7212095268086');
+  assert.deepStrictEqual(p.actions[0].res.extra.map(x => x.id + '=' + x.value), ['sname=Snow']);
+  assert.ok(p.sure);
+  ['my name is John Snow, my ID is 721209 5268 086', 'my name is John Snow my ID is 7212095268086', 'Oh, my ID is 7212095268086', 'ID 7212095268086', '7212095268086', 'it is 7212095268086'].forEach(t => {
+    assert.ok(/fill:idno=7212095268086$/.test(brief(planOf(t))), t + ' -> ' + brief(planOf(t)));
+  });
+  assert.strictEqual(brief(planOf('ID number seven two one two zero nine five two six eight zero eight six')), 'fill:idno=7212095268086');
+});
+test('a whole name fills the first name and the surname; "first name" alone stays whole; a surname already there is kept', () => {
+  const extras = t => (planOf(t).actions[0].res.extra || []).map(x => x.id + '=' + x.value).join();
+  assert.strictEqual(extras('my name is John Snow'), 'sname=Snow');
+  assert.strictEqual(extras('my name is Pieter van der Merwe'), 'sname=van der Merwe');
+  assert.strictEqual(extras('my name is John Peter Snow'), 'sname=Snow');
+  assert.strictEqual(extras('my first name is John Peter'), '');
+  assert.strictEqual(extras('my name is John'), '');
+  assert.strictEqual(extras('my name is Pieter van der Merwe'), 'sname=van der Merwe');
+  assert.strictEqual((planOf('my name is John Snow', { vals: { sname: 'Smith' } }).actions[0].res.extra || [])[0].value, 'Snow');            // said as a whole name: it replaces
+  assert.strictEqual((planOf('John Snow', { target: 'fname', answered: false, vals: { sname: 'Smith' } }).actions[0].res.extra || []).length, 0);   // a plain answer to the first-name box leaves the surname
+  const asked = planOf('John Snow', { target: 'fname', answered: false });
+  assert.strictEqual(brief(asked), 'fill:fname=John');
+  assert.strictEqual(asked.actions[0].res.extra[0].value, 'Snow');
+});
+test('a passport number, said as letters and digits, goes in the number box and sets the type to Passport', () => {
+  const r = planOf('my passport number is A 1 2 3 4 5 6 7').actions[0].res;
+  assert.strictEqual(r.value, 'A1234567');
+  assert.strictEqual(r.extra[0].id + '=' + r.extra[0].value, 'idtype=Passport');
+  assert.strictEqual(brief(planOf('my ID is 7212095268086 and my salary is R45 000')).split(' ')[0], 'fill:idno=7212095268086');
+});
+test('questions about the ID still point at the right box', () => {
+  assert.strictEqual(brief(planOf('Do you have an ID or a passport?')), 'ask:idtype');
+  assert.strictEqual(brief(planOf('What is your ID number?')), 'ask:idno');
+  assert.strictEqual(brief(planOf('and your ID?')), 'ask:idno');
+});
+test('a cell number or an email said without its label is still read here; a waiting box keeps the answer', () => {
+  ['you can reach me on 082 555 0148', 'my number is 0825550148', 'call me on 0825550148'].forEach(t => assert.strictEqual(brief(planOf(t)), 'fill:cell=082 555 0148', t));
+  assert.strictEqual(brief(planOf('082 555 0148', { target: 'work', answered: false })), 'fill:work=082 555 0148');
+  assert.strictEqual(brief(planOf('my spouse number is 0825550148')), 'fill:sp_tel=082 555 0148');
+  assert.strictEqual(brief(planOf('you can email me at john@snow.com')), 'fill:pemail=john@snow.com');
+  assert.strictEqual(brief(planOf('you can email me at john at snow dot com')), 'fill:pemail=john@snow.com');
+});
+test('several facts in one breath: name, date of birth and ID number', () => {
+  const p = planOf('my name is John Snow, born 9 December 1972, ID 7212095268086');
+  assert.strictEqual(brief(p), 'fill:fname=John fill:dob=09/12/1972 fill:idno=7212095268086');
+  assert.ok(p.sure);
+  assert.strictEqual(brief(planOf('my name is John Snow and I was born on 9 December 1972')), 'fill:fname=John fill:dob=09/12/1972');
+});
