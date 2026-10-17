@@ -268,7 +268,7 @@ test('answers that cannot be used are reported, not guessed', () => {
   assert.strictEqual(ans('marital', "I'm married", '').kind, 'error');
 });
 test('private fields are the ones that are never sent to Claude', () => {
-  assert.deepStrictEqual([...V.PRIVATE_IDS].sort(), ['cell', 'home', 'idno', 'pemail', 'sp_tel', 'tax', 'wemail', 'work']);
+  assert.deepStrictEqual([...V.PRIVATE_IDS].sort(), ['cell', 'home', 'idno', 'pemail', 'shares.cell', 'shares.id', 'sp_tel', 'tax', 'wemail', 'work']);
 });
 
 test('the adviser asking or steering is told apart from the client answering', () => {
@@ -442,4 +442,59 @@ test('a correction of the nationality drops every lead-in word', () => {
     const r = V.answerFor(f('nat'), t, 'South African');
     assert.deepStrictEqual(r.extra.map(x => x.value), ['Zimbabwean'], t);
   });
+});
+
+/* ---- lists: children, debts, policies and the rest ---- */
+const planL = (text, o) => { o = o || {}; const rows = o.rows || {};
+  return V.plan(text, idx, { cur: o.cur || 'kids', target: o.target, answered: o.answered, curRow: o.curRow, rows: k => rows[k] || [], value: () => '', visible: () => true }); };
+const briefL = p => p.actions.map(a => a.do + (a.list ? '(' + a.list + ')' : '') + (a.field ? ':' + a.field : '') + (a.res && a.res.value ? '=' + a.res.value : '')).join(' ');
+const thandi = { rows: { kids: [{ name: 'Thandi' }] }, curRow: { kids: 0 } };
+
+test('the lists are in the voice index, and a partner\'s ID and cell number are private', () => {
+  assert.deepStrictEqual(Object.keys(idx.lists).sort(), ['debts', 'inv', 'invq', 'kids', 'raq', 'redq', 'ret', 'risk', 'shares']);
+  assert.ok(idx.byId['kids.dob'].date && idx.byId['debts.bal'].money && idx.byId['risk.prov'].options);
+  assert.ok(V.PRIVATE_IDS.includes('shares.id') && V.PRIVATE_IDS.includes('shares.cell'));
+  assert.ok(!idx.byId['kids.cost'].none);
+});
+test('"do you have any children?" waits for how many, and the answer adds that many rows', () => {
+  assert.strictEqual(briefL(planL('Do you have any children?')), 'ask:count:kids');
+  assert.strictEqual(briefL(planL('How many children do you have?')), 'ask:count:kids');
+  const w = { target: 'count:kids', answered: false };
+  assert.strictEqual(briefL(planL('two', w)), 'addrow(kids) addrow(kids) ask:kids:0:name');
+  assert.strictEqual(briefL(planL('yes', w)), 'addrow(kids) ask:kids:0:name');
+  assert.strictEqual(briefL(planL('we have three', w)), 'addrow(kids) addrow(kids) addrow(kids) ask:kids:0:name');
+  assert.strictEqual(briefL(planL('no', w)), '');
+  assert.strictEqual(briefL(planL("we don't have any", w)), '');
+  assert.strictEqual(briefL(planL('I have two children')), 'addrow(kids) addrow(kids) ask:kids:0:name');
+  assert.strictEqual(briefL(planL('Do you have any debts?', { cur: 'debts' })), 'ask:count:debts');
+  assert.strictEqual(briefL(planL('Do you have any existing policies?', { cur: 'cover' })), 'ask:count:risk');
+});
+test('a box of a row is asked about and filled in the right row', () => {
+  assert.strictEqual(briefL(planL("What is the child's name?")), 'addrow(kids) ask:kids:0:name');
+  assert.strictEqual(briefL(planL('Thandi', { target: 'kids:0:name', answered: false })), 'fill:kids:0:name=Thandi');
+  assert.strictEqual(briefL(planL('When was Thandi born?', Object.assign({ cur: 'info' }, thandi))), 'ask:kids:0:dob');
+  assert.strictEqual(briefL(planL('22 August 2019', { target: 'kids:0:dob', answered: false })), 'fill:kids:0:dob=22/08/2019');
+  assert.strictEqual(briefL(planL("And the second child's name?", thandi)), 'addrow(kids) ask:kids:1:name');
+  assert.strictEqual(briefL(planL('the child name is Sipho', thandi)), 'fill:kids:0:name=Sipho');
+  assert.strictEqual(briefL(planL('a girl', { target: 'kids:0:gender', answered: false })), 'fill:kids:0:gender=Female');
+  assert.strictEqual(briefL(planL('He is a boy', { target: 'kids:0:gender', answered: false })), 'fill:kids:0:gender=Male');
+  assert.strictEqual(briefL(planL('school fees are R2 500 a month', thandi)), 'fill:kids:0:cost=R 2 500.00');
+  assert.strictEqual(briefL(planL('what is your date of birth', Object.assign({ cur: 'info' }, thandi))), 'ask:dob');     // "your" is the client, not the child
+});
+test('another child, one more policy, another one: each adds a row and asks its first box', () => {
+  assert.strictEqual(briefL(planL('Add another child', thandi)), 'addrow(kids) ask:kids:1:name');
+  assert.strictEqual(briefL(planL('another one', thandi)), 'addrow(kids) ask:kids:1:name');
+  assert.strictEqual(briefL(planL('one more policy', { cur: 'cover' })), 'addrow(risk) ask:risk:0:prov');
+  assert.strictEqual(briefL(planL('add a debt', { cur: 'debts' })), 'addrow(debts) ask:debts:0:prov');
+  assert.strictEqual(briefL(planL('another one', { cur: 'income' })), '');                // no list in that section
+  assert.strictEqual(briefL(planL('next child', thandi)), 'addrow(kids) ask:kids:1:name');
+});
+test('debts and policies: balances, instalments and providers', () => {
+  const d = { cur: 'debts', rows: { debts: [{ prov: 'FNB' }] }, curRow: { debts: 0 } };
+  assert.strictEqual(briefL(planL('the balance on the loan is R450 000', d)), 'fill:debts:0:bal=R 450 000.00');
+  assert.strictEqual(briefL(planL('The instalment is R6 200 a month', d)), 'fill:debts:0:inst=R 6 200.00');
+  assert.strictEqual(briefL(planL('R450 000', { cur: 'debts', target: 'debts:0:bal', answered: false })), 'fill:debts:0:bal=R 450 000.00');
+  assert.strictEqual(briefL(planL('yes', { cur: 'debts', target: 'debts:0:cl', answered: false })), 'fill:debts:0:cl=Yes');
+  assert.strictEqual(briefL(planL('Old Mutual', { cur: 'cover', target: 'risk:0:prov', answered: false })), 'fill:risk:0:prov=Old Mutual');
+  assert.strictEqual(briefL(planL('the premium is R1 200 a month', { cur: 'cover', rows: { risk: [{ prov: 'Old Mutual' }] }, curRow: { risk: 0 } })), 'fill:risk:0:spend=R 1 200.00');
 });

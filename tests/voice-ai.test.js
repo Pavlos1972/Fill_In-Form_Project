@@ -76,3 +76,36 @@ test('a host that can reach Claude without a key can be used in place of the key
   await assert.rejects(() => AI.decide({ model: 'm', idx, who: 'me', text: 'x', ctx: {}, ask: () => Promise.reject({ code: 'not_granted' }) }), /not allowed/);
   await assert.rejects(() => AI.decide({ model: 'm', idx, who: 'me', text: 'x', ctx: {} }), /no API key/);
 });
+
+test('Claude is told about the lists in the section, never their private columns, and never sees them as plain fields', () => {
+  const rows = { shares: [{ name: 'Sipho Dlamini', id: '8001015800087', cell: '0825550148', pct: '40' }], kids: [{ name: 'Thandi', dob: '22/08/2019' }] };
+  const req = AI.buildRequest(idx, { sectionId: 'occ', targetId: null, recent: [], listRows: k => rows[k] || [] }, 'auto', 'my partner owns forty percent', 'm');
+  const body = JSON.parse(req.messages[0].content), s = JSON.stringify(body);
+  assert.deepStrictEqual(body.lists.map(l => l.id), ['shares']);
+  assert.deepStrictEqual(body.lists[0].columns.map(c => c.id), ['name', 'pct']);
+  assert.ok(!/8001015800087|0825550148/.test(s));
+  assert.deepStrictEqual(body.lists[0].rows, [{ n: 1, values: { name: 'Sipho Dlamini', pct: '40' } }]);
+  assert.ok(!body.fields.some(f => String(f.id).includes('.')));
+  const kids = JSON.parse(AI.buildRequest(idx, { sectionId: 'kids', targetId: 'kids.dob', targetRow: 2, recent: [], listRows: k => rows[k] || [] }, 'auto', 'x', 'm').messages[0].content);
+  assert.strictEqual(kids.position.row, 2); assert.strictEqual(kids.position.field, 'kids.dob');
+  assert.deepStrictEqual(kids.lists[0].rows[0], { n: 1, values: { name: 'Thandi', dob: '22/08/2019' } });
+});
+test('Claude can add rows and fill boxes of rows, and nothing else gets through', async () => {
+  const run = body => AI.decide({ apiKey: 'k', model: 'm', idx, who: 'auto', text: 'x', ctx: { sectionId: 'kids', recent: [] }, fetchImpl: reply(body) });
+  const r = await run({ actions: [
+    { do: 'row', list: 'kids', values: { name: 'Thandi', dob: '2019-08-22', nope: 'x', cost: '  ' } },
+    { do: 'row', list: 'kids', values: { name: 'Sipho' } },
+    { do: 'cell', list: 'kids', row: 2, col: 'cost', value: '3000' },
+    { do: 'cell', list: 'kids', row: 'last', col: 'gender', value: 'Male' },
+    { do: 'ask', list: 'debts', row: 'new', col: 'bal' }] });
+  assert.deepStrictEqual(r.actions, [
+    { do: 'row', list: 'kids', values: { name: 'Thandi', dob: '2019-08-22' } },
+    { do: 'row', list: 'kids', values: { name: 'Sipho' } },
+    { do: 'cell', list: 'kids', row: 2, col: 'cost', value: '3000' },
+    { do: 'cell', list: 'kids', row: 'last', col: 'gender', value: 'Male' },
+    { do: 'ask', list: 'debts', row: 'new', col: 'bal' }]);
+  const bad = await run({ actions: [{ do: 'row', list: 'nope', values: { a: 'b' } }, { do: 'row', list: 'shares', values: { id: '8001015800087', cell: '0825550148' } },
+    { do: 'cell', list: 'shares', row: 1, col: 'id', value: '1' }, { do: 'fill', field: 'kids.dob', value: '1' }, { do: 'ask', field: 'debts.bal' }, { do: 'row', list: 'kids', values: {} }] });
+  assert.deepStrictEqual(bad, { kind: 'none' });                          // unknown lists, private columns, list boxes named as plain fields, empty rows
+  assert.strictEqual((await run({ actions: [{ do: 'cell', list: 'kids', row: 'banana', col: 'name', value: 'A' }] })).actions[0].row, 'last');
+});

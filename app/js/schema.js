@@ -60,7 +60,8 @@
         { id: 'smoker', l: 'Smoker', t: 'sel', o: ['Non-smoker', 'Smoker'], s: 3 },
         { id: 'edu', l: 'Highest education', t: 'sel', o: ['Matric', 'Matric & diploma', '4-year diploma', '3-year degree', 'Postgraduate', 'Other'], s: 3 },
         { id: 'edu_notes', l: 'Qualification details', t: 'area', s: 6 }
-      ] }
+      ] },
+      { fields: [N('n_info')] }
     ] },
 
     { id: 'income', roomy: 1, title: 'Income & household', blocks: [
@@ -76,7 +77,8 @@
         { id: 'sp_name', l: 'Spouse / partner name', t: 'txt', risky: 1 },
         { id: 'sp_tel', l: 'Spouse telephone number', t: 'txt', risky: 1 },
         { id: 'sp_occ', l: 'Spouse occupation', t: 'txt' }
-      ] }
+      ] },
+      { fields: [N('n_income')] }
     ] },
 
     { id: 'occ', title: 'Occupation', blocks: [
@@ -109,7 +111,8 @@
         { id: 'd_heavy', l: 'Heavy manual %', t: 'txt' },
         { id: 'd_tot', l: 'Total (must be 100%)', t: 'txt', calc: 'd_tot' },
         { id: 'd_desc', l: 'Brief description of duties', t: 'area', wide: 1 }
-      ] }
+      ] },
+      { fields: [N('n_occ')] }
     ] },
 
     { id: 'cover', title: 'Existing cover & retirement', blocks: [
@@ -208,7 +211,8 @@
         { id: 'ref_med', l: 'Medical & gap (Valerie)', t: 'sel', o: ['Valerie to contact for medical aid', 'Valerie to contact for gap cover', 'Valerie to contact for both', 'Not required'] },
         { id: 'ref_will', l: 'Will (Capital Legacy)', t: 'sel', o: ['Capital Legacy to contact client', 'Has updated will', 'Not interested'] }
       ] },
-      { title: 'Documents to request', docs: 1 }
+      { title: 'Documents to request', docs: 1 },
+      { fields: [N('n_ref')] }
     ] },
     { id: 'q_calc', adv: 1, title: 'Risk calculation', blocks: [
       { title: 'Life cover: fractured cover', fields: riskCalc('lc').concat([
@@ -257,7 +261,8 @@
         { id: 'ip_aciv', l: 'ACI value', t: 'txt', opt: 1 },
         { id: 'ip_abiv', l: 'ABI', t: 'txt', opt: 1 },
         N('ip_cmt', 'Comments')
-      ] }
+      ] },
+      { fields: [N('n_calc')] }
     ] },
     { id: 'q_biz', adv: 1, roomy: 1, title: 'Business assurance', cond: BIZ, condMsg: 'Business assurance applies only when Business owner is set to Yes on the Occupation page.', blocks: [
       { title: 'Buy & Sell', help: 'Partner names, ID numbers, cell numbers and shareholding % come from the Partners and shareholders list on the Occupation page.', fields: [

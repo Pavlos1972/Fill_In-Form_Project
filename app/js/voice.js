@@ -185,6 +185,39 @@
     fname: ['first name', 'full name', 'your name', 'my name', 'christian name', 'given name', 'name and surname'],
     sname: ['surname', 'last name', 'family name', 'second name'],
     dob: ['date of birth', 'birthday', 'birth date', 'when were you born', 'born'],
+    'kids.name': ['child name', 'name of the child', 'kid name', 'name of the kid', 'son name', 'daughter name'],
+    'kids.gender': ['boy or girl', 'gender', 'is it a boy', 'is it a girl', 'is he a boy', 'is she a girl'],
+    'kids.dob': ['born', 'birthday', 'birth date', 'when was he born', 'when was she born', 'how old is', 'date of birth'],
+    'kids.stage': ['which grade', 'what grade', 'education stage', 'what stage', 'at school', 'in school'],
+    'kids.cost': ['monthly cost', 'school fees', 'cost per month', 'how much does he cost', 'how much does she cost', 'childcare'],
+    'debts.prov': ['who is the loan with', 'which bank', 'loan provider', 'who is it with', 'who is the lender'],
+    'debts.type': ['type of loan', 'what kind of loan', 'what type of debt', 'kind of debt'],
+    'debts.desc': ['what is it for', 'what was it for', 'description'],
+    'debts.owner': ['who owns', 'whose name is it in', 'who is the owner'],
+    'debts.payer': ['who pays', 'who is paying', 'who is the payer'],
+    'debts.term': ['term left', 'how long is left', 'years left', 'how long left', 'how many years left'],
+    'debts.inst': ['instalment', 'installment', 'monthly payment', 'repayment', 'pay per month', 'how much do you pay'],
+    'debts.bal': ['balance', 'outstanding', 'how much is outstanding', 'how much do you owe', 'owe'],
+    'debts.asset': ['asset value', 'value of the asset', 'what is it worth', 'what is the car worth', 'what is the house worth'],
+    'debts.cl': ['credit life', 'credit life cover'],
+    'debts.surety': ['surety', 'signed surety'],
+    'risk.prov': ['which insurer', 'who is the policy with', 'policy provider', 'insurer'],
+    'risk.spend': ['premium', 'monthly premium', 'how much do you pay', 'pay per month'],
+    'risk.broker': ['broker on record', 'who is your broker', 'broker'],
+    'ret.type': ['type of fund', 'kind of fund', 'pension or provident'],
+    'ret.prov': ['fund administrator', 'administrator', 'who is the fund with'],
+    'ret.val': ['fund value', 'value of the fund', 'how much is in the fund'],
+    'ret.contrib': ['contribution', 'monthly contribution', 'how much do you contribute', 'contribute'],
+    'ret.broker': ['broker on record', 'who is your broker', 'broker'],
+    'inv.type': ['type of investment', 'kind of investment'],
+    'inv.prov': ['who is the investment with', 'investment provider'],
+    'inv.val': ['current value', 'how much is it worth', 'worth now'],
+    'inv.prem': ['monthly premium', 'monthly contribution', 'how much do you invest', 'invest per month'],
+    'inv.broker': ['broker on record', 'who is your broker', 'broker'],
+    'shares.name': ['partner name', 'name of the partner', 'shareholder name', 'name of the shareholder'],
+    'shares.id': ['partner id', 'partner id number'],
+    'shares.cell': ['partner cell', 'partner cell number'],
+    'shares.pct': ['shareholding', 'percentage', 'how much of the business', 'what percentage'],
     ref_will: ['will referral', 'referral for the will', 'capital legacy', 'about your will', 'your will', 'wills'],
     idtype: ['id or passport', 'passport or id', 'do you have an id', 'identity document', 'id document', 'id book', 'id card', 'smart card', 'green id book', 'passport'],
     idno: ['id number', 'identity number', 'id no', 'passport number', 'your id'],
@@ -274,6 +307,32 @@
     var m = String(label).match(/\(([^)]*)\)/g) || [];
     return content(m.join(' ')).filter(function (w) { return !BRACKET_SKIP[w]; });
   }
+  /* A box in a list behaves like the same kind of box elsewhere: a child's name is a name, a partner's cell is a phone number. */
+  var LIST_VID = { 'kids.name': 'sp_name', 'shares.name': 'sp_name', 'kids.dob': 'dob', 'shares.cell': 'cell', 'shares.id': 'idno', 'shares.pct': 'biz_pct' };
+  function vid(f) { return f.vid || f.id; }
+  /* The words that say which list is meant ("the child's date of birth", "the loan balance", "the second policy"). */
+  var LIST_NOUNS = {
+    kids: ['child', 'children', 'kid', 'kids', 'son', 'sons', 'daughter', 'daughters', 'dependant', 'dependants', 'dependent', 'dependents'],
+    debts: ['debt', 'debts', 'loan', 'loans', 'bond', 'bonds', 'mortgage', 'home loan', 'credit card', 'vehicle finance', 'car finance', 'car loan', 'overdraft', 'liability', 'liabilities', 'finance'],
+    risk: ['policy', 'policies', 'risk policy', 'risk policies', 'life policy', 'life policies', 'existing cover', 'existing policy', 'existing policies'],
+    ret: ['retirement fund', 'retirement funds', 'pension', 'pensions', 'pension fund', 'provident', 'provident fund', 'retirement annuity', 'retirement annuities', 'retirement product'],
+    inv: ['investment', 'investments', 'unit trust', 'unit trusts', 'tax free', 'tax free investment', 'endowment', 'endowments'],
+    shares: ['partner', 'partners', 'shareholder', 'shareholders', 'co owner', 'co owners', 'co director', 'co directors'],
+    redq: ['reduced quote', 'reduced quotes'],
+    raq: ['ra quote', 'ra quotes', 'retirement annuity quote', 'retirement annuity quotes'],
+    invq: ['investment quote', 'investment quotes']
+  };
+  var LIST_NOUNS_N = {};
+  Object.keys(LIST_NOUNS).forEach(function (k) { LIST_NOUNS_N[k] = LIST_NOUNS[k].map(function (p) { return norm(p); }); });
+  /* -> { listKey: wordsMatched } for the list(s) whose noun is longest in the text ("investment quote" beats "investment"). */
+  function listsNamed(tn) {
+    var found = {}, max = 0;
+    Object.keys(LIST_NOUNS_N).forEach(function (k) {
+      LIST_NOUNS_N[k].forEach(function (p) { if (has(tn, p)) { var n = p.split(' ').length; if (n > (found[k] || 0)) found[k] = n; if (n > max) max = n; } });
+    });
+    Object.keys(found).forEach(function (k) { if (found[k] < max) delete found[k]; });
+    return found;
+  }
   /* A list of the fields voice can fill and the sections it can open. */
   function buildIndex(schema) {
     var sections = schema.sections.map(function (s) { return { id: s.id, title: s.title, adv: !!s.adv, cond: s.cond }; });
@@ -291,7 +350,23 @@
         });
       });
     });
-    return { sections: sections, fields: fields, byId: byId, notes: notes, noteById: noteById };
+    var lists = {};
+    schema.sections.forEach(function (sec) {
+      sec.blocks.forEach(function (b, bi) {
+        if (!b.list) return;
+        var L = schema.lists[b.list];
+        lists[b.list] = { key: b.list, title: L.title, add: L.add, cards: !!L.cards, sec: sec.id, blk: bi, cond: b.cond, secCond: sec.cond, first: L.cols[0].k, cols: [] };
+        L.cols.forEach(function (c) {
+          if (c.calc) return;
+          var id = b.list + '.' + c.k;
+          var e = { id: id, list: b.list, k: c.k, label: c.l, sec: sec.id, blk: bi, blkTitle: b.title || '', cond: b.cond, secCond: sec.cond, t: c.t === 'area' ? 'area' : (c.o ? 'sel' : 'txt'),
+            options: c.o || null, free: !!c.free, money: !!c.money, date: !!c.date, none: false, vid: LIST_VID[id] || null, lt: content(String(c.l).replace(/\([^)]*\)/g, ' ')), lx: bracketWords(c.l), bt: content(L.title), order: fields.length };
+          fields.push(e); byId[id] = e; lists[b.list].cols.push(id);
+        });
+      });
+    });
+    Object.keys(lists).forEach(function (k) { if (!SECTION_LISTS[lists[k].sec]) SECTION_LISTS[lists[k].sec] = k; });
+    return { sections: sections, fields: fields, byId: byId, notes: notes, noteById: noteById, lists: lists };
   }
 
   /* ---------- what the advisor says: commands ---------- */
@@ -314,6 +389,7 @@
   /* "let me take some notes", "note that down", "I'll make a note": the glow moves to the section's notes box and what follows is noted in point form. */
   var NOTES_ON = /\b(?:(?:let me|let's|lets|let us|i'll|i will|i'm going to|im going to|i am going to|i want to|i need to|going to|can i|could i|just|quickly|now)\s+(?:just\s+)?(?:take|make|jot|write|add|put|do|start)\s+(?:down\s+)?(?:a\s+|some\s+|a few\s+|a quick\s+|a couple of\s+)?(?:quick\s+)?notes?|notes? (?:on|about|for) (?:that|this)|(?:for|in|to|into) the notes)\b|^(?:please\s+)?(?:take|make|add|put|jot|start)\s+(?:a\s+|some\s+)?notes?\b|^(?:(?:go to|open|show|move to)\s+)?(?:the\s+)?(?:[a-z]+\s+){0,3}notes(?:\s+box)?$/;
   var NOTES_RETRO = /\b(?:(?:note|write|jot|put|log|record|capture)\s+(?:that|this|it)\s+(?:down|in|into|to)|make a note of (?:that|this)|note (?:that|this) down|note that|note this)\b/;
+  var ADD_ROW = /\b(?:add|another|one more|a new|new|next|additional|a second|a third|the other)\b/;
   var NOTES_OFF = /^(?:that(?:'s|s| is)? all (?:for|the) (?:the )?notes|that(?:'s|s| is)? it for the notes|end (?:of )?(?:the )?notes|stop (?:the |taking )?notes|no more notes|done with (?:the )?notes|finished with (?:the )?notes|close (?:the )?notes|back to the (?:form|questions))\b/;
   /* -> { type: 'goto', sec } | next | prev | nextSection | prevSection | undo | clear | notes | notesOff, or null when it is not a command. */
   function parseCommand(text, idx) {
@@ -322,6 +398,10 @@
     if (/\b(scratch that|undo that|undo|never mind|nevermind|ignore that|cancel that|forget that)\b/.test(t)) return { type: 'undo' };
     if (/^(clear that|clear this|clear it|delete that|empty that)$/.test(t)) return { type: 'clear' };
     if (NOTES_OFF.test(t)) return { type: 'notesOff' };
+    if (!/^(?:what|who|where|when|why|how|which)\b/.test(t) && !/\?$/.test(String(text).trim())) {          // "add another child", "one more policy", "another one"
+      var ln = listsNamed(t), lk = Object.keys(ln)[0] || null;
+      if ((lk && ADD_ROW.test(t)) || (!lk && /^(?:(?:and|okay|ok|now|please)\s+)*(?:add\s+)?(?:another(?:\s+one)?|one more|a new one|add one|add another(?:\s+one)?|add a row|next one please)$/.test(t))) return { type: 'addrow', list: lk };
+    }
     if (NOTES_ON.test(t) || NOTES_RETRO.test(t)) {
       var box = null;
       (idx && idx.notes || []).forEach(function (n) {           // "notes on the will", "medical aid notes"
@@ -359,10 +439,11 @@
   /* opts: { cur: current section id, isEmpty(id) } -> { id, score } or null. */
   function matchQuestion(text, idx, opts) {
     opts = opts || {};
-    var tn = norm(text), tk = tn ? tn.split(' ') : [], best = null;
+    var tn = norm(text), tk = tn ? tn.split(' ') : [], best = null, named = listsNamed(tn);
     if (!tn) return null;
     idx.fields.forEach(function (f) {
       var s = scoreField(f, tn, tk);
+      if (f.list && s > 0) { if (opts.boost && opts.boost[f.list]) s += 2; if (named[f.list]) s += 2; else if (/\b(?:your|my)\b/.test(tn)) s -= 1.5; }   // "the child's name" is the list; "your name" is the client
       if (s < 2) return;
       var total = s + (f.sec === opts.cur ? 1.5 : 0) + (!opts.isEmpty || opts.isEmpty(f.id) ? 0.4 : 0) + (f.bt && f.bt.some(function (w) { return tk.indexOf(w) >= 0; }) ? 1 : 0);
       if (!best || total > best.total) best = { id: f.id, score: s, total: total };
@@ -410,7 +491,7 @@
   var GENVOC = ['my', 'your', 'his', 'her', 'their', 'our', 'the', 'is', 'are', 'was', 'were', "it's", 'its', "that's", 'thats', 'it', 'that', 'called', 'named', 'um', 'uh', 'er', 'oh', 'well', 'so', 'and', 'but', 'okay', 'ok', 'yes', 'yeah', 'no', 'right', 'actually', 'then', 'now'];
   var MARKERS = ['is', 'are', 'was', 'were', "it's", "that's", 'thats', 'called', 'named'];
   function stripLead(f, s) {
-    var isName = NAME_IDS.indexOf(f.id) >= 0, own = norm(f.label || '').split(' ').filter(Boolean);
+    var isName = NAME_IDS.indexOf(vid(f)) >= 0, own = norm(f.label || '').split(' ').filter(Boolean);
     var voc = GENVOC.concat(own, isName ? NAMEVOC : []), mark = MARKERS.concat(own, isName ? NAMEVOC : []);
     var toks = String(s).trim().split(/\s+/), i = 0, hasMark = false;
     while (i < toks.length) {
@@ -425,7 +506,7 @@
   function looksLikeValue(f, c) {
     if (!c || /(?:^|\s)(?:is|are|was|were|am|and|but|the|a|an|of|my|your)[.,;:!?]*\s*$/i.test(c)) return false;
     if (/^(?:my|your)\s/i.test(c)) return false;
-    if (NAME_IDS.indexOf(f.id) >= 0) {
+    if (NAME_IDS.indexOf(vid(f)) >= 0) {
       var t = c.split(/\s+/);
       if (t.length > 5 || !/^[A-Za-zÀ-ÿ'’.\- ]+$/.test(c)) return false;
       return !t.some(function (w) { w = w.toLowerCase().replace(/[.,]+$/, ''); return GENVOC.indexOf(w) >= 0 || NAMEVOC.indexOf(w) >= 0 || w === 'i' || w === "i'm" || w === 'am'; });
@@ -434,7 +515,7 @@
   }
   function cleanText(f, raw) {
     var s = stripLead(f, String(raw).trim().replace(FILLER, '').trim()).trim();
-    var id = f.id;
+    var id = vid(f);
     if (NAME_IDS.indexOf(id) >= 0) s = s.replace(LEAD_NAME, '');
     else if (COMPANY_IDS.indexOf(id) >= 0) s = s.replace(LEAD_COMPANY, '');
     else if (OCC_IDS.indexOf(id) >= 0) s = s.replace(LEAD_OCC, '');
@@ -487,6 +568,12 @@
       if (hasId && !noId) return 'ID';
       if (noId) return 'Passport';
       var yn = yesNo(t); return yn === 'yes' ? 'ID' : yn === 'no' ? 'Passport' : null;
+    },
+    'kids.gender': function (t) {
+      var s = ' ' + t + ' ';
+      if (/ (girl|daughter|female|she|her|lady) /.test(s)) return 'Female';
+      if (/ (boy|son|male|he|him|his) /.test(s)) return 'Male';
+      return null;
     },
     sti: function (t) {
       return / (spouse|wife|husband|partner|handled by|handles|handle) /.test(' ' + t + ' ') ? 'Handled by spouse' : null;
@@ -597,8 +684,8 @@
       var amt = wordsToNumber(raw);
       return amt == null ? { error: 'no-number' } : { value: util.formatMoney(String(amt)), status: 'verify' };
     }
-    var id = f.id;
-    if (DATE_IDS.indexOf(id) >= 0) { var d = spokenDate(raw); return d ? { value: d, status: 'verify' } : { error: 'no-date' }; }
+    var id = vid(f);
+    if (DATE_IDS.indexOf(id) >= 0 || f.date) { var d = spokenDate(raw); return d ? { value: d, status: 'verify' } : { error: 'no-date' }; }
     if (EMAIL_IDS.indexOf(id) >= 0) {
       var em = spokenEmail(raw);
       return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(em) ? { value: em, status: 'verify' } : { error: 'no-email', note: 'heard "' + em + '"' };
@@ -651,17 +738,89 @@
     return t.split('\u0001').map(function (x) { return x.trim(); }).filter(Boolean);
   }
   /* A long free-text answer may hold several facts, so Claude reads it; dates, numbers, phone numbers and lists of options are read precisely here. */
-  function isFreeText(f) { return !!f && f.t === 'txt' && !f.options && !f.money && TYPED.indexOf(f.id) < 0 && PCT_IDS.indexOf(f.id) < 0 && f.id !== 'years'; }
+  function isFreeText(f) { return !!f && f.t === 'txt' && !f.options && !f.money && TYPED.indexOf(vid(f)) < 0 && PCT_IDS.indexOf(vid(f)) < 0 && vid(f) !== 'years'; }
+  var ORD_IDX = { first: 0, '1st': 0, second: 1, '2nd': 1, third: 2, '3rd': 2, fourth: 3, '4th': 3, fifth: 4, '5th': 4 };
+  var NO_WORDS = /^(?:no|none|nope|nah|nothing|not any|zero|we don'?t|i don'?t|don'?t have any)\b/i;
+  function rowName(d) { return d ? String(d.name || d.desc || '') : ''; }
   function plan(text, idx, st) {
     st = st || {};
     var actions = [], sure = true, target = st.target || null, answered = !!st.answered, noting = !!st.noting;
-    var visible = st.visible || function () { return true; }, valueOf = st.value || function () { return ''; };
-    var near = { cur: st.cur, isEmpty: function (id) { return valueOf(id) === ''; } };
+    var visible = st.visible || function () { return true; }, valueOf0 = st.value || function () { return ''; };
+    /* Boxes in a list belong to a row, so they are named list:row:column (kids:0:dob). Rows the line itself adds are counted as it goes. */
+    var lc = {};
+    function Ls(key) {
+      if (!lc[key]) { var rows = st.rows ? st.rows(key).slice() : [], cur = st.curRow && st.curRow[key] != null && st.curRow[key] < rows.length ? st.curRow[key] : (rows.length ? rows.length - 1 : -1); lc[key] = { n: rows.length, rows: rows, cur: cur }; }
+      return lc[key];
+    }
+    function cellParts(id) { var m = /^(\w+):(\d+):(\w+)$/.exec(String(id)); return m ? { list: m[1], i: +m[2], k: m[3] } : null; }
+    function defOf(id) { var c = cellParts(id); return c ? idx.byId[c.list + '.' + c.k] : idx.byId[id]; }
+    function valueOf(id) { var c = cellParts(id); if (!c) return valueOf0(id); var r = Ls(c.list).rows[c.i]; return r && r[c.k] != null ? String(r[c.k]) : ''; }
+    function emptyDef(id) { var e = idx.byId[id]; if (e && e.list) { var l = Ls(e.list), r = l.rows[l.cur]; return !r || !r[e.k]; } return valueOf0(id) === ''; }
+    var near = { cur: st.cur, isEmpty: emptyDef, boost: null };
+    function namedRows(core) {                                              // "When was Thandi born?": Thandi is in the Children list, so that list is meant
+      var out = null, t = ' ' + norm(core) + ' ';
+      Object.keys(idx.lists).forEach(function (key) {
+        (st.rows ? st.rows(key) : []).forEach(function (d) {
+          var nm = norm(rowName(d)).split(' ').filter(function (w) { return w.length > 2; });
+          if (nm.some(function (w) { return t.indexOf(' ' + w + ' ') >= 0; })) { out = out || {}; out[key] = 1; }
+        });
+      });
+      return out;
+    }
+    function rowFor(key, text, forceNew) {                               // which row of the list is being talked about
+      var l = Ls(key), t = norm(text), o = /\b(first|1st|second|2nd|third|3rd|fourth|4th|fifth|5th)\b/.exec(t), r;
+      if (forceNew) return l.n;
+      if (o) return ORD_IDX[o[1]];
+      if (/\b(last|latest|final)\b/.test(t) && l.n) return l.n - 1;
+      if (/\b(another|new|additional|one more)\b/.test(t)) return l.n;
+      if (/\bother\b/.test(t)) return l.n > 1 && l.cur === 0 ? 1 : l.n;
+      if (/\bnext\b/.test(t)) return l.cur + 1 < l.n ? l.cur + 1 : l.n;
+      for (r = 0; r < l.rows.length; r++) {                              // a name already in the list
+        var nm = norm(rowName(l.rows[r])).split(' ').filter(function (w) { return w.length > 2; });
+        if (nm.length && nm.some(function (w) { return (' ' + t + ' ').indexOf(' ' + w + ' ') >= 0; })) return r;
+      }
+      return l.cur >= 0 ? l.cur : (l.n ? l.n - 1 : 0);
+    }
+    function commitRow(key, i) { var l = Ls(key); while (l.n <= i) { actions.push({ do: 'addrow', list: key }); l.n++; l.rows.push({}); } l.cur = i; }
+    /* A matched box as something to act on: a plain field, or (for a list box) the cell in the right row, added only when the action is made. */
+    function aim(hit, text, forceNew) {
+      var e = idx.byId[hit.id];
+      if (!e.list) return { id: hit.id, def: e, existing: valueOf0(hit.id), commit: function () { return hit.id; } };
+      var i = rowFor(e.list, text, forceNew), cid = e.list + ':' + i + ':' + e.k;
+      return { id: cid, def: e, existing: valueOf(cid), commit: function () { commitRow(e.list, i); return cid; } };
+    }
+    function firstCell(key, i) { var e = idx.byId[idx.lists[key].cols[0]]; return { id: key + ':' + i + ':' + e.k, def: e, commit: function () { commitRow(key, i); return key + ':' + i + ':' + e.k; } }; }
+    function listFirst(core) { var k = Object.keys(listsNamed(norm(core)))[0]; return k && idx.lists[k] && visible(idx.lists[k].cols[0]) ? k : null; }
+    function countIn(core, key) {                                          // "two children", "a loan", "3 kids"
+      var t = norm(core), nouns = LIST_NOUNS_N[key].slice().sort(function (a, b) { return b.length - a.length; }).join('|');
+      var m = new RegExp('\\b(a|an|one|two|three|four|five|six|seven|eight|nine|ten|\\d{1,2})\\s+(?:[a-z]+\\s+){0,2}?(?:' + nouns + ')\\b').exec(t);
+      if (!m) return null;
+      var n = /^\d+$/.test(m[1]) ? +m[1] : (m[1] === 'a' || m[1] === 'an' ? 1 : wordsToNumber(m[1]));
+      return n != null && n >= 1 && n <= 10 ? n : null;
+    }
+    function addRows(key, count, why) {                                    // make sure there are at least `count` rows, then ask the first new one
+      var l = Ls(key), first = l.n;
+      if (l.n >= count) { var fc0 = firstCell(key, l.cur >= 0 ? l.cur : 0); var id0 = fc0.commit(); actions.push({ do: 'ask', field: id0 }); target = id0; answered = false; return; }
+      var fc = firstCell(key, first); commitRow(key, count - 1); l.cur = first;
+      actions.push({ do: 'ask', field: fc.id }); target = fc.id; answered = false;
+    }
+    function askCell(p) { var id = p.commit(); actions.push({ do: 'ask', field: id }); target = id; answered = false; return id; }
+
     clauses(text).forEach(function (seg) {
       var core = seg.replace(LEADWORDS, '').trim(), isQ = /\?\s*["')]*$/.test(core), words = seg.split(/\s+/).length;
       if (!core) return;
+      near.boost = namedRows(core);
       var cmd = parseCommand(core, idx);
       if (cmd && cmd.bare && target && !answered) cmd = null;              // "Medical aid", said while that box waits, is the answer, not a move
+      if (cmd && cmd.type === 'addrow') {                                  // "add another child", "one more policy"
+        var lk = cmd.list || (cellParts(target) && cellParts(target).list) || sectionList(st.cur);
+        if (lk && idx.lists[lk]) {
+          noting = false;
+          var ch = matchQuestion(core, idx, near), p0 = ch && idx.byId[ch.id].list === lk && ch.score >= 4 ? aim(ch, core, true) : firstCell(lk, Ls(lk).n);
+          askCell(p0); return;
+        }
+        cmd = null;
+      }
       if (cmd) {
         if (cmd.type === 'notes') noting = true; else if (cmd.type !== 'undo' && cmd.type !== 'clear') noting = false;   // moving on ends the notes
         actions.push({ do: 'cmd', cmd: cmd }); return;
@@ -669,13 +828,29 @@
       if (noting) {                                                        // while notes are being taken, what is said is noted, not filled in
         if (isChatter(seg)) return;
         var askish = isQ || WH.test(core) || looksLikeQuestion(core), strong = askish ? matchQuestion(core, idx, near) : null;
-        if (strong && strong.score >= 4 && visible(strong.id)) { noting = false; actions.push({ do: 'ask', field: strong.id }); target = strong.id; answered = false; return; }
+        if (strong && strong.score >= 4 && visible(strong.id)) { noting = false; askCell(aim(strong, core)); return; }
         if (!askish) { var last = actions[actions.length - 1]; if (last && last.do === 'note') last.text += '. ' + seg; else actions.push({ do: 'note', text: seg }); }   // the adviser's own questions are not noted
         return;
       }
+      /* waiting for a count: "how many children do you have?" ... "two" */
+      var ct = /^count:(\w+)$/.exec(String(target || ''));
+      if (ct && !answered && !isQ && !(NEGATE_HAVE.test(seg) && !NO_WORDS.test(core))) {
+        var cn = wordsToNumber(core) != null ? Math.round(wordsToNumber(core)) : (/^(?:yes|yeah|yep|yup|ja|i do|we do|i have|we have)\b/i.test(core) ? 1 : null);
+        if (NO_WORDS.test(core)) { answered = true; return; }             // none: nothing to record
+        if (cn != null && cn >= 1 && cn <= 10) { answered = true; addRows(ct[1], cn); return; }
+      }
+      /* "I have two children", "we have a loan": make the rows, then ask about the first */
+      if (!isQ && !WH.test(core)) {
+        var lkc = listFirst(core), cc = lkc ? countIn(core, lkc) : null;
+        if (lkc && cc && /\b(?:have|has|got|had|there are|there is|with|we've|i've|three|two|one|four|five)\b/i.test(core)) {
+          var colHit = matchQuestion(core, idx, near);
+          if (!(colHit && idx.byId[colHit.id].list === lkc && colHit.score >= 4 && /\bis\b/.test(core))) { addRows(lkc, cc); return; }
+        }
+        if (lkc && NEGATE_HAVE.test(seg) && !Object.keys(idx.byId).some(function (id) { return idx.byId[id].none && matchQuestion(core, idx, near) && matchQuestion(core, idx, near).id === id; })) { answered = true; return; }   // "no children": nothing to record
+      }
       if (!isQ && !WH.test(core) && /\b(?:is|are|was|were)[.,;:!]*\s*$/i.test(core)) {   // "my surname is" ... and then nothing yet: glow that box and keep listening
         var dh = matchQuestion(core, idx, near);
-        if (dh && dh.score >= 2.5 && visible(dh.id)) { actions.push({ do: 'ask', field: dh.id }); target = dh.id; answered = false; return; }
+        if (dh && dh.score >= 2.5 && visible(dh.id)) { askCell(aim(dh, core)); return; }
       }
       if (!isQ && NEGATE_HAVE.test(seg)) {                                // "I don't have a home number", "no work email"
         var nh = matchQuestion(core, idx, near);
@@ -683,29 +858,36 @@
       }
       if (!isQ && !WH.test(core)) {                                        // a value of a typed box, found in the clause however it is phrased
         var th = matchQuestion(core, idx, near);
-        if (th && th.score >= 2.5 && visible(th.id) && TYPED.indexOf(th.id) >= 0) {
-          var tv = EMAIL_IDS.indexOf(th.id) >= 0 ? core.replace(/^.*\b(?:is|are|it's|its|address|email|e-mail)\b[,:\s]*/i, '') : core;   // an email is what follows "is" / "it's"
-          var tr = answerFor(idx.byId[th.id], tv, valueOf(th.id));
-          if (tr.kind === 'fill') { actions.push({ do: 'fill', field: th.id, res: tr, explicit: true }); target = th.id; answered = true; return; }
+        if (th && th.score >= 2.5 && visible(th.id) && TYPED.indexOf(vid(idx.byId[th.id])) >= 0) {
+          var tp = aim(th, core), tv = EMAIL_IDS.indexOf(vid(tp.def)) >= 0 ? core.replace(/^.*\b(?:is|are|it's|its|address|email|e-mail)\b[,:\s]*/i, '') : core;   // an email is what follows "is" / "it's"
+          var tr = answerFor(tp.def, tv, tp.existing);
+          if (tr.kind === 'fill') { var tid = tp.commit(); actions.push({ do: 'fill', field: tid, res: tr, explicit: true }); target = tid; answered = true; return; }
         }
       }
       var m = !isQ && !WH.test(core) ? ASSERT.exec(core) : null;           // "your first name is John", "my surname is Peters"
       if (m) {
         var hit = matchQuestion((m[1] || '') + m[2], idx, near);
         if (hit && hit.score >= 2.5 && visible(hit.id)) {
-          var r = answerFor(idx.byId[hit.id], m[3].replace(/[,\s]+(?:right|correct|okay|ok|yes|isn't it|is that right|is that correct|not so)\s*$/i, ''), valueOf(hit.id));
-          if (r.kind === 'fill' || r.kind === 'confirm') { actions.push({ do: r.kind, field: hit.id, res: r, explicit: true, tentative: hit.score < 3 }); target = hit.id; answered = true; if (hit.score < 3) sure = false; return; }
+          var ap = aim(hit, core), r = answerFor(ap.def, m[3].replace(/[,\s]+(?:right|correct|okay|ok|yes|isn't it|is that right|is that correct|not so)\s*$/i, ''), ap.existing);
+          if (r.kind === 'fill' || r.kind === 'confirm') { var aid = ap.commit(); actions.push({ do: r.kind, field: aid, res: r, explicit: true, tentative: hit.score < 3 }); target = aid; answered = true; if (hit.score < 3) sure = false; return; }
         }
       }
       if (isQ || WH.test(core) || looksLikeQuestion(core)) {               // someone asks about a field
         var q = matchQuestion(core, idx, near);
-        if (q && visible(q.id)) { actions.push({ do: 'ask', field: q.id, tentative: q.score < 4 }); target = q.id; answered = false; if (q.score < 4) sure = false; }
-        else if (!isChatter(core)) sure = false;
+        if (q && visible(q.id)) { var qid = askCell(aim(q, core)); actions[actions.length - 1].tentative = q.score < 4; if (q.score < 4) sure = false; return; }
+        var lq = listFirst(core);                                          // "do you have any children?", "how many loans?", "tell me about the policies"
+        if (lq) {
+          var lq0 = Ls(lq);
+          if (lq0.n === 0) { actions.push({ do: 'ask', field: 'count:' + lq }); target = 'count:' + lq; answered = false; }
+          else askCell(firstCell(lq, rowFor(lq, core)));
+          return;
+        }
+        if (!isChatter(core)) sure = false;
         return;
       }
-      if (target && !answered) {                                           // a plain statement while a box is waiting answers it
-        var a = answerFor(idx.byId[target], seg, valueOf(target));
-        if (a.kind === 'fill' || a.kind === 'confirm') { var longText = words >= 6 && isFreeText(idx.byId[target]); actions.push({ do: a.kind, field: target, res: a, tentative: longText }); answered = true; if (longText) sure = false; return; }
+      if (target && !answered && !/^count:/.test(target)) {                // a plain statement while a box is waiting answers it
+        var a = answerFor(defOf(target), seg, valueOf(target));
+        if (a.kind === 'fill' || a.kind === 'confirm') { var longText = words >= 6 && isFreeText(defOf(target)); actions.push({ do: a.kind, field: target, res: a, tentative: longText }); answered = true; if (longText) sure = false; return; }
         if (a.kind === 'wait') { actions.push({ do: 'wait', field: target, dangling: !!a.dangling }); return; }
         sure = false; return;
       }
@@ -713,6 +895,9 @@
     });
     return { actions: actions, sure: sure };
   }
+  /* The list shown in a section, if it has one. */
+  function sectionList(secId) { return secId && SECTION_LISTS[secId] || null; }
+  var SECTION_LISTS = {};
 
   /* Notes in point form, not full sentences: "so he said that he would like to retire at sixty" -> ["Would like to retire at 60"] */
   var NOTE_FILLER = /\b(?:um+|uh+|er+|erm|you know|i mean|sort of|kind of|basically|actually|obviously|honestly|like i said|as i said)\b[,\s]*/gi;
@@ -726,7 +911,7 @@
     }).filter(Boolean);
   }
 
-  var PRIVATE_IDS = ['idno', 'tax', 'cell', 'work', 'home', 'sp_tel', 'pemail', 'wemail'];
+  var PRIVATE_IDS = ['idno', 'tax', 'cell', 'work', 'home', 'sp_tel', 'pemail', 'wemail', 'shares.id', 'shares.cell'];
   var AGREE = { correct: 1, right: 1, exactly: 1, same: 1, unchanged: 1, still: 1, yes: 1, yeah: 1, yep: 1, yup: 1, ja: 1, sure: 1, indeed: 1, definitely: 1, absolutely: 1, true: 1, thanks: 1, thank: 1, changed: 1, nothing: 1, change: 1 };
   var NEGATE = { no: 1, nope: 1, nah: 1, not: 1, never: 1, none: 1, really: 1, quite: 1 };
   /* Does the client simply agree with what is there? A bare "yes" counts only for plain text boxes (bare = true). */
@@ -764,7 +949,7 @@
 
   return {
     norm: norm, wordsToNumber: wordsToNumber, spokenDigits: spokenDigits, spokenDate: spokenDate, spokenEmail: spokenEmail, yesNo: yesNo,
-    buildIndex: buildIndex, parseCommand: parseCommand, looksLikeQuestion: looksLikeQuestion, isChatter: isChatter, plan: plan, pointForm: pointForm, matchQuestion: matchQuestion, interpret: interpret, titleCase: titleCase,
+    buildIndex: buildIndex, parseCommand: parseCommand, looksLikeQuestion: looksLikeQuestion, isChatter: isChatter, plan: plan, pointForm: pointForm, LIST_NOUNS: LIST_NOUNS, matchQuestion: matchQuestion, interpret: interpret, titleCase: titleCase,
     isConfirm: isConfirm, answerFor: answerFor, PRIVATE_IDS: PRIVATE_IDS
   };
 });

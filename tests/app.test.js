@@ -79,7 +79,7 @@ test('a saved file reopens exactly, and unknown or missing parts are tolerated',
 });
 test('file name follows the meeting date and client', () => {
   const s = fresh(); set(s, 'fname', 'Thandi'); set(s, 'sname', 'Dlamini');
-  assert.strictEqual(store.baseFileName(s), 'Fact Find - 2026-10-15 - Thandi Dlamini');
+  assert.strictEqual(store.baseFileName(s), 'Fact Find - 15.10.2026 - Thandi Dlamini');
 });
 test('each debt has an Other bank box and its own notes', () => {
   const cols = schema.lists.debts.cols.map(c => c.k);
@@ -112,7 +112,7 @@ test('every date is shown day/month/year, and older files are brought into line'
   assert.strictEqual(back.f.date.v, '17/10/2026');
   assert.strictEqual(back.l.kids[0].d.dob, '22/08/2019');
   s.f.dob.v = 'not a date'; assert.strictEqual(store.fromJSON(store.toJSON(s)).f.dob.v, 'not a date');   // anything else is left as typed
-  assert.strictEqual(store.baseFileName(Object.assign(store.blank(), { f: Object.assign(store.blank().f, { date: { v: '17/10/2026', st: 'confirmed' } }) })), 'Fact Find - 2026-10-17 - New client');
+  assert.strictEqual(store.baseFileName(Object.assign(store.blank(), { f: Object.assign(store.blank().f, { date: { v: '17/10/2026', st: 'confirmed' } }) })), 'Fact Find - 17.10.2026 - New client');
   const calc2 = require('../app/js/calc.js');
   const c = store.ctxFor(back);
   assert.strictEqual(calc2.clientAge(c), 40);                              // ages are worked out from day/month/year dates
@@ -121,4 +121,11 @@ test('nationality starts as South African and the ID type as ID', () => {
   const s = store.blank();
   assert.deepStrictEqual(s.f.nat, { v: 'South African', st: 'preset' });
   assert.deepStrictEqual(s.f.idtype, { v: 'ID', st: 'preset' });
+});
+
+test('a box in a list can be set with the status it was heard with', () => {
+  const s = store.blank(); store.addRow(s, 'kids', { name: 'Thandi' }, 'confirmed');
+  assert.strictEqual(s.l.kids[0].st, 'confirmed');
+  store.setCell(s, 'kids', 0, 'dob', '22/08/2019', 'verify'); assert.strictEqual(s.l.kids[0].st, 'verify'); assert.strictEqual(s.l.kids[0].d.dob, '22/08/2019');
+  store.setCell(s, 'kids', 0, 'cost', 'R 2 500.00'); assert.strictEqual(s.l.kids[0].st, 'confirmed');   // typed by hand: confirmed, as before
 });

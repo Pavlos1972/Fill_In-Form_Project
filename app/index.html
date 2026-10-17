@@ -17,6 +17,10 @@
   .f.voice-wait > span.l { color: #e5483a; font-weight: 600; }
   .f.voice-ok { border-radius: 8px; animation: vok 1.5s ease-out 1; }
   .main header h2.voice-wait { display: inline-block; border-radius: 8px; padding: 0 12px; margin-left: -12px; animation: vwait 1.3s ease-in-out infinite; }
+  td.voice-wait > input, td.voice-wait > select, td.voice-wait > textarea { border-radius: 6px; animation: vwait 1.3s ease-in-out infinite; }
+  td.voice-ok > input, td.voice-ok > select, td.voice-ok > textarea { border-radius: 6px; animation: vok 1.5s ease-out 1; }
+  .addrow.voice-wait { border-radius: 8px; animation: vwait 1.3s ease-in-out infinite; }
+  .addrow.voice-ok { border-radius: 8px; animation: vok 1.5s ease-out 1; }
   .nav button.voice-hit { animation: vok 1.5s ease-out 1; }
   .vm-note { display: block; font-size: 12px; color: #e5483a; margin-top: 2px; }
   .vm-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #b0aea5; margin-right: 7px; vertical-align: middle; }
@@ -25,7 +29,7 @@
   #btnVoice.on.busy .vm-dot { background: #ffb020; }
   #vdText { position: fixed; left: 50%; transform: translateX(-50%); bottom: 10px; width: min(560px, calc(100vw - 32px)); z-index: 50; background: #1f1e1d; color: #faf9f5; border: 1px solid #4a4843; border-radius: 8px; padding: 9px 12px; font: 14px system-ui, sans-serif; box-shadow: 0 6px 24px rgba(0,0,0,.35); }
   #vdText[hidden] { display: none; }
-  @media (prefers-reduced-motion: reduce) { .f.voice-wait, .main header h2.voice-wait { animation: none; box-shadow: 0 0 0 3px #e5483a; } }
+  @media (prefers-reduced-motion: reduce) { .f.voice-wait, .main header h2.voice-wait, td.voice-wait > input, td.voice-wait > select { animation: none; box-shadow: 0 0 0 3px #e5483a; } }
 </style>
 </head>
 <body>

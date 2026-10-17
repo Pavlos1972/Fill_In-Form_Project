@@ -127,8 +127,9 @@
     var L = schema.lists[key], v = c.calc ? FF.calc.rowCalc(c.calc, r, ctx()) : r.d[c.k];
     var at = 'data-l="' + key + '" data-i="' + i + '" data-k="' + c.k + '"';
     var ctl = control(at, c, v, !!c.calc);
-    if (card) return '<label class="f' + (c.wide ? ' wide' : '') + '"><span class="l"><span>' + esc(c.l) + '</span></span><span class="box">' + ctl + '</span><span class="warn" data-rwarn="' + key + ':' + i + '" hidden></span></label>';
-    return '<td' + (c.num ? ' class="num"' : '') + '>' + ctl + '</td>';
+    var cid = key + ':' + i + ':' + c.k;
+    if (card) return '<label class="f' + (c.wide ? ' wide' : '') + '" data-cell="' + cid + '"><span class="l"><span>' + esc(c.l) + '</span></span><span class="box">' + ctl + '</span><span class="warn" data-rwarn="' + key + ':' + i + '" hidden></span></label>';
+    return '<td' + (c.num ? ' class="num"' : '') + ' data-cell="' + cid + '">' + ctl + '</td>';
   }
   function sumHTML(key) {
     var L = schema.lists[key];
@@ -359,13 +360,26 @@
      client's answer is in or confirmed. Simple wording is understood on this computer; looser wording goes to Claude (voice-ai.js).
      Whatever listens calls FF.app.voiceHear(text, who), who being 'me' (the adviser) or 'client'. Typing works as always when voice is off. */
   var V = FF.voice, VAI = FF.voiceAI, vidx = V.buildIndex(schema);
-  var vm = { on: false, target: null, answered: false, secGlow: false, noteMode: null, undo: [], recent: [], flashes: {}, queue: Promise.resolve(), busy: 0, lastFail: 0 };
-  function vmField(id) { return vidx.byId[id] || vidx.noteById[id]; }
+  var vm = { on: false, target: null, answered: false, secGlow: false, noteMode: null, rowCur: {}, undo: [], recent: [], flashes: {}, queue: Promise.resolve(), busy: 0, lastFail: 0 };
+  /* A box in a list is named list:row:column (kids:0:dob). "count:kids" is the Add button, waiting for how many there are. */
+  function vmCellRef(id) { var m = /^(\w+):(\d+):(\w+)$/.exec(String(id)); return m ? { list: m[1], i: +m[2], k: m[3] } : null; }
+  function vmField(id) { var c = vmCellRef(id); if (c) return vidx.byId[c.list + '.' + c.k]; return vidx.byId[id] || vidx.noteById[id]; }
+  function vmValue(id) {
+    var c = vmCellRef(id);
+    if (c) { var r = state.l[c.list][c.i]; return r && r.d[c.k] != null ? String(r.d[c.k]) : ''; }
+    return state.f[id] ? String(state.f[id].v) : '';
+  }
   function vmVisible(f) { return calc.showIf(f.secCond, ctx()) && calc.showIf(f.cond, ctx()); }
   function vmSecTitle(id) { return schema.sections.filter(function (s) { return s.id === id; })[0].title; }
-  function vmEl(id) { return document.querySelector('[data-field="' + id + '"]'); }
+  function vmEl(id) {
+    var m = /^count:(\w+)$/.exec(String(id));
+    if (m) return document.querySelector('[data-add="' + m[1] + '"]');
+    if (vmCellRef(id)) return document.querySelector('[data-cell="' + id + '"]');
+    return document.querySelector('[data-field="' + id + '"]');
+  }
+  function vmKey(e) { return e.dataset.field || e.dataset.cell || (e.dataset.add ? 'count:' + e.dataset.add : ''); }
   function vmAIReady() { return !!(VAI && (FF.lookup.getSettings().apiKey || (FF.voiceBackend && FF.voiceBackend.available))); }
-  function vmPrivate(id) { return V.PRIVATE_IDS.indexOf(id) >= 0; }
+  function vmPrivate(id) { var c = vmCellRef(id); return V.PRIVATE_IDS.indexOf(c ? c.list + '.' + c.k : id) >= 0; }
   /* The red-amber glow: on the box being asked about, else on the section heading. */
   function vmMarkWait() {
     document.querySelectorAll('.voice-wait').forEach(function (e) { e.classList.remove('voice-wait'); });
@@ -377,7 +391,7 @@
   /* The green flash lasts 1.5 seconds and survives a redraw (the company look-up redraws the screen when it finishes). */
   function vmFlash(id) { vm.flashes[id] = Date.now(); vmShowFlashes(); setTimeout(vmShowFlashes, 1600); }
   function vmShowFlashes() {
-    document.querySelectorAll('.voice-ok').forEach(function (e) { if (!vm.flashes[e.dataset.field] || Date.now() - vm.flashes[e.dataset.field] > 1500) { e.classList.remove('voice-ok'); e.style.animationDelay = ''; } });
+    document.querySelectorAll('.voice-ok').forEach(function (e) { if (!vm.flashes[vmKey(e)] || Date.now() - vm.flashes[vmKey(e)] > 1500) { e.classList.remove('voice-ok'); e.style.animationDelay = ''; } });
     Object.keys(vm.flashes).forEach(function (id) {
       var age = Date.now() - vm.flashes[id];
       if (age > 1500) { delete vm.flashes[id]; return; }
@@ -402,8 +416,18 @@
   }
   /* Move to a field: open its section if needed, glow, scroll to it and put the cursor in it. */
   function vmShow(id) {
-    var f = vmField(id);
+    var cm = /^count:(\w+)$/.exec(id);
+    if (cm) {                                                    // waiting to hear how many: the Add button glows
+      var L = vidx.lists[cm[1]];
+      if (cur !== L.sec) { cur = L.sec; redraw(); vmPulseNav(); }
+      vm.target = id; vm.answered = false; vm.secGlow = false; vmMarkWait();
+      var ab = vmEl(id); if (ab) ab.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      return;
+    }
+    var f = vmField(id), cr = vmCellRef(id);
+    if (cr) while (state.l[cr.list].length <= cr.i) store.addRow(state, cr.list, {}, 'heard');   // the row is there before it is pointed at
     if (cur !== f.sec) { cur = f.sec; redraw(); vmPulseNav(); }
+    if (cr) { vm.rowCur[cr.list] = cr.i; if (!vmEl(id)) redraw(); }
     vm.target = id; vm.answered = false; vm.secGlow = false; vmMarkWait();
     var el = vmEl(id);
     if (el) {
@@ -419,7 +443,7 @@
     redraw(); vmPulseNav(); window.scrollTo(0, 0);
   }
   function vmStep(dir) {
-    var list = vidx.fields.filter(function (f) { return f.sec === cur && vmVisible(f); });
+    var list = vidx.fields.filter(function (f) { return f.sec === cur && !f.list && vmVisible(f); });
     if (!list.length) return;
     var i = vm.target ? list.map(function (f) { return f.id; }).indexOf(vm.target) : -1, n = i < 0 ? (dir > 0 ? 0 : list.length - 1) : i + dir;
     if (n >= 0 && n < list.length) vmShow(list[n].id);
@@ -432,6 +456,8 @@
     var e = vm.undo.pop();
     if (!e) return;
     if (e.kind === 'nav') { cur = e.sec; vm.target = e.target; vm.answered = e.answered; vm.secGlow = false; redraw(); vmPulseNav(); return; }
+    if (e.kind === 'addrow') { store.delRow(state, e.list, e.i); vm.rowCur[e.list] = Math.min(vm.rowCur[e.list] == null ? 0 : vm.rowCur[e.list], state.l[e.list].length - 1); touch(); redraw(); return; }
+    if (e.kind === 'cell') { var ur = state.l[e.list][e.i]; if (ur) { ur.d[e.k] = e.prev.v; ur.st = e.prev.st; } touch(); redraw(); return; }
     state.f[e.id] = { v: e.prev.v, st: e.prev.st };
     (e.extras || []).forEach(function (x) { state.f[x.id] = { v: x.prev.v, st: x.prev.st }; });
     touch(); vmShow(e.id); redraw(); vmMarkWait();
@@ -449,6 +475,8 @@
       case 'undo': return vmUndo();
       case 'clear':
         if (!vm.target) return;
+        var ccr = vmCellRef(vm.target);
+        if (ccr) { var cr0 = state.l[ccr.list][ccr.i]; if (!cr0 || cr0.d[ccr.k] === '') return; vm.undo.push({ kind: 'cell', list: ccr.list, i: ccr.i, k: ccr.k, prev: { v: cr0.d[ccr.k], st: cr0.st } }); cr0.d[ccr.k] = ''; vm.answered = false; touch(); redraw(); vmMarkWait(); return; }
         var cell = state.f[vm.target];
         if (cell.v === '' || cell.st === 'confirmed') return;
         vm.undo.push({ kind: 'fill', id: vm.target, prev: { v: cell.v, st: cell.st }, extras: [] });
@@ -461,7 +489,7 @@
     var boxes = vidx.notes.filter(function (n) { return n.sec === cur && vmVisible(n); });
     if (!boxes.length) return null;
     if (boxes.length === 1) return boxes[0].id;
-    var tid = vm.noteMode && vm.noteMode.prev ? vm.noteMode.prev.target : vm.target, tf = tid ? vidx.byId[tid] : null;
+    var tid = vm.noteMode && vm.noteMode.prev ? vm.noteMode.prev.target : vm.target, tf = tid ? vmField(tid) : null;
     if (tf && tf.sec === cur) {
       var best = boxes[0], d0 = Math.abs(boxes[0].blk - tf.blk);
       boxes.forEach(function (n) { var d = Math.abs(n.blk - tf.blk); if (d < d0) { best = n; d0 = d; } });
@@ -512,7 +540,51 @@
   /* The adviser's question points at a field. */
   function vmPoint(id) { vmShow(id); }
   /* Put one answer into the form. res: { kind: 'confirm' } or { kind: 'fill', value, status, extra?, append? }. */
+  /* A box in a list: row i, column k. The row is added first if it is not there yet. */
+  function vmApplyCell(c, id, res) {
+    var rows = state.l[c.list];
+    while (rows.length <= c.i) store.addRow(state, c.list, {}, 'heard');
+    var row = rows[c.i], prev = row.d[c.k] == null ? '' : String(row.d[c.k]);
+    if (res.kind === 'confirm') { if (prev === '') return false; }
+    else {
+      var value = res.value;
+      if (res.append && prev) value = prev.replace(/\s+$/, '') + '\n' + value;
+      var auto = c.list === 'kids' && c.k === 'dob' && (row.d.stage === '' || row.d.stage === FF.calc.rowCalc('stage', row, ctx()));   // a child's stage follows the date of birth until set by hand
+      vm.undo.push({ kind: 'cell', list: c.list, i: c.i, k: c.k, prev: { v: prev, st: row.st } });
+      store.setCell(state, c.list, c.i, c.k, value, res.status === 'verify' ? 'verify' : 'heard');
+      if (auto) row.d.stage = FF.calc.rowCalc('stage', row, ctx());
+    }
+    vm.rowCur[c.list] = c.i;
+    if (id === vm.target) vm.answered = true;
+    touch(); redraw(); vmFlash(id);
+    return true;
+  }
+  /* Add a row, with the values Claude heard for it (a child: name and date of birth). A row that is still empty is filled before a new one is added. */
+  function vmAddRow(list, values) {
+    var L = vidx.lists[list];
+    if (!L || !vmVisible(L)) return -1;
+    if (cur !== L.sec) { cur = L.sec; vm.secGlow = false; vmPulseNav(); }
+    var rows = state.l[list], i = -1, r;
+    if (values) for (r = 0; r < rows.length; r++) if (!Object.keys(rows[r].d).some(function (k) { return rows[r].d[k] !== ''; })) { i = r; break; }
+    if (i < 0) { store.addRow(state, list, {}, 'heard'); i = rows.length - 1; vm.undo.push({ kind: 'addrow', list: list, i: i }); }
+    var row = rows[i], flashed = [], last = null;
+    vm.rowCur[list] = i;
+    Object.keys(values || {}).forEach(function (k) {
+      var def = vidx.byId[list + '.' + k], x = def ? V.interpret(def, values[k]) : null;
+      if (!x || x.error) return;
+      vm.undo.push({ kind: 'cell', list: list, i: i, k: k, prev: { v: row.d[k] == null ? '' : row.d[k], st: row.st } });
+      row.d[k] = x.value; row.st = x.status === 'verify' ? 'verify' : (row.st === 'verify' ? 'verify' : 'heard');
+      flashed.push(list + ':' + i + ':' + k); last = k;
+    });
+    if (list === 'kids' && row.d.dob && row.d.stage === '') row.d.stage = FF.calc.rowCalc('stage', row, ctx());
+    touch(); redraw(); vmPulseNav();
+    if (last) { vm.target = list + ':' + i + ':' + last; vm.answered = true; }
+    flashed.forEach(vmFlash); vmMarkWait();
+    return i;
+  }
   function vmApply(id, res) {
+    var cr = vmCellRef(id);
+    if (cr) return vmApplyCell(cr, id, res);
     var cell = state.f[id], entry = { kind: 'fill', id: id, prev: { v: cell.v, st: cell.st }, extras: [] }, extraIds = [];
     if (res.kind === 'confirm') {
       if (cell.v === '') return false;
@@ -532,60 +604,15 @@
     return true;
   }
   function vmAsk(who, text) {
-    var set = FF.lookup.getSettings(), tid = vm.target && !vmPrivate(vm.target) ? vm.target : null;
+    var set = FF.lookup.getSettings(), tcr = vm.target ? vmCellRef(vm.target) : null, tid = vm.target && !/^count:/.test(vm.target) && vmField(vm.target) && !vmPrivate(vm.target) ? (tcr ? tcr.list + '.' + tcr.k : vm.target) : null;
     vm.busy++; vmRender();
     return VAI.decide({
       apiKey: set.apiKey, ask: !set.apiKey && FF.voiceBackend && FF.voiceBackend.available ? FF.voiceBackend.ask : null, model: set.voiceModel, idx: vidx, who: who, text: text,
-      ctx: { sectionId: cur, targetId: tid, targetValue: tid ? state.f[tid].v : '', recent: vm.recent.slice(-7, -1) }
+      ctx: { sectionId: cur, targetId: tid, targetRow: tcr ? tcr.i + 1 : null, targetValue: tid ? vmValue(vm.target) : '', listRows: function (key) { return state.l[key].map(function (r) { return r.d; }); }, recent: vm.recent.slice(-7, -1) }
     }).then(function (r) { vm.busy--; vmRender(); return r; }, function (err) {
       vm.busy--; vmRender();
       if (Date.now() - vm.lastFail > 60000) { vm.lastFail = Date.now(); toast('Voice: could not reach Claude (' + err.message + '). Using only what this computer can understand.'); }
       return null;
-    });
-  }
-  function vmProcessMe(text) {
-    var c = V.parseCommand(text, vidx);
-    if (c) { vmCommand(c); return null; }
-    var m = V.matchQuestion(text, vidx, { cur: cur, isEmpty: function (id) { return state.f[id].v === ''; } });
-    if (m && (m.score >= 5 || !vmAIReady())) { vmPoint(m.id); return null; }
-    if (!vmAIReady()) return null;
-    return vmAsk('me', text).then(function (r) {
-      if (r && r.kind === 'point') { if (r.field) vmPoint(r.field); else if (r.section) vmOpenSection(r.section); }
-      else if (m) vmPoint(m.id);
-    });
-  }
-  function vmApplyAI(r) {
-    if (!r || r.kind !== 'answers') return;
-    var any = false;
-    r.answers.forEach(function (a) {
-      var f = vmField(a.field), cell = state.f[a.field], isT = a.field === vm.target;
-      if (!f || !vmVisible(f)) return;
-      if (!isT && cell.v !== '' && cell.st === 'confirmed') return;          // a volunteered fact never overwrites something already confirmed
-      var res = null;
-      if (a.confirm) res = { kind: 'confirm' };
-      else { var x = V.interpret(f, a.value); if (x && !x.error) res = { kind: 'fill', value: x.value, status: x.status, extra: x.extra, append: x.append }; }
-      if (res && !isT) vmShow(a.field);        // a fact the client volunteered: move to that box so the glow lands there
-      if (res && vmApply(a.field, res)) any = true;
-    });
-    if (!any && r.waiting && vm.target) vmNote(vm.target, 'Waiting for the correct answer');
-  }
-  function vmProcessClient(text) {
-    var words = text.split(/\s+/).length, local = null;
-    if (vm.target && !vm.answered) {
-      var id = vm.target, f = vmField(id), r = V.answerFor(f, text, state.f[id].v);
-      if (r.kind === 'wait') { vmNote(id, 'Waiting for the correct answer'); return null; }
-      var canAsk = vmAIReady() && !vmPrivate(id);
-      /* A long answer usually holds several facts, so Claude reads it first; short answers are understood here, instantly. */
-      if ((r.kind === 'confirm' || r.kind === 'fill') && !(canAsk && words >= 6)) {
-        if (r.kind === 'fill' && words > 8 && f.t === 'txt') r.status = 'verify';
-        vmApply(id, r); return null;
-      }
-      if (!canAsk) { if (r.kind === 'error') vmNote(id, 'Did not catch that'); return null; }
-      local = r;
-    } else if (!vmAIReady() || words < 4) return null;        // after an answer, only longer remarks are checked for extra facts
-    return vmAsk('client', text).then(function (res) {
-      if (res === null && local && local.kind === 'fill') { local.status = 'verify'; vmApply(vm.target, local); return; }   // Claude unreachable: use what this computer understood
-      vmApplyAI(res);
     });
   }
   /* Do what a line of conversation says, in order. Actions come from V.plan (on this computer) or from Claude. */
@@ -595,11 +622,23 @@
       case 'cmd': return vmCommand(a.cmd);
       case 'section': return vmOpenSection(a.section);
       case 'note': return vmAddNote(a.text);
-      case 'ask': if (vm.noteMode) vmStopNotes(); return f && vmVisible(f) ? vmPoint(a.field) : null;
+      case 'addrow': return void vmAddRow(a.list, null);
+      case 'row': return void vmAddRow(a.list, a.values);
+      case 'ask':
+        if (vm.noteMode) vmStopNotes();
+        if (a.list) {                                                           // Claude: a box of a row ("row": 2, "last" or "new")
+          var n = state.l[a.list].length, i = a.row === 'new' ? n : a.row === 'last' ? Math.max(n - 1, 0) : a.row - 1;
+          return vmPoint(a.list + ':' + i + ':' + a.col);
+        }
+        if (/^count:/.test(a.field)) return vmPoint(a.field);
+        return f && vmVisible(f) ? vmPoint(a.field) : null;
+      case 'cell':                                                              // Claude: a value for a box of a row that is there
+        var rn = state.l[a.list].length, ri = a.row === 'last' ? Math.max(rn - 1, 0) : a.row - 1;
+        return vmDo({ do: 'fill', field: a.list + ':' + ri + ':' + a.col, value: a.value });
       case 'wait': return vm.target ? vmNote(vm.target, a.dangling ? 'Listening for the rest' : 'Waiting for the correct answer') : null;
       case 'confirm': case 'fill':
         if (!f || !vmVisible(f)) return;
-        var cell = state.f[a.field], res = a.res;
+        var cell = vmCellRef(a.field) ? { v: vmValue(a.field), st: (state.l[vmCellRef(a.field).list][vmCellRef(a.field).i] || { st: 'heard' }).st } : state.f[a.field], res = a.res;
         if (!res && a.do === 'confirm') res = { kind: 'confirm' };
         if (!res) { var x = V.interpret(f, a.value); if (x && !x.error) res = { kind: 'fill', value: x.value, status: x.status, extra: x.extra, append: x.append }; }
         if (!res) return;
@@ -615,7 +654,7 @@
   /* A line whose speaker is not known. It may hold the adviser and the client together, in any order. Simple lines are understood here,
      instantly; when some part is unclear Claude reads the whole line (and this computer's reading is the fallback if Claude cannot be reached). */
   function vmProcessAuto(text, entry) {
-    var pl = V.plan(text, vidx, { cur: cur, noting: !!vm.noteMode, target: vm.target, answered: vm.answered, value: function (id) { return state.f[id].v; }, visible: function (id) { var f = vmField(id); return !!f && vmVisible(f); } });
+    var pl = V.plan(text, vidx, { cur: cur, noting: !!vm.noteMode, target: vm.target, answered: vm.answered, rows: function (key) { return state.l[key].map(function (r) { return r.d; }); }, curRow: vm.rowCur, value: function (id) { return state.f[id].v; }, visible: function (id) { var f = vmField(id); return !!f && vmVisible(f); } });
     var words = text.split(/\s+/).length;
     if (pl.sure || !vmAIReady() || words < 3) return vmRun(pl.actions);
     return vmRun(pl.actions.filter(function (a) { return !a.tentative; })).then(function () {     // what is certain is done now, and is never undone by Claude's reply
@@ -630,13 +669,13 @@
   function vmHear(text, who) {
     text = String(text == null ? '' : text).trim();
     if (!vm.on || !text) return Promise.resolve();
-    var w = vm.noteMode ? 'auto' : who === 'client' ? 'client' : who === 'me' ? 'me' : 'auto', entry = { who: w === 'me' ? 'adviser' : w === 'client' ? 'client' : 'unclear', text: text };
+    var w = 'auto', entry = { who: who === 'me' ? 'adviser' : who === 'client' ? 'client' : 'unclear', text: text };
     vm.recent.push(entry); if (vm.recent.length > 12) vm.recent.shift();
-    vm.queue = vm.queue.then(function () { return w === 'me' ? vmProcessMe(text) : w === 'client' ? vmProcessClient(text) : vmProcessAuto(text, entry); }).catch(function () { /* one bad line never stops the next */ });
+    vm.queue = vm.queue.then(function () { return vmProcessAuto(text, entry); }).catch(function () { /* one bad line never stops the next */ });
     return vm.queue;
   }
   function vmToggle(on) {
-    vm.on = on; vm.target = null; vm.answered = false; vm.secGlow = on; vm.noteMode = null; vm.queue = Promise.resolve();
+    vm.on = on; vm.target = null; vm.answered = false; vm.secGlow = on; vm.noteMode = null; vm.rowCur = {}; vm.queue = Promise.resolve();
     if (!on) { document.querySelectorAll('.voice-wait,.voice-ok').forEach(function (e) { e.classList.remove('voice-wait', 'voice-ok'); }); $('#vdText').hidden = true; }
     vmRender(); vmMarkWait();
     if (on && FF.voiceBackend && FF.voiceBackend.warm) {   // ask permission now, so it never interrupts a conversation later
