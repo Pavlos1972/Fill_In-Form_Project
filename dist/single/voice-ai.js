@@ -39,7 +39,15 @@
     'Keep the order of the line. A question about a field comes before the answer to it, so "your first name is John and your second name? oh my second name is Peters" is',
     '[fill fname John, ask sname, fill sname Peters]. A plain statement straight after a question is the answer to position.field.',
     'Give {"actions": []} for acknowledgements and small talk ("okay great", "perfect", "thank you", "I see", "mm hm", "lovely"): they ask about nothing and answer nothing.',
-    'Understand meaning, not exact words, and never invent a value that was not said. The value rules above apply to every fill.'
+    'Understand meaning, not exact words, and never invent a value that was not said. The value rules above apply to every fill.',
+    '',
+    'Some sections hold LISTS of rows: children, debts, existing policies, retirement funds, investments, partners and shareholders, quotes. "lists" describes each list in the current section: its columns, and the rows already there (row numbers start at 1).',
+    'Three more actions work on lists:',
+    '  {"do":"row","list":"<list id>","values":{"<column id>":"<value>", ...}}   someone introduces a NEW row and says things about it ("we have a daughter, Thandi, born 22 August 2019")',
+    '  {"do":"cell","list":"<list id>","row":<row number or "last">,"col":"<column id>","value":"..."}   a value for one box of a row that is already there ("the balance on the bond is R450 000")',
+    '  {"do":"ask","list":"<list id>","row":<row number, "last" or "new">,"col":"<column id>"}   someone asks about one box of a row',
+    'If position.field looks like "kids.dob" with a position.row, the client\'s plain answer belongs in that box: use a "cell" action for it.',
+    'Two children said in one breath are two "row" actions. Never add a row that is already in "lists" (the same child, the same loan): use "cell" for anything new about it. For a column with "options", the value must be one of them.'
   ].join('\n');
 
   /* Blank out anything that looks like an email address or a long number (ID, phone, account). */
@@ -50,15 +58,35 @@
       .replace(/\b(?:zero|oh|one|two|three|four|five|six|seven|eight|nine)(?:\s+(?:zero|oh|one|two|three|four|five|six|seven|eight|nine)){8,}\b/gi, '[number]');
   }
 
-  /* ctx: { sectionId, targetId, targetValue, recent: [{who, text}] }; text/who are the newest line. */
+  /* The lists of the section being talked about: their columns (never the private ones) and the rows already in them. */
+  function listsFor(idx, ctx) {
+    var out = [];
+    Object.keys(idx.lists).forEach(function (key) {
+      var L = idx.lists[key];
+      if (L.sec !== ctx.sectionId) return;
+      var cols = L.cols.filter(function (id) { return V.PRIVATE_IDS.indexOf(id) < 0; }).map(function (id) {
+        var c = idx.byId[id], o = { id: c.k, label: c.label };
+        if (c.options) o.options = c.options;
+        return o;
+      });
+      var rows = (ctx.listRows ? ctx.listRows(key) : []).slice(0, 10).map(function (d, i) {
+        var v = {}; cols.forEach(function (c) { if (d[c.id] != null && String(d[c.id]).trim() !== '') v[c.id] = scrub(d[c.id]); });
+        return { n: i + 1, values: v };
+      });
+      out.push({ id: key, title: L.title, columns: cols, rows: rows });
+    });
+    return out;
+  }
+  /* ctx: { sectionId, targetId, targetRow, targetValue, listRows(key), recent: [{who, text}] }; text/who are the newest line. */
   function buildRequest(idx, ctx, who, text, model) {
-    var fields = idx.fields.filter(function (f) { return V.PRIVATE_IDS.indexOf(f.id) < 0; }).map(function (f) {
+    var fields = idx.fields.filter(function (f) { return !f.list && V.PRIVATE_IDS.indexOf(f.id) < 0; }).map(function (f) {
       var o = { id: f.id, label: f.label, section: f.sec };
       if (f.options && (f.sec === ctx.sectionId || f.id === ctx.targetId)) o.options = f.options;
       return o;
     });
     var body = {
-      position: { section: ctx.sectionId, field: ctx.targetId || null, current_value: ctx.targetId && ctx.targetValue ? scrub(ctx.targetValue) : null },
+      position: { section: ctx.sectionId, field: ctx.targetId || null, row: ctx.targetRow || null, current_value: ctx.targetId && ctx.targetValue ? scrub(ctx.targetValue) : null },
+      lists: listsFor(idx, ctx),
       sections: idx.sections.map(function (s) { return { id: s.id, title: s.title }; }),
       fields: fields,
       recent: (ctx.recent || []).map(function (l) { return { who: l.who, text: scrub(l.text) }; }),
@@ -79,8 +107,11 @@
   /* Only ids that exist and are not private get through. -> { kind: 'point', field, section } | { kind: 'answers', answers, waiting } | { kind: 'none' } */
   function normalize(raw, idx, who) {
     if (!raw || typeof raw !== 'object') return { kind: 'none' };
-    var okField = function (id) { return typeof id === 'string' && idx.byId[id] && V.PRIVATE_IDS.indexOf(id) < 0; };
+    var okField = function (id) { return typeof id === 'string' && idx.byId[id] && !idx.byId[id].list && V.PRIVATE_IDS.indexOf(id) < 0; };
     if (who === 'auto') {
+      var okList = function (id) { return typeof id === 'string' && idx.lists[id]; };
+      var okCol = function (l, k) { return typeof k === 'string' && idx.byId[l + '.' + k] && V.PRIVATE_IDS.indexOf(l + '.' + k) < 0; };
+      var rowRef = function (r, allowNew) { return typeof r === 'number' && r >= 1 && r <= 50 ? Math.floor(r) : (allowNew && r === 'new' ? 'new' : 'last'); };
       var okSec = function (id) { return typeof id === 'string' && idx.sections.some(function (x) { return x.id === id; }); }, acts = [];
       if (Array.isArray(raw.actions)) raw.actions.forEach(function (a) {
         if (!a || typeof a !== 'object') return;
@@ -89,6 +120,12 @@
         else if (a.do === 'fill' && okField(a.field) && a.value != null && String(a.value).trim() !== '') acts.push({ do: 'fill', field: a.field, value: String(a.value).trim() });
         else if (a.do === 'confirm' && okField(a.field)) acts.push({ do: 'confirm', field: a.field });
         else if (a.do === 'wait') acts.push({ do: 'wait' });
+        else if (a.do === 'row' && okList(a.list) && a.values && typeof a.values === 'object') {
+          var vals = {}; Object.keys(a.values).forEach(function (k) { if (okCol(a.list, k) && a.values[k] != null && String(a.values[k]).trim() !== '') vals[k] = String(a.values[k]).trim(); });
+          if (Object.keys(vals).length) acts.push({ do: 'row', list: a.list, values: vals });
+        }
+        else if (a.do === 'cell' && okList(a.list) && okCol(a.list, a.col) && a.value != null && String(a.value).trim() !== '') acts.push({ do: 'cell', list: a.list, row: rowRef(a.row, false), col: a.col, value: String(a.value).trim() });
+        else if (a.do === 'ask' && okList(a.list) && okCol(a.list, a.col)) acts.push({ do: 'ask', list: a.list, row: rowRef(a.row, true), col: a.col });
       });
       else {                                                    // an answer in the older shape is still understood
         if (okField(raw.field)) acts.push({ do: 'ask', field: raw.field }); else if (okSec(raw.section)) acts.push({ do: 'section', section: raw.section });

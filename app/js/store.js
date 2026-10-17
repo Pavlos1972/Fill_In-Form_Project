@@ -32,7 +32,7 @@
     return r;
   }
   function delRow(state, key, i) { state.l[key].splice(i, 1); }
-  function setCell(state, key, i, k, v) { var r = state.l[key][i]; r.d[k] = v; r.st = 'confirmed'; }
+  function setCell(state, key, i, k, v, st) { var r = state.l[key][i]; r.d[k] = v; r.st = st || 'confirmed'; }
   function accept(state, target) {
     if (target.list) state.l[target.list][target.i].st = 'confirmed';
     else if (state.f[target.id]) state.f[target.id].st = 'confirmed';
@@ -43,7 +43,7 @@
   }
   function safeName(s) { return String(s).replace(/[\\/:*?"<>|]/g, '').replace(/\s+/g, ' ').trim(); }
   function baseFileName(state) {
-    var d = util.parseDate(state.f.date.v), date = d ? d.y + '-' + (d.m < 10 ? '0' : '') + d.m + '-' + (d.d < 10 ? '0' : '') + d.d : util.isoToday();
+    var d = util.parseDate(state.f.date.v) || util.parseDate(util.isoToday()), date = (d.d < 10 ? '0' : '') + d.d + '.' + (d.m < 10 ? '0' : '') + d.m + '.' + d.y;
     return 'Fact Find - ' + date + ' - ' + (safeName(clientName(state)) || 'New client');
   }
 

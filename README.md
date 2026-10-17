@@ -40,13 +40,23 @@ The "Look up online" button next to "What does the company do?" asks Claude, wit
 The **Voice** button in the black bar switches voice mode on and off. Nothing else appears on screen. The form itself shows where the conversation is:
 
 - The **section heading glows red-amber** when a topic is opened ("let's talk about your occupation").
-- The **label and box glow red-amber** when the adviser's question points at them ("what is your occupation?"). The cursor is put in the box.
-- When the client answers, the answer goes in and the box **glows green** for a moment. If the box already held a value and the client agrees, it is confirmed (green); if the client disagrees, the box stays red-amber until the correction is heard, then it is replaced (green).
+- The **label and box glow red-amber** when a question points at them ("what is your occupation?"). The cursor is put in the box.
+- When an answer comes, it goes in and the box **glows green** for a moment. If the box already held a value and the client agrees, it is confirmed (green); if the client disagrees, the box stays red-amber until the correction is heard, then it is replaced (green).
 - "Scratch that" undoes the last change. With voice off, nothing is listened to and typing works as always.
 
-Simple wording is understood on this computer (`js/voice.js`). Looser wording and long answers are sent as text to Claude (`js/voice-ai.js`, model chosen in Settings). ID numbers, phone numbers and email addresses are never sent: those fields are left out and any long number or email in the text is blanked. Those fields are filled on this computer only.
+**Natural, fluid talk.** It does not matter who says what. A line is split into parts and worked through in order, and a fact counts whoever says it: "your first name is John and your second name? Oh my second name is Peters" fills First name, moves to Surname and fills it. The words around an answer ("my surname is", "it's") are never typed into a box, and a sentence that stops before the answer makes the box glow and keep listening.
 
-Whatever listens (Whisper or Deepgram, to be chosen) only needs to call `FF.app.voiceHear(text, who)`, where `who` is `'me'` (the adviser) or `'client'`. For testing, press and hold the Voice button to show a hidden test line (type `client: ...` for the client's side).
+**Where the understanding happens.** Clear wording is understood on this computer, instantly (`js/voice.js`). When part of a line is unclear, or a long answer may hold several facts, the line is sent as text to Claude (`js/voice-ai.js`, model chosen in Settings), which returns a list of things to do in order. What this computer understood with certainty is done first and is never undone by Claude's reply. ID numbers, phone numbers and email addresses are never sent: those boxes are left out and any long number or email in the text is blanked. They are filled on this computer only.
+
+**Boxes and choices.** Dates are day/month/year. "I don't have a home number" ticks the "No home number" box. Nationality starts as South African and ID type as ID; "no, I'm Zimbabwean" and "I have a passport, A1234567" change them.
+
+**Notes.** Every page has a notes box. "Let me take some notes" moves the glow to it and what is said next is added in point form until you move on; "note that down" adds the last remark. Where a page has several notes boxes (Medical, will & short-term) the one for the block under discussion is used ("notes on the will").
+
+**Lists** (children, debts, existing policies, retirement funds, investments, partners and shareholders, and the quotes). A box in a list is "this row, this column". "Do you have any children?" makes the Add button glow and wait for a number; "two" adds two rows and moves to the first name. "Another child", "one more policy" add a row. "When was Thandi born?" and "the second child's name" go to the right row; a name already in a list points at that list. Claude can add several rows from one sentence ("two kids, Thandi born 22 August 2019 and Sipho in March 2021") and never duplicates a row already there.
+
+Whatever listens (Whisper or Deepgram, to be chosen) only needs to call `FF.app.voiceHear(text)`. An optional second argument, `'me'` or `'client'`, is only a hint. For testing, press and hold the Voice button to show a hidden test line.
+
+File names are `Fact Find - dd.mm.yyyy - Name Surname`.
 
 ## Not built yet
 
