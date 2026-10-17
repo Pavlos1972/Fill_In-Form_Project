@@ -10,7 +10,7 @@
   function blank() {
     var s = { app: APP_ID, schema: schema.version, created: new Date().toISOString(), modified: null, f: {}, l: {}, docs: {} };
     Object.keys(schema.fieldsById).forEach(function (id) {
-      var d = schema.fieldsById[id], p = d.preset === '@today' ? util.isoToday() : d.preset;
+      var d = schema.fieldsById[id], p = d.preset === '@today' ? util.todayDMY() : d.preset;
       s.f[id] = p ? { v: p, st: 'preset' } : { v: '', st: 'empty' };
     });
     Object.keys(schema.lists).forEach(function (k) { s.l[k] = []; });
@@ -63,6 +63,7 @@
     });
     s.docs = j.docs || {};
     tidyAmounts(s);
+    tidyDates(s);
     return s;
   }
   /* Older drafts and files may hold amounts typed as plain numbers. Show them all as Rand with two decimals. */
@@ -70,6 +71,14 @@
     Object.keys(schema.fieldsById).forEach(function (id) { var d = schema.fieldsById[id]; if (d.money && s.f[id]) s.f[id].v = util.formatMoney(s.f[id].v); });
     Object.keys(schema.lists).forEach(function (k) {
       schema.lists[k].cols.forEach(function (c) { if (c.money) s.l[k].forEach(function (r) { r.d[c.k] = util.formatMoney(r.d[c.k]); }); });
+    });
+  }
+  /* Dates are shown as day/month/year. Older drafts and files may hold them in another form (such as 2026-10-17): show them the same way. */
+  function tidyDates(s) {
+    var fix = function (v) { var p = util.parseDate(v); return p ? util.formatDate(p) : v; };
+    Object.keys(schema.fieldsById).forEach(function (id) { var d = schema.fieldsById[id]; if (d.date && s.f[id]) s.f[id].v = fix(s.f[id].v); });
+    Object.keys(schema.lists).forEach(function (k) {
+      schema.lists[k].cols.forEach(function (c) { if (c.date) s.l[k].forEach(function (r) { r.d[c.k] = fix(r.d[c.k]); }); });
     });
   }
   function toJSON(state) { state.modified = new Date().toISOString(); return JSON.stringify(state, null, 2); }

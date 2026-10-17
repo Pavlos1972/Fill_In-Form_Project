@@ -16,7 +16,7 @@
       if (!/^\d{13}$/.test(idno)) warn('idno', 'A South African ID number has 13 digits.');
       else if (!util.saIdValid(idno)) warn('idno', 'This is not a valid South African ID number. Check each digit.');
     }
-    if (v('dob') && !util.parseDate(v('dob'))) warn('dob', 'Date not recognised. Use a form such as 1986-03-14.');
+    if (v('dob') && !util.parseDate(v('dob'))) warn('dob', 'Date not recognised. Use day/month/year, such as 14/03/1986.');
     var fromId = util.saIdValid(idno) ? util.dobFromSaId(idno) : null, typed = util.parseDate(v('dob'));
     if (fromId && typed && (fromId.y !== typed.y || fromId.m !== typed.m || fromId.d !== typed.d)) warn('dob', 'Does not match the date of birth in the ID number (' + util.longDate(fromId) + ').');
 
@@ -41,7 +41,7 @@
     });
     var pctTotal = ctx.rows('shares').reduce(function (a, r) { return a + util.num(r.d.pct); }, 0) + ctx.n('biz_pct');
     if (pctTotal > 100.001) warn('biz_pct', 'Your shareholding and the partners\' shareholdings add to ' + pctTotal + '%, which is over 100%.');
-    ctx.rows('kids').forEach(function (r, i) { if (r.d.dob && !util.parseDate(r.d.dob)) out.push({ list: 'kids', i: i, msg: 'Date not recognised. Use a form such as 2015-03-10.' }); });
+    ctx.rows('kids').forEach(function (r, i) { if (r.d.dob && !util.parseDate(r.d.dob)) out.push({ list: 'kids', i: i, msg: 'Date not recognised. Use day/month/year, such as 22/08/2019.' }); });
     return out;
   }
 
