@@ -363,7 +363,7 @@
   function vmVisible(f) { return calc.showIf(f.secCond, ctx()) && calc.showIf(f.cond, ctx()); }
   function vmSecTitle(id) { return schema.sections.filter(function (s) { return s.id === id; })[0].title; }
   function vmEl(id) { return document.querySelector('[data-field="' + id + '"]'); }
-  function vmAIReady() { return !!(VAI && (FF.lookup.getSettings().apiKey || FF.voiceBackend)); }
+  function vmAIReady() { return !!(VAI && (FF.lookup.getSettings().apiKey || (FF.voiceBackend && FF.voiceBackend.available))); }
   function vmPrivate(id) { return V.PRIVATE_IDS.indexOf(id) >= 0; }
   /* The red-amber glow: on the box being asked about, else on the section heading. */
   function vmMarkWait() {
@@ -477,7 +477,7 @@
     var set = FF.lookup.getSettings(), tid = vm.target && !vmPrivate(vm.target) ? vm.target : null;
     vm.busy++; vmRender();
     return VAI.decide({
-      apiKey: set.apiKey, ask: !set.apiKey && FF.voiceBackend ? FF.voiceBackend.ask : null, model: set.voiceModel, idx: vidx, who: who, text: text,
+      apiKey: set.apiKey, ask: !set.apiKey && FF.voiceBackend && FF.voiceBackend.available ? FF.voiceBackend.ask : null, model: set.voiceModel, idx: vidx, who: who, text: text,
       ctx: { sectionId: cur, targetId: tid, targetValue: tid ? state.f[tid].v : '', recent: vm.recent.slice(-7, -1) }
     }).then(function (r) { vm.busy--; vmRender(); return r; }, function (err) {
       vm.busy--; vmRender();
@@ -530,28 +530,37 @@
       vmApplyAI(res);
     });
   }
-  /* A line whose speaker is not known. A question or a request to talk about something is the adviser. A plain statement while a box
-     is waiting is the client answering it. Anything else (a fact volunteered with no question first) Claude reads, or, without Claude,
-     a statement that clearly names one field is taken as that field's answer. */
+  /* Do what a line of conversation says, in order. Actions come from V.plan (on this computer) or from Claude. */
+  function vmDo(a) {
+    var f = a.field ? vmField(a.field) : null;
+    switch (a.do) {
+      case 'cmd': return vmCommand(a.cmd);
+      case 'section': return vmOpenSection(a.section);
+      case 'ask': return f && vmVisible(f) ? vmPoint(a.field) : null;
+      case 'wait': return vm.target ? vmNote(vm.target, 'Waiting for the correct answer') : null;
+      case 'confirm': case 'fill':
+        if (!f || !vmVisible(f)) return;
+        var cell = state.f[a.field], res = a.res;
+        if (!res && a.do === 'confirm') res = { kind: 'confirm' };
+        if (!res) { var x = V.interpret(f, a.value); if (x && !x.error) res = { kind: 'fill', value: x.value, status: x.status, extra: x.extra, append: x.append }; }
+        if (!res) return;
+        if (a.field !== vm.target) {
+          if (!a.explicit && res.kind === 'fill' && cell.v !== '' && cell.st === 'confirmed') return;   // Claude's volunteered fact never overwrites a confirmed value
+          vmShow(a.field);                                                                              // the screen follows the conversation to that box
+        }
+        vmApply(a.field, res);
+    }
+  }
+  function vmRun(actions) { actions.forEach(vmDo); }
+  /* A line whose speaker is not known. It may hold the adviser and the client together, in any order. Simple lines are understood here,
+     instantly; when some part is unclear Claude reads the whole line (and this computer's reading is the fallback if Claude cannot be reached). */
   function vmProcessAuto(text, entry) {
-    if (V.parseCommand(text, vidx) || V.looksLikeQuestion(text)) { entry.who = 'adviser'; return vmProcessMe(text); }
-    if (vm.target && !vm.answered) { entry.who = 'client'; return vmProcessClient(text); }
-    if (V.isChatter(text)) return null;                      // "okay great", "thanks": nothing to do
+    var pl = V.plan(text, vidx, { cur: cur, target: vm.target, answered: vm.answered, value: function (id) { return state.f[id].v; }, visible: function (id) { var f = vmField(id); return !!f && vmVisible(f); } });
     var words = text.split(/\s+/).length;
-    if (vmAIReady()) {
-      if (words < 3) return null;
-      return vmAsk('auto', text).then(function (r) {
-        if (!r) return;
-        if (r.kind === 'point') { entry.who = 'adviser'; if (r.field) vmPoint(r.field); else if (r.section) vmOpenSection(r.section); }
-        else if (r.kind === 'answers') { entry.who = 'client'; vmApplyAI(r); }
-      });
-    }
-    var m = V.matchQuestion(text, vidx, { cur: cur, isEmpty: function (id) { return state.f[id].v === ''; } });
-    if (m && m.score >= 3) {
-      var r2 = V.answerFor(vmField(m.id), text, state.f[m.id].v);
-      if (r2.kind === 'fill' || r2.kind === 'confirm') { entry.who = 'client'; vmShow(m.id); vmApply(m.id, r2); }
-    }
-    return null;
+    if (pl.sure || !vmAIReady() || words < 3) { vmRun(pl.actions); return null; }
+    return vmAsk('auto', text).then(function (r) {
+      if (r && r.kind === 'actions') vmRun(r.actions); else if (!r || r.kind !== 'none') vmRun(pl.actions);
+    });
   }
   /* Called for every line heard. who is 'me' (the adviser), 'client', or left out when the source cannot tell and the words decide.
      Lines are handled one after another, in order. */
@@ -567,6 +576,10 @@
     vm.on = on; vm.target = null; vm.answered = false; vm.secGlow = on; vm.queue = Promise.resolve();
     if (!on) { document.querySelectorAll('.voice-wait,.voice-ok').forEach(function (e) { e.classList.remove('voice-wait', 'voice-ok'); }); $('#vdText').hidden = true; }
     vmRender(); vmMarkWait();
+    if (on && FF.voiceBackend && FF.voiceBackend.warm) {   // ask permission now, so it never interrupts a conversation later
+      vm.busy++; vmRender();
+      FF.voiceBackend.warm().then(function () { vm.busy--; vmRender(); }, function (e) { vm.busy--; vmRender(); toast('Voice could not use Claude (' + ((e && (e.message || e.code)) || 'not allowed') + '). Only the simple on-page rules will work. Reload the page and tap Allow to try again.'); });
+    }
   }
   /* Press and hold the Voice button to show a hidden test line. Just type or dictate; the words decide who is speaking ("client: ..." or "me: ..." force it). For testing only. */
   var vmHold = null, vmHeld = false;
