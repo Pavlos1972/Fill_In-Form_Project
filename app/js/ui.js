@@ -363,7 +363,7 @@
   function vmVisible(f) { return calc.showIf(f.secCond, ctx()) && calc.showIf(f.cond, ctx()); }
   function vmSecTitle(id) { return schema.sections.filter(function (s) { return s.id === id; })[0].title; }
   function vmEl(id) { return document.querySelector('[data-field="' + id + '"]'); }
-  function vmAIReady() { return !!(VAI && FF.lookup.getSettings().apiKey); }
+  function vmAIReady() { return !!(VAI && (FF.lookup.getSettings().apiKey || FF.voiceBackend)); }
   function vmPrivate(id) { return V.PRIVATE_IDS.indexOf(id) >= 0; }
   /* The red-amber glow: on the box being asked about, else on the section heading. */
   function vmMarkWait() {
@@ -477,7 +477,7 @@
     var set = FF.lookup.getSettings(), tid = vm.target && !vmPrivate(vm.target) ? vm.target : null;
     vm.busy++; vmRender();
     return VAI.decide({
-      apiKey: set.apiKey, model: set.voiceModel, idx: vidx, who: who, text: text,
+      apiKey: set.apiKey, ask: !set.apiKey && FF.voiceBackend ? FF.voiceBackend.ask : null, model: set.voiceModel, idx: vidx, who: who, text: text,
       ctx: { sectionId: cur, targetId: tid, targetValue: tid ? state.f[tid].v : '', recent: vm.recent.slice(-7, -1) }
     }).then(function (r) { vm.busy--; vmRender(); return r; }, function (err) {
       vm.busy--; vmRender();
@@ -506,6 +506,7 @@
       var res = null;
       if (a.confirm) res = { kind: 'confirm' };
       else { var x = V.interpret(f, a.value); if (x && !x.error) res = { kind: 'fill', value: x.value, status: x.status, extra: x.extra, append: x.append }; }
+      if (res && !isT) vmShow(a.field);        // a fact the client volunteered: move to that box so the glow lands there
       if (res && vmApply(a.field, res)) any = true;
     });
     if (!any && r.waiting && vm.target) vmNote(vm.target, 'Waiting for the correct answer');
@@ -529,13 +530,37 @@
       vmApplyAI(res);
     });
   }
-  /* Called for every line heard. Lines are handled one after another, in order. */
+  /* A line whose speaker is not known. A question or a request to talk about something is the adviser. A plain statement while a box
+     is waiting is the client answering it. Anything else (a fact volunteered with no question first) Claude reads, or, without Claude,
+     a statement that clearly names one field is taken as that field's answer. */
+  function vmProcessAuto(text, entry) {
+    if (V.parseCommand(text, vidx) || V.looksLikeQuestion(text)) { entry.who = 'adviser'; return vmProcessMe(text); }
+    if (vm.target && !vm.answered) { entry.who = 'client'; return vmProcessClient(text); }
+    if (V.isChatter(text)) return null;                      // "okay great", "thanks": nothing to do
+    var words = text.split(/\s+/).length;
+    if (vmAIReady()) {
+      if (words < 3) return null;
+      return vmAsk('auto', text).then(function (r) {
+        if (!r) return;
+        if (r.kind === 'point') { entry.who = 'adviser'; if (r.field) vmPoint(r.field); else if (r.section) vmOpenSection(r.section); }
+        else if (r.kind === 'answers') { entry.who = 'client'; vmApplyAI(r); }
+      });
+    }
+    var m = V.matchQuestion(text, vidx, { cur: cur, isEmpty: function (id) { return state.f[id].v === ''; } });
+    if (m && m.score >= 3) {
+      var r2 = V.answerFor(vmField(m.id), text, state.f[m.id].v);
+      if (r2.kind === 'fill' || r2.kind === 'confirm') { entry.who = 'client'; vmShow(m.id); vmApply(m.id, r2); }
+    }
+    return null;
+  }
+  /* Called for every line heard. who is 'me' (the adviser), 'client', or left out when the source cannot tell and the words decide.
+     Lines are handled one after another, in order. */
   function vmHear(text, who) {
     text = String(text == null ? '' : text).trim();
     if (!vm.on || !text) return Promise.resolve();
-    var w = who === 'client' ? 'client' : 'me';
-    vm.recent.push({ who: w === 'me' ? 'adviser' : 'client', text: text }); if (vm.recent.length > 12) vm.recent.shift();
-    vm.queue = vm.queue.then(function () { return w === 'me' ? vmProcessMe(text) : vmProcessClient(text); }).catch(function () { /* one bad line never stops the next */ });
+    var w = who === 'client' ? 'client' : who === 'me' ? 'me' : 'auto', entry = { who: w === 'me' ? 'adviser' : w === 'client' ? 'client' : 'unclear', text: text };
+    vm.recent.push(entry); if (vm.recent.length > 12) vm.recent.shift();
+    vm.queue = vm.queue.then(function () { return w === 'me' ? vmProcessMe(text) : w === 'client' ? vmProcessClient(text) : vmProcessAuto(text, entry); }).catch(function () { /* one bad line never stops the next */ });
     return vm.queue;
   }
   function vmToggle(on) {
@@ -543,7 +568,7 @@
     if (!on) { document.querySelectorAll('.voice-wait,.voice-ok').forEach(function (e) { e.classList.remove('voice-wait', 'voice-ok'); }); $('#vdText').hidden = true; }
     vmRender(); vmMarkWait();
   }
-  /* Press and hold the Voice button to show a hidden test line (type "client: ..." for the client's side). For testing only. */
+  /* Press and hold the Voice button to show a hidden test line. Just type or dictate; the words decide who is speaking ("client: ..." or "me: ..." force it). For testing only. */
   var vmHold = null, vmHeld = false;
   $('#btnVoice').addEventListener('pointerdown', function () { vmHeld = false; vmHold = setTimeout(function () { vmHeld = true; if (vm.on) { var t = $('#vdText'); t.hidden = !t.hidden; if (!t.hidden) t.focus(); } }, 800); });
   ['pointerup', 'pointerleave', 'pointercancel'].forEach(function (ev) { $('#btnVoice').addEventListener(ev, function () { clearTimeout(vmHold); }); });
@@ -551,11 +576,8 @@
   $('#vdText').addEventListener('keydown', function (e) {
     if (e.key !== 'Enter') return;
     e.preventDefault();
-    var raw = this.value, m = /^\s*(?:c\s*:|clients?(?![\w'])(?:\s+colon\b)?[\s:,.;-]*)\s*(.*)$/i.exec(raw);
-    var text = m ? m[1] : raw.replace(/^\s*(?:me|m)\s*:\s*/i, '');
-    /* One microphone cannot tell the two voices apart, so a client's answer is marked with the word "client". Say so if it looks like it was forgotten. */
-    if (!m && vm.on && vm.target && !vm.answered && text.trim() && !V.parseCommand(text, vidx) && !V.matchQuestion(text, vidx, { cur: cur, isEmpty: function (id) { return state.f[id].v === ''; } })) vmNote(vm.target, 'If that was the client\'s answer, start it with the word "client"');
-    vmHear(text, m ? 'client' : 'me'); this.value = '';
+    var raw = this.value, c = /^\s*(?:c\s*:|clients?\s*:)\s*(.*)$/i.exec(raw), a = /^\s*(?:m|me|adviser|advisor)\s*:\s*(.*)$/i.exec(raw);
+    vmHear(c ? c[1] : a ? a[1] : raw, c ? 'client' : a ? 'me' : undefined); this.value = '';
   });
 
   /* Open on a fresh page. The last client comes back only if it had unsaved changes. */

@@ -26,7 +26,14 @@
     '- If position.current_value is set and the client agrees with it, reply with "confirm": true for that field and omit "value".',
     '- If the client disagrees and gives a different value, give the new value with "confirm": false.',
     '- If the client only says no or that is wrong, without the new value yet, reply {"answers": [], "waiting": true}.',
-    '- Never invent anything. If unsure, reply {"answers": [], "waiting": false}.'
+    '- Never invent anything. If unsure, reply {"answers": [], "waiting": false}.',
+    '',
+    'If the newest line has who "unclear", the page cannot tell who is speaking, so decide that from the words and the conversation so far.',
+    'The adviser asks, prompts or steers: a question, a request to talk about a topic, or a check back ("what do you do for work?", "let\'s talk about your employer", "you work for a company, right?").',
+    'The client gives information, usually straight after a question ("my employer is Discovery", "I\'m a teacher", "yes, that\'s right", "it was 2019").',
+    'Reply with the JSON of whichever applies and add "role": "adviser" or "client".',
+    'Reply {"role": "neither"} for acknowledgements and small talk ("okay great", "perfect", "thank you", "I see", "mm hm", "lovely"): they ask about nothing and answer nothing. Use "adviser" only when the line asks about, or moves to, a particular topic.',
+    'Understand meaning, not exact words: the client may answer in a full sentence, may give several facts at once, and the adviser may phrase things loosely.'
   ].join('\n');
 
   /* Blank out anything that looks like an email address or a long number (ID, phone, account). */
@@ -49,7 +56,7 @@
       sections: idx.sections.map(function (s) { return { id: s.id, title: s.title }; }),
       fields: fields,
       recent: (ctx.recent || []).map(function (l) { return { who: l.who, text: scrub(l.text) }; }),
-      newest: { who: who === 'client' ? 'client' : 'adviser', text: scrub(text) }
+      newest: { who: who === 'client' ? 'client' : who === 'auto' ? 'unclear' : 'adviser', text: scrub(text) }
     };
     return { model: model, max_tokens: 700, system: SYSTEM, messages: [{ role: 'user', content: JSON.stringify(body) }] };
   }
@@ -67,6 +74,11 @@
   function normalize(raw, idx, who) {
     if (!raw || typeof raw !== 'object') return { kind: 'none' };
     var okField = function (id) { return typeof id === 'string' && idx.byId[id] && V.PRIVATE_IDS.indexOf(id) < 0; };
+    if (who === 'auto') {
+      who = raw.role === 'client' ? 'client' : raw.role === 'adviser' ? 'adviser' : raw.role === 'neither' ? 'neither'
+        : Array.isArray(raw.answers) ? 'client' : (raw.field || raw.section) ? 'adviser' : 'neither';
+    }
+    if (who === 'neither') return { kind: 'none' };
     if (who !== 'client') {
       var field = okField(raw.field) ? raw.field : null;
       var section = typeof raw.section === 'string' && idx.sections.some(function (s) { return s.id === raw.section; }) ? raw.section : null;
@@ -87,8 +99,13 @@
   /* opts: { apiKey, model, idx, who, text, ctx, fetchImpl } -> Promise of the normalized answer. */
   function decide(opts) {
     var doFetch = opts.fetchImpl || (typeof fetch !== 'undefined' ? fetch.bind(typeof window !== 'undefined' ? window : globalThis) : null);
-    if (!opts.apiKey) return Promise.reject(new Error('no API key'));
+    if (!opts.apiKey && !opts.ask) return Promise.reject(new Error('no API key'));
     var req = buildRequest(opts.idx, opts.ctx || {}, opts.who, opts.text, opts.model);
+    if (opts.ask) {   // a host that can reach Claude without a key (the iPad practice copy)
+      return Promise.resolve().then(function () { return opts.ask(req.system, req.messages[0].content); }).then(function (text) {
+        return normalize(extractJson(text), opts.idx, opts.who);
+      }, function (e) { throw new Error(e && e.code === 'not_granted' ? 'Claude was not allowed on this page' : (e && (e.message || e.code)) || 'no connection'); });
+    }
     return doFetch(ENDPOINT, {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-api-key': opts.apiKey, 'anthropic-version': API_VERSION, 'anthropic-dangerous-direct-browser-access': 'true' },

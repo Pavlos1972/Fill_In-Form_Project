@@ -330,6 +330,27 @@
     return best ? { id: best.id, score: best.score } : null;
   }
 
+  /* Is this the adviser asking or steering, rather than the client answering? A question mark, a question word, a request to talk
+     about something ("let's talk about your employer", "tell me about ...") or a check back ("you work for a company, right?"). */
+  var ASK_LEAD = new RegExp('^(?:(?:and|so|okay|ok|right|now|alright|then|um+|uh+|well|great|perfect|lovely|thanks|thank you|sorry)[,.\\s]+)*(?:' + [
+    "what|what's|whats|who|who's|whose|where|where's|when|when's|why|how|which",
+    "(?:do|did|does) (?:you|your|the|he|she|they|we|it)",
+    "(?:are|were|is|was) (?:you|your|there|it|the|he|she|they)",
+    "(?:have|has|had) (?:you|your|any|the|he|she|they)",
+    "(?:can|could|would|will|shall|should|may|might) (?:you|i|we)",
+    "tell me|let me|let's|lets|let us|moving on|on to|turning to|talking about|speaking of|please|if you|how about|what about",
+    "next[,.]?\\s+(?:question|section|one|up|is|please|we|let|your|thing)",
+    "i(?:'d| would) like to (?:ask|know|talk|discuss|move|go|start|look|cover|turn)",
+    "your|you(?:'re|re| are| work| worked| have| had| live| lived| own| earn| said| mentioned| told| stay| do| did)"
+  ].join('|') + ')\\b', 'i');
+  /* Acknowledgements and small talk ("okay great", "thanks", "I see"): they ask nothing and answer nothing, so the form ignores them. */
+  var CHATTER = /^(?:(?:okay|ok|great|perfect|lovely|thanks|thank you|alright|right|good|sure|cool|nice|wonderful|excellent|fine|super|got it|i see|understood|noted|mm+|hm+|uh huh|yes|yeah|yep|no|sorry|pardon|and|so|well|um+|uh+|that is|that's|that is fine|that is great|very much|so much|very helpful|helpful)[,.!\s]*)+$/i;
+  function isChatter(text) { var s = String(text == null ? '' : text).trim(); return !s || CHATTER.test(s); }
+  function looksLikeQuestion(text) {
+    var s = String(text == null ? '' : text).trim();
+    return !!s && (/\?\s*["')]*$/.test(s) || ASK_LEAD.test(s));
+  }
+
   /* ---------- what the client says: an answer fills the field ---------- */
   function titleCase(s) {
     var PART = { van: 1, der: 1, den: 1, de: 1, du: 1, le: 1, la: 1, von: 1, bin: 1, al: 1 };
@@ -562,7 +583,7 @@
 
   return {
     norm: norm, wordsToNumber: wordsToNumber, spokenDigits: spokenDigits, spokenDate: spokenDate, spokenEmail: spokenEmail, yesNo: yesNo,
-    buildIndex: buildIndex, parseCommand: parseCommand, matchQuestion: matchQuestion, interpret: interpret, titleCase: titleCase,
+    buildIndex: buildIndex, parseCommand: parseCommand, looksLikeQuestion: looksLikeQuestion, isChatter: isChatter, matchQuestion: matchQuestion, interpret: interpret, titleCase: titleCase,
     isConfirm: isConfirm, answerFor: answerFor, PRIVATE_IDS: PRIVATE_IDS
   };
 });
