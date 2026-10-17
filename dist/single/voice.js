@@ -300,6 +300,7 @@
   var PHONE_IDS = ['cell', 'work', 'home', 'sp_tel'];
   var EMAIL_IDS = ['pemail', 'wemail'];
   var DIGIT_IDS = ['idno', 'tax'];
+  var TYPED_IDS = PHONE_IDS.concat(EMAIL_IDS, DIGIT_IDS, DATE_IDS);
   var PCT_IDS = ['d_desk', 'd_supo', 'd_trav', 'd_sups', 'd_light', 'd_mod', 'd_heavy', 'biz_pct'];
 
   /* Names in brackets in a label ("Short-term (Cameron)") are things people say; units and notes ("(R)", "(today's terms)") are not. */
@@ -483,6 +484,17 @@
     }).join(' ');
   }
   var FILLER = /^\s*(?:(?:um+|uh+|er+|erm|ah+|hmm+|well|so|okay|ok|yes|yeah|yep|alright|ja|right)[,.\s]+)+/i;
+  /* A correction in the same breath: "082 454 1750, no sorry, it is 083 454 1751" means the last one. Only clear markers count. */
+  var CORRECT = /(?:^|[\s,.;:])(?:no(?:[,.\s]+no)?[,.\s]+(?:sorry|wait|i mean|make that|it(?:'s| is)|that(?:'s| is))|sorry|oops|i mean|make that|correction|my mistake|my bad|scratch that|hang on|let me correct|that(?:'s| is) (?:wrong|not right|incorrect))(?=[\s,.;:]|$)[,.;:\s]*(?:(?:it(?:'s| is| was)?|that(?:'s| is)?|should be|the (?:number|correct (?:one|number)) is)\s+)?/gi;
+  function afterCorrection(raw) {
+    var s = String(raw), m, last = null;
+    CORRECT.lastIndex = 0;
+    while ((m = CORRECT.exec(s))) { last = m; if (!m[0]) CORRECT.lastIndex++; }
+    var rest = last ? s.slice(last.index + last[0].length).trim() : '';
+    return rest ? rest : s;
+  }
+  /* Two whole numbers said one after the other (a correction without a marker): the last one counts. */
+  function lastOf(digits, n) { return digits.length === 2 * n ? digits.slice(n) : digits; }
   var LEAD_NAME = /^(?:my (?:first |full |sur)?name is |my (?:first |sur)?name's |i am |i'm |it's |it is |that's |that is |the name is |name is |it's called |called |surname is |first name is |my surname is |this is )/i;
   var LEAD_COMPANY = /^(?:i (?:currently )?(?:work|am working|'m working|am employed|'m employed)\s+(?:at|for|with|in)\s+|i'?m (?:at|with|employed (?:at|by|with))\s+|i am (?:at|with|employed (?:at|by|with))\s+|it'?s |it is |the company is |company is |we are |for |at |with |it's called |called |the name is |name is |my company is |my employer is |employer is )/i;
   var LEAD_OCC = /^(?:i(?:'m| am) (?:now |currently |still |just )?(?:a |an |the )?|i work as (?:a |an |the )?|i'm working as (?:a |an |the )?|my (?:job|occupation|role|position|title) is (?:a |an |the )?|i do |i'm doing |i am doing |it's |it is )/i;
@@ -677,6 +689,8 @@
 
   /* One answer for one field -> { value, status, extra?, append? } | { error, note? } | null. */
   function interpret(f, raw) {
+    var id = vid(f);
+    if (TYPED_IDS.indexOf(id) >= 0 || NAME_IDS.indexOf(id) >= 0 || f.date) raw = afterCorrection(raw);      // "011 555 1234, no sorry, 011 555 4321" is the last number, not a "no"
     var t = norm(raw);
     if (!t) return null;
     if (f.none && yesNo(t) === 'no') return ok('None');
@@ -685,22 +699,21 @@
       var amt = wordsToNumber(raw);
       return amt == null ? { error: 'no-number' } : { value: util.formatMoney(String(amt)), status: 'verify' };
     }
-    var id = vid(f);
     if (DATE_IDS.indexOf(id) >= 0 || f.date) { var d = spokenDate(raw); return d ? { value: d, status: 'verify' } : { error: 'no-date' }; }
     if (EMAIL_IDS.indexOf(id) >= 0) {
       var em = spokenEmail(raw);
       return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(em) ? { value: em, status: 'verify' } : { error: 'no-email', note: 'heard "' + em + '"' };
     }
     if (PHONE_IDS.indexOf(id) >= 0) {
-      var ph = spokenDigits(raw);
-      return ph ? { value: formatPhone(ph), status: 'verify', note: ph.length < 10 ? 'only ' + ph.length + ' digits heard' : '' } : { error: 'no-digits' };
+      var ph = lastOf(spokenDigits(raw), 10);
+      return ph ? { value: formatPhone(ph), status: 'verify', note: ph.length < 10 ? 'only ' + ph.length + ' digits heard' : (ph.length > 10 && !/^27\d{9}$/.test(ph) ? ph.length + ' digits heard, a number has 10' : '') } : { error: 'no-digits' };
     }
     if (id === 'idno') {            // a passport number has letters; an ID number never does
       var pp = spokenPassport(raw);
       if (pp) return { value: pp, status: 'verify', extra: [{ id: 'idtype', value: 'Passport', status: 'heard' }] };
     }
     if (DIGIT_IDS.indexOf(id) >= 0) {
-      var dg = spokenDigits(raw);
+      var dg = lastOf(spokenDigits(raw), id === 'idno' ? 13 : 10);
       return dg ? { value: dg, status: 'verify', note: id === 'idno' && dg.length !== 13 ? dg.length + ' digits heard, an ID has 13' : '' } : { error: 'no-digits' };
     }
     if (PCT_IDS.indexOf(id) >= 0) {
@@ -731,8 +744,8 @@
   var LEADWORDS = /^(?:(?:oh|well|okay|ok|so|and|but|um+|uh+|yes|yeah|no|right|sorry|actually|ja|hi|hello|then|now)[,.!\s]+)+/i;
   var ASSERT = /^((?:your|my|his|her|their|our|the)\s+)?(.{2,60}?)\s+(?:is|are|was|were|will be|would be)\s+(.+?)[.!]*$/i;
   var WH = /^(?:what|what's|whats|who|who's|whose|where|when|why|how|which)\b/i;
-  var NEGATE_HAVE = /\b(?:(?:don'?t|do not|dont|doesn'?t|haven'?t|have not|havent|hasn'?t|never)\s+(?:have|had|got|use)|have no|got no|no|without|none|not got)\b/i;
-  var TYPED = PHONE_IDS.concat(EMAIL_IDS, DIGIT_IDS, DATE_IDS);
+  var NEGATE_HAVE = /\b(?:(?:don'?t|do not|dont|doesn'?t|haven'?t|have not|havent|hasn'?t|never)\s+(?:have|had|got|use)|have no|got no|no|without|none|not got|neither|nor)\b/i;
+  var TYPED = TYPED_IDS;
   var ALL_NOUNS = (function () { var a = []; Object.keys(LIST_NOUNS).forEach(function (k) { LIST_NOUNS[k].forEach(function (n) { a.push(n.replace(/\s+/g, '\\s+')); }); }); return a.sort(function (x, y) { return y.length - x.length; }).join('|'); })();
   var SPLIT_ITEMS = new RegExp('\\s+(?:and|plus|also|then)\\s+(?=(?:a|an|another|one more)\\s+(?:[a-z]+\\s+){0,2}?(?:' + ALL_NOUNS + ')\\b)', 'gi');
   var LEAD_ONLY = /^(?:oh|well|okay|ok|so|and|but|um+|uh+|yes|yeah|no|right|sorry|actually|ja|then|now|hi|hello)[,.!]*$/i;
@@ -742,7 +755,8 @@
     t = t.replace(/([.?!])\s+/g, '$1\x01').replace(/\s+(?:and|but|so)\s+(?=(?:your|my|his|her|their|i|i'm|i've|we|he|she|they|it's|that's|there's)\b)/gi, '\x01');
     t = t.replace(/([^\s,;\x01]*)[,;]\s*(?=(?:my|your|his|her|their|our)\s+(?:[a-z']+\s+){1,4}?(?:is|are|was|were)\b)/gi, function (m, w) { return LEAD_ONLY.test(w) ? m : w + '\x01'; });   // "my name is John Snow, my ID is ..."
     t = t.replace(/(?:[,;]\s*(?:and\s+)?|\s+and\s+)(?=(?:born|id|identity|cell|mobile|email|e-?mail|tax|passport|work number|home number)\b)/gi, '\x01');   // "John Snow, born 9 December 1972, ID 7212..."
-    var first = /\b(?:is|are|was|were)\b/i.exec(t);
+    t = t.replace(/\s+(?:and|but)\s+(?=(?:no|neither|without)\s+(?!sorry\b|wait\b|it\b|that\b)|(?:don'?t|do not|dont|haven'?t)\s+have\b)|[,;]\s*(?=no\s+(?:home|work|personal|private|landline|email|e-?mail|phone|telephone)\b)/gi, '\x01');   // "my work number is 011 555 1234 and no home number"
+    var first = /\b(?:is|are|was|were|have|has|had|got|no|not|don't|dont|haven't|neither)\b/i.exec(t);
     if (first) t = t.slice(0, first.index + first[0].length) + t.slice(first.index + first[0].length).replace(/(\S+)\s+(?=(?:my|your|his|her|their|our)\s+(?:[a-z']+\s+){1,3}?(?:is|are|was|were)\s)/gi, function (m, w) { return LEAD_ONLY.test(w.split('\x01').pop()) ? m : w + '\x01'; });   // no punctuation at all: "my name is John Snow my ID is ..."
     return t.split('\x01').map(function (x) { return x.trim(); }).filter(Boolean);
   }
@@ -809,6 +823,28 @@
     var noun = {}; LIST_NOUNS_N[key].forEach(function (ph) { ph.split(' ').forEach(function (w) { noun[w] = 1; }); });
     var left = content(tn).filter(function (w) { return !used[w] && !noun[w] && !GENERIC_WORD[w] && !/^\d/.test(w) && !/^(?:one|two|three|four|five|six|seven|eight|nine|ten)$/.test(w); });
     return { vals: vals, leftover: left.length };
+  }
+  /* "I don't have a home number or a work number", "no work or home phone", "no landline and no work email": every box named gets its "No ..." tick.
+     A word like work / home / personal belongs to the next word for phone or email (or the last one seen, when it is left out: "work or home number"). */
+  var NONE_HEAD = { number: 'p', numbers: 'p', phone: 'p', phones: 'p', telephone: 'p', line: 'p', email: 'e', emails: 'e', mail: 'e', address: 'e' };
+  var NONE_QUAL = { work: 'w', office: 'w', business: 'w', home: 'h', house: 'h', landline: 'h', personal: 'p', private: 'p', own: 'p' };
+  function noneTargets(core) {
+    var tk = norm(core).split(' '), out = [], heads = [], i, j, q, k, hd, quals = 0;
+    tk.forEach(function (w, n) { if (NONE_HEAD[w]) heads.push(n); });
+    function add(id) { if (out.indexOf(id) < 0) out.push(id); }
+    for (i = 0; i < tk.length; i++) {
+      q = NONE_QUAL[tk[i]];
+      if (!q) continue;
+      quals++;
+      if (tk[i] === 'landline') { add('home'); continue; }
+      hd = null;
+      for (j = 0; j < heads.length; j++) if (heads[j] > i && heads[j] - i <= 4) { hd = NONE_HEAD[tk[heads[j]]]; break; }
+      if (!hd) for (j = heads.length - 1; j >= 0; j--) if (heads[j] < i) { hd = NONE_HEAD[tk[heads[j]]]; break; }
+      if (hd === 'p') { if (q === 'w') add('work'); else if (q === 'h') add('home'); }
+      else if (hd === 'e') add(q === 'w' ? 'wemail' : 'pemail');
+    }
+    if (!quals && heads.some(function (n) { return NONE_HEAD[tk[n]] === 'e'; })) add('pemail');       // "I have no email address"
+    return out;
   }
   var ORD_IDX = { first: 0, '1st': 0, second: 1, '2nd': 1, third: 2, '3rd': 2, fourth: 3, '4th': 3, fifth: 4, '5th': 4 };
   var NO_WORDS = /^(?:no|none|nope|nah|nothing|not any|zero|we don'?t|i don'?t|don'?t have any)\b/i;
@@ -906,15 +942,17 @@
     }
     /* A South African cell number said without a label ("you can reach me on 082 555 0148"). Spouse, work and home numbers need their label. */
     function cellIn(core) {
-      var dg = spokenDigits(core), tdef = target && !answered ? defOf(target) : null;
+      core = afterCorrection(core);
+      var dg = lastOf(spokenDigits(core), 10), tdef = target && !answered ? defOf(target) : null;
       if (!/^(?:0[6-8]\d{8}|27[6-8]\d{8})$/.test(dg) || /\b(?:spouse|wife|husband|partner|work|office|home|landline|business|company|her|his|their|id|tax)\b/i.test(core) || (tdef && PHONE_IDS.indexOf(vid(tdef)) >= 0)) return null;
       return { kind: 'fill', value: formatPhone(dg), status: 'verify', note: '' };
     }
     /* An ID number (13 digits starting with a date) or a passport number, said with or without the word "ID": these are never sent to Claude, so they are read here. */
     function idNumberIn(core) {
+      core = afterCorrection(core);
       var pp = /\bpassport\b/i.test(core) ? spokenPassport(core) : null;
       if (pp) return { kind: 'fill', value: pp, status: 'verify', extra: [{ id: 'idtype', value: 'Passport', status: 'heard' }] };
-      var dg = spokenDigits(core);
+      var dg = lastOf(spokenDigits(core), 13);
       return /^\d{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01])\d{7}$/.test(dg) ? { kind: 'fill', value: dg, status: 'verify' } : null;
     }
 
@@ -978,9 +1016,12 @@
         var dh = matchQuestion(core, idx, near);
         if (dh && dh.score >= 2.5 && visible(dh.id)) { askCell(aim(dh, core)); return; }
       }
-      if (!isQ && NEGATE_HAVE.test(seg)) {                                // "I don't have a home number", "no work email"
-        var nh = matchQuestion(core, idx, near);
-        if (nh && nh.score >= 2.5 && idx.byId[nh.id].none && visible(nh.id)) { actions.push({ do: 'fill', field: nh.id, res: { kind: 'fill', value: 'None', status: 'heard' }, explicit: true }); target = nh.id; answered = true; return; }
+      var negSeg = seg.replace(CORRECT, ' '), negAt = NEGATE_HAVE.exec(negSeg);       // the "no" of "no sorry, it is ..." is a correction, not a negation
+      if (!isQ && negAt) {                                                // "I don't have a home number or a work number", "no work email"
+        var negCore = negSeg.slice(negAt.index), ns = noneTargets(negCore), nh = ns.length ? null : matchQuestion(core, idx, near);
+        if (nh && nh.score >= 2.5) ns = [nh.id];
+        ns = ns.filter(function (id) { return idx.byId[id] && idx.byId[id].none && visible(id); });
+        if (ns.length) { ns.forEach(function (id) { actions.push({ do: 'fill', field: id, res: { kind: 'fill', value: 'None', status: 'heard' }, explicit: true }); }); target = ns[ns.length - 1]; answered = true; return; }
       }
       if (!isQ && !WH.test(core)) {                                        // a value of a typed box, found in the clause however it is phrased
         var th = matchQuestion(core, idx, near);

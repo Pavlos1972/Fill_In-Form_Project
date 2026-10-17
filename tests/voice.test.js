@@ -591,3 +591,40 @@ test('several facts in one breath: name, date of birth and ID number', () => {
   assert.ok(p.sure);
   assert.strictEqual(brief(planOf('my name is John Snow and I was born on 9 December 1972')), 'fill:fname=John fill:dob=09/12/1972');
 });
+
+/* ---- several "No ..." ticks in one sentence, and corrections in the same breath ---- */
+test('"I do not have a home number or a work number" ticks both boxes, however it is worded', () => {
+  const both = ['I do not have a home number or a work number', 'I dont have a home or work number', 'no work or home number', 'I have neither a work nor a home number', 'I have no landline and no work number', 'I have no work number or home number'];
+  both.forEach(t => { const p = planOf(t); assert.deepStrictEqual(p.actions.map(a => a.field + '=' + a.res.value).sort(), ['home=None', 'work=None'], t); assert.ok(p.sure, t); });
+  assert.deepStrictEqual(planOf('I do not have a personal email or a work email').actions.map(a => a.field).sort(), ['pemail', 'wemail']);
+  assert.strictEqual(brief(planOf('I have no work number')), 'fill:work=None');
+  assert.strictEqual(brief(planOf('I have no email address')), 'fill:pemail=None');
+});
+test('the whole sentence: no home or work number, and a cell number that was corrected', () => {
+  ['I do not have a home number or a work number and my cell number is 082 454 1750 sorry 083 454 1751',
+    'I have no work number or home number, my cell is 082 454 1750, no sorry it is 083 454 1751',
+    'I do not have a home number or a work number my cell number is 082 454 1750 sorry 083 454 1751'].forEach(t => {
+    const p = planOf(t);
+    assert.deepStrictEqual(p.actions.map(a => a.field + '=' + a.res.value).sort(), ['cell=083 454 1751', 'home=None', 'work=None'], t);
+    assert.ok(p.sure, t);
+  });
+});
+test('a correction in the same breath keeps only the last value, for numbers, ID numbers and names', () => {
+  assert.strictEqual(brief(planOf('my cell is 082 454 1750 sorry 083 454 1751')), 'fill:cell=083 454 1751');
+  assert.strictEqual(brief(planOf('my cell is 082 454 1750, no wait, it is 083 454 1751')), 'fill:cell=083 454 1751');
+  assert.strictEqual(brief(planOf('my cell is 082 454 1750 083 454 1751')), 'fill:cell=083 454 1751');
+  assert.strictEqual(brief(planOf('my ID is 7212095268086 no sorry 7312095268086')), 'fill:idno=7312095268086');
+  assert.strictEqual(brief(planOf('my email is john at snow dot com sorry jon at snow dot com')), 'fill:pemail=jon@snow.com');
+  assert.strictEqual(brief(planOf('my name is John sorry Peter')), 'fill:fname=Peter');
+  assert.strictEqual(brief(planOf('my date of birth is 5 March 1980 no sorry 6 March 1980')), 'fill:dob=06/03/1980');
+  assert.strictEqual(brief(planOf('082 454 1750, sorry, 083 454 1751', { target: 'cell', answered: false })), 'fill:cell=083 454 1751');
+  assert.strictEqual(brief(planOf('my cell is 082 555 0148')), 'fill:cell=082 555 0148');                   // no correction: unchanged
+});
+test('a stated number, a correction and a "no ..." in one sentence each keep their own box', () => {
+  assert.strictEqual(brief(planOf('my work number is 011 555 1234 no sorry 011 555 4321 and I have no home number')), 'fill:work=011 555 4321 fill:home=None');
+  assert.strictEqual(brief(planOf('my work number is 011 555 1234 and no home number')), 'fill:work=011 555 1234 fill:home=None');
+  assert.strictEqual(brief(planOf('I have a work number 011 555 1234 but no home number')), 'fill:work=011 555 1234 fill:home=None');
+  assert.strictEqual(brief(planOf('I do not have a personal email but my work email is john at snow dot com')), 'fill:pemail=None fill:wemail=john@snow.com');
+  assert.strictEqual(brief(planOf('my cell is 082 454 1750 and my email is john at snow dot com and I have no home number')), 'fill:cell=082 454 1750 fill:pemail=john@snow.com fill:home=None');
+  assert.strictEqual(brief(planOf('my work number is 011 555 1234 and my cell is 082 454 1750 no sorry 083 454 1751')), 'fill:work=011 555 1234 fill:cell=083 454 1751');
+});
