@@ -408,13 +408,13 @@
     if (el) {
       el.scrollIntoView({ block: 'center', behavior: 'smooth' });
       var inp = el.querySelector('input:not([type=checkbox]),select,textarea');
-      if (inp && !inp.disabled && !inp.readOnly) inp.focus({ preventScroll: true });
+      if (inp && !inp.disabled && !inp.readOnly && document.activeElement !== $('#vdText')) inp.focus({ preventScroll: true });
     } else vmMarkWait();
   }
   function vmOpenSection(secId) {
     vm.undo.push({ kind: 'nav', sec: cur, target: vm.target, answered: vm.answered });
     cur = secId; vm.target = null; vm.answered = false; vm.secGlow = true;
-    if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+    if (document.activeElement && document.activeElement.blur && document.activeElement !== $('#vdText')) document.activeElement.blur();
     redraw(); vmPulseNav(); window.scrollTo(0, 0);
   }
   function vmStep(dir) {
