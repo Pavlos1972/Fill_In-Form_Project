@@ -286,3 +286,40 @@ test('acknowledgements and small talk are ignored, real answers are not', () => 
   ['okay great', 'Perfect, thank you', 'Thanks so much', 'mm hm', 'I see', 'Lovely.', 'Alright, that is fine', 'ok'].forEach(t => assert.ok(V.isChatter(t), 'chatter: ' + t));
   ['my employer is Discovery', "I'm a teacher", 'Discovery', 'two', 'no I changed jobs', 'yes Discovery', 'that is correct, I am married'].forEach(t => assert.ok(!V.isChatter(t), 'not chatter: ' + t));
 });
+
+/* ---- fluid conversation: one line can hold the adviser and the client together ---- */
+const planOf = (text, o) => {
+  const vals = (o && o.vals) || {};
+  return V.plan(text, idx, { cur: (o && o.cur) || 'info', target: o && o.target, answered: o && o.answered, value: id => vals[id] || '', visible: () => true });
+};
+const brief = p => p.actions.map(a => a.do + (a.field ? ':' + a.field : '') + (a.res && a.res.value ? '=' + a.res.value : '')).join(' ');
+test('a fact counts whoever says it, in order: your first name is John, and your second name? oh my second name is Peters', () => {
+  ['Your first name is John and your second name? Oh my second name is Peters',
+    'Your first name is John and your second name. Oh, my second name is Peters.'].forEach(t => {
+    const p = planOf(t);
+    assert.strictEqual(brief(p), 'fill:fname=John ask:sname fill:sname=Peters', t);
+    assert.ok(p.sure);
+  });
+  assert.strictEqual(brief(planOf('your first name is John and your second name oh my second name is Peters')), 'fill:fname=John fill:sname=Peters');
+  assert.strictEqual(brief(planOf('my surname is Peters and my cell is 082 555 0148')), 'fill:sname=Peters fill:cell=082 555 0148');
+  assert.strictEqual(brief(planOf('my name is John')), 'fill:fname=John');
+});
+test('a question then its answer in one breath, and a statement answering a waiting box', () => {
+  assert.strictEqual(brief(planOf('What is your occupation? I am a teacher', { cur: 'occ' })), 'ask:occ fill:occ=Teacher');
+  assert.strictEqual(brief(planOf('my employer is Discovery', { cur: 'occ', target: 'occ', answered: false })), 'fill:employer=Discovery');
+  assert.strictEqual(brief(planOf('Discovery', { cur: 'occ', target: 'employer', answered: false })), 'fill:employer=Discovery');
+  assert.strictEqual(brief(planOf('yes that is correct', { cur: 'occ', target: 'occ', answered: false, vals: { occ: 'Underwriter' } })), 'confirm:occ');
+  assert.strictEqual(brief(planOf("let's talk about your health")), 'cmd');
+});
+test('small talk does nothing and is not worth asking Claude about; the unclear is flagged', () => {
+  const chat = planOf('Okay great, thank you');
+  assert.strictEqual(chat.actions.length, 0); assert.ok(chat.sure);
+  assert.ok(!planOf('so how do you feel about the whole situation').sure);
+  assert.ok(!planOf('I have been at Discovery for about eight years now and I am an underwriter', { cur: 'occ', target: 'occ', answered: false }).sure);
+  assert.ok(!planOf('I work for Discovery', { cur: 'occ' }).sure);
+});
+test('a check-back tag on a stated fact is not part of the value', () => {
+  assert.strictEqual(brief(planOf('your employer is Discovery, right', { cur: 'occ' })), 'fill:employer=Discovery');
+  assert.strictEqual(brief(planOf('so your surname is Peters, correct', { cur: 'info' })), 'fill:sname=Peters');
+  assert.strictEqual(brief(planOf('your employer is Discovery, correct?', { cur: 'occ' })), 'ask:employer');
+});

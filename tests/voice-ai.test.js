@@ -50,27 +50,28 @@ test('rubbish or errors from the service never reach the form', async () => {
   await assert.rejects(() => AI.decide({ apiKey: 'k', model: 'm', idx, who: 'me', text: 'x', ctx: {}, fetchImpl: () => Promise.reject(new Error('offline')) }), /no connection/);
 });
 
-test('when the page cannot tell who is speaking, Claude decides and the answer is used either way', async () => {
-  const req = AI.buildRequest(idx, { sectionId: 'occ', targetId: 'employer', targetValue: '', recent: [{ who: 'adviser', text: 'so who do you work for' }] }, 'auto', 'my employer is Discovery', 'm');
+test('when the page cannot tell who is speaking, Claude returns what to do, in order', async () => {
+  const req = AI.buildRequest(idx, { sectionId: 'info', targetId: null, targetValue: '', recent: [] }, 'auto', 'your first name is John and your second name? oh my second name is Peters', 'm');
   assert.strictEqual(JSON.parse(req.messages[0].content).newest.who, 'unclear');
-  assert.ok(/unclear/.test(req.system) && /neither/.test(req.system));
-  const ctx = { sectionId: 'occ', targetId: 'employer', targetValue: '', recent: [] };
-  const ans = await AI.decide({ apiKey: 'k', model: 'm', idx, who: 'auto', text: 'my employer is Discovery', ctx, fetchImpl: reply({ role: 'client', answers: [{ field: 'employer', value: 'Discovery', confirm: false }] }) });
-  assert.deepStrictEqual(ans, { kind: 'answers', answers: [{ field: 'employer', confirm: false, value: 'Discovery' }], waiting: false });
-  const pt = await AI.decide({ apiKey: 'k', model: 'm', idx, who: 'auto', text: 'so what do you do for work', ctx, fetchImpl: reply({ role: 'adviser', section: 'occ', field: 'occ' }) });
-  assert.deepStrictEqual(pt, { kind: 'point', field: 'occ', section: 'occ' });
-  const no = await AI.decide({ apiKey: 'k', model: 'm', idx, who: 'auto', text: 'lovely weather', ctx, fetchImpl: reply({ role: 'neither' }) });
-  assert.deepStrictEqual(no, { kind: 'none' });
-  const noRole = await AI.decide({ apiKey: 'k', model: 'm', idx, who: 'auto', text: 'x', ctx, fetchImpl: reply({ answers: [{ field: 'occ', value: 'Teacher' }] }) });
-  assert.strictEqual(noRole.kind, 'answers');
-  const priv = await AI.decide({ apiKey: 'k', model: 'm', idx, who: 'auto', text: 'x', ctx, fetchImpl: reply({ role: 'client', answers: [{ field: 'idno', value: '1234567890123' }] }) });
-  assert.deepStrictEqual(priv.answers, []);
+  assert.ok(/unclear/.test(req.system) && /WHOEVER/.test(req.system) && /actions/.test(req.system));
+  const ctx = { sectionId: 'info', targetId: null, targetValue: '', recent: [] };
+  const run = body => AI.decide({ apiKey: 'k', model: 'm', idx, who: 'auto', text: 'x', ctx, fetchImpl: reply(body) });
+  const many = await run({ actions: [{ do: 'fill', field: 'fname', value: 'John' }, { do: 'ask', field: 'sname' }, { do: 'fill', field: 'sname', value: 'Peters' }] });
+  assert.deepStrictEqual(many, { kind: 'actions', actions: [{ do: 'fill', field: 'fname', value: 'John' }, { do: 'ask', field: 'sname' }, { do: 'fill', field: 'sname', value: 'Peters' }] });
+  const mix = await run({ actions: [{ do: 'section', section: 'occ' }, { do: 'confirm', field: 'occ' }, { do: 'wait' }] });
+  assert.deepStrictEqual(mix.actions.map(a => a.do), ['section', 'confirm', 'wait']);
+  assert.deepStrictEqual(await run({ actions: [] }), { kind: 'none' });
+  assert.deepStrictEqual(await run({ actions: [{ do: 'fill', field: 'idno', value: '1' }, { do: 'ask', field: 'cell' }, { do: 'fill', field: 'nope', value: 'x' }, { do: 'fill', field: 'occ', value: '  ' }, { do: 'section', section: 'zzz' }] }), { kind: 'none' });
+  const old = await run({ role: 'client', answers: [{ field: 'employer', value: 'Discovery' }] });
+  assert.deepStrictEqual(old.actions, [{ do: 'fill', field: 'employer', value: 'Discovery' }]);
+  const oldAsk = await run({ role: 'adviser', section: 'occ', field: 'occ' });
+  assert.deepStrictEqual(oldAsk.actions, [{ do: 'ask', field: 'occ' }]);
 });
 test('a host that can reach Claude without a key can be used in place of the key', async () => {
   const calls = [];
-  const ask = (system, user) => { calls.push({ system, user }); return Promise.resolve('Sure. {"role":"client","answers":[{"field":"employer","value":"Discovery"}]}'); };
+  const ask = (system, user) => { calls.push({ system, user }); return Promise.resolve('Sure. {"actions":[{"do":"fill","field":"employer","value":"Discovery"}]}'); };
   const r = await AI.decide({ model: 'm', idx, who: 'auto', text: 'my employer is Discovery', ctx: { sectionId: 'occ', targetId: 'employer', recent: [] }, ask });
-  assert.strictEqual(r.answers[0].value, 'Discovery');
+  assert.strictEqual(r.actions[0].value, 'Discovery');
   assert.ok(calls[0].system.includes('Fact Find') && JSON.parse(calls[0].user).newest.text === 'my employer is Discovery');
   await assert.rejects(() => AI.decide({ model: 'm', idx, who: 'me', text: 'x', ctx: {}, ask: () => Promise.reject({ code: 'not_granted' }) }), /not allowed/);
   await assert.rejects(() => AI.decide({ model: 'm', idx, who: 'me', text: 'x', ctx: {} }), /no API key/);

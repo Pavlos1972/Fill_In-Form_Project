@@ -167,8 +167,8 @@
   var ALIASES = {
     consent: ['consent', 'okay to record', 'record this', 'record the call', 'recording', 'transcribe'],
     ref: ['referred', 'referral', 'who referred', 'how did you hear', 'where did you hear'],
-    fname: ['first name', 'full name', 'your name', 'name and surname'],
-    sname: ['surname', 'last name', 'family name'],
+    fname: ['first name', 'full name', 'your name', 'my name', 'christian name', 'given name', 'name and surname'],
+    sname: ['surname', 'last name', 'family name', 'second name'],
     dob: ['date of birth', 'birthday', 'birth date', 'when were you born', 'born'],
     idtype: ['id or passport', 'passport or id'],
     idno: ['id number', 'identity number', 'id no', 'passport number', 'your id'],
@@ -546,6 +546,54 @@
   }
 
   /* ---------- the client's answer meets what is already in the box ---------- */
+  /* ---------- a stretch of conversation, in order ---------- */
+  /* Real talk is fluid: one line can hold the adviser stating a fact ("your first name is John"), asking ("and your second name?") and the client
+     jumping in ("oh, my second name is Peters"). Facts count whoever says them. plan() splits the line into clauses, works through them in
+     order and returns the things to do: { do: 'cmd' | 'ask' | 'fill' | 'confirm' | 'wait', ... }. sure is false when some part was not understood
+     with certainty, so the caller can have Claude read the line. st: { cur, target, answered, value(id), visible(id) }. */
+  var LEADWORDS = /^(?:(?:oh|well|okay|ok|so|and|but|um+|uh+|yes|yeah|no|right|sorry|actually|ja|hi|hello|then|now)[,.!\s]+)+/i;
+  var ASSERT = /^((?:your|my|his|her|their|our|the)\s+)?(.{2,60}?)\s+(?:is|are|was|were|will be|would be)\s+(.+?)[.!]*$/i;
+  var WH = /^(?:what|what's|whats|who|who's|whose|where|when|why|how|which)\b/i;
+  function clauses(text) {
+    var t = String(text == null ? '' : text).replace(/\s+/g, ' ').trim();
+    t = t.replace(/([.?!])\s+/g, '$1\u0001').replace(/\s+(?:and|but|so)\s+(?=(?:your|my|his|her|their)\b)/gi, '\u0001');
+    return t.split('\u0001').map(function (x) { return x.trim(); }).filter(Boolean);
+  }
+  function plan(text, idx, st) {
+    st = st || {};
+    var actions = [], sure = true, target = st.target || null, answered = !!st.answered;
+    var visible = st.visible || function () { return true; }, valueOf = st.value || function () { return ''; };
+    var near = { cur: st.cur, isEmpty: function (id) { return valueOf(id) === ''; } };
+    clauses(text).forEach(function (seg) {
+      var core = seg.replace(LEADWORDS, '').trim(), isQ = /\?\s*["')]*$/.test(core), words = seg.split(/\s+/).length;
+      if (!core) return;
+      var cmd = parseCommand(core, idx);
+      if (cmd) { actions.push({ do: 'cmd', cmd: cmd }); return; }
+      var m = !isQ && !WH.test(core) ? ASSERT.exec(core) : null;           // "your first name is John", "my surname is Peters"
+      if (m) {
+        var hit = matchQuestion((m[1] || '') + m[2], idx, near);
+        if (hit && hit.score >= 2.5 && visible(hit.id)) {
+          var r = answerFor(idx.byId[hit.id], m[3].replace(/[,\s]+(?:right|correct|okay|ok|yes|isn't it|is that right|is that correct|not so)\s*$/i, ''), valueOf(hit.id));
+          if (r.kind === 'fill' || r.kind === 'confirm') { actions.push({ do: r.kind, field: hit.id, res: r, explicit: true }); target = hit.id; answered = true; if (hit.score < 3) sure = false; return; }
+        }
+      }
+      if (isQ || WH.test(core) || looksLikeQuestion(core)) {               // someone asks about a field
+        var q = matchQuestion(core, idx, near);
+        if (q && visible(q.id)) { actions.push({ do: 'ask', field: q.id }); target = q.id; answered = false; if (q.score < 4) sure = false; }
+        else if (!isChatter(core)) sure = false;
+        return;
+      }
+      if (target && !answered) {                                           // a plain statement while a box is waiting answers it
+        var a = answerFor(idx.byId[target], seg, valueOf(target));
+        if (a.kind === 'fill' || a.kind === 'confirm') { actions.push({ do: a.kind, field: target, res: a }); answered = true; if (words >= 6) sure = false; return; }
+        if (a.kind === 'wait') { actions.push({ do: 'wait', field: target }); return; }
+        sure = false; return;
+      }
+      if (!isChatter(seg)) sure = false;
+    });
+    return { actions: actions, sure: sure };
+  }
+
   var PRIVATE_IDS = ['idno', 'tax', 'cell', 'work', 'home', 'sp_tel', 'pemail', 'wemail'];
   var AGREE = { correct: 1, right: 1, exactly: 1, same: 1, unchanged: 1, still: 1, yes: 1, yeah: 1, yep: 1, yup: 1, ja: 1, sure: 1, indeed: 1, definitely: 1, absolutely: 1, true: 1, thanks: 1, thank: 1, changed: 1, nothing: 1, change: 1 };
   var NEGATE = { no: 1, nope: 1, nah: 1, not: 1, never: 1, none: 1, really: 1, quite: 1 };
@@ -583,7 +631,7 @@
 
   return {
     norm: norm, wordsToNumber: wordsToNumber, spokenDigits: spokenDigits, spokenDate: spokenDate, spokenEmail: spokenEmail, yesNo: yesNo,
-    buildIndex: buildIndex, parseCommand: parseCommand, looksLikeQuestion: looksLikeQuestion, isChatter: isChatter, matchQuestion: matchQuestion, interpret: interpret, titleCase: titleCase,
+    buildIndex: buildIndex, parseCommand: parseCommand, looksLikeQuestion: looksLikeQuestion, isChatter: isChatter, plan: plan, matchQuestion: matchQuestion, interpret: interpret, titleCase: titleCase,
     isConfirm: isConfirm, answerFor: answerFor, PRIVATE_IDS: PRIVATE_IDS
   };
 });

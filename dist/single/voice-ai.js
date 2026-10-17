@@ -28,12 +28,18 @@
     '- If the client only says no or that is wrong, without the new value yet, reply {"answers": [], "waiting": true}.',
     '- Never invent anything. If unsure, reply {"answers": [], "waiting": false}.',
     '',
-    'If the newest line has who "unclear", the page cannot tell who is speaking, so decide that from the words and the conversation so far.',
-    'The adviser asks, prompts or steers: a question, a request to talk about a topic, or a check back ("what do you do for work?", "let\'s talk about your employer", "you work for a company, right?").',
-    'The client gives information, usually straight after a question ("my employer is Discovery", "I\'m a teacher", "yes, that\'s right", "it was 2019").',
-    'Reply with the JSON of whichever applies and add "role": "adviser" or "client".',
-    'Reply {"role": "neither"} for acknowledgements and small talk ("okay great", "perfect", "thank you", "I see", "mm hm", "lovely"): they ask about nothing and answer nothing. Use "adviser" only when the line asks about, or moves to, a particular topic.',
-    'Understand meaning, not exact words: the client may answer in a full sentence, may give several facts at once, and the adviser may phrase things loosely.'
+    'If the newest line has who "unclear", the page cannot tell who is speaking. The line is also often several sentences: the adviser and the client talk fluidly, interrupt and answer each other in one breath.',
+    'Work through the line in order and reply {"actions": [ ... ]}. Each action is one of:',
+    '  {"do":"ask","field":"<id>"}          someone asks about, or moves to, one field ("and your second name?", "what do you do for work?")',
+    '  {"do":"section","section":"<id>"}    someone moves to a whole topic ("let\'s talk about your health")',
+    '  {"do":"fill","field":"<id>","value":"..."}   someone states the value of a field, WHOEVER says it',
+    '  {"do":"confirm","field":"<id>"}      the value already in position.current_value is agreed to ("yes, that\'s right")',
+    '  {"do":"wait"}                        the value in position.current_value is rejected and the new one has not come yet',
+    'Facts count from either person: the adviser saying "your first name is John" and the client saying "my surname is Peters" each fill a field.',
+    'Keep the order of the line. A question about a field comes before the answer to it, so "your first name is John and your second name? oh my second name is Peters" is',
+    '[fill fname John, ask sname, fill sname Peters]. A plain statement straight after a question is the answer to position.field.',
+    'Give {"actions": []} for acknowledgements and small talk ("okay great", "perfect", "thank you", "I see", "mm hm", "lovely"): they ask about nothing and answer nothing.',
+    'Understand meaning, not exact words, and never invent a value that was not said. The value rules above apply to every fill.'
   ].join('\n');
 
   /* Blank out anything that looks like an email address or a long number (ID, phone, account). */
@@ -75,10 +81,24 @@
     if (!raw || typeof raw !== 'object') return { kind: 'none' };
     var okField = function (id) { return typeof id === 'string' && idx.byId[id] && V.PRIVATE_IDS.indexOf(id) < 0; };
     if (who === 'auto') {
-      who = raw.role === 'client' ? 'client' : raw.role === 'adviser' ? 'adviser' : raw.role === 'neither' ? 'neither'
-        : Array.isArray(raw.answers) ? 'client' : (raw.field || raw.section) ? 'adviser' : 'neither';
+      var okSec = function (id) { return typeof id === 'string' && idx.sections.some(function (x) { return x.id === id; }); }, acts = [];
+      if (Array.isArray(raw.actions)) raw.actions.forEach(function (a) {
+        if (!a || typeof a !== 'object') return;
+        if (a.do === 'ask' && okField(a.field)) acts.push({ do: 'ask', field: a.field });
+        else if (a.do === 'section' && okSec(a.section)) acts.push({ do: 'section', section: a.section });
+        else if (a.do === 'fill' && okField(a.field) && a.value != null && String(a.value).trim() !== '') acts.push({ do: 'fill', field: a.field, value: String(a.value).trim() });
+        else if (a.do === 'confirm' && okField(a.field)) acts.push({ do: 'confirm', field: a.field });
+        else if (a.do === 'wait') acts.push({ do: 'wait' });
+      });
+      else {                                                    // an answer in the older shape is still understood
+        if (okField(raw.field)) acts.push({ do: 'ask', field: raw.field }); else if (okSec(raw.section)) acts.push({ do: 'section', section: raw.section });
+        (Array.isArray(raw.answers) ? raw.answers : []).forEach(function (a) {
+          if (a && okField(a.field) && a.confirm === true) acts.push({ do: 'confirm', field: a.field });
+          else if (a && okField(a.field) && a.value != null && String(a.value).trim() !== '') acts.push({ do: 'fill', field: a.field, value: String(a.value).trim() });
+        });
+      }
+      return acts.length ? { kind: 'actions', actions: acts } : { kind: 'none' };
     }
-    if (who === 'neither') return { kind: 'none' };
     if (who !== 'client') {
       var field = okField(raw.field) ? raw.field : null;
       var section = typeof raw.section === 'string' && idx.sections.some(function (s) { return s.id === raw.section; }) ? raw.section : null;
