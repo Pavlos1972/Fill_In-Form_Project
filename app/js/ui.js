@@ -551,8 +551,11 @@
   $('#vdText').addEventListener('keydown', function (e) {
     if (e.key !== 'Enter') return;
     e.preventDefault();
-    var raw = this.value, m = /^\s*(?:c|client)\s*:\s*(.*)$/i.exec(raw);
-    vmHear(m ? m[1] : raw.replace(/^\s*(?:me|m)\s*:\s*/i, ''), m ? 'client' : 'me'); this.value = '';
+    var raw = this.value, m = /^\s*(?:c\s*:|client(?![\w'])(?:\s+colon\b)?[\s:,.;-]*)\s*(.*)$/i.exec(raw);
+    var text = m ? m[1] : raw.replace(/^\s*(?:me|m)\s*:\s*/i, '');
+    /* One microphone cannot tell the two voices apart, so a client's answer is marked with the word "client". Say so if it looks like it was forgotten. */
+    if (!m && vm.on && vm.target && !vm.answered && text.trim() && !V.parseCommand(text, vidx) && !V.matchQuestion(text, vidx, { cur: cur, isEmpty: function (id) { return state.f[id].v === ''; } })) vmNote(vm.target, 'If that was the client\'s answer, start it with the word "client"');
+    vmHear(text, m ? 'client' : 'me'); this.value = '';
   });
 
   /* Open on a fresh page. The last client comes back only if it had unsaved changes. */
