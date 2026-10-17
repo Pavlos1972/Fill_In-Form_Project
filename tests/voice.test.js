@@ -346,3 +346,39 @@ test('a sentence that stops before the answer glows that box and keeps listening
   assert.strictEqual(brief(planOf('John my second', { target: 'fname', answered: false })), '');
   assert.ok(!planOf('John my second', { target: 'fname', answered: false }).sure);
 });
+
+/* ---- "I don't have a home number but my work number is ..." ---- */
+test('no home number ticks the box and the work number is filled, in one breath', () => {
+  const t = "I don't have a home number but my work number is 021 555 0199";
+  assert.strictEqual(brief(planOf(t)), 'fill:home=None fill:work=021 555 0199');
+  assert.ok(planOf(t).sure);
+  assert.strictEqual(brief(planOf('I do not have a home number, but I have a work number 021 555 0199')), 'fill:home=None fill:work=021 555 0199');
+  assert.strictEqual(brief(planOf("my cell number is 082 555 0148 and I don't have a work number")), 'fill:cell=082 555 0148 fill:work=None');
+  assert.strictEqual(brief(planOf('no personal email')), 'fill:pemail=None');
+  assert.strictEqual(brief(planOf("I haven't got a work email")), 'fill:wemail=None');
+  assert.strictEqual(brief(planOf("I've got a work number it's 021 555 0199")), 'fill:work=021 555 0199');
+});
+test('a bare no or none on a box with a "No ..." tick-box ticks it; elsewhere it does not fill', () => {
+  ['no', 'none', 'nope', "No, I don't", "I don't have one", "I haven't got a home number"].forEach(x => assert.strictEqual(brief(planOf(x, { target: 'home', answered: false })), 'fill:home=None', x));
+  assert.strictEqual(brief(planOf('021 555 0199', { target: 'home', answered: false })), 'fill:home=021 555 0199');
+  assert.strictEqual(brief(planOf('no', { cur: 'occ', target: 'employer', answered: false })), '');
+});
+test('an email is whatever follows "is" or "it\'s", however it was introduced', () => {
+  assert.strictEqual(brief(planOf('my email is john at gmail dot com')), 'fill:pemail=john@gmail.com');
+  assert.strictEqual(brief(planOf("my personal email, it's john at gmail dot com")), 'fill:pemail=john@gmail.com');
+  assert.strictEqual(brief(planOf("I have an email it's peters dot snow at gmail dot com")), 'fill:pemail=peters.snow@gmail.com');
+});
+test('only the clearly understood actions are certain; the shaky ones are marked so Claude can overrule them', () => {
+  const p = planOf('What is your occupation? I am a senior underwriter for one of the big insurers', { cur: 'occ' });
+  assert.ok(!p.sure);
+  assert.strictEqual(p.actions.filter(a => !a.tentative).map(a => a.do + ':' + a.field).join(' '), 'ask:occ');
+  assert.ok(p.actions.some(a => a.tentative && a.do === 'fill'));
+  const q = planOf('What is your occupation? I am a teacher and I have been at Discovery for about eight years', { cur: 'occ' });
+  assert.ok(!q.sure);                                                        // the second half is not understood here, so Claude reads the line
+  assert.strictEqual(q.actions.filter(a => !a.tentative).map(a => a.do + ':' + a.field).join(' '), 'ask:occ fill:occ');
+});
+test('a long answer to a date or number question is read here; a long free-text answer is left to Claude', () => {
+  const d = planOf('it is the fifth of March nineteen eighty', { target: 'dob', answered: false });
+  assert.ok(d.sure); assert.strictEqual(brief(d), 'fill:dob=1980-03-05');
+  assert.ok(!planOf('I am a senior underwriter for one of the big insurers', { cur: 'occ', target: 'occ', answered: false }).sure);
+});
