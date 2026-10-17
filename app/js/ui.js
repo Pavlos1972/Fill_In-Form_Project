@@ -186,7 +186,7 @@
     main.className = 'main' + (sec.roomy ? ' roomy' : '') + (sec.fit ? ' fit' : '') + (sec.adv ? ' advisor' : '');
     main.innerHTML = sectionHTML(sec);
     refreshChrome(); refreshWarnings();
-    if (vm.on && vm.target) vmMark(vm.target);
+    if (vm.on) vmMarkWait();
   }
   function renderNav() {
     var nav = '<div class="sep">Client answers</div>', adv = false;
@@ -335,6 +335,7 @@
   function openSettings() {
     var set = FF.lookup.getSettings(), dlg = $('#settings');
     $('#setKey').value = set.apiKey; $('#setExpires').value = set.expires;
+    $('#setVoiceModel').innerHTML = FF.lookup.MODELS.map(function (m) { return '<option value="' + m.id + '"' + (m.id === set.voiceModel ? ' selected' : '') + '>' + esc(m.label.replace(' (recommended)', '')) + '</option>'; }).join('');
     $('#setModel').innerHTML = FF.lookup.MODELS.map(function (m) { return '<option value="' + m.id + '"' + (m.id === set.model ? ' selected' : '') + '>' + esc(m.label) + '</option>'; }).join('');
     $('#setResult').textContent = '';
     dlg.showModal();
@@ -344,7 +345,7 @@
   $('#keyState').addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openSettings(); } });
   $('#setCancel').addEventListener('click', function () { $('#settings').close(); });
   $('#setSave').addEventListener('click', function () {
-    FF.lookup.saveSettings({ apiKey: $('#setKey').value, model: $('#setModel').value, expires: $('#setExpires').value }); $('#settings').close(); refreshKey(); toast('Settings saved.');
+    FF.lookup.saveSettings({ apiKey: $('#setKey').value, model: $('#setModel').value, voiceModel: $('#setVoiceModel').value, expires: $('#setExpires').value }); $('#settings').close(); refreshKey(); toast('Settings saved.');
   });
   $('#setTest').addEventListener('click', function () {
     var out = $('#setResult'); out.textContent = 'Testing…';
@@ -352,59 +353,87 @@
   });
 
   /* ---------- voice mode ---------- */
-  /* Whatever listens (typed practice lines now, Whisper or Deepgram later) calls FF.app.voiceHear(text, who).
-     who 'me' is the advisor: a command (open a section, next, undo) or a question that points at a field.
-     who 'client' is an answer that fills the field the last question pointed at. All of it runs on this computer. */
-  var V = FF.voice, vidx = V.buildIndex(schema);
-  var vm = { on: false, who: 'me', target: null, undo: [], log: [], focusFields: false };
+  /* Voice mode follows the conversation. The form is the only display: the section heading glows red-amber when a topic is
+     opened, the box glows red-amber when the adviser's question points at it, and it glows green for a moment once the
+     client's answer is in or confirmed. Simple wording is understood on this computer; looser wording goes to Claude (voice-ai.js).
+     Whatever listens calls FF.app.voiceHear(text, who), who being 'me' (the adviser) or 'client'. Typing works as always when voice is off. */
+  var V = FF.voice, VAI = FF.voiceAI, vidx = V.buildIndex(schema);
+  var vm = { on: false, target: null, answered: false, secGlow: false, undo: [], recent: [], flashes: {}, queue: Promise.resolve(), busy: 0, lastFail: 0 };
   function vmField(id) { return vidx.byId[id]; }
   function vmVisible(f) { return calc.showIf(f.secCond, ctx()) && calc.showIf(f.cond, ctx()); }
   function vmSecTitle(id) { return schema.sections.filter(function (s) { return s.id === id; })[0].title; }
-  function vmMark(id) {
-    document.querySelectorAll('.voice-target').forEach(function (e) { e.classList.remove('voice-target'); });
-    var el = document.querySelector('[data-field="' + id + '"]');
-    if (el) el.classList.add('voice-target');
-    return el;
+  function vmEl(id) { return document.querySelector('[data-field="' + id + '"]'); }
+  function vmAIReady() { return !!(VAI && FF.lookup.getSettings().apiKey); }
+  function vmPrivate(id) { return V.PRIVATE_IDS.indexOf(id) >= 0; }
+  /* The red-amber glow: on the box being asked about, else on the section heading. */
+  function vmMarkWait() {
+    document.querySelectorAll('.voice-wait').forEach(function (e) { e.classList.remove('voice-wait'); });
+    if (!vm.on) return;
+    var el = vm.target && !vm.answered ? vmEl(vm.target) : (vm.secGlow ? document.querySelector('.main header h2') : null);
+    if (el) el.classList.add('voice-wait');
+    vmShowFlashes();
+  }
+  /* The green flash lasts 1.5 seconds and survives a redraw (the company look-up redraws the screen when it finishes). */
+  function vmFlash(id) { vm.flashes[id] = Date.now(); vmShowFlashes(); setTimeout(vmShowFlashes, 1600); }
+  function vmShowFlashes() {
+    document.querySelectorAll('.voice-ok').forEach(function (e) { if (!vm.flashes[e.dataset.field] || Date.now() - vm.flashes[e.dataset.field] > 1500) { e.classList.remove('voice-ok'); e.style.animationDelay = ''; } });
+    Object.keys(vm.flashes).forEach(function (id) {
+      var age = Date.now() - vm.flashes[id];
+      if (age > 1500) { delete vm.flashes[id]; return; }
+      var el = vmEl(id);
+      if (el && !el.classList.contains('voice-ok')) { el.style.animationDelay = '-' + age + 'ms'; el.classList.add('voice-ok'); }
+    });
+  }
+  function vmNote(id, text) {
+    var el = vmEl(id); if (!el) return;
+    var n = el.querySelector('.vm-note');
+    if (!n) { n = document.createElement('span'); n.className = 'vm-note'; el.appendChild(n); }
+    n.textContent = text; clearTimeout(n._t); n._t = setTimeout(function () { if (n.parentNode) n.parentNode.removeChild(n); }, 3500);
   }
   function vmPulseNav() {
     var b = document.querySelector('.nav button[data-sec="' + cur + '"]');
     if (b) { b.classList.add('voice-hit'); setTimeout(function () { b.classList.remove('voice-hit'); }, 1600); }
   }
+  function vmRender() {
+    var btn = $('#btnVoice');
+    btn.classList.toggle('on', vm.on); btn.classList.toggle('busy', vm.busy > 0); btn.setAttribute('aria-pressed', vm.on ? 'true' : 'false');
+    $('#vmLabel').textContent = vm.on ? 'Voice: On' : 'Voice: Off';
+  }
+  /* Move to a field: open its section if needed, glow, scroll to it and put the cursor in it. */
   function vmShow(id) {
     var f = vmField(id);
     if (cur !== f.sec) { cur = f.sec; redraw(); vmPulseNav(); }
-    var el = vmMark(id);
+    vm.target = id; vm.answered = false; vm.secGlow = false; vmMarkWait();
+    var el = vmEl(id);
     if (el) {
       el.scrollIntoView({ block: 'center', behavior: 'smooth' });
-      if (vm.focusFields) { var inp = el.querySelector('input:not([type=checkbox]),select,textarea'); if (inp && !inp.disabled && !inp.readOnly) inp.focus({ preventScroll: true }); }
-    }
+      var inp = el.querySelector('input:not([type=checkbox]),select,textarea');
+      if (inp && !inp.disabled && !inp.readOnly) inp.focus({ preventScroll: true });
+    } else vmMarkWait();
   }
   function vmOpenSection(secId) {
-    vm.undo.push({ kind: 'nav', sec: cur, target: vm.target });
-    cur = secId; vm.target = null; redraw(); vmPulseNav(); window.scrollTo(0, 0);
-    return 'Opened ' + vmSecTitle(secId);
+    vm.undo.push({ kind: 'nav', sec: cur, target: vm.target, answered: vm.answered });
+    cur = secId; vm.target = null; vm.answered = false; vm.secGlow = true;
+    if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+    redraw(); vmPulseNav(); window.scrollTo(0, 0);
   }
   function vmStep(dir) {
     var list = vidx.fields.filter(function (f) { return f.sec === cur && vmVisible(f); });
-    if (!list.length) return 'No fields on this screen.';
+    if (!list.length) return;
     var i = vm.target ? list.map(function (f) { return f.id; }).indexOf(vm.target) : -1, n = i < 0 ? (dir > 0 ? 0 : list.length - 1) : i + dir;
-    if (n < 0 || n >= list.length) return dir > 0 ? 'That was the last question here. Say "next section".' : 'That was the first question here.';
-    vm.target = list[n].id; vmShow(vm.target);
-    return 'Now on: ' + list[n].label;
+    if (n >= 0 && n < list.length) vmShow(list[n].id);
   }
   function vmStepSection(dir) {
     var secs = schema.sections.filter(function (s) { return calc.showIf(s.cond, ctx()); }), i = secs.map(function (s) { return s.id; }).indexOf(cur), n = i + dir;
-    if (n < 0 || n >= secs.length) return dir > 0 ? 'That was the last section.' : 'That was the first section.';
-    return vmOpenSection(secs[n].id);
+    if (n >= 0 && n < secs.length) vmOpenSection(secs[n].id);
   }
   function vmUndo() {
     var e = vm.undo.pop();
-    if (!e) return 'Nothing to undo.';
-    if (e.kind === 'nav') { cur = e.sec; vm.target = e.target; redraw(); vmPulseNav(); return 'Back to ' + vmSecTitle(cur); }
+    if (!e) return;
+    if (e.kind === 'nav') { cur = e.sec; vm.target = e.target; vm.answered = e.answered; vm.secGlow = false; redraw(); vmPulseNav(); return; }
     state.f[e.id] = { v: e.prev.v, st: e.prev.st };
     (e.extras || []).forEach(function (x) { state.f[x.id] = { v: x.prev.v, st: x.prev.st }; });
-    vm.target = e.id; touch(); redraw(); vmShow(e.id);
-    return 'Undone: ' + vmField(e.id).label + (e.prev.v ? ' back to "' + e.prev.v + '"' : ' cleared');
+    touch(); vmShow(e.id); redraw(); vmMarkWait();
   }
   function vmCommand(c) {
     switch (c.type) {
@@ -415,85 +444,116 @@
       case 'prevSection': return vmStepSection(-1);
       case 'undo': return vmUndo();
       case 'clear':
-        if (!vm.target) return 'No field selected.';
+        if (!vm.target) return;
         var cell = state.f[vm.target];
-        if (cell.v === '') return 'Already empty.';
-        if (cell.st === 'confirmed') return 'That one was typed or accepted by you, so it is not cleared by voice.';
+        if (cell.v === '' || cell.st === 'confirmed') return;
         vm.undo.push({ kind: 'fill', id: vm.target, prev: { v: cell.v, st: cell.st }, extras: [] });
-        store.setField(state, vm.target, '', 'empty'); touch(); redraw(); vmShow(vm.target);
-        return 'Cleared ' + vmField(vm.target).label;
+        store.setField(state, vm.target, '', 'empty'); vm.answered = false; touch(); redraw(); vmMarkWait();
     }
-    return '';
   }
-  function vmQuestion(text) {
-    var m = V.matchQuestion(text, vidx, { cur: cur, isEmpty: function (id) { return state.f[id].v === ''; } });
-    if (!m) return '';
-    var f = vmField(m.id);
-    vm.target = m.id; vmShow(m.id);
-    return 'Question about: ' + f.label + (vmVisible(f) ? '' : ' (not on screen yet)');
-  }
-  function vmAnswer(text) {
-    var id = vm.target;
-    if (!id) return 'No question asked yet, so nothing to fill.';
-    var f = vmField(id);
-    if (!vmVisible(f)) return f.label + ' is not on screen yet. Answer the earlier question first.';
-    var cell = state.f[id];
-    if (cell.v !== '' && cell.st !== 'heard' && cell.st !== 'verify' && cell.st !== 'suggest') return f.label + ' is already filled in, so it was not changed.';
-    var r = V.interpret(f, text);
-    if (!r) return 'Nothing to fill from that.';
-    if (r.error) return 'Not filled: ' + (r.note || (r.error === 'no-match' ? 'did not match an answer for ' + f.label : r.error === 'no-number' ? 'no number heard' : r.error === 'no-date' ? 'no date heard' : 'could not read that')) + '.';
-    var value = r.value;
-    if (r.append && cell.v && (cell.st === 'heard' || cell.st === 'verify')) value = cell.v + ' ' + value;
-    var entry = { kind: 'fill', id: id, prev: { v: cell.v, st: cell.st }, extras: [] };
-    store.setField(state, id, value, r.status);
-    (r.extra || []).forEach(function (x) { var c2 = state.f[x.id]; entry.extras.push({ id: x.id, prev: { v: c2.v, st: c2.st } }); store.setField(state, x.id, x.value, x.status); });
-    vm.undo.push(entry); touch(); redraw(); vmShow(id);
-    var msg = f.label + ' = ' + value + ' (' + r.status + ')' + (r.note ? ', ' + r.note : '');
+  /* The adviser's question points at a field. */
+  function vmPoint(id) { vmShow(id); }
+  /* Put one answer into the form. res: { kind: 'confirm' } or { kind: 'fill', value, status, extra?, append? }. */
+  function vmApply(id, res) {
+    var cell = state.f[id], entry = { kind: 'fill', id: id, prev: { v: cell.v, st: cell.st }, extras: [] }, extraIds = [];
+    if (res.kind === 'confirm') {
+      if (cell.v === '') return false;
+      store.setField(state, id, cell.v, 'confirmed');
+    } else {
+      var value = res.value;
+      if (res.append && cell.v && (cell.st === 'heard' || cell.st === 'verify')) value = cell.v + ' ' + value;
+      store.setField(state, id, value, res.status);
+      (res.extra || []).forEach(function (x) { var c2 = state.f[x.id]; entry.extras.push({ id: x.id, prev: { v: c2.v, st: c2.st } }); store.setField(state, x.id, x.value, x.status); extraIds.push(x.id); });
+    }
+    vm.undo.push(entry);
+    if (id === vm.target) vm.answered = true;
+    touch(); redraw(); vmFlash(id); extraIds.forEach(vmFlash);
     /* Employer or business name filled: look up what the company does. Only the company name is sent. */
-    var lk = { employer: 'co_does', biz_name: 'biz_does' }[id];
-    if (lk && state.f[lk].v === '' && FF.lookup.getSettings().apiKey) {
-      var btn = document.querySelector('[data-lookup="' + lk + '"]');
-      if (btn) { doLookup(btn); msg += '. Looking up the company online.'; }
-    }
-    return msg;
+    var lk = res.kind === 'fill' ? { employer: 'co_does', biz_name: 'biz_does' }[id] : null;
+    if (lk && state.f[lk].v === '' && FF.lookup.getSettings().apiKey) { var btn = document.querySelector('[data-lookup="' + lk + '"]'); if (btn) doLookup(btn); }
+    return true;
   }
+  function vmAsk(who, text) {
+    var set = FF.lookup.getSettings(), tid = vm.target && !vmPrivate(vm.target) ? vm.target : null;
+    vm.busy++; vmRender();
+    return VAI.decide({
+      apiKey: set.apiKey, model: set.voiceModel, idx: vidx, who: who, text: text,
+      ctx: { sectionId: cur, targetId: tid, targetValue: tid ? state.f[tid].v : '', recent: vm.recent.slice(-7, -1) }
+    }).then(function (r) { vm.busy--; vmRender(); return r; }, function (err) {
+      vm.busy--; vmRender();
+      if (Date.now() - vm.lastFail > 60000) { vm.lastFail = Date.now(); toast('Voice: could not reach Claude (' + err.message + '). Using only what this computer can understand.'); }
+      return null;
+    });
+  }
+  function vmProcessMe(text) {
+    var c = V.parseCommand(text, vidx);
+    if (c) { vmCommand(c); return null; }
+    var m = V.matchQuestion(text, vidx, { cur: cur, isEmpty: function (id) { return state.f[id].v === ''; } });
+    if (m && (m.score >= 5 || !vmAIReady())) { vmPoint(m.id); return null; }
+    if (!vmAIReady()) return null;
+    return vmAsk('me', text).then(function (r) {
+      if (r && r.kind === 'point') { if (r.field) vmPoint(r.field); else if (r.section) vmOpenSection(r.section); }
+      else if (m) vmPoint(m.id);
+    });
+  }
+  function vmApplyAI(r) {
+    if (!r || r.kind !== 'answers') return;
+    var any = false;
+    r.answers.forEach(function (a) {
+      var f = vmField(a.field), cell = state.f[a.field], isT = a.field === vm.target;
+      if (!f || !vmVisible(f)) return;
+      if (!isT && cell.v !== '' && cell.st === 'confirmed') return;          // a volunteered fact never overwrites something already confirmed
+      var res = null;
+      if (a.confirm) res = { kind: 'confirm' };
+      else { var x = V.interpret(f, a.value); if (x && !x.error) res = { kind: 'fill', value: x.value, status: x.status, extra: x.extra, append: x.append }; }
+      if (res && vmApply(a.field, res)) any = true;
+    });
+    if (!any && r.waiting && vm.target) vmNote(vm.target, 'Waiting for the correct answer');
+  }
+  function vmProcessClient(text) {
+    var words = text.split(/\s+/).length, local = null;
+    if (vm.target && !vm.answered) {
+      var id = vm.target, f = vmField(id), r = V.answerFor(f, text, state.f[id].v);
+      if (r.kind === 'wait') { vmNote(id, 'Waiting for the correct answer'); return null; }
+      var canAsk = vmAIReady() && !vmPrivate(id);
+      /* A long answer usually holds several facts, so Claude reads it first; short answers are understood here, instantly. */
+      if ((r.kind === 'confirm' || r.kind === 'fill') && !(canAsk && words >= 6)) {
+        if (r.kind === 'fill' && words > 8 && f.t === 'txt') r.status = 'verify';
+        vmApply(id, r); return null;
+      }
+      if (!canAsk) { if (r.kind === 'error') vmNote(id, 'Did not catch that'); return null; }
+      local = r;
+    } else if (!vmAIReady() || words < 4) return null;        // after an answer, only longer remarks are checked for extra facts
+    return vmAsk('client', text).then(function (res) {
+      if (res === null && local && local.kind === 'fill') { local.status = 'verify'; vmApply(vm.target, local); return; }   // Claude unreachable: use what this computer understood
+      vmApplyAI(res);
+    });
+  }
+  /* Called for every line heard. Lines are handled one after another, in order. */
   function vmHear(text, who) {
     text = String(text == null ? '' : text).trim();
-    if (!vm.on || !text) return;
-    var res;
-    if (who === 'client') res = vmAnswer(text);
-    else { var c = V.parseCommand(text, vidx); res = c ? vmCommand(c) : (vmQuestion(text) || 'No field or command matched.'); }
-    vm.log.push({ who: who === 'client' ? 'client' : 'me', text: text, result: res });
-    if (vm.log.length > 60) vm.log.shift();
-    vmRender();
-  }
-  function vmRender() {
-    var dock = $('#voiceDock'), btn = $('#btnVoice');
-    dock.hidden = !vm.on; document.body.classList.toggle('vm-on', vm.on);
-    btn.textContent = vm.on ? 'Voice: On' : 'Voice: Off'; btn.classList.toggle('on', vm.on); btn.setAttribute('aria-pressed', vm.on ? 'true' : 'false');
-    $('#vdWho').textContent = vm.who === 'me' ? 'Me' : 'Client';
-    $('#vdTarget').textContent = vm.target ? 'Listening for: ' + vmField(vm.target).label : 'No question asked yet. Try, as Me: "I want to deal with occupation".';
-    var log = $('#vdLog');
-    log.innerHTML = vm.log.slice(-6).map(function (l) { return '<div class="vd-line"><b>' + (l.who === 'me' ? 'Me' : 'Client') + ':</b> ' + esc(l.text) + '<span class="vd-res">' + esc(l.result) + '</span></div>'; }).join('');
-    log.scrollTop = log.scrollHeight;
+    if (!vm.on || !text) return Promise.resolve();
+    var w = who === 'client' ? 'client' : 'me';
+    vm.recent.push({ who: w === 'me' ? 'adviser' : 'client', text: text }); if (vm.recent.length > 12) vm.recent.shift();
+    vm.queue = vm.queue.then(function () { return w === 'me' ? vmProcessMe(text) : vmProcessClient(text); }).catch(function () { /* one bad line never stops the next */ });
+    return vm.queue;
   }
   function vmToggle(on) {
-    vm.on = on; vm.who = 'me'; vm.target = null;
-    if (!on) document.querySelectorAll('.voice-target').forEach(function (e) { e.classList.remove('voice-target'); });
-    vmRender();
-    if (on) $('#vdText').focus();
+    vm.on = on; vm.target = null; vm.answered = false; vm.secGlow = on; vm.queue = Promise.resolve();
+    if (!on) { document.querySelectorAll('.voice-wait,.voice-ok').forEach(function (e) { e.classList.remove('voice-wait', 'voice-ok'); }); $('#vdText').hidden = true; }
+    vmRender(); vmMarkWait();
   }
-  function vmSend() {
-    var inp = $('#vdText'), t = inp.value;
-    if (!t.trim()) return;
-    vmHear(t, vm.who); vm.who = vm.who === 'me' ? 'client' : 'me'; inp.value = ''; vmRender(); inp.focus();
-  }
-  $('#btnVoice').addEventListener('click', function () { vmToggle(!vm.on); });
-  $('#vdClose').addEventListener('click', function () { vmToggle(false); });
-  $('#vdUndo').addEventListener('click', function () { vm.log.push({ who: 'me', text: '(Undo button)', result: vmUndo() }); vmRender(); });
-  $('#vdWho').addEventListener('click', function () { vm.who = vm.who === 'me' ? 'client' : 'me'; vmRender(); $('#vdText').focus(); });
-  $('#vdSend').addEventListener('click', vmSend);
-  $('#vdText').addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); vmSend(); } });
+  /* Press and hold the Voice button to show a hidden test line (type "client: ..." for the client's side). For testing only. */
+  var vmHold = null, vmHeld = false;
+  $('#btnVoice').addEventListener('pointerdown', function () { vmHeld = false; vmHold = setTimeout(function () { vmHeld = true; if (vm.on) { var t = $('#vdText'); t.hidden = !t.hidden; if (!t.hidden) t.focus(); } }, 800); });
+  ['pointerup', 'pointerleave', 'pointercancel'].forEach(function (ev) { $('#btnVoice').addEventListener(ev, function () { clearTimeout(vmHold); }); });
+  $('#btnVoice').addEventListener('click', function () { if (vmHeld) { vmHeld = false; return; } vmToggle(!vm.on); });
+  $('#vdText').addEventListener('keydown', function (e) {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    var raw = this.value, m = /^\s*(?:c|client)\s*:\s*(.*)$/i.exec(raw);
+    vmHear(m ? m[1] : raw.replace(/^\s*(?:me|m)\s*:\s*/i, ''), m ? 'client' : 'me'); this.value = '';
+  });
 
   /* Open on a fresh page. The last client comes back only if it had unsaved changes. */
   var restored = null;
