@@ -583,11 +583,15 @@
   var LEADWORDS = /^(?:(?:oh|well|okay|ok|so|and|but|um+|uh+|yes|yeah|no|right|sorry|actually|ja|hi|hello|then|now)[,.!\s]+)+/i;
   var ASSERT = /^((?:your|my|his|her|their|our|the)\s+)?(.{2,60}?)\s+(?:is|are|was|were|will be|would be)\s+(.+?)[.!]*$/i;
   var WH = /^(?:what|what's|whats|who|who's|whose|where|when|why|how|which)\b/i;
+  var NEGATE_HAVE = /\b(?:(?:don'?t|do not|dont|doesn'?t|haven'?t|have not|havent|hasn'?t|never)\s+(?:have|had|got|use)|have no|got no|no|without|none|not got)\b/i;
+  var TYPED = PHONE_IDS.concat(EMAIL_IDS, DIGIT_IDS, DATE_IDS);
   function clauses(text) {
     var t = String(text == null ? '' : text).replace(/\s+/g, ' ').trim();
-    t = t.replace(/([.?!])\s+/g, '$1\u0001').replace(/\s+(?:and|but|so)\s+(?=(?:your|my|his|her|their)\b)/gi, '\u0001');
+    t = t.replace(/([.?!])\s+/g, '$1\u0001').replace(/\s+(?:and|but|so)\s+(?=(?:your|my|his|her|their|i|i'm|i've|we|it's|that's|there's)\b)/gi, '\u0001');
     return t.split('\u0001').map(function (x) { return x.trim(); }).filter(Boolean);
   }
+  /* A long free-text answer may hold several facts, so Claude reads it; dates, numbers, phone numbers and lists of options are read precisely here. */
+  function isFreeText(f) { return !!f && f.t === 'txt' && !f.options && !f.money && TYPED.indexOf(f.id) < 0 && PCT_IDS.indexOf(f.id) < 0 && f.id !== 'years'; }
   function plan(text, idx, st) {
     st = st || {};
     var actions = [], sure = true, target = st.target || null, answered = !!st.answered;
@@ -602,23 +606,35 @@
         var dh = matchQuestion(core, idx, near);
         if (dh && dh.score >= 2.5 && visible(dh.id)) { actions.push({ do: 'ask', field: dh.id }); target = dh.id; answered = false; return; }
       }
+      if (!isQ && NEGATE_HAVE.test(seg)) {                                // "I don't have a home number", "no work email"
+        var nh = matchQuestion(core, idx, near);
+        if (nh && nh.score >= 2.5 && idx.byId[nh.id].none && visible(nh.id)) { actions.push({ do: 'fill', field: nh.id, res: { kind: 'fill', value: 'None', status: 'heard' }, explicit: true }); target = nh.id; answered = true; return; }
+      }
+      if (!isQ && !WH.test(core)) {                                        // a value of a typed box, found in the clause however it is phrased
+        var th = matchQuestion(core, idx, near);
+        if (th && th.score >= 2.5 && visible(th.id) && TYPED.indexOf(th.id) >= 0) {
+          var tv = EMAIL_IDS.indexOf(th.id) >= 0 ? core.replace(/^.*\b(?:is|are|it's|its|address|email|e-mail)\b[,:\s]*/i, '') : core;   // an email is what follows "is" / "it's"
+          var tr = answerFor(idx.byId[th.id], tv, valueOf(th.id));
+          if (tr.kind === 'fill') { actions.push({ do: 'fill', field: th.id, res: tr, explicit: true }); target = th.id; answered = true; return; }
+        }
+      }
       var m = !isQ && !WH.test(core) ? ASSERT.exec(core) : null;           // "your first name is John", "my surname is Peters"
       if (m) {
         var hit = matchQuestion((m[1] || '') + m[2], idx, near);
         if (hit && hit.score >= 2.5 && visible(hit.id)) {
           var r = answerFor(idx.byId[hit.id], m[3].replace(/[,\s]+(?:right|correct|okay|ok|yes|isn't it|is that right|is that correct|not so)\s*$/i, ''), valueOf(hit.id));
-          if (r.kind === 'fill' || r.kind === 'confirm') { actions.push({ do: r.kind, field: hit.id, res: r, explicit: true }); target = hit.id; answered = true; if (hit.score < 3) sure = false; return; }
+          if (r.kind === 'fill' || r.kind === 'confirm') { actions.push({ do: r.kind, field: hit.id, res: r, explicit: true, tentative: hit.score < 3 }); target = hit.id; answered = true; if (hit.score < 3) sure = false; return; }
         }
       }
       if (isQ || WH.test(core) || looksLikeQuestion(core)) {               // someone asks about a field
         var q = matchQuestion(core, idx, near);
-        if (q && visible(q.id)) { actions.push({ do: 'ask', field: q.id }); target = q.id; answered = false; if (q.score < 4) sure = false; }
+        if (q && visible(q.id)) { actions.push({ do: 'ask', field: q.id, tentative: q.score < 4 }); target = q.id; answered = false; if (q.score < 4) sure = false; }
         else if (!isChatter(core)) sure = false;
         return;
       }
       if (target && !answered) {                                           // a plain statement while a box is waiting answers it
         var a = answerFor(idx.byId[target], seg, valueOf(target));
-        if (a.kind === 'fill' || a.kind === 'confirm') { actions.push({ do: a.kind, field: target, res: a }); answered = true; if (words >= 6) sure = false; return; }
+        if (a.kind === 'fill' || a.kind === 'confirm') { var longText = words >= 6 && isFreeText(idx.byId[target]); actions.push({ do: a.kind, field: target, res: a, tentative: longText }); answered = true; if (longText) sure = false; return; }
         if (a.kind === 'wait') { actions.push({ do: 'wait', field: target, dangling: !!a.dangling }); return; }
         sure = false; return;
       }
@@ -652,7 +668,7 @@
     var plain = !f.options, correction = false, m;
     if (plain && existing && (m = /^\s*(?:no|nope|nah|not really|not quite|actually)[,.\s]+(.+)$/i.exec(String(raw)))) { raw = m[1]; t = norm(raw); correction = true; }
     if (existing && !correction && isConfirm(raw, plain)) return { kind: 'confirm' };
-    if (plain && !correction && t.split(' ').length <= 3 && yesNo(t) && !content(t).filter(function (w) { return !AGREE[w] && !NEGATE[w]; }).length) {
+    if (plain && !correction && !(f.none && yesNo(t) === 'no') && t.split(' ').length <= 3 && yesNo(t) && !content(t).filter(function (w) { return !AGREE[w] && !NEGATE[w]; }).length) {
       return yesNo(t) === 'no' && existing ? { kind: 'wait' } : { kind: 'none' };
     }
     var r = interpret(f, raw);

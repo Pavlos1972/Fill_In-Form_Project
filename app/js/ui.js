@@ -558,8 +558,10 @@
     var pl = V.plan(text, vidx, { cur: cur, target: vm.target, answered: vm.answered, value: function (id) { return state.f[id].v; }, visible: function (id) { var f = vmField(id); return !!f && vmVisible(f); } });
     var words = text.split(/\s+/).length;
     if (pl.sure || !vmAIReady() || words < 3) { vmRun(pl.actions); return null; }
+    vmRun(pl.actions.filter(function (a) { return !a.tentative; }));      // what is certain is done now, and is never undone by Claude's reply
     return vmAsk('auto', text).then(function (r) {
-      if (r && r.kind === 'actions') vmRun(r.actions); else if (!r || r.kind !== 'none') vmRun(pl.actions);
+      if (r && r.kind === 'actions') vmRun(r.actions);
+      else if (!r) vmRun(pl.actions.filter(function (a) { return a.tentative; }));   // Claude could not be reached: use this computer's best reading
     });
   }
   /* Called for every line heard. who is 'me' (the adviser), 'client', or left out when the source cannot tell and the words decide.
