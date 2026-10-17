@@ -186,6 +186,7 @@
     main.className = 'main' + (sec.roomy ? ' roomy' : '') + (sec.fit ? ' fit' : '') + (sec.adv ? ' advisor' : '');
     main.innerHTML = sectionHTML(sec);
     refreshChrome(); refreshWarnings();
+    if (vm.on && vm.target) vmMark(vm.target);
   }
   function renderNav() {
     var nav = '<div class="sep">Client answers</div>', adv = false;
@@ -350,6 +351,150 @@
     FF.lookup.run({ apiKey: $('#setKey').value.trim(), model: $('#setModel').value, name: 'Old Mutual', kind: 'company' }).then(function (t) { out.textContent = 'Working. Example: ' + t; }, function (e) { out.textContent = e.message; });
   });
 
+  /* ---------- voice mode ---------- */
+  /* Whatever listens (typed practice lines now, Whisper or Deepgram later) calls FF.app.voiceHear(text, who).
+     who 'me' is the advisor: a command (open a section, next, undo) or a question that points at a field.
+     who 'client' is an answer that fills the field the last question pointed at. All of it runs on this computer. */
+  var V = FF.voice, vidx = V.buildIndex(schema);
+  var vm = { on: false, who: 'me', target: null, undo: [], log: [], focusFields: false };
+  function vmField(id) { return vidx.byId[id]; }
+  function vmVisible(f) { return calc.showIf(f.secCond, ctx()) && calc.showIf(f.cond, ctx()); }
+  function vmSecTitle(id) { return schema.sections.filter(function (s) { return s.id === id; })[0].title; }
+  function vmMark(id) {
+    document.querySelectorAll('.voice-target').forEach(function (e) { e.classList.remove('voice-target'); });
+    var el = document.querySelector('[data-field="' + id + '"]');
+    if (el) el.classList.add('voice-target');
+    return el;
+  }
+  function vmPulseNav() {
+    var b = document.querySelector('.nav button[data-sec="' + cur + '"]');
+    if (b) { b.classList.add('voice-hit'); setTimeout(function () { b.classList.remove('voice-hit'); }, 1600); }
+  }
+  function vmShow(id) {
+    var f = vmField(id);
+    if (cur !== f.sec) { cur = f.sec; redraw(); vmPulseNav(); }
+    var el = vmMark(id);
+    if (el) {
+      el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      if (vm.focusFields) { var inp = el.querySelector('input:not([type=checkbox]),select,textarea'); if (inp && !inp.disabled && !inp.readOnly) inp.focus({ preventScroll: true }); }
+    }
+  }
+  function vmOpenSection(secId) {
+    vm.undo.push({ kind: 'nav', sec: cur, target: vm.target });
+    cur = secId; vm.target = null; redraw(); vmPulseNav(); window.scrollTo(0, 0);
+    return 'Opened ' + vmSecTitle(secId);
+  }
+  function vmStep(dir) {
+    var list = vidx.fields.filter(function (f) { return f.sec === cur && vmVisible(f); });
+    if (!list.length) return 'No fields on this screen.';
+    var i = vm.target ? list.map(function (f) { return f.id; }).indexOf(vm.target) : -1, n = i < 0 ? (dir > 0 ? 0 : list.length - 1) : i + dir;
+    if (n < 0 || n >= list.length) return dir > 0 ? 'That was the last question here. Say "next section".' : 'That was the first question here.';
+    vm.target = list[n].id; vmShow(vm.target);
+    return 'Now on: ' + list[n].label;
+  }
+  function vmStepSection(dir) {
+    var secs = schema.sections.filter(function (s) { return calc.showIf(s.cond, ctx()); }), i = secs.map(function (s) { return s.id; }).indexOf(cur), n = i + dir;
+    if (n < 0 || n >= secs.length) return dir > 0 ? 'That was the last section.' : 'That was the first section.';
+    return vmOpenSection(secs[n].id);
+  }
+  function vmUndo() {
+    var e = vm.undo.pop();
+    if (!e) return 'Nothing to undo.';
+    if (e.kind === 'nav') { cur = e.sec; vm.target = e.target; redraw(); vmPulseNav(); return 'Back to ' + vmSecTitle(cur); }
+    state.f[e.id] = { v: e.prev.v, st: e.prev.st };
+    (e.extras || []).forEach(function (x) { state.f[x.id] = { v: x.prev.v, st: x.prev.st }; });
+    vm.target = e.id; touch(); redraw(); vmShow(e.id);
+    return 'Undone: ' + vmField(e.id).label + (e.prev.v ? ' back to "' + e.prev.v + '"' : ' cleared');
+  }
+  function vmCommand(c) {
+    switch (c.type) {
+      case 'goto': return vmOpenSection(c.sec);
+      case 'next': return vmStep(1);
+      case 'prev': return vmStep(-1);
+      case 'nextSection': return vmStepSection(1);
+      case 'prevSection': return vmStepSection(-1);
+      case 'undo': return vmUndo();
+      case 'clear':
+        if (!vm.target) return 'No field selected.';
+        var cell = state.f[vm.target];
+        if (cell.v === '') return 'Already empty.';
+        if (cell.st === 'confirmed') return 'That one was typed or accepted by you, so it is not cleared by voice.';
+        vm.undo.push({ kind: 'fill', id: vm.target, prev: { v: cell.v, st: cell.st }, extras: [] });
+        store.setField(state, vm.target, '', 'empty'); touch(); redraw(); vmShow(vm.target);
+        return 'Cleared ' + vmField(vm.target).label;
+    }
+    return '';
+  }
+  function vmQuestion(text) {
+    var m = V.matchQuestion(text, vidx, { cur: cur, isEmpty: function (id) { return state.f[id].v === ''; } });
+    if (!m) return '';
+    var f = vmField(m.id);
+    vm.target = m.id; vmShow(m.id);
+    return 'Question about: ' + f.label + (vmVisible(f) ? '' : ' (not on screen yet)');
+  }
+  function vmAnswer(text) {
+    var id = vm.target;
+    if (!id) return 'No question asked yet, so nothing to fill.';
+    var f = vmField(id);
+    if (!vmVisible(f)) return f.label + ' is not on screen yet. Answer the earlier question first.';
+    var cell = state.f[id];
+    if (cell.v !== '' && cell.st !== 'heard' && cell.st !== 'verify' && cell.st !== 'suggest') return f.label + ' is already filled in, so it was not changed.';
+    var r = V.interpret(f, text);
+    if (!r) return 'Nothing to fill from that.';
+    if (r.error) return 'Not filled: ' + (r.note || (r.error === 'no-match' ? 'did not match an answer for ' + f.label : r.error === 'no-number' ? 'no number heard' : r.error === 'no-date' ? 'no date heard' : 'could not read that')) + '.';
+    var value = r.value;
+    if (r.append && cell.v && (cell.st === 'heard' || cell.st === 'verify')) value = cell.v + ' ' + value;
+    var entry = { kind: 'fill', id: id, prev: { v: cell.v, st: cell.st }, extras: [] };
+    store.setField(state, id, value, r.status);
+    (r.extra || []).forEach(function (x) { var c2 = state.f[x.id]; entry.extras.push({ id: x.id, prev: { v: c2.v, st: c2.st } }); store.setField(state, x.id, x.value, x.status); });
+    vm.undo.push(entry); touch(); redraw(); vmShow(id);
+    var msg = f.label + ' = ' + value + ' (' + r.status + ')' + (r.note ? ', ' + r.note : '');
+    /* Employer or business name filled: look up what the company does. Only the company name is sent. */
+    var lk = { employer: 'co_does', biz_name: 'biz_does' }[id];
+    if (lk && state.f[lk].v === '' && FF.lookup.getSettings().apiKey) {
+      var btn = document.querySelector('[data-lookup="' + lk + '"]');
+      if (btn) { doLookup(btn); msg += '. Looking up the company online.'; }
+    }
+    return msg;
+  }
+  function vmHear(text, who) {
+    text = String(text == null ? '' : text).trim();
+    if (!vm.on || !text) return;
+    var res;
+    if (who === 'client') res = vmAnswer(text);
+    else { var c = V.parseCommand(text, vidx); res = c ? vmCommand(c) : (vmQuestion(text) || 'No field or command matched.'); }
+    vm.log.push({ who: who === 'client' ? 'client' : 'me', text: text, result: res });
+    if (vm.log.length > 60) vm.log.shift();
+    vmRender();
+  }
+  function vmRender() {
+    var dock = $('#voiceDock'), btn = $('#btnVoice');
+    dock.hidden = !vm.on; document.body.classList.toggle('vm-on', vm.on);
+    btn.textContent = vm.on ? 'Voice: On' : 'Voice: Off'; btn.classList.toggle('on', vm.on); btn.setAttribute('aria-pressed', vm.on ? 'true' : 'false');
+    $('#vdWho').textContent = vm.who === 'me' ? 'Me' : 'Client';
+    $('#vdTarget').textContent = vm.target ? 'Listening for: ' + vmField(vm.target).label : 'No question asked yet. Try, as Me: "I want to deal with occupation".';
+    var log = $('#vdLog');
+    log.innerHTML = vm.log.slice(-6).map(function (l) { return '<div class="vd-line"><b>' + (l.who === 'me' ? 'Me' : 'Client') + ':</b> ' + esc(l.text) + '<span class="vd-res">' + esc(l.result) + '</span></div>'; }).join('');
+    log.scrollTop = log.scrollHeight;
+  }
+  function vmToggle(on) {
+    vm.on = on; vm.who = 'me'; vm.target = null;
+    if (!on) document.querySelectorAll('.voice-target').forEach(function (e) { e.classList.remove('voice-target'); });
+    vmRender();
+    if (on) $('#vdText').focus();
+  }
+  function vmSend() {
+    var inp = $('#vdText'), t = inp.value;
+    if (!t.trim()) return;
+    vmHear(t, vm.who); vm.who = vm.who === 'me' ? 'client' : 'me'; inp.value = ''; vmRender(); inp.focus();
+  }
+  $('#btnVoice').addEventListener('click', function () { vmToggle(!vm.on); });
+  $('#vdClose').addEventListener('click', function () { vmToggle(false); });
+  $('#vdUndo').addEventListener('click', function () { vm.log.push({ who: 'me', text: '(Undo button)', result: vmUndo() }); vmRender(); });
+  $('#vdWho').addEventListener('click', function () { vm.who = vm.who === 'me' ? 'client' : 'me'; vmRender(); $('#vdText').focus(); });
+  $('#vdSend').addEventListener('click', vmSend);
+  $('#vdText').addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); vmSend(); } });
+
   /* Open on a fresh page. The last client comes back only if it had unsaved changes. */
   var restored = null;
   try { if (localStorage.getItem(DRAFT_KEY + '-dirty') === '1') restored = loadDraft(); } catch (e) { restored = null; }
@@ -358,7 +503,7 @@
   if (restored) recallHandle().then(function (h) { if (h && fileBase) { fileHandle = h; } });
   else rememberHandle(null);
   dirty = !!restored;
-  window.FF.app = { get state() { return state; }, redraw: redraw, setState: function (s) { state = s; redraw(); }, makePdf: makePdf };
+  window.FF.app = { get state() { return state; }, redraw: redraw, setState: function (s) { state = s; redraw(); }, makePdf: makePdf, voiceHear: vmHear, voice: vm };
   redraw();
   if (restored) toast('Restored your unsaved changes for ' + (store.clientName(state) || 'the last client') + '.');
 })();
