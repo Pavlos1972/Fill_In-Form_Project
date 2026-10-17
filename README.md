@@ -35,6 +35,17 @@ When a new tax year starts (1 March), add its brackets and rebates to `app/js/ta
 
 The "Look up online" button next to "What does the company do?" asks Claude, with web search, for a short description. Click **Settings** and paste an Anthropic API key (from console.anthropic.com). Web search must be switched on for the Anthropic account. The key is stored only in this browser.
 
+## Voice mode (practice version)
+
+The **Voice** button in the top bar turns voice mode on or off. While it is on, a panel at the bottom shows what was heard and what the form did with it.
+The microphone is not connected yet. For now you type what you or the client would say, as "Me" or "Client", to practise and to test.
+
+- **Me** (the advisor): "I want to deal with occupation" opens that section. "Do you work for a company?" points at the Employed field and highlights it. "Next", "next section" and "scratch that" (undo) also work.
+- **Client**: the answer fills the field the last question pointed at. Drop-downs are chosen by matching the answer to the options. Amounts, dates, phone numbers, ID numbers and emails are written in the right format and flagged **verify**.
+- A field that was typed or accepted is never overwritten by voice. Employer and business name trigger the company look-up automatically (only the company name is sent).
+- All of this runs on the computer. `js/voice.js` holds the logic and has its own tests (`tests/voice.test.js`).
+- When a speech-to-text source (Whisper or Deepgram) is chosen, it only needs to call `FF.app.voiceHear(text, who)`.
+
 ## Not built yet
 
 Live capture from Teams (audio, speech-to-text, Claude filling the fields).
