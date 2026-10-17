@@ -8,7 +8,7 @@
   /* Parse "32 138,50", "R 32,138.50", "1200000" into a number. Empty or unreadable gives 0. */
   function num(v) {
     if (v == null) return 0;
-    var s = String(v).replace(/[R\s ]/gi, '');
+    var s = String(v).replace(/[R\s\xa0]/gi, '');
     if (/,\d{1,2}$/.test(s) && s.indexOf('.') === -1) s = s.replace(/,(\d{1,2})$/, '.$1');
     s = s.replace(/,/g, '').replace(/[^0-9.\-]/g, '');
     var n = parseFloat(s);

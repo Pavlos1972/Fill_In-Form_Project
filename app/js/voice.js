@@ -736,9 +736,9 @@
   var SPLIT_ITEMS = new RegExp('\\s+(?:and|plus|also|then)\\s+(?=(?:a|an|another|one more)\\s+(?:[a-z]+\\s+){0,2}?(?:' + ALL_NOUNS + ')\\b)', 'gi');
   function clauses(text) {
     var t = String(text == null ? '' : text).replace(/\s+/g, ' ').trim();
-    t = t.replace(SPLIT_ITEMS, '\u0001');                                  // two items in one breath: "a home loan ... and a car loan ..."
-    t = t.replace(/([.?!])\s+/g, '$1\u0001').replace(/\s+(?:and|but|so)\s+(?=(?:your|my|his|her|their|i|i'm|i've|we|he|she|they|it's|that's|there's)\b)/gi, '\u0001');
-    return t.split('\u0001').map(function (x) { return x.trim(); }).filter(Boolean);
+    t = t.replace(SPLIT_ITEMS, '\x01');                                  // two items in one breath: "a home loan ... and a car loan ..."
+    t = t.replace(/([.?!])\s+/g, '$1\x01').replace(/\s+(?:and|but|so)\s+(?=(?:your|my|his|her|their|i|i'm|i've|we|he|she|they|it's|that's|there's)\b)/gi, '\x01');
+    return t.split('\x01').map(function (x) { return x.trim(); }).filter(Boolean);
   }
   /* A long free-text answer may hold several facts, so Claude reads it; dates, numbers, phone numbers and lists of options are read precisely here. */
   function isFreeText(f) { return !!f && f.t === 'txt' && !f.options && !f.money && TYPED.indexOf(vid(f)) < 0 && PCT_IDS.indexOf(vid(f)) < 0 && vid(f) !== 'years'; }
