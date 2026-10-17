@@ -53,8 +53,8 @@
   /* "zero eight two five five five oh one four eight", "double five" -> "0825555014 8" digits only. */
   /* "A 1 2 3 4 5 6 7", "A1234567", "my passport number is A one two three..." -> A1234567, or null when it is not a passport number. */
   function spokenPassport(raw) {
-    var t = String(raw), m = /\b([A-Za-z]{1,2})[\s-]?(\d[\d\s-]{4,10}\d)\b/.exec(t);
-    if (m) return (m[1] + m[2].replace(/[\s-]/g, '')).toUpperCase();
+    var t = String(raw), m = /\b([A-Za-z]{1,2})[\s-]?(\d[\d\s-]{4,18}\d)\b/.exec(t);
+    if (m && !/^(?:id|is|no|at|in|on|to|or|my|it|as|am|an|be|by|do|go|he|if|me|of|so|up|us|we)$/i.test(m[1])) return (m[1] + m[2].replace(/[\s-]/g, '')).toUpperCase();   // not a plain word before the number ("my ID is 7212...")
     if (!/passport/i.test(t)) return null;
     var out = '';
     norm(t.replace(/^.*passport(?:\s+number)?\s*(?:is|:)?/i, '')).split(' ').forEach(function (w) {
@@ -220,7 +220,7 @@
     'shares.pct': ['shareholding', 'percentage', 'how much of the business', 'what percentage'],
     ref_will: ['will referral', 'referral for the will', 'capital legacy', 'about your will', 'your will', 'wills'],
     idtype: ['id or passport', 'passport or id', 'do you have an id', 'identity document', 'id document', 'id book', 'id card', 'smart card', 'green id book', 'passport'],
-    idno: ['id number', 'identity number', 'id no', 'passport number', 'your id'],
+    idno: ['id number', 'identity number', 'id no', 'passport number', 'your id', 'my id', 'id', 'identity', 'sa id'],
     nat: ['nationality', 'citizen', 'citizenship', 'south african citizen', 'what nationality', 'are you south african', 'where are you from'],
     tax: ['tax number', 'income tax number', 'tax reference', 'sars number', 'tax reference number'],
     cell: ['cell', 'cell number', 'mobile', 'mobile number', 'cellphone', 'cell phone', 'contact number', 'phone number', 'number to reach'],
@@ -293,6 +293,7 @@
   Object.keys(ALIASES).forEach(function (id) { ALIASES_N[id] = ALIASES[id].map(function (p) { var n = norm(p); return { p: n, n: n.split(' ').length }; }); });
 
   var NAME_IDS = ['fname', 'sname', 'sp_name', 'km_name'];
+  var NAME_PARTS = { van: 1, der: 1, den: 1, de: 1, du: 1, le: 1, la: 1, von: 1, bin: 1, al: 1 };
   var COMPANY_IDS = ['employer', 'biz_name', 'cl_lender'];
   var OCC_IDS = ['occ', 'sp_occ', 'km_role'];
   var DATE_IDS = ['dob', 'will_date'];
@@ -734,10 +735,15 @@
   var TYPED = PHONE_IDS.concat(EMAIL_IDS, DIGIT_IDS, DATE_IDS);
   var ALL_NOUNS = (function () { var a = []; Object.keys(LIST_NOUNS).forEach(function (k) { LIST_NOUNS[k].forEach(function (n) { a.push(n.replace(/\s+/g, '\\s+')); }); }); return a.sort(function (x, y) { return y.length - x.length; }).join('|'); })();
   var SPLIT_ITEMS = new RegExp('\\s+(?:and|plus|also|then)\\s+(?=(?:a|an|another|one more)\\s+(?:[a-z]+\\s+){0,2}?(?:' + ALL_NOUNS + ')\\b)', 'gi');
+  var LEAD_ONLY = /^(?:oh|well|okay|ok|so|and|but|um+|uh+|yes|yeah|no|right|sorry|actually|ja|then|now|hi|hello)[,.!]*$/i;
   function clauses(text) {
     var t = String(text == null ? '' : text).replace(/\s+/g, ' ').trim();
     t = t.replace(SPLIT_ITEMS, '\x01');                                  // two items in one breath: "a home loan ... and a car loan ..."
     t = t.replace(/([.?!])\s+/g, '$1\x01').replace(/\s+(?:and|but|so)\s+(?=(?:your|my|his|her|their|i|i'm|i've|we|he|she|they|it's|that's|there's)\b)/gi, '\x01');
+    t = t.replace(/([^\s,;\x01]*)[,;]\s*(?=(?:my|your|his|her|their|our)\s+(?:[a-z']+\s+){1,4}?(?:is|are|was|were)\b)/gi, function (m, w) { return LEAD_ONLY.test(w) ? m : w + '\x01'; });   // "my name is John Snow, my ID is ..."
+    t = t.replace(/(?:[,;]\s*(?:and\s+)?|\s+and\s+)(?=(?:born|id|identity|cell|mobile|email|e-?mail|tax|passport|work number|home number)\b)/gi, '\x01');   // "John Snow, born 9 December 1972, ID 7212..."
+    var first = /\b(?:is|are|was|were)\b/i.exec(t);
+    if (first) t = t.slice(0, first.index + first[0].length) + t.slice(first.index + first[0].length).replace(/(\S+)\s+(?=(?:my|your|his|her|their|our)\s+(?:[a-z']+\s+){1,3}?(?:is|are|was|were)\s)/gi, function (m, w) { return LEAD_ONLY.test(w.split('\x01').pop()) ? m : w + '\x01'; });   // no punctuation at all: "my name is John Snow my ID is ..."
     return t.split('\x01').map(function (x) { return x.trim(); }).filter(Boolean);
   }
   /* A long free-text answer may hold several facts, so Claude reads it; dates, numbers, phone numbers and lists of options are read precisely here. */
@@ -889,6 +895,28 @@
       else { target = key + ':' + i + ':' + Object.keys(filled).pop(); answered = true; }
     }
     function askCell(p) { var id = p.commit(); actions.push({ do: 'ask', field: id }); target = id; answered = false; selfAsk = false; return id; }
+    /* "My name is John Snow": the whole name was said, so the first name and the surname are both filled ("Pieter van der Merwe" keeps the surname together).
+       "My first name is John Peter" stays whole. A plain answer to the first-name box ("John Snow") leaves a surname that is already there alone. */
+    function fullName(def, r, subject) {
+      if (!r || r.kind !== 'fill' || !def || def.id !== 'fname' || r.extra || !visible('sname') || /\b(?:first|christian|given)\b/i.test(subject || '') || (!subject && valueOf0('sname') !== '')) return r;
+      var w = String(r.value).split(/\s+/), i = w.length - 1;
+      if (w.length < 2) return r;
+      while (i > 1 && NAME_PARTS[w[i - 1].toLowerCase()]) i--;
+      return { kind: 'fill', value: w.slice(0, i).join(' '), status: r.status, extra: [{ id: 'sname', value: w.slice(i).join(' '), status: r.status }] };
+    }
+    /* A South African cell number said without a label ("you can reach me on 082 555 0148"). Spouse, work and home numbers need their label. */
+    function cellIn(core) {
+      var dg = spokenDigits(core), tdef = target && !answered ? defOf(target) : null;
+      if (!/^(?:0[6-8]\d{8}|27[6-8]\d{8})$/.test(dg) || /\b(?:spouse|wife|husband|partner|work|office|home|landline|business|company|her|his|their|id|tax)\b/i.test(core) || (tdef && PHONE_IDS.indexOf(vid(tdef)) >= 0)) return null;
+      return { kind: 'fill', value: formatPhone(dg), status: 'verify', note: '' };
+    }
+    /* An ID number (13 digits starting with a date) or a passport number, said with or without the word "ID": these are never sent to Claude, so they are read here. */
+    function idNumberIn(core) {
+      var pp = /\bpassport\b/i.test(core) ? spokenPassport(core) : null;
+      if (pp) return { kind: 'fill', value: pp, status: 'verify', extra: [{ id: 'idtype', value: 'Passport', status: 'heard' }] };
+      var dg = spokenDigits(core);
+      return /^\d{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01])\d{7}$/.test(dg) ? { kind: 'fill', value: dg, status: 'verify' } : null;
+    }
 
     clauses(text).forEach(function (seg) {
       var core = seg.replace(LEADWORDS, '').trim(), isQ = /\?\s*["')]*$/.test(core), words = seg.split(/\s+/).length;
@@ -957,16 +985,25 @@
       if (!isQ && !WH.test(core)) {                                        // a value of a typed box, found in the clause however it is phrased
         var th = matchQuestion(core, idx, near);
         if (th && th.score >= 2.5 && visible(th.id) && TYPED.indexOf(vid(idx.byId[th.id])) >= 0) {
-          var tp = aim(th, core), tv = EMAIL_IDS.indexOf(vid(tp.def)) >= 0 ? core.replace(/^.*\b(?:is|are|it's|its|address|email|e-mail)\b[,:\s]*/i, '') : core;   // an email is what follows "is" / "it's"
+          var tp = aim(th, core), tv = EMAIL_IDS.indexOf(vid(tp.def)) >= 0 ? (/[\w.+-]+@[\w-]+(?:\.[\w-]+)+/.exec(core) || [core.replace(/^.*\b(?:is|are|it's|its|address|email|e-mail)\b[,:\s]*(?:me\s+)?(?:(?:at|on)\s+)?/i, '')])[0] : core;   // an email is what follows "is" / "it's"
           var tr = answerFor(tp.def, tv, tp.existing);
           if (tr.kind === 'fill') { var tid = tp.commit(); actions.push({ do: 'fill', field: tid, res: tr, explicit: true }); target = tid; answered = true; return; }
         }
+      }
+      if (!isQ && !WH.test(core) && visible('idno')) {                    // "my ID is 7212...", or just the number
+        var idr = idNumberIn(core);
+        if (idr) { actions.push({ do: 'fill', field: 'idno', res: idr, explicit: true }); target = 'idno'; answered = true; return; }
+      }
+      if (!isQ && !WH.test(core) && visible('cell')) {                    // "you can reach me on 082 555 0148"
+        var cr = cellIn(core);
+        if (cr) { actions.push({ do: 'fill', field: 'cell', res: cr, explicit: true }); target = 'cell'; answered = true; return; }
       }
       var m = !isQ && !WH.test(core) ? ASSERT.exec(core) : null;           // "your first name is John", "my surname is Peters"
       if (m) {
         var hit = matchQuestion((m[1] || '') + m[2], idx, near);
         if (hit && hit.score >= 2.5 && visible(hit.id)) {
           var ap = aim(hit, core), r = answerFor(ap.def, m[3].replace(/[,\s]+(?:right|correct|okay|ok|yes|isn't it|is that right|is that correct|not so)\s*$/i, ''), ap.existing);
+          r = fullName(ap.def, r, m[2]);
           if (r.kind === 'fill' || r.kind === 'confirm') { var aid = ap.commit(); actions.push({ do: r.kind, field: aid, res: r, explicit: true, tentative: hit.score < 3 }); target = aid; answered = true; if (hit.score < 3) sure = false; return; }
         }
       }
@@ -985,7 +1022,7 @@
       }
       if (selfAsk && target && !answered && !isChatter(seg)) { sure = false; return; }                  // the rest of the same sentence is not an answer to a box the page moved to itself: Claude reads it
       if (target && !answered && !/^count:/.test(target)) {                // a plain statement while a box is waiting answers it
-        var a = answerFor(defOf(target), seg, valueOf(target));
+        var a = fullName(defOf(target), answerFor(defOf(target), seg, valueOf(target)), '');
         if (a.kind === 'fill' || a.kind === 'confirm') { var longText = words >= 6 && isFreeText(defOf(target)); actions.push({ do: a.kind, field: target, res: a, tentative: longText }); answered = true; if (longText) sure = false; return; }
         if (a.kind === 'wait') { actions.push({ do: 'wait', field: target, dangling: !!a.dangling }); return; }
         sure = false; return;
@@ -1049,6 +1086,6 @@
   return {
     norm: norm, wordsToNumber: wordsToNumber, spokenDigits: spokenDigits, spokenDate: spokenDate, spokenEmail: spokenEmail, yesNo: yesNo,
     buildIndex: buildIndex, parseCommand: parseCommand, looksLikeQuestion: looksLikeQuestion, isChatter: isChatter, plan: plan, pointForm: pointForm, LIST_NOUNS: LIST_NOUNS, matchQuestion: matchQuestion, interpret: interpret, titleCase: titleCase,
-    isConfirm: isConfirm, answerFor: answerFor, PRIVATE_IDS: PRIVATE_IDS
+    isConfirm: isConfirm, answerFor: answerFor, clauses: clauses, PRIVATE_IDS: PRIVATE_IDS
   };
 });
