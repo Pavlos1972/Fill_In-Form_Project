@@ -51,6 +51,21 @@
   }
 
   /* "zero eight two five five five oh one four eight", "double five" -> "0825555014 8" digits only. */
+  /* "A 1 2 3 4 5 6 7", "A1234567", "my passport number is A one two three..." -> A1234567, or null when it is not a passport number. */
+  function spokenPassport(raw) {
+    var t = String(raw), m = /\b([A-Za-z]{1,2})[\s-]?(\d[\d\s-]{4,10}\d)\b/.exec(t);
+    if (m) return (m[1] + m[2].replace(/[\s-]/g, '')).toUpperCase();
+    if (!/passport/i.test(t)) return null;
+    var out = '';
+    norm(t.replace(/^.*passport(?:\s+number)?\s*(?:is|:)?/i, '')).split(' ').forEach(function (w) {
+      if (/^[a-z]$/.test(w)) out += w.toUpperCase();
+      else if (/^\d+$/.test(w)) out += w;
+      else if (w === 'oh' || w === 'zero') out += '0';
+      else if (SMALL.hasOwnProperty(w) && SMALL[w] < 10) out += SMALL[w];
+      else if (/^[a-z0-9]{5,}$/i.test(w) && /\d/.test(w)) out += w.toUpperCase();
+    });
+    return out.length >= 6 && /[A-Z]/.test(out) ? out : null;
+  }
   function spokenDigits(text) {
     var tk = norm(text).split(' '), out = '', i, w;
     for (i = 0; i < tk.length; i++) {
@@ -90,7 +105,7 @@
   function spokenDate(raw) {
     var p = util.parseDate(String(raw).trim().replace(/[.,]$/, ''));
     var pad = function (n) { return (n < 10 ? '0' : '') + n; };
-    if (p) return p.y + '-' + pad(p.m) + '-' + pad(p.d);
+    if (p) return pad(p.d) + '/' + pad(p.m) + '/' + p.y;
     var tk = norm(raw).split(' ').filter(function (w) { return w !== 'the' && w !== 'of' && w !== 'on'; }), mi = -1, i;
     for (i = 0; i < tk.length; i++) if (monthOf(tk[i])) { mi = i; break; }
     if (mi < 0) return null;
@@ -123,7 +138,7 @@
     }
     if (year == null) return null;
     var chk = util.parseDate(year + '-' + month + '-' + day);
-    return chk ? chk.y + '-' + pad(chk.m) + '-' + pad(chk.d) : null;
+    return chk ? pad(chk.d) + '/' + pad(chk.m) + '/' + chk.y : null;
   }
 
   /* "paul at liferisk dot co dot za" -> paul@liferisk.co.za */
@@ -170,9 +185,10 @@
     fname: ['first name', 'full name', 'your name', 'my name', 'christian name', 'given name', 'name and surname'],
     sname: ['surname', 'last name', 'family name', 'second name'],
     dob: ['date of birth', 'birthday', 'birth date', 'when were you born', 'born'],
-    idtype: ['id or passport', 'passport or id'],
+    ref_will: ['will referral', 'referral for the will', 'capital legacy', 'about your will', 'your will', 'wills'],
+    idtype: ['id or passport', 'passport or id', 'do you have an id', 'identity document', 'id document', 'id book', 'id card', 'smart card', 'green id book', 'passport'],
     idno: ['id number', 'identity number', 'id no', 'passport number', 'your id'],
-    nat: ['nationality', 'citizen', 'citizenship', 'south african citizen'],
+    nat: ['nationality', 'citizen', 'citizenship', 'south african citizen', 'what nationality', 'are you south african', 'where are you from'],
     tax: ['tax number', 'income tax number', 'tax reference', 'sars number', 'tax reference number'],
     cell: ['cell', 'cell number', 'mobile', 'mobile number', 'cellphone', 'cell phone', 'contact number', 'phone number', 'number to reach'],
     work: ['work number', 'work phone', 'office number', 'work telephone'],
@@ -252,20 +268,30 @@
   var DIGIT_IDS = ['idno', 'tax'];
   var PCT_IDS = ['d_desk', 'd_supo', 'd_trav', 'd_sups', 'd_light', 'd_mod', 'd_heavy', 'biz_pct'];
 
+  /* Names in brackets in a label ("Short-term (Cameron)") are things people say; units and notes ("(R)", "(today's terms)") are not. */
+  var BRACKET_SKIP = { r: 1, p: 1, m: 1, pm: 1, today: 1, todays: 1, terms: 1, if: 1, per: 1, month: 1, year: 1, optional: 1 };
+  function bracketWords(label) {
+    var m = String(label).match(/\(([^)]*)\)/g) || [];
+    return content(m.join(' ')).filter(function (w) { return !BRACKET_SKIP[w]; });
+  }
   /* A list of the fields voice can fill and the sections it can open. */
   function buildIndex(schema) {
     var sections = schema.sections.map(function (s) { return { id: s.id, title: s.title, adv: !!s.adv, cond: s.cond }; });
-    var fields = [], byId = {};
+    var fields = [], byId = {}, notes = [], noteById = {};
     schema.sections.forEach(function (sec) {
-      sec.blocks.forEach(function (b) {
+      sec.blocks.forEach(function (b, bi) {
         (b.fields || []).forEach(function (f) {
-          if (f.calc || f.preset || f.opt) return;
-          var e = { id: f.id, label: f.l, sec: sec.id, cond: b.cond, secCond: sec.cond, t: f.t === 'area' ? 'area' : (f.o ? 'sel' : 'txt'), options: f.o || null, free: !!f.free, money: !!f.money, none: !!f.none, lt: content(f.l), order: fields.length };
+          if (f.opt && f.t === 'area') {            // a notes box: not asked about, but "let me take some notes" goes there
+            var ne = { id: f.id, label: f.l, sec: sec.id, blk: bi, blkTitle: b.title || '', cond: b.cond, secCond: sec.cond, t: 'area', options: null, notes: true, lt: [] };
+            notes.push(ne); noteById[f.id] = ne; return;
+          }
+          if (f.calc || f.opt || (f.preset && !f.voice)) return;
+          var e = { id: f.id, label: f.l, sec: sec.id, blk: bi, blkTitle: b.title || '', cond: b.cond, secCond: sec.cond, t: f.t === 'area' ? 'area' : (f.o ? 'sel' : 'txt'), options: f.o || null, free: !!f.free, money: !!f.money, none: !!f.none, lt: content(String(f.l).replace(/\([^)]*\)/g, ' ')), lx: bracketWords(f.l), bt: content(b.title || ''), order: fields.length };
           fields.push(e); byId[f.id] = e;
         });
       });
     });
-    return { sections: sections, fields: fields, byId: byId };
+    return { sections: sections, fields: fields, byId: byId, notes: notes, noteById: noteById };
   }
 
   /* ---------- what the advisor says: commands ---------- */
@@ -285,12 +311,25 @@
     return idx.sections.some(function (s) { return (SECTION_WORDS[s.id] || []).concat([s.title]).some(function (w) { return norm(w) === textNorm; }); });
   }
 
-  /* -> { type: 'goto', sec } | next | prev | nextSection | prevSection | undo | clear, or null when it is not a command. */
+  /* "let me take some notes", "note that down", "I'll make a note": the glow moves to the section's notes box and what follows is noted in point form. */
+  var NOTES_ON = /\b(?:(?:let me|let's|lets|let us|i'll|i will|i'm going to|im going to|i am going to|i want to|i need to|going to|can i|could i|just|quickly|now)\s+(?:just\s+)?(?:take|make|jot|write|add|put|do|start)\s+(?:down\s+)?(?:a\s+|some\s+|a few\s+|a quick\s+|a couple of\s+)?(?:quick\s+)?notes?|notes? (?:on|about|for) (?:that|this)|(?:for|in|to|into) the notes)\b|^(?:please\s+)?(?:take|make|add|put|jot|start)\s+(?:a\s+|some\s+)?notes?\b|^(?:(?:go to|open|show|move to)\s+)?(?:the\s+)?(?:[a-z]+\s+){0,3}notes(?:\s+box)?$/;
+  var NOTES_RETRO = /\b(?:(?:note|write|jot|put|log|record|capture)\s+(?:that|this|it)\s+(?:down|in|into|to)|make a note of (?:that|this)|note (?:that|this) down|note that|note this)\b/;
+  var NOTES_OFF = /^(?:that(?:'s|s| is)? all (?:for|the) (?:the )?notes|that(?:'s|s| is)? it for the notes|end (?:of )?(?:the )?notes|stop (?:the |taking )?notes|no more notes|done with (?:the )?notes|finished with (?:the )?notes|close (?:the )?notes|back to the (?:form|questions))\b/;
+  /* -> { type: 'goto', sec } | next | prev | nextSection | prevSection | undo | clear | notes | notesOff, or null when it is not a command. */
   function parseCommand(text, idx) {
     var t = norm(text);
     if (!t) return null;
     if (/\b(scratch that|undo that|undo|never mind|nevermind|ignore that|cancel that|forget that)\b/.test(t)) return { type: 'undo' };
     if (/^(clear that|clear this|clear it|delete that|empty that)$/.test(t)) return { type: 'clear' };
+    if (NOTES_OFF.test(t)) return { type: 'notesOff' };
+    if (NOTES_ON.test(t) || NOTES_RETRO.test(t)) {
+      var box = null;
+      (idx && idx.notes || []).forEach(function (n) {           // "notes on the will", "medical aid notes"
+        var w = norm(n.blkTitle).split(' ').filter(function (x) { return x.length > 2 && x !== 'the'; });
+        if (w.length && w.every(function (x) { return t.indexOf(x) >= 0; })) box = n.id;
+      });
+      return { type: 'notes', retro: NOTES_RETRO.test(t) && /\b(that|this|it)\b/.test(t), box: box };
+    }
     if (/^(next section|go to the next section|move on to the next section|next screen)$/.test(t)) return { type: 'nextSection' };
     if (/^(previous section|go to the previous section|go back a section|previous screen)$/.test(t)) return { type: 'prevSection' };
     if (/^(next|next one|next question|skip|skip that|skip this one|skip it|move on|carry on)$/.test(t)) return { type: 'next' };
@@ -301,7 +340,7 @@
       if (sec) return { type: 'goto', sec: sec };
     }
     var bare = t.replace(/\b(the|section|screen|page|please|ok|okay|now|lets|go)\b/g, ' ').replace(/\s+/g, ' ').trim();
-    if (bare && bare.split(' ').length <= 4 && isSectionName(bare, idx)) return { type: 'goto', sec: sectionIn(bare, idx) };
+    if (bare && bare.split(' ').length <= 4 && isSectionName(bare, idx)) return { type: 'goto', sec: sectionIn(bare, idx), bare: true };
     return null;
   }
 
@@ -312,8 +351,9 @@
     if (f.lt.length) {
       var hit = 0;
       f.lt.forEach(function (w) { if (textToks.indexOf(w) >= 0 || textToks.indexOf(w.replace(/s$/, '')) >= 0 || textToks.indexOf(w + 's') >= 0) hit++; });
-      if (hit) best = Math.max(best, 2 * hit / f.lt.length + (hit === f.lt.length ? 0.5 : 0));
+      if (hit) best = Math.max(best, hit === f.lt.length && f.lt.length >= 2 ? 3 + f.lt.length : 2 * hit / f.lt.length + (hit === f.lt.length ? 0.5 : 0));
     }
+    if (f.lx && f.lx.some(function (w) { return textToks.indexOf(w) >= 0; })) best = Math.max(best, 4);
     return best;
   }
   /* opts: { cur: current section id, isEmpty(id) } -> { id, score } or null. */
@@ -324,7 +364,7 @@
     idx.fields.forEach(function (f) {
       var s = scoreField(f, tn, tk);
       if (s < 2) return;
-      var total = s + (f.sec === opts.cur ? 1.5 : 0) + (!opts.isEmpty || opts.isEmpty(f.id) ? 0.4 : 0);
+      var total = s + (f.sec === opts.cur ? 1.5 : 0) + (!opts.isEmpty || opts.isEmpty(f.id) ? 0.4 : 0) + (f.bt && f.bt.some(function (w) { return tk.indexOf(w) >= 0; }) ? 1 : 0);
       if (!best || total > best.total) best = { id: f.id, score: s, total: total };
     });
     return best ? { id: best.id, score: best.score } : null;
@@ -426,11 +466,27 @@
       return null;
     },
     nat: function (t, raw) {
-      var s = ' ' + t + ' ';
-      if (/ (south african|south africa|saffer|sa|local) /.test(s)) return 'South African';
-      if (yesNo(t) === 'yes') return 'South African';
-      var c = String(raw).trim().replace(FILLER, '').replace(/^(?:i(?:'m| am) |i'm a |i am a |from |i come from |i was born in )/i, '').replace(/[\s,;.!?]+$/, '');
-      return c ? { value: 'Other', status: 'heard', extra: [{ id: 'nat_other', value: titleCase(c), status: 'verify' }] } : null;
+      var s = ' ' + t + ' ', saWord = / (south african|south africa|saffer|sa|local) /.test(s);
+      var notSa = / (not|isn't|never) (a |from )?(south african|south africa|saffer|sa) /.test(s) || / (am not|aren't|i'm not) /.test(s);
+      if (saWord && !notSa) return 'South African';
+      /* "no, I'm Zimbabwean", "I'm not South African, I'm British", "from Namibia": what is left after the lead-in is the nationality */
+      var tail = String(raw).replace(FILLER, '').replace(/^(?:(?:no|nope|nah|actually|not really|well|oh|sorry|um+|uh+)[,.\s]+)+/i, '').split(/[,;]|\bbut\b/i).pop();
+      var c = tail.replace(/^\s*(?:i(?:'m| am) (?:a |an )?|it'?s |it is |from |i come from |i was born in |my nationality is |nationality is |citizen of |a |an )/i, '').replace(/[\s,;.!?]+$/, '').trim();
+      c = c.replace(/\s+(?:citizen|national|by birth)$/i, '');
+      if (/^(?:yes|yeah|yep|yup|ja|correct|right|sure|definitely)$/i.test(c)) c = '';
+      if (/^not\b/i.test(c)) return { error: 'ambiguous', note: 'not South African: which nationality?' };
+      if (!c) return yesNo(t) === 'yes' ? 'South African' : null;
+      if (/^(?:south african|south africa|saffer|sa)$/i.test(c)) return 'South African';
+      return { value: 'Other', status: 'heard', extra: [{ id: 'nat_other', value: titleCase(c), status: 'verify' }] };
+    },
+    idtype: function (t) {
+      var s = ' ' + t + ' ', hasId = / (id|identity|id book|id card|smart card|green id|identity document) /.test(s), hasPass = / passport /.test(s);
+      var noId = / (no|not|don't have|dont have|do not have|haven't got|havent got|have not got|without|lost my|never had) (an |a |my |any |the |got )?(sa |south african )?(id|identity)/.test(s);
+      var noPass = / (no|not|don't have|dont have|do not have|haven't got|havent got|have not got|without) (an |a |my |any |the |got )?passport/.test(s);
+      if (hasPass && (!hasId || noId) && !noPass) return 'Passport';
+      if (hasId && !noId) return 'ID';
+      if (noId) return 'Passport';
+      var yn = yesNo(t); return yn === 'yes' ? 'ID' : yn === 'no' ? 'Passport' : null;
     },
     sti: function (t) {
       return / (spouse|wife|husband|partner|handled by|handles|handle) /.test(' ' + t + ' ') ? 'Handled by spouse' : null;
@@ -551,6 +607,10 @@
       var ph = spokenDigits(raw);
       return ph ? { value: formatPhone(ph), status: 'verify', note: ph.length < 10 ? 'only ' + ph.length + ' digits heard' : '' } : { error: 'no-digits' };
     }
+    if (id === 'idno') {            // a passport number has letters; an ID number never does
+      var pp = spokenPassport(raw);
+      if (pp) return { value: pp, status: 'verify', extra: [{ id: 'idtype', value: 'Passport', status: 'heard' }] };
+    }
     if (DIGIT_IDS.indexOf(id) >= 0) {
       var dg = spokenDigits(raw);
       return dg ? { value: dg, status: 'verify', note: id === 'idno' && dg.length !== 13 ? dg.length + ' digits heard, an ID has 13' : '' } : { error: 'no-digits' };
@@ -587,21 +647,32 @@
   var TYPED = PHONE_IDS.concat(EMAIL_IDS, DIGIT_IDS, DATE_IDS);
   function clauses(text) {
     var t = String(text == null ? '' : text).replace(/\s+/g, ' ').trim();
-    t = t.replace(/([.?!])\s+/g, '$1\u0001').replace(/\s+(?:and|but|so)\s+(?=(?:your|my|his|her|their|i|i'm|i've|we|it's|that's|there's)\b)/gi, '\u0001');
+    t = t.replace(/([.?!])\s+/g, '$1\u0001').replace(/\s+(?:and|but|so)\s+(?=(?:your|my|his|her|their|i|i'm|i've|we|he|she|they|it's|that's|there's)\b)/gi, '\u0001');
     return t.split('\u0001').map(function (x) { return x.trim(); }).filter(Boolean);
   }
   /* A long free-text answer may hold several facts, so Claude reads it; dates, numbers, phone numbers and lists of options are read precisely here. */
   function isFreeText(f) { return !!f && f.t === 'txt' && !f.options && !f.money && TYPED.indexOf(f.id) < 0 && PCT_IDS.indexOf(f.id) < 0 && f.id !== 'years'; }
   function plan(text, idx, st) {
     st = st || {};
-    var actions = [], sure = true, target = st.target || null, answered = !!st.answered;
+    var actions = [], sure = true, target = st.target || null, answered = !!st.answered, noting = !!st.noting;
     var visible = st.visible || function () { return true; }, valueOf = st.value || function () { return ''; };
     var near = { cur: st.cur, isEmpty: function (id) { return valueOf(id) === ''; } };
     clauses(text).forEach(function (seg) {
       var core = seg.replace(LEADWORDS, '').trim(), isQ = /\?\s*["')]*$/.test(core), words = seg.split(/\s+/).length;
       if (!core) return;
       var cmd = parseCommand(core, idx);
-      if (cmd) { actions.push({ do: 'cmd', cmd: cmd }); return; }
+      if (cmd && cmd.bare && target && !answered) cmd = null;              // "Medical aid", said while that box waits, is the answer, not a move
+      if (cmd) {
+        if (cmd.type === 'notes') noting = true; else if (cmd.type !== 'undo' && cmd.type !== 'clear') noting = false;   // moving on ends the notes
+        actions.push({ do: 'cmd', cmd: cmd }); return;
+      }
+      if (noting) {                                                        // while notes are being taken, what is said is noted, not filled in
+        if (isChatter(seg)) return;
+        var askish = isQ || WH.test(core) || looksLikeQuestion(core), strong = askish ? matchQuestion(core, idx, near) : null;
+        if (strong && strong.score >= 4 && visible(strong.id)) { noting = false; actions.push({ do: 'ask', field: strong.id }); target = strong.id; answered = false; return; }
+        if (!askish) { var last = actions[actions.length - 1]; if (last && last.do === 'note') last.text += '. ' + seg; else actions.push({ do: 'note', text: seg }); }   // the adviser's own questions are not noted
+        return;
+      }
       if (!isQ && !WH.test(core) && /\b(?:is|are|was|were)[.,;:!]*\s*$/i.test(core)) {   // "my surname is" ... and then nothing yet: glow that box and keep listening
         var dh = matchQuestion(core, idx, near);
         if (dh && dh.score >= 2.5 && visible(dh.id)) { actions.push({ do: 'ask', field: dh.id }); target = dh.id; answered = false; return; }
@@ -643,6 +714,18 @@
     return { actions: actions, sure: sure };
   }
 
+  /* Notes in point form, not full sentences: "so he said that he would like to retire at sixty" -> ["Would like to retire at 60"] */
+  var NOTE_FILLER = /\b(?:um+|uh+|er+|erm|you know|i mean|sort of|kind of|basically|actually|obviously|honestly|like i said|as i said)\b[,\s]*/gi;
+  var NOTE_LEAD = /^(?:(?:so|well|okay|ok|and|but|oh|yes|yeah|no|right|then|now|also|anyway)[,.\s]+)+|^(?:he|she|they|the client|client)\s+(?:(?:is|are|was|were)\s+|(?:says|said|mentioned|told me|tells me)\s+(?:that\s+)?)?/i;
+  function pointForm(text) {
+    return clauses(text).map(function (c) {
+      if (isChatter(c)) return '';
+      var t = c.replace(NOTE_FILLER, '').replace(NOTE_LEAD, '').replace(NOTE_LEAD, '').replace(/\s+/g, ' ').replace(/[\s,;.!?]+$/, '').trim();
+      t = t.replace(/^i(?:'m| am) /i, '').replace(/^i(?:'ve| have)(?: got)? /i, 'Has ').replace(/^i(?:'d| would) like to /i, 'Would like to ').replace(/^i want to /i, 'Wants to ').replace(/^i (?:don't|do not) /i, 'Does not ').replace(/^we (?:don't|do not) /i, 'Does not ').replace(/^my /i, '');
+      return t ? t.charAt(0).toUpperCase() + t.slice(1) : '';
+    }).filter(Boolean);
+  }
+
   var PRIVATE_IDS = ['idno', 'tax', 'cell', 'work', 'home', 'sp_tel', 'pemail', 'wemail'];
   var AGREE = { correct: 1, right: 1, exactly: 1, same: 1, unchanged: 1, still: 1, yes: 1, yeah: 1, yep: 1, yup: 1, ja: 1, sure: 1, indeed: 1, definitely: 1, absolutely: 1, true: 1, thanks: 1, thank: 1, changed: 1, nothing: 1, change: 1 };
   var NEGATE = { no: 1, nope: 1, nah: 1, not: 1, never: 1, none: 1, really: 1, quite: 1 };
@@ -666,7 +749,7 @@
     if (!t) return { kind: 'none' };
     var hasYN = !!f.options && f.options.some(function (o) { return o.toLowerCase() === 'yes'; }) && f.options.some(function (o) { return o.toLowerCase() === 'no'; });
     var plain = !f.options, correction = false, m;
-    if (plain && existing && (m = /^\s*(?:no|nope|nah|not really|not quite|actually)[,.\s]+(.+)$/i.exec(String(raw)))) { raw = m[1]; t = norm(raw); correction = true; }
+    if (plain && existing && (m = /^\s*(?:(?:no|nope|nah|not really|not quite|actually|sorry|well|oh)[,.\s]+)+(.+)$/i.exec(String(raw)))) { raw = m[1]; t = norm(raw); correction = true; }
     if (existing && !correction && isConfirm(raw, plain)) return { kind: 'confirm' };
     if (plain && !correction && !(f.none && yesNo(t) === 'no') && t.split(' ').length <= 3 && yesNo(t) && !content(t).filter(function (w) { return !AGREE[w] && !NEGATE[w]; }).length) {
       return yesNo(t) === 'no' && existing ? { kind: 'wait' } : { kind: 'none' };
@@ -681,7 +764,7 @@
 
   return {
     norm: norm, wordsToNumber: wordsToNumber, spokenDigits: spokenDigits, spokenDate: spokenDate, spokenEmail: spokenEmail, yesNo: yesNo,
-    buildIndex: buildIndex, parseCommand: parseCommand, looksLikeQuestion: looksLikeQuestion, isChatter: isChatter, plan: plan, matchQuestion: matchQuestion, interpret: interpret, titleCase: titleCase,
+    buildIndex: buildIndex, parseCommand: parseCommand, looksLikeQuestion: looksLikeQuestion, isChatter: isChatter, plan: plan, pointForm: pointForm, matchQuestion: matchQuestion, interpret: interpret, titleCase: titleCase,
     isConfirm: isConfirm, answerFor: answerFor, PRIVATE_IDS: PRIVATE_IDS
   };
 });

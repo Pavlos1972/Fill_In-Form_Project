@@ -60,6 +60,9 @@
   }
   function isoToday() { var t = new Date(); return t.getFullYear() + '-' + pad(t.getMonth() + 1) + '-' + pad(t.getDate()); }
   function pad(n) { return (n < 10 ? '0' : '') + n; }
+  /* The form shows every date as day/month/year. */
+  function formatDate(d) { return d ? pad(d.d) + '/' + pad(d.m) + '/' + d.y : ''; }
+  function todayDMY() { return formatDate(parseDate(isoToday())); }
   function longDate(d) { return d ? d.d + ' ' + MONTHS[d.m - 1].replace(/^./, function (c) { return c.toUpperCase(); }) + ' ' + d.y : ''; }
 
   /* Date of birth encoded in a South African ID number (YYMMDD...). */
@@ -77,5 +80,5 @@
     for (var i = 12; i >= 0; i--) { var n = +s[i]; if (alt) { n *= 2; if (n > 9) n -= 9; } sum += n; alt = !alt; }
     return sum % 10 === 0;
   }
-  return { num: num, money: money, money2: money2, formatMoney: formatMoney, parseDate: parseDate, ageAt: ageAt, isoToday: isoToday, longDate: longDate, dobFromSaId: dobFromSaId, saIdValid: saIdValid };
+  return { num: num, money: money, money2: money2, formatMoney: formatMoney, parseDate: parseDate, ageAt: ageAt, isoToday: isoToday, formatDate: formatDate, todayDMY: todayDMY, longDate: longDate, dobFromSaId: dobFromSaId, saIdValid: saIdValid };
 });

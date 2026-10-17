@@ -248,10 +248,9 @@
       if (el) { el.hidden = false; el.textContent = w.msg; var row = el.closest('[data-rwarnrow]'); if (row) row.hidden = false; var f = el.closest('.f'); if (f) f.classList.add('has-warn'); }
     });
     var sug = validate.dobFromIdSuggestion(ctx());
-    if (sug) html += '<div>Date of birth from the ID number: <button type="button" class="link-btn" data-usedob="' + iso(sug) + '">use ' + util.longDate(sug) + '</button></div>';
+    if (sug) html += '<div>Date of birth from the ID number: <button type="button" class="link-btn" data-usedob="' + util.formatDate(sug) + '">use ' + util.longDate(sug) + '</button></div>';
     box.innerHTML = html || '<span class="ok">No problems found.</span>';
   }
-  function iso(d) { return d.y + '-' + (d.m < 10 ? '0' : '') + d.m + '-' + (d.d < 10 ? '0' : '') + d.d; }
   function sectionOfField(id) { var r = ''; schema.sections.forEach(function (s) { s.blocks.forEach(function (b) { (b.fields || []).forEach(function (f) { if (f.id === id) r = s.id; }); }); }); return r; }
   function sectionOfList(key) { var r = ''; schema.sections.forEach(function (s) { s.blocks.forEach(function (b) { if (b.list === key) r = s.id; }); }); return r; }
 
@@ -290,6 +289,7 @@
     if (t.dataset.f) {
       var def = schema.fieldsById[t.dataset.f], val = t.value.trim() === '' ? '' : t.value;
       if (def && def.money) { val = util.formatMoney(val); t.value = val; }
+      if (def && def.date) { var pd = util.parseDate(val); if (pd) { val = util.formatDate(pd); t.value = val; } }
       store.setField(state, t.dataset.f, val);
       var wrap = t.closest('.f'); if (wrap) { wrap.className = wrap.className.replace(/\bs-\w+/, 's-' + state.f[t.dataset.f].st); var b = wrap.querySelector('.st'); if (b) b.innerHTML = badge(state.f[t.dataset.f].st, 'f:' + t.dataset.f); }
       touch();
@@ -298,6 +298,7 @@
       var key = t.dataset.l, i = +t.dataset.i, k = t.dataset.k, col = schema.lists[key].cols.filter(function (c) { return c.k === k; })[0], row0 = state.l[key][i];
       var v2 = t.value;
       if (col && col.money) { v2 = util.formatMoney(v2); t.value = v2; }
+      if (col && col.date) { var pd2 = util.parseDate(v2); if (pd2) { v2 = util.formatDate(pd2); t.value = v2; } }
       /* A child's education stage follows the date of birth until it is set by hand. */
       var autoStage = key === 'kids' && k === 'dob' && (row0.d.stage === '' || row0.d.stage === FF.calc.rowCalc('stage', row0, ctx()));
       store.setCell(state, key, i, k, v2);
@@ -358,8 +359,8 @@
      client's answer is in or confirmed. Simple wording is understood on this computer; looser wording goes to Claude (voice-ai.js).
      Whatever listens calls FF.app.voiceHear(text, who), who being 'me' (the adviser) or 'client'. Typing works as always when voice is off. */
   var V = FF.voice, VAI = FF.voiceAI, vidx = V.buildIndex(schema);
-  var vm = { on: false, target: null, answered: false, secGlow: false, undo: [], recent: [], flashes: {}, queue: Promise.resolve(), busy: 0, lastFail: 0 };
-  function vmField(id) { return vidx.byId[id]; }
+  var vm = { on: false, target: null, answered: false, secGlow: false, noteMode: null, undo: [], recent: [], flashes: {}, queue: Promise.resolve(), busy: 0, lastFail: 0 };
+  function vmField(id) { return vidx.byId[id] || vidx.noteById[id]; }
   function vmVisible(f) { return calc.showIf(f.secCond, ctx()) && calc.showIf(f.cond, ctx()); }
   function vmSecTitle(id) { return schema.sections.filter(function (s) { return s.id === id; })[0].title; }
   function vmEl(id) { return document.querySelector('[data-field="' + id + '"]'); }
@@ -436,7 +437,10 @@
     touch(); vmShow(e.id); redraw(); vmMarkWait();
   }
   function vmCommand(c) {
+    if (vm.noteMode && /^(goto|next|prev|nextSection|prevSection|notesOff)$/.test(c.type)) vmStopNotes();   // moving on ends the notes
     switch (c.type) {
+      case 'notes': return vmStartNotes(c);
+      case 'notesOff': return;
       case 'goto': return vmOpenSection(c.sec);
       case 'next': return vmStep(1);
       case 'prev': return vmStep(-1);
@@ -450,6 +454,60 @@
         vm.undo.push({ kind: 'fill', id: vm.target, prev: { v: cell.v, st: cell.st }, extras: [] });
         store.setField(state, vm.target, '', 'empty'); vm.answered = false; touch(); redraw(); vmMarkWait();
     }
+  }
+  /* ---------- notes: \"let me take some notes\", \"note that down\" ---------- */
+  /* The notes box of this section; where there are several (Medical, will & short-term), the one in the block being discussed. */
+  function vmNotesBoxFor() {
+    var boxes = vidx.notes.filter(function (n) { return n.sec === cur && vmVisible(n); });
+    if (!boxes.length) return null;
+    if (boxes.length === 1) return boxes[0].id;
+    var tid = vm.noteMode && vm.noteMode.prev ? vm.noteMode.prev.target : vm.target, tf = tid ? vidx.byId[tid] : null;
+    if (tf && tf.sec === cur) {
+      var best = boxes[0], d0 = Math.abs(boxes[0].blk - tf.blk);
+      boxes.forEach(function (n) { var d = Math.abs(n.blk - tf.blk); if (d < d0) { best = n; d0 = d; } });
+      return best.id;
+    }
+    return boxes[0].id;
+  }
+  /* "Note that down": the last thing said that was not a question or small talk. */
+  function vmPreviousStatement() {
+    for (var i = vm.recent.length - 2; i >= 0 && i >= vm.recent.length - 4; i--) {
+      var t = vm.recent[i].text;
+      if (!V.parseCommand(t, vidx) && !V.looksLikeQuestion(t) && !V.isChatter(t)) return t;
+    }
+    return '';
+  }
+  function vmStartNotes(c) {
+    var box = c.box && vidx.noteById[c.box] && vmVisible(vidx.noteById[c.box]) ? c.box : vmNotesBoxFor();
+    if (!box) { toast('There is no notes box in this section.'); return; }
+    if (!vm.noteMode) vm.noteMode = { id: box, prev: { target: vm.target, answered: vm.answered } }; else vm.noteMode.id = box;
+    vmShow(box); vm.answered = false; vmMarkWait();
+    return c.retro ? vmAddNote(vmPreviousStatement()) : null;
+  }
+  function vmStopNotes() {
+    if (!vm.noteMode) return;
+    var prev = vm.noteMode.prev; vm.noteMode = null; vm.target = prev.target; vm.answered = prev.answered; vmMarkWait();
+  }
+  /* Add what was said to the notes box as short points (Claude writes them when it can; otherwise they are tidied here). */
+  function vmAddNote(text) {
+    var id = vm.noteMode && vm.noteMode.id;
+    if (!id || !text) return null;
+    var local = V.pointForm(text);
+    if (!local.length) return null;
+    var set = FF.lookup.getSettings(), secret = !VAI || VAI.scrub(text) !== text;
+    var pts = Promise.resolve(local);
+    if (vmAIReady() && !secret) {
+      vm.busy++; vmRender();
+      pts = VAI.points({ apiKey: set.apiKey, ask: !set.apiKey && FF.voiceBackend && FF.voiceBackend.available ? FF.voiceBackend.ask : null, model: set.voiceModel, text: text, topic: vmSecTitle(cur) })
+        .then(function (r) { vm.busy--; vmRender(); return r.length ? r : local; }, function () { vm.busy--; vmRender(); return local; });
+    }
+    return pts.then(function (list) {
+      var cell = state.f[id], add = list.map(function (x) { return '- ' + x; }).join('\n');
+      vm.undo.push({ kind: 'fill', id: id, prev: { v: cell.v, st: cell.st }, extras: [] });
+      store.setField(state, id, cell.v ? cell.v.replace(/\s+$/, '') + '\n' + add : add, 'heard');
+      touch(); redraw(); vmFlash(id);
+      if (vm.noteMode) { vm.target = id; vm.answered = false; vmMarkWait(); }
+    });
   }
   /* The adviser's question points at a field. */
   function vmPoint(id) { vmShow(id); }
@@ -536,7 +594,8 @@
     switch (a.do) {
       case 'cmd': return vmCommand(a.cmd);
       case 'section': return vmOpenSection(a.section);
-      case 'ask': return f && vmVisible(f) ? vmPoint(a.field) : null;
+      case 'note': return vmAddNote(a.text);
+      case 'ask': if (vm.noteMode) vmStopNotes(); return f && vmVisible(f) ? vmPoint(a.field) : null;
       case 'wait': return vm.target ? vmNote(vm.target, a.dangling ? 'Listening for the rest' : 'Waiting for the correct answer') : null;
       case 'confirm': case 'fill':
         if (!f || !vmVisible(f)) return;
@@ -551,17 +610,19 @@
         vmApply(a.field, res);
     }
   }
-  function vmRun(actions) { actions.forEach(vmDo); }
+  /* One after another, so a note written by Claude lands before the next thing in the line. */
+  function vmRun(actions) { return actions.reduce(function (p, a) { return p.then(function () { return vmDo(a); }); }, Promise.resolve()); }
   /* A line whose speaker is not known. It may hold the adviser and the client together, in any order. Simple lines are understood here,
      instantly; when some part is unclear Claude reads the whole line (and this computer's reading is the fallback if Claude cannot be reached). */
   function vmProcessAuto(text, entry) {
-    var pl = V.plan(text, vidx, { cur: cur, target: vm.target, answered: vm.answered, value: function (id) { return state.f[id].v; }, visible: function (id) { var f = vmField(id); return !!f && vmVisible(f); } });
+    var pl = V.plan(text, vidx, { cur: cur, noting: !!vm.noteMode, target: vm.target, answered: vm.answered, value: function (id) { return state.f[id].v; }, visible: function (id) { var f = vmField(id); return !!f && vmVisible(f); } });
     var words = text.split(/\s+/).length;
-    if (pl.sure || !vmAIReady() || words < 3) { vmRun(pl.actions); return null; }
-    vmRun(pl.actions.filter(function (a) { return !a.tentative; }));      // what is certain is done now, and is never undone by Claude's reply
-    return vmAsk('auto', text).then(function (r) {
-      if (r && r.kind === 'actions') vmRun(r.actions);
-      else if (!r) vmRun(pl.actions.filter(function (a) { return a.tentative; }));   // Claude could not be reached: use this computer's best reading
+    if (pl.sure || !vmAIReady() || words < 3) return vmRun(pl.actions);
+    return vmRun(pl.actions.filter(function (a) { return !a.tentative; })).then(function () {     // what is certain is done now, and is never undone by Claude's reply
+      return vmAsk('auto', text);
+    }).then(function (r) {
+      if (r && r.kind === 'actions') return vmRun(r.actions);
+      if (!r) return vmRun(pl.actions.filter(function (a) { return a.tentative; }));   // Claude could not be reached: use this computer's best reading
     });
   }
   /* Called for every line heard. who is 'me' (the adviser), 'client', or left out when the source cannot tell and the words decide.
@@ -569,13 +630,13 @@
   function vmHear(text, who) {
     text = String(text == null ? '' : text).trim();
     if (!vm.on || !text) return Promise.resolve();
-    var w = who === 'client' ? 'client' : who === 'me' ? 'me' : 'auto', entry = { who: w === 'me' ? 'adviser' : w === 'client' ? 'client' : 'unclear', text: text };
+    var w = vm.noteMode ? 'auto' : who === 'client' ? 'client' : who === 'me' ? 'me' : 'auto', entry = { who: w === 'me' ? 'adviser' : w === 'client' ? 'client' : 'unclear', text: text };
     vm.recent.push(entry); if (vm.recent.length > 12) vm.recent.shift();
     vm.queue = vm.queue.then(function () { return w === 'me' ? vmProcessMe(text) : w === 'client' ? vmProcessClient(text) : vmProcessAuto(text, entry); }).catch(function () { /* one bad line never stops the next */ });
     return vm.queue;
   }
   function vmToggle(on) {
-    vm.on = on; vm.target = null; vm.answered = false; vm.secGlow = on; vm.queue = Promise.resolve();
+    vm.on = on; vm.target = null; vm.answered = false; vm.secGlow = on; vm.noteMode = null; vm.queue = Promise.resolve();
     if (!on) { document.querySelectorAll('.voice-wait,.voice-ok').forEach(function (e) { e.classList.remove('voice-wait', 'voice-ok'); }); $('#vdText').hidden = true; }
     vmRender(); vmMarkWait();
     if (on && FF.voiceBackend && FF.voiceBackend.warm) {   // ask permission now, so it never interrupts a conversation later

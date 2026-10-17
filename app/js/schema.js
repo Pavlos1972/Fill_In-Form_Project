@@ -35,17 +35,17 @@
       { title: 'Meeting', layout: 'g12', fields: [
         { id: 'consent', l: 'Consent to record and transcribe', t: 'sel', o: YN, s: 3 },
         { id: 'advisor', l: 'Advisor', t: 'txt', preset: 'Paul Kafentzis', s: 3 },
-        { id: 'date', l: 'Date completed', t: 'txt', preset: '@today', s: 2 },
+        { id: 'date', l: 'Date completed', t: 'txt', date: 1, preset: '@today', s: 2 },
         { id: 'meet', l: 'Type of meeting', t: 'sel', o: ['Teams Meeting', 'Telephonic Meeting', 'Physical Meeting', 'Other'], preset: 'Teams Meeting', s: 2 },
         { id: 'ref', l: 'Referral from', t: 'sel', o: ['D&R Marketing', 'Current client', 'Referral prospect', 'Spouse', 'Other'], s: 2 }
       ] },
       { title: 'Client', layout: 'g12', fields: [
         { id: 'fname', l: 'First name', t: 'txt', s: 3 },
         { id: 'sname', l: 'Surname', t: 'txt', risky: 1, s: 3 },
-        { id: 'dob', l: 'Date of birth', t: 'txt', risky: 1, hint: 'e.g. 1986-03-14', s: 3 },
-        { id: 'idtype', l: 'ID or passport', t: 'sel', o: ['ID', 'Passport'], s: 3 },
+        { id: 'dob', l: 'Date of birth', t: 'txt', date: 1, risky: 1, hint: 'e.g. 14/03/1986', s: 3 },
+        { id: 'idtype', l: 'ID or passport', t: 'sel', o: ['ID', 'Passport'], preset: 'ID', voice: 1, s: 3 },
         { id: 'idno', l: 'ID / passport number', t: 'txt', risky: 1, s: 3 },
-        { id: 'nat', l: 'Nationality', t: 'sel', o: ['South African', 'Other'], s: 3 },
+        { id: 'nat', l: 'Nationality', t: 'sel', o: ['South African', 'Other'], preset: 'South African', voice: 1, s: 3 },
         { id: 'nat_other', l: 'Other', t: 'txt', s: 3 },
         { id: 'tax', l: 'Income tax number', t: 'txt', risky: 1, s: 3 }
       ] },
@@ -148,7 +148,7 @@
         { id: 'will_where', l: 'Held with', t: 'sel', o: ['Capital Legacy', 'Other provider'] },
         { id: 'will_where_other', l: 'Other', t: 'txt' },
         { id: 'will_broker', l: 'Will broker', t: 'sel', o: ['Paul K', 'Other broker', 'None'] },
-        { id: 'will_date', l: 'Last updated', t: 'txt' },
+        { id: 'will_date', l: 'Last updated', t: 'txt', date: 1 },
         N('n_will')
       ] },
       { title: 'Short-term insurance', fields: [
@@ -310,7 +310,7 @@
       { k: 'notes', l: 'Notes', t: 'area', wide: 1 }
     ], sum: { inst: 'Total monthly', bal: 'Total liabilities', asset: 'Total assets' } },
     kids: { cards: 'Child', title: 'Children', add: 'Add child', cols: [
-      { k: 'name', l: 'Name & surname' }, { k: 'gender', l: 'Gender', o: ['Female', 'Male'] }, { k: 'dob', l: 'Date of birth' },
+      { k: 'name', l: 'Name & surname' }, { k: 'gender', l: 'Gender', o: ['Female', 'Male'] }, { k: 'dob', l: 'Date of birth', date: 1 },
       { k: 'stage', l: 'Education stage', o: STAGES }, { k: 'cost', money: 1, l: 'Monthly cost (R)', num: 1 }
     ], sum: { cost: 'Total childcare' } },
     redq: { cards: 'Reduced quote', title: 'Reduced quotes', add: 'Add reduced quote', cols: [

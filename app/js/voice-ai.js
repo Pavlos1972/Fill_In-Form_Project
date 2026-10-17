@@ -116,16 +116,15 @@
     return msg || 'error ' + status;
   }
 
-  /* opts: { apiKey, model, idx, who, text, ctx, fetchImpl } -> Promise of the normalized answer. */
-  function decide(opts) {
+  /* Sends one request and resolves to the model's text. opts: { apiKey, fetchImpl } or { ask } (a host that reaches Claude without a key). */
+  function callModel(opts, req) {
     var doFetch = opts.fetchImpl || (typeof fetch !== 'undefined' ? fetch.bind(typeof window !== 'undefined' ? window : globalThis) : null);
-    if (!opts.apiKey && !opts.ask) return Promise.reject(new Error('no API key'));
-    var req = buildRequest(opts.idx, opts.ctx || {}, opts.who, opts.text, opts.model);
-    if (opts.ask) {   // a host that can reach Claude without a key (the iPad practice copy)
-      return Promise.resolve().then(function () { return opts.ask(req.system, req.messages[0].content); }).then(function (text) {
-        return normalize(extractJson(text), opts.idx, opts.who);
-      }, function (e) { throw new Error(e && e.code === 'not_granted' ? 'Claude was not allowed on this page' : (e && (e.message || e.code)) || 'no connection'); });
+    if (opts.ask) {
+      return Promise.resolve().then(function () { return opts.ask(req.system, req.messages[0].content); }).then(null, function (e) {
+        throw new Error(e && e.code === 'not_granted' ? 'Claude was not allowed on this page' : (e && (e.message || e.code)) || 'no connection');
+      });
     }
+    if (!opts.apiKey) return Promise.reject(new Error('no API key'));
     return doFetch(ENDPOINT, {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-api-key': opts.apiKey, 'anthropic-version': API_VERSION, 'anthropic-dangerous-direct-browser-access': 'true' },
@@ -133,10 +132,31 @@
     }).then(function (res) {
       return res.json().catch(function () { return {}; }).then(function (body) {
         if (!res.ok) throw new Error(friendly(res.status, body));
-        return normalize(extractJson(textOf(body)), opts.idx, opts.who);
+        return textOf(body);
       });
     }, function () { throw new Error('no connection'); });
   }
 
-  return { decide: decide, buildRequest: buildRequest, normalize: normalize, extractJson: extractJson, scrub: scrub, SYSTEM: SYSTEM };
+  /* opts: { apiKey | ask, model, idx, who, text, ctx, fetchImpl } -> Promise of the normalized answer. */
+  function decide(opts) {
+    var req = buildRequest(opts.idx, opts.ctx || {}, opts.who, opts.text, opts.model);
+    return callModel(opts, req).then(function (text) { return normalize(extractJson(text), opts.idx, opts.who); });
+  }
+
+  /* File notes in point form. opts: { apiKey | ask, model, text, topic, fetchImpl } -> Promise of an array of short points (maybe empty). */
+  var POINTS_SYSTEM = [
+    'You help a financial adviser keep file notes while on a call with a client.',
+    'Turn what was said into short point-form notes: one brief point per fact, not full sentences, no "he said that" or "she mentioned".',
+    'Keep names, amounts, dates and numbers exactly as said, but write spoken numbers as figures ("60", "R1.2 million", "R250 000"), and add nothing that was not said.',
+    'Reply with ONE JSON object and nothing else: {"points": ["...", "..."]}. Use {"points": []} when nothing is worth noting (greetings, small talk).'
+  ].join('\n');
+  function points(opts) {
+    var req = { model: opts.model, max_tokens: 400, system: POINTS_SYSTEM, messages: [{ role: 'user', content: JSON.stringify({ topic: opts.topic || '', said: scrub(opts.text) }) }] };
+    return callModel(opts, req).then(function (text) {
+      var raw = extractJson(text), list = raw && Array.isArray(raw.points) ? raw.points : [];
+      return list.map(function (p) { return String(p == null ? '' : p).replace(/^[\s\-•*]+/, '').trim(); }).filter(Boolean).slice(0, 8);
+    });
+  }
+
+  return { decide: decide, points: points, buildRequest: buildRequest, normalize: normalize, extractJson: extractJson, scrub: scrub, SYSTEM: SYSTEM };
 });

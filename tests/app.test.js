@@ -97,3 +97,28 @@ test('amounts saved as plain numbers by an earlier version are tidied when reope
   assert.strictEqual(back.f.net.v, 'R 80 200.00');
   assert.strictEqual(back.l.debts[0].d.inst, 'R 11 400.00');
 });
+
+test('every date is shown day/month/year, and older files are brought into line', () => {
+  const util = require('../app/js/util.js');
+  assert.strictEqual(util.formatDate(util.parseDate('2026-10-17')), '17/10/2026');
+  assert.strictEqual(util.formatDate(util.parseDate('5 March 2020')), '05/03/2020');
+  const s = store.blank();
+  assert.match(s.f.date.v, /^\d{2}\/\d{2}\/\d{4}$/);                      // today's date, as day/month/year
+  s.f.dob = { v: '1986-03-14', st: 'confirmed' }; s.f.will_date = { v: '5 March 2020', st: 'confirmed' }; s.f.date = { v: '2026-10-17', st: 'confirmed' };
+  store.addRow(s, 'kids', { dob: '2019-08-22' });
+  const back = store.fromJSON(store.toJSON(s));
+  assert.strictEqual(back.f.dob.v, '14/03/1986');
+  assert.strictEqual(back.f.will_date.v, '05/03/2020');
+  assert.strictEqual(back.f.date.v, '17/10/2026');
+  assert.strictEqual(back.l.kids[0].d.dob, '22/08/2019');
+  s.f.dob.v = 'not a date'; assert.strictEqual(store.fromJSON(store.toJSON(s)).f.dob.v, 'not a date');   // anything else is left as typed
+  assert.strictEqual(store.baseFileName(Object.assign(store.blank(), { f: Object.assign(store.blank().f, { date: { v: '17/10/2026', st: 'confirmed' } }) })), 'Fact Find - 2026-10-17 - New client');
+  const calc2 = require('../app/js/calc.js');
+  const c = store.ctxFor(back);
+  assert.strictEqual(calc2.clientAge(c), 40);                              // ages are worked out from day/month/year dates
+});
+test('nationality starts as South African and the ID type as ID', () => {
+  const s = store.blank();
+  assert.deepStrictEqual(s.f.nat, { v: 'South African', st: 'preset' });
+  assert.deepStrictEqual(s.f.idtype, { v: 'ID', st: 'preset' });
+});

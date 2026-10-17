@@ -31,13 +31,13 @@ test('spoken digits for phone and ID numbers', () => {
 
 test('spoken dates', () => {
   const d = V.spokenDate;
-  assert.strictEqual(d('14 March 1986'), '1986-03-14');
-  assert.strictEqual(d('the fourteenth of March nineteen eighty six'), '1986-03-14');
-  assert.strictEqual(d('March 14th 1986'), '1986-03-14');
-  assert.strictEqual(d('twenty third of July two thousand and five'), '2005-07-23');
-  assert.strictEqual(d('1st of December twenty twenty four'), '2024-12-01');
-  assert.strictEqual(d('14/03/1986'), '1986-03-14');
-  assert.strictEqual(d('9 December 72'), '1972-12-09');
+  assert.strictEqual(d('14 March 1986'), '14/03/1986');
+  assert.strictEqual(d('the fourteenth of March nineteen eighty six'), '14/03/1986');
+  assert.strictEqual(d('March 14th 1986'), '14/03/1986');
+  assert.strictEqual(d('twenty third of July two thousand and five'), '23/07/2005');
+  assert.strictEqual(d('1st of December twenty twenty four'), '01/12/2024');
+  assert.strictEqual(d('14/03/1986'), '14/03/1986');
+  assert.strictEqual(d('9 December 72'), '09/12/1972');
   assert.strictEqual(d('thirty first of february 1990'), null);
   assert.strictEqual(d('some time ago'), null);
 });
@@ -193,7 +193,7 @@ test('"none" boxes: a no answer ticks the box', () => {
 test('amounts, dates, phone, ID and email are written correctly and flagged to verify', () => {
   assert.deepStrictEqual(say('gross', 'eighty five thousand rand a month'), { value: 'R 85 000.00', status: 'verify' });
   assert.strictEqual(say('exp', 'about R42 500').value, 'R 42 500.00');
-  assert.strictEqual(say('dob', '14 March 1986').value, '1986-03-14');
+  assert.strictEqual(say('dob', '14 March 1986').value, '14/03/1986');
   assert.strictEqual(say('cell', 'zero eight two five five five oh one four eight').value, '082 555 0148');
   assert.strictEqual(say('idno', '8 1 0 4 1 2 0 1 9 5 0 8 8').value, '8104120195088');
   assert.match(say('idno', 'eight one zero four one two').note, /6 digits heard/);
@@ -379,6 +379,67 @@ test('only the clearly understood actions are certain; the shaky ones are marked
 });
 test('a long answer to a date or number question is read here; a long free-text answer is left to Claude', () => {
   const d = planOf('it is the fifth of March nineteen eighty', { target: 'dob', answered: false });
-  assert.ok(d.sure); assert.strictEqual(brief(d), 'fill:dob=1980-03-05');
+  assert.ok(d.sure); assert.strictEqual(brief(d), 'fill:dob=05/03/1980');
   assert.ok(!planOf('I am a senior underwriter for one of the big insurers', { cur: 'occ', target: 'occ', answered: false }).sure);
+});
+
+/* ---- nationality, ID or passport, dates ---- */
+test('nationality is South African unless the client says otherwise', () => {
+  const nat = (t) => V.answerFor(f('nat'), t, 'South African');
+  ['South African', 'yes', 'yes I am South African', "I'm South African"].forEach(t => assert.strictEqual(nat(t).kind, 'confirm', t));
+  const z = nat("no, I'm Zimbabwean");
+  assert.strictEqual(z.value, 'Other'); assert.deepStrictEqual(z.extra.map(x => x.id + '=' + x.value), ['nat_other=Zimbabwean']);
+  assert.deepStrictEqual(nat('I am British').extra.map(x => x.value), ['British']);
+  assert.deepStrictEqual(nat("I'm not South African, I'm Namibian").extra.map(x => x.value), ['Namibian']);
+  assert.deepStrictEqual(nat('I am a Zimbabwean citizen').extra.map(x => x.value), ['Zimbabwean']);
+  assert.strictEqual(nat("I'm not South African").kind, 'error');
+});
+test('the ID type is ID unless the client has no ID and gives a passport', () => {
+  const t = (x) => V.answerFor(f('idtype'), x, 'ID');
+  ['I have an ID', 'yes', 'I have both an ID and a passport'].forEach(x => assert.strictEqual(t(x).kind, 'confirm', x));
+  ['passport', "no I don't have an ID, I have a passport", "I don't have an ID", 'no'].forEach(x => assert.strictEqual(t(x).value, 'Passport', x));
+});
+test('a passport number has letters, and says the ID type is a passport', () => {
+  ['my passport number is A1234567', 'passport number A one two three four five six seven', 'A 1234567'].forEach(x => {
+    const r = V.answerFor(f('idno'), x, '');
+    assert.strictEqual(r.value, 'A1234567', x); assert.deepStrictEqual(r.extra.map(e => e.id + '=' + e.value), ['idtype=Passport']);
+  });
+  assert.strictEqual(V.answerFor(f('idno'), 'my ID number is 8001015800087', '').value, '8001015800087');
+  assert.ok(!V.answerFor(f('idno'), 'my ID number is 8001015800087', '').extra);
+});
+test('every spoken date comes out day/month/year', () => {
+  assert.strictEqual(V.spokenDate('the fifth of March nineteen eighty'), '05/03/1980');
+  assert.strictEqual(V.spokenDate('1986-03-14'), '14/03/1986');
+  assert.strictEqual(V.spokenDate('March 14th 1986'), '14/03/1986');
+});
+
+/* ---- notes: "let me take some notes", "note that down" ---- */
+test('asking to take notes is recognised in the ways it is said, and not in ordinary talk', () => {
+  ['let me take some notes', "Let's take some notes", "I'll make a note", 'let me jot down a few notes', 'okay I will take a quick note', 'put that in the notes', 'take some notes', 'notes', 'health notes'].forEach(t => assert.strictEqual((V.parseCommand(t, idx) || {}).type, 'notes', t));
+  ['note that down', 'write that down', 'make a note of that', 'note this down'].forEach(t => { const c = V.parseCommand(t, idx); assert.ok(c && c.type === 'notes' && c.retro, t); });
+  ['stop notes', "that's all for the notes", 'back to the form'].forEach(t => assert.strictEqual((V.parseCommand(t, idx) || {}).type, 'notesOff', t));
+  ['I take notes every day', 'my notes are at the office', 'what is your occupation', 'I make a living as a teacher'].forEach(t => assert.ok(!V.parseCommand(t, idx), t));
+  assert.strictEqual(V.parseCommand('let me take some notes on the will', idx).box, 'n_will');
+  assert.strictEqual(V.parseCommand('medical aid notes', idx).box, 'n_ma');
+});
+test('while notes are taken, what is said is noted and questions move on', () => {
+  const p = (t) => V.plan(t, idx, { cur: 'health', noting: true, value: () => '', visible: () => true });
+  assert.strictEqual(p('He wants to retire at sixty and they are worried about school fees').actions.map(a => a.do).join(), 'note');   // one line is one note
+  assert.strictEqual(p('okay great').actions.length, 0);
+  assert.strictEqual(p('what is your occupation').actions[0].do, 'ask');
+  assert.strictEqual(p("let's talk about your health").actions[0].cmd.type, 'goto');
+  assert.strictEqual(p('do you feel it is a good idea?').actions.length, 0);        // the adviser's own questions are not noted
+  const q = V.plan('Let me take some notes. He wants to retire at sixty.', idx, { cur: 'health', value: () => '', visible: () => true });
+  assert.deepStrictEqual(q.actions.map(a => a.do), ['cmd', 'note']);
+});
+test('notes are in point form, not full sentences', () => {
+  assert.deepStrictEqual(V.pointForm('He wants to retire at sixty and they are worried about school fees'), ['Wants to retire at sixty', 'Worried about school fees']);
+  assert.deepStrictEqual(V.pointForm("I don't have a will, um, basically"), ['Does not have a will']);
+  assert.deepStrictEqual(V.pointForm('Okay great.'), []);
+});
+test('a correction of the nationality drops every lead-in word', () => {
+  ["no actually I'm Zimbabwean", 'no, no, actually I am Zimbabwean', 'oh sorry, I am Zimbabwean', 'well actually Zimbabwean'].forEach(t => {
+    const r = V.answerFor(f('nat'), t, 'South African');
+    assert.deepStrictEqual(r.extra.map(x => x.value), ['Zimbabwean'], t);
+  });
 });
