@@ -35,16 +35,18 @@ When a new tax year starts (1 March), add its brackets and rebates to `app/js/ta
 
 The "Look up online" button next to "What does the company do?" asks Claude, with web search, for a short description. Click **Settings** and paste an Anthropic API key (from console.anthropic.com). Web search must be switched on for the Anthropic account. The key is stored only in this browser.
 
-## Voice mode (practice version)
+## Voice mode
 
-The **Voice** button in the top bar turns voice mode on or off. While it is on, a panel at the bottom shows what was heard and what the form did with it.
-The microphone is not connected yet. For now you type what you or the client would say, as "Me" or "Client", to practise and to test.
+The **Voice** button in the black bar switches voice mode on and off. Nothing else appears on screen. The form itself shows where the conversation is:
 
-- **Me** (the advisor): "I want to deal with occupation" opens that section. "Do you work for a company?" points at the Employed field and highlights it. "Next", "next section" and "scratch that" (undo) also work.
-- **Client**: the answer fills the field the last question pointed at. Drop-downs are chosen by matching the answer to the options. Amounts, dates, phone numbers, ID numbers and emails are written in the right format and flagged **verify**.
-- A field that was typed or accepted is never overwritten by voice. Employer and business name trigger the company look-up automatically (only the company name is sent).
-- All of this runs on the computer. `js/voice.js` holds the logic and has its own tests (`tests/voice.test.js`).
-- When a speech-to-text source (Whisper or Deepgram) is chosen, it only needs to call `FF.app.voiceHear(text, who)`.
+- The **section heading glows red-amber** when a topic is opened ("let's talk about your occupation").
+- The **label and box glow red-amber** when the adviser's question points at them ("what is your occupation?"). The cursor is put in the box.
+- When the client answers, the answer goes in and the box **glows green** for a moment. If the box already held a value and the client agrees, it is confirmed (green); if the client disagrees, the box stays red-amber until the correction is heard, then it is replaced (green).
+- "Scratch that" undoes the last change. With voice off, nothing is listened to and typing works as always.
+
+Simple wording is understood on this computer (`js/voice.js`). Looser wording and long answers are sent as text to Claude (`js/voice-ai.js`, model chosen in Settings). ID numbers, phone numbers and email addresses are never sent: those fields are left out and any long number or email in the text is blanked. Those fields are filled on this computer only.
+
+Whatever listens (Whisper or Deepgram, to be chosen) only needs to call `FF.app.voiceHear(text, who)`, where `who` is `'me'` (the adviser) or `'client'`. For testing, press and hold the Voice button to show a hidden test line (type `client: ...` for the client's side).
 
 ## Not built yet
 

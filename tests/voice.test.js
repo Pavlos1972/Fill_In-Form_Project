@@ -232,3 +232,41 @@ test('only questions the client can answer are in the voice index', () => {
   assert.ok(f('employer') && f('gross') && f('smoker'));
   assert.ok(!f('dnet') && !f('disp') && !f('advisor') && !f('date') && !f('n_cover') && !f('lc_hh'));
 });
+
+/* ---------- the client's answer meets what is already in the box ---------- */
+const ans = (id, text, existing) => V.answerFor(f(id), text, existing);
+
+test('agreeing with what is already there confirms it', () => {
+  ['yes', "yes that's right", 'correct', 'still the same', 'that is correct', 'yeah, nothing has changed'].forEach(s =>
+    assert.strictEqual(ans('occ', s, 'Underwriter').kind, 'confirm', s));
+  assert.strictEqual(ans('occ', "I'm an underwriter", 'Underwriter').kind, 'confirm');
+  assert.strictEqual(ans('employer', 'yes, Discovery', 'Discovery').kind, 'confirm');
+});
+test('a different answer replaces it, and a bare "no" waits for the correction', () => {
+  const r = ans('occ', "no, I'm now a manager", 'Underwriter');
+  assert.deepStrictEqual([r.kind, r.value], ['fill', 'Manager']);
+  assert.strictEqual(ans('occ', 'no', 'Underwriter').kind, 'wait');
+  assert.strictEqual(ans('occ', 'nope', 'Underwriter').kind, 'wait');
+  assert.strictEqual(ans('occ', "right, I'm a senior underwriter now", 'Underwriter').kind, 'fill');
+});
+test('a bare yes or no is not an occupation when the box is empty', () => {
+  assert.strictEqual(ans('occ', 'yes', '').kind, 'none');
+  assert.strictEqual(ans('occ', 'no', '').kind, 'none');
+  assert.strictEqual(ans('occ', 'underwriter', '').value, 'Underwriter');
+});
+test('drop-downs: the answer is read as an answer, and only clear wording confirms', () => {
+  assert.strictEqual(ans('employed', 'yes', 'Yes').kind, 'confirm');
+  const diff = ans('employed', 'yes', 'No');
+  assert.deepStrictEqual([diff.kind, diff.value], ['fill', 'Yes']);
+  assert.strictEqual(ans('smoker', 'yes', 'Non-smoker').value, 'Smoker');          // "do you smoke?" - "yes"
+  assert.strictEqual(ans('smoker', "no, I don't", 'Non-smoker').kind, 'confirm');
+  assert.strictEqual(ans('smoker', "that's correct", 'Non-smoker').kind, 'confirm');
+  assert.strictEqual(ans('ft', 'contract', 'Full time').value, 'Contract');
+});
+test('answers that cannot be used are reported, not guessed', () => {
+  assert.strictEqual(ans('gross', 'quite a lot', '').kind, 'error');
+  assert.strictEqual(ans('marital', "I'm married", '').kind, 'error');
+});
+test('private fields are the ones that are never sent to Claude', () => {
+  assert.deepStrictEqual([...V.PRIVATE_IDS].sort(), ['cell', 'home', 'idno', 'pemail', 'sp_tel', 'tax', 'wemail', 'work']);
+});

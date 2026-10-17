@@ -342,14 +342,14 @@
   var FILLER = /^\s*(?:(?:um+|uh+|er+|erm|ah+|hmm+|well|so|okay|ok|yes|yeah|yep|alright|ja|right)[,.\s]+)+/i;
   var LEAD_NAME = /^(?:my (?:first |full |sur)?name is |my (?:first |sur)?name's |i am |i'm |it's |it is |that's |that is |the name is |name is |it's called |called |surname is |first name is |my surname is |this is )/i;
   var LEAD_COMPANY = /^(?:i (?:currently )?(?:work|am working|'m working|am employed|'m employed)\s+(?:at|for|with|in)\s+|i'?m (?:at|with|employed (?:at|by|with))\s+|i am (?:at|with|employed (?:at|by|with))\s+|it'?s |it is |the company is |company is |we are |for |at |with |it's called |called |the name is |name is |my company is |my employer is |employer is )/i;
-  var LEAD_OCC = /^(?:i(?:'m| am) (?:currently )?(?:a |an |the )?|i work as (?:a |an |the )?|i'm working as (?:a |an |the )?|my (?:job|occupation|role|position|title) is (?:a |an |the )?|i do |i'm doing |i am doing |it's |it is )/i;
+  var LEAD_OCC = /^(?:i(?:'m| am) (?:now |currently |still |just )?(?:a |an |the )?|i work as (?:a |an |the )?|i'm working as (?:a |an |the )?|my (?:job|occupation|role|position|title) is (?:a |an |the )?|i do |i'm doing |i am doing |it's |it is )/i;
   function cleanText(f, raw) {
     var s = String(raw).trim().replace(FILLER, '').trim();
     var id = f.id;
     if (NAME_IDS.indexOf(id) >= 0) s = s.replace(LEAD_NAME, '');
     else if (COMPANY_IDS.indexOf(id) >= 0) s = s.replace(LEAD_COMPANY, '');
     else if (OCC_IDS.indexOf(id) >= 0) s = s.replace(LEAD_OCC, '');
-    return s.replace(/[\s,;.!?]+$/, '').trim();
+    return s.replace(/[\s,;.!?]+$/, '').replace(/\s+(?:now|at the moment|currently)$/i, '').trim();
   }
   var ok = function (v) { return { value: v, status: 'heard' }; };
 
@@ -524,8 +524,45 @@
     return { value: c.charAt(0).toUpperCase() + c.slice(1), status: 'heard' };
   }
 
+  /* ---------- the client's answer meets what is already in the box ---------- */
+  var PRIVATE_IDS = ['idno', 'tax', 'cell', 'work', 'home', 'sp_tel', 'pemail', 'wemail'];
+  var AGREE = { correct: 1, right: 1, exactly: 1, same: 1, unchanged: 1, still: 1, yes: 1, yeah: 1, yep: 1, yup: 1, ja: 1, sure: 1, indeed: 1, definitely: 1, absolutely: 1, true: 1, thanks: 1, thank: 1, changed: 1, nothing: 1, change: 1 };
+  var NEGATE = { no: 1, nope: 1, nah: 1, not: 1, never: 1, none: 1, really: 1, quite: 1 };
+  /* Does the client simply agree with what is there? A bare "yes" counts only for plain text boxes (bare = true). */
+  function isConfirm(raw, bare) {
+    var t = norm(raw), n = t ? t.split(' ').length : 0;
+    if (!t || n > 9) return false;
+    if (/\b(nothing has changed|no change|not changed|hasn t changed|has not changed)\b/.test(t)) return true;
+    var yn = yesNo(t);
+    if (yn === 'no' || yn === 'unsure') return false;
+    var rest = content(t).filter(function (w) { return !AGREE[w]; });
+    if (rest.length) return false;
+    if (/\b(correct|right|exactly|same|unchanged|still|true)\b/.test(t)) return true;
+    return !!bare && yn === 'yes';
+  }
+  /* -> { kind: 'confirm' } | { kind: 'wait' } (the client said no and the new value is still to come) |
+        { kind: 'fill', value, status, extra?, append?, note? } | { kind: 'error', error, note? } | { kind: 'none' } */
+  function answerFor(f, raw, existing) {
+    existing = existing == null ? '' : String(existing);
+    var t = norm(raw);
+    if (!t) return { kind: 'none' };
+    var hasYN = !!f.options && f.options.some(function (o) { return o.toLowerCase() === 'yes'; }) && f.options.some(function (o) { return o.toLowerCase() === 'no'; });
+    var plain = !f.options, correction = false, m;
+    if (plain && existing && (m = /^\s*(?:no|nope|nah|not really|not quite|actually)[,.\s]+(.+)$/i.exec(String(raw)))) { raw = m[1]; t = norm(raw); correction = true; }
+    if (existing && !correction && isConfirm(raw, plain)) return { kind: 'confirm' };
+    if (plain && !correction && t.split(' ').length <= 3 && yesNo(t) && !content(t).filter(function (w) { return !AGREE[w] && !NEGATE[w]; }).length) {
+      return yesNo(t) === 'no' && existing ? { kind: 'wait' } : { kind: 'none' };
+    }
+    var r = interpret(f, raw);
+    if (!r) return { kind: 'none' };
+    if (r.error) return { kind: 'error', error: r.error, note: r.note };
+    if (existing && norm(r.value) === norm(existing)) return { kind: 'confirm' };
+    return { kind: 'fill', value: r.value, status: r.status, extra: r.extra, append: r.append, note: r.note };
+  }
+
   return {
     norm: norm, wordsToNumber: wordsToNumber, spokenDigits: spokenDigits, spokenDate: spokenDate, spokenEmail: spokenEmail, yesNo: yesNo,
-    buildIndex: buildIndex, parseCommand: parseCommand, matchQuestion: matchQuestion, interpret: interpret, titleCase: titleCase
+    buildIndex: buildIndex, parseCommand: parseCommand, matchQuestion: matchQuestion, interpret: interpret, titleCase: titleCase,
+    isConfirm: isConfirm, answerFor: answerFor, PRIVATE_IDS: PRIVATE_IDS
   };
 });

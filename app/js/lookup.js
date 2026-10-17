@@ -8,6 +8,7 @@
   var ENDPOINT = 'https://api.anthropic.com/v1/messages';
   var API_VERSION = '2023-06-01';
   var DEFAULT_MODEL = 'claude-opus-5-5';
+  var DEFAULT_VOICE_MODEL = 'claude-sonnet-5-5';
   var MODELS = [
     { id: 'claude-opus-5-5', label: 'Claude Opus 5.5 (recommended)' },
     { id: 'claude-sonnet-5-5', label: 'Claude Sonnet 5.5 (lower cost)' },
@@ -16,10 +17,10 @@
   var SETTINGS_KEY = 'wr-fact-find-settings';
 
   function getSettings() {
-    try { var s = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}'); return { apiKey: s.apiKey || '', model: s.model || DEFAULT_MODEL, expires: s.expires || '' }; }
-    catch (e) { return { apiKey: '', model: DEFAULT_MODEL, expires: '' }; }
+    try { var s = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}'); return { apiKey: s.apiKey || '', model: s.model || DEFAULT_MODEL, voiceModel: s.voiceModel || DEFAULT_VOICE_MODEL, expires: s.expires || '' }; }
+    catch (e) { return { apiKey: '', model: DEFAULT_MODEL, voiceModel: DEFAULT_VOICE_MODEL, expires: '' }; }
   }
-  function saveSettings(s) { try { localStorage.setItem(SETTINGS_KEY, JSON.stringify({ apiKey: String(s.apiKey || '').trim(), model: s.model || DEFAULT_MODEL, expires: String(s.expires || '').trim() })); return true; } catch (e) { return false; } }
+  function saveSettings(s) { try { localStorage.setItem(SETTINGS_KEY, JSON.stringify({ apiKey: String(s.apiKey || '').trim(), model: s.model || DEFAULT_MODEL, voiceModel: s.voiceModel || DEFAULT_VOICE_MODEL, expires: String(s.expires || '').trim() })); return true; } catch (e) { return false; } }
 
   /* How the top bar describes the key: nothing without a key, then days left until the date typed in Settings. */
   function keyStatus(set, now) {
@@ -92,5 +93,5 @@
     }
     return step(0);
   }
-  return { DEFAULT_MODEL: DEFAULT_MODEL, MODELS: MODELS, getSettings: getSettings, saveSettings: saveSettings, keyStatus: keyStatus, buildRequest: buildRequest, extractText: extractText, run: run, ENDPOINT: ENDPOINT };
+  return { DEFAULT_MODEL: DEFAULT_MODEL, DEFAULT_VOICE_MODEL: DEFAULT_VOICE_MODEL, MODELS: MODELS, getSettings: getSettings, saveSettings: saveSettings, keyStatus: keyStatus, buildRequest: buildRequest, extractText: extractText, run: run, ENDPOINT: ENDPOINT };
 });

@@ -10,25 +10,22 @@
 </style>
 <link rel="stylesheet" href="css/app.css">
 <style>
-  .voice-target { outline: 3px solid var(--accent); outline-offset: 3px; border-radius: 8px; animation: vpulse 1.6s ease-out 1; }
-  @keyframes vpulse { from { box-shadow: 0 0 0 10px var(--accent-soft); } to { box-shadow: 0 0 0 0 transparent; } }
-  .nav button.voice-hit { animation: vpulse 1.4s ease-out 1; }
+  @keyframes vwait { 0%, 100% { box-shadow: 0 0 0 3px #e5483a, 0 0 14px 3px rgba(255,176,32,.55); } 50% { box-shadow: 0 0 0 3px #f06a2b, 0 0 28px 9px rgba(255,176,32,.9); } }
+  @keyframes vok { from { box-shadow: 0 0 0 3px #1f9d55, 0 0 28px 9px rgba(31,157,85,.75); } to { box-shadow: 0 0 0 3px rgba(31,157,85,0), 0 0 0 0 rgba(31,157,85,0); } }
+  @keyframes vdot { 50% { opacity: .25; } }
+  .f.voice-wait { border-radius: 8px; animation: vwait 1.3s ease-in-out infinite; }
+  .f.voice-wait > span.l { color: #e5483a; font-weight: 600; }
+  .f.voice-ok { border-radius: 8px; animation: vok 1.5s ease-out 1; }
+  .main header h2.voice-wait { display: inline-block; border-radius: 8px; padding: 0 12px; margin-left: -12px; animation: vwait 1.3s ease-in-out infinite; }
+  .nav button.voice-hit { animation: vok 1.5s ease-out 1; }
+  .vm-note { display: block; font-size: 12px; color: #e5483a; margin-top: 2px; }
+  .vm-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #b0aea5; margin-right: 7px; vertical-align: middle; }
   #btnVoice.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
-  body.vm-on { padding-bottom: 230px; }
-  #voiceDock { position: fixed; left: 50%; transform: translateX(-50%); bottom: 12px; width: min(820px, calc(100vw - 32px)); background: #1f1e1d; color: #faf9f5; border-radius: 10px; padding: 10px 12px; box-shadow: 0 8px 30px rgba(0,0,0,.4); z-index: 50; font-size: 13px; }
-  #voiceDock[hidden] { display: none; }
-  #voiceDock .vd-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-  #voiceDock .vd-sub { color: #b0aea5; font-size: 12px; }
-  #voiceDock .vd-grow { flex: 1; }
-  #voiceDock .vd-target { margin-top: 6px; color: #f5c451; font-size: 12px; }
-  #voiceDock .vd-log { margin-top: 6px; max-height: 112px; overflow: auto; font: 12px/1.5 ui-monospace, Consolas, monospace; }
-  #voiceDock .vd-line b { color: #d97757; }
-  #voiceDock .vd-line .vd-res { display: block; color: #b0aea5; padding-left: 14px; }
-  #voiceDock .vd-hint { color: #b0aea5; font-size: 12px; margin-top: 6px; }
-  #voiceDock .vd-row { display: flex; gap: 8px; margin-top: 8px; }
-  #voiceDock input { flex: 1; min-width: 0; background: #2f2e2b; color: #faf9f5; border: 1px solid #4a4843; border-radius: 6px; padding: 7px 9px; font: inherit; }
-  #voiceDock button { background: #2f2e2b; color: #faf9f5; border: 1px solid #4a4843; border-radius: 6px; padding: 6px 11px; font: inherit; cursor: pointer; }
-  #voiceDock button.go { background: #c15f3c; border-color: #c15f3c; }
+  #btnVoice.on .vm-dot { background: #ff4d3d; box-shadow: 0 0 0 2px rgba(255,255,255,.55); animation: vdot 1.3s ease-in-out infinite; }
+  #btnVoice.on.busy .vm-dot { background: #ffb020; }
+  #vdText { position: fixed; left: 50%; transform: translateX(-50%); bottom: 10px; width: min(560px, calc(100vw - 32px)); z-index: 50; background: #1f1e1d; color: #faf9f5; border: 1px solid #4a4843; border-radius: 8px; padding: 9px 12px; font: 14px system-ui, sans-serif; box-shadow: 0 6px 24px rgba(0,0,0,.35); }
+  #vdText[hidden] { display: none; }
+  @media (prefers-reduced-motion: reduce) { .f.voice-wait, .main header h2.voice-wait { animation: none; box-shadow: 0 0 0 3px #e5483a; } }
 </style>
 </head>
 <body>
@@ -39,7 +36,7 @@
   <span class="savestate" id="keyState" role="button" tabindex="0" title="Anthropic key. Click to open Settings." style="cursor:pointer;margin-left:12px" hidden></span>
   <span class="grow"></span>
   <div class="actions">
-    <button class="btn ghost small" id="btnVoice" type="button" aria-pressed="false" title="Voice mode: Fact Find follows what you and the client say">Voice: Off</button>
+    <button class="btn ghost small" id="btnVoice" type="button" aria-pressed="false" title="Voice mode: the Fact Find follows what you and the client say"><span class="vm-dot"></span><span id="vmLabel">Voice: Off</span></button>
     <button class="btn ghost small" id="btnSettings" type="button">Settings</button>
     <button class="btn ghost small" id="btnNew" type="button">New</button>
     <button class="btn ghost small" id="btnOpen" type="button">Open…</button>
@@ -71,31 +68,29 @@
   <p class="help">The company look-up asks Claude to search the web. It needs an Anthropic API key. The key is kept only in this browser on this computer.</p>
   <label class="f"><span class="l"><span>Anthropic API key</span></span><input id="setKey" type="password" autocomplete="off" placeholder="sk-ant-..."></label>
   <label class="f"><span class="l"><span>Model</span></span><select id="setModel"></select></label>
+  <label class="f"><span class="l"><span>Voice model</span></span><select id="setVoiceModel"></select></label>
+  <p class="help">Voice mode asks this model which question you are on and what the client answered. Only the last few sentences are sent, as text. ID numbers, phone numbers and email addresses are never sent.</p>
   <label class="f"><span class="l"><span>Key expires on</span></span><input id="setExpires" type="date"></label>
   <p class="help">Enter the date shown as "Expires" next to the key in the Anthropic console. The top bar then counts down the days. <a href="https://platform.claude.com/dashboard" target="_blank" rel="noopener">Open the console ↗</a></p>
   <p class="help" id="setResult"></p>
   <div class="dlg-actions"><button class="btn ghost small" id="setTest" type="button">Test</button><span class="grow"></span><button class="btn ghost small" id="setCancel" type="button">Cancel</button><button class="btn small" id="setSave" type="button">Save</button></div>
 </dialog>
 <div class="toast" id="toast" hidden></div>
-<div id="voiceDock" hidden>
-  <div class="vd-head"><b>Voice mode</b><span class="vd-sub">Practice: type what you or the client would say. The microphone is connected next.</span><span class="vd-grow"></span><button id="vdUndo" type="button">Undo last</button><button id="vdClose" type="button">Turn off</button></div>
-  <div class="vd-target" id="vdTarget"></div>
-  <div class="vd-log" id="vdLog" aria-live="polite"></div>
-  <div class="vd-row"><button id="vdWho" type="button" title="Who says the next line">Me</button><input id="vdText" type="text" placeholder="Type a line and press Enter" autocomplete="off"><button id="vdSend" class="go" type="button">Send</button></div>
-</div>
+<input id="vdText" type="text" placeholder="Test line. Type a line (client: ... for the client), press Enter" autocomplete="off" hidden>
 
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jspdf.plugin.autotable.min.js"></script>
-<script src="js/util.js?v=20261017a"></script>
-<script src="js/tax.js?v=20261017a"></script>
-<script src="js/schema.js?v=20261017a"></script>
-<script src="js/calc.js?v=20261017a"></script>
-<script src="js/validate.js?v=20261017a"></script>
-<script src="js/store.js?v=20261017a"></script>
-<script src="js/lookup.js?v=20261017a"></script>
-<script src="assets/logo.js?v=20261017a"></script>
-<script src="js/pdf.js?v=20261017a"></script>
-<script src="js/voice.js?v=20261017a"></script>
-<script src="js/ui.js?v=20261017a"></script>
+<script src="js/util.js?v=20261018a"></script>
+<script src="js/tax.js?v=20261018a"></script>
+<script src="js/schema.js?v=20261018a"></script>
+<script src="js/calc.js?v=20261018a"></script>
+<script src="js/validate.js?v=20261018a"></script>
+<script src="js/store.js?v=20261018a"></script>
+<script src="js/lookup.js?v=20261018a"></script>
+<script src="assets/logo.js?v=20261018a"></script>
+<script src="js/pdf.js?v=20261018a"></script>
+<script src="js/voice.js?v=20261018a"></script>
+<script src="js/voice-ai.js?v=20261018a"></script>
+<script src="js/ui.js?v=20261018a"></script>
 </body>
 </html>
