@@ -304,7 +304,7 @@
   /* Names in brackets in a label ("Short-term (Cameron)") are things people say; units and notes ("(R)", "(today's terms)") are not. */
   var BRACKET_SKIP = { r: 1, p: 1, m: 1, pm: 1, today: 1, todays: 1, terms: 1, if: 1, per: 1, month: 1, year: 1, optional: 1 };
   function bracketWords(label) {
-    var m = String(label).match(/\(([^)]*)\)/g) || [];
+    var m = (String(label).match(/\(([^)]*)\)/g) || []).filter(function (b) { return /^\(\s*[A-Z][\w'-]*(?:\s+[A-Z][\w'-]*)?\s*\)$/.test(b); });   // "(Cameron)", "(Capital Legacy)"; not "(if the bank is not in the list)"
     return content(m.join(' ')).filter(function (w) { return !BRACKET_SKIP[w]; });
   }
   /* A box in a list behaves like the same kind of box elsewhere: a child's name is a name, a partner's cell is a phone number. */
@@ -732,19 +732,84 @@
   var WH = /^(?:what|what's|whats|who|who's|whose|where|when|why|how|which)\b/i;
   var NEGATE_HAVE = /\b(?:(?:don'?t|do not|dont|doesn'?t|haven'?t|have not|havent|hasn'?t|never)\s+(?:have|had|got|use)|have no|got no|no|without|none|not got)\b/i;
   var TYPED = PHONE_IDS.concat(EMAIL_IDS, DIGIT_IDS, DATE_IDS);
+  var ALL_NOUNS = (function () { var a = []; Object.keys(LIST_NOUNS).forEach(function (k) { LIST_NOUNS[k].forEach(function (n) { a.push(n.replace(/\s+/g, '\\s+')); }); }); return a.sort(function (x, y) { return y.length - x.length; }).join('|'); })();
+  var SPLIT_ITEMS = new RegExp('\\s+(?:and|plus|also|then)\\s+(?=(?:a|an|another|one more)\\s+(?:[a-z]+\\s+){0,2}?(?:' + ALL_NOUNS + ')\\b)', 'gi');
   function clauses(text) {
     var t = String(text == null ? '' : text).replace(/\s+/g, ' ').trim();
+    t = t.replace(SPLIT_ITEMS, '\u0001');                                  // two items in one breath: "a home loan ... and a car loan ..."
     t = t.replace(/([.?!])\s+/g, '$1\u0001').replace(/\s+(?:and|but|so)\s+(?=(?:your|my|his|her|their|i|i'm|i've|we|he|she|they|it's|that's|there's)\b)/gi, '\u0001');
     return t.split('\u0001').map(function (x) { return x.trim(); }).filter(Boolean);
   }
   /* A long free-text answer may hold several facts, so Claude reads it; dates, numbers, phone numbers and lists of options are read precisely here. */
   function isFreeText(f) { return !!f && f.t === 'txt' && !f.options && !f.money && TYPED.indexOf(vid(f)) < 0 && PCT_IDS.indexOf(vid(f)) < 0 && vid(f) !== 'years'; }
+  /* What a sentence that introduces a row says about it: "a home loan with ABSA bank" -> type Home loan, provider ABSA; "a daughter called Thandi, born
+     22 August 2019" -> name, gender, date of birth. Only what is clear is taken; leftover says how many words were not understood, so Claude can read the rest. */
+  var INTERVIEW = { debts: ['type', 'prov', 'desc', 'inst', 'bal'], risk: ['prov', 'spend', 'broker'], ret: ['type', 'prov', 'val', 'contrib'], inv: ['type', 'prov', 'val', 'prem'],
+    kids: ['name', 'gender', 'dob', 'cost'], shares: ['name', 'pct'], redq: ['req', 'ins', 'amt'], raq: ['req', 'ins', 'monthly', 'lump'], invq: ['purpose', 'product', 'ins', 'monthly', 'lump'] };
+  var ROW_COLS = { debts: ['type', 'prov'], risk: ['prov'], ret: ['type', 'prov'], inv: ['type', 'prov'] };
+  var ROW_SYN = {
+    'debts.type': { 'Home loan': ['bond', 'mortgage', 'house loan', 'home bond', 'property loan'], 'Vehicle finance': ['car finance', 'vehicle loan', 'car loan', 'car payment', 'vehicle'], 'Credit card': ['card'], 'Revolving credit': ['overdraft', 'revolving'] },
+    'ret.type': { 'Retirement annuity': ['ra', 'retirement annuity'], 'Pension fund': ['pension'], 'Provident fund': ['provident'] },
+    'inv.type': { 'Unit trust': ['unit trusts'], 'Tax-free savings': ['tax free', 'tax free investment', 'tfsa', 'tax free savings account'], 'Endowment': ['endowments'], 'Offshore': ['offshore investment'], 'Share portfolio': ['shares', 'share portfolio'], 'Living annuity': ['la'] }
+  };
+  var MONEY_CUES = {
+    debts: [['bal', /\b(?:outstanding|balance|owe|owing)\b/], ['inst', /\b(?:instal?ments?|repayments?|a month|per month|monthly|pm)\b/], ['asset', /\b(?:worth|asset)\b/]],
+    risk: [['spend', /\b(?:month|premium|paying|pay)\b/]], ret: [['contrib', /\b(?:month|contribut\w*)\b/], ['val', /\b(?:worth|value|balance|in it)\b/]],
+    inv: [['prem', /\b(?:month|premium|invest)\b/], ['val', /\b(?:worth|value|balance)\b/]], kids: [['cost', /\b(?:month|fees|cost|costs)\b/]]
+  };
+  var GENERIC_WORD = { bank: 1, finance: 1, loan: 1, loans: 1, card: 1, account: 1, policy: 1, policies: 1, fund: 1, funds: 1, limited: 1, ltd: 1, group: 1, life: 1, cover: 1, insurance: 1, with: 1, invest: 1, investment: 1, investments: 1, named: 1, called: 1, born: 1, month: 1, months: 1, per: 1, paying: 1, pay: 1, rand: 1, r: 1 };
+  function rowFacts(idx, key, core) {
+    var tn = norm(core), vals = {}, used = {}, toks = tn.split(' ');
+    function use(phrase) { norm(phrase).split(' ').forEach(function (w) { used[w] = 1; }); }
+    (ROW_COLS[key] || []).forEach(function (k) {                          // a choice named in the sentence: the type, the bank or insurer
+      var e = idx.byId[key + '.' + k], best = null;
+      if (!e || !e.options) return;
+      e.options.forEach(function (o) {
+        if (/^other$/i.test(o)) return;
+        [o].concat((ROW_SYN[e.id] && ROW_SYN[e.id][o]) || []).forEach(function (ph) {
+          var n = norm(ph), t0 = n.split(' ')[0], sc = 0, matched = n;
+          if (has(tn, n)) sc = n.split(' ').length * 2;
+          else if (t0.length >= 4 && !GENERIC_WORD[t0] && toks.indexOf(t0) >= 0) { sc = 1.5; matched = t0; }
+          if (sc && (!best || sc > best.sc)) best = { sc: sc, value: o, phrase: matched };
+        });
+      });
+      if (best) { vals[k] = { value: best.value, status: 'heard' }; use(best.phrase); }
+    });
+    if (ROW_COLS[key] && ROW_COLS[key].indexOf('prov') >= 0 && !vals.prov) {
+      var pn = /\b(?:with|at|from)\s+([A-Z][\w&.'-]*(?:\s+(?:of|and|&)?\s*[A-Z][\w&.'-]*){0,3})/.exec(core), pe = idx.byId[key + '.prov'];
+      if (pn && !/^(?:a|an|the|my|our)$/i.test(pn[1]) && !has(norm(pn[1]), 'bank loan')) {
+        if (pe.free) vals.prov = { value: pn[1], status: 'verify' };
+        else if (pe.options.indexOf('Other') >= 0 && idx.byId[key + '.prov_other']) { vals.prov = { value: 'Other', status: 'heard' }; vals.prov_other = { value: pn[1], status: 'verify' }; }
+        if (vals.prov) use(pn[1]);
+      }
+    }
+    if (key === 'kids') {
+      var g = SPECIAL['kids.gender'](tn);
+      if (g) { vals.gender = { value: g, status: 'heard' }; ['son', 'daughter', 'boy', 'girl'].forEach(use); }
+      var nm = /\b(?:called|named|name is)\s+([A-Za-z][A-Za-z'-]+(?:\s+[A-Z][A-Za-z'-]+)?)/.exec(core) || /\b(?:son|daughter|child|kid|boy|girl)\s*,?\s+([A-Z][a-z'-]+)/.exec(core);
+      if (nm) { vals.name = { value: titleCase(nm[1]), status: 'verify' }; use(nm[1]); }
+      if (/\b(?:born|birthday)\b/.test(tn)) { var d = spokenDate(core); if (d) { vals.dob = { value: d, status: 'verify' }; toks.forEach(function (w) { if (/^\d/.test(w) || monthOf(w) || /^(?:st|nd|rd|th|of)$/.test(w)) used[w] = 1; }); } }
+    }
+    var amts = core.match(/\bR\s?\d[\d\s,]*(?:\.\d+)?/g) || [];            // one amount with a clear cue ("R4 200 a month") is taken; more than one is left to Claude
+    if (amts.length === 1 && MONEY_CUES[key]) {
+      MONEY_CUES[key].some(function (c) {
+        var def = idx.byId[key + '.' + c[0]];
+        if (!c[1].test(tn) || !def) return false;
+        var x = interpret(def, amts[0]);
+        if (x && !x.error) { vals[c[0]] = { value: x.value, status: 'verify' }; use(amts[0]); toks.forEach(function (w) { if (c[1].test(w) || /^\d+$/.test(w)) used[w] = 1; }); return true; }
+        return false;
+      });
+    }
+    var noun = {}; LIST_NOUNS_N[key].forEach(function (ph) { ph.split(' ').forEach(function (w) { noun[w] = 1; }); });
+    var left = content(tn).filter(function (w) { return !used[w] && !noun[w] && !GENERIC_WORD[w] && !/^\d/.test(w) && !/^(?:one|two|three|four|five|six|seven|eight|nine|ten)$/.test(w); });
+    return { vals: vals, leftover: left.length };
+  }
   var ORD_IDX = { first: 0, '1st': 0, second: 1, '2nd': 1, third: 2, '3rd': 2, fourth: 3, '4th': 3, fifth: 4, '5th': 4 };
   var NO_WORDS = /^(?:no|none|nope|nah|nothing|not any|zero|we don'?t|i don'?t|don'?t have any)\b/i;
   function rowName(d) { return d ? String(d.name || d.desc || '') : ''; }
   function plan(text, idx, st) {
     st = st || {};
-    var actions = [], sure = true, target = st.target || null, answered = !!st.answered, noting = !!st.noting;
+    var actions = [], sure = true, target = st.target || null, answered = !!st.answered, noting = !!st.noting, selfAsk = false;   // selfAsk: the page itself moved to the next box, nobody asked it
     var visible = st.visible || function () { return true; }, valueOf0 = st.value || function () { return ''; };
     /* Boxes in a list belong to a row, so they are named list:row:column (kids:0:dob). Rows the line itself adds are counted as it goes. */
     var lc = {};
@@ -775,6 +840,8 @@
       if (/\b(another|new|additional|one more)\b/.test(t)) return l.n;
       if (/\bother\b/.test(t)) return l.n > 1 && l.cur === 0 ? 1 : l.n;
       if (/\bnext\b/.test(t)) return l.cur + 1 < l.n ? l.cur + 1 : l.n;
+      var tf = ROW_COLS[key] ? rowFacts(idx, key, text).vals.type : null;
+      if (tf) for (r = 0; r < l.rows.length; r++) if (l.rows[r].type === tf.value) return r;     // "the home loan"
       for (r = 0; r < l.rows.length; r++) {                              // a name already in the list
         var nm = norm(rowName(l.rows[r])).split(' ').filter(function (w) { return w.length > 2; });
         if (nm.length && nm.some(function (w) { return (' ' + t + ' ').indexOf(' ' + w + ' ') >= 0; })) return r;
@@ -789,7 +856,7 @@
       var i = rowFor(e.list, text, forceNew), cid = e.list + ':' + i + ':' + e.k;
       return { id: cid, def: e, existing: valueOf(cid), commit: function () { commitRow(e.list, i); return cid; } };
     }
-    function firstCell(key, i) { var e = idx.byId[idx.lists[key].cols[0]]; return { id: key + ':' + i + ':' + e.k, def: e, commit: function () { commitRow(key, i); return key + ':' + i + ':' + e.k; } }; }
+    function firstCell(key, i) { var e = idx.byId[key + '.' + ((INTERVIEW[key] || [])[0] || idx.byId[idx.lists[key].cols[0]].k)]; return { id: key + ':' + i + ':' + e.k, def: e, commit: function () { commitRow(key, i); return key + ':' + i + ':' + e.k; } }; }
     function listFirst(core) { var k = Object.keys(listsNamed(norm(core)))[0]; return k && idx.lists[k] && visible(idx.lists[k].cols[0]) ? k : null; }
     function countIn(core, key) {                                          // "two children", "a loan", "3 kids"
       var t = norm(core), nouns = LIST_NOUNS_N[key].slice().sort(function (a, b) { return b.length - a.length; }).join('|');
@@ -802,9 +869,26 @@
       var l = Ls(key), first = l.n;
       if (l.n >= count) { var fc0 = firstCell(key, l.cur >= 0 ? l.cur : 0); var id0 = fc0.commit(); actions.push({ do: 'ask', field: id0 }); target = id0; answered = false; return; }
       var fc = firstCell(key, first); commitRow(key, count - 1); l.cur = first;
-      actions.push({ do: 'ask', field: fc.id }); target = fc.id; answered = false;
+      actions.push({ do: 'ask', field: fc.id }); target = fc.id; answered = false; selfAsk = true;
     }
-    function askCell(p) { var id = p.commit(); actions.push({ do: 'ask', field: id }); target = id; answered = false; return id; }
+    /* One row introduced in a sentence: use the row it is about (same type, or a blank one), else add one; fill what was said; then ask the next thing. */
+    function introRow(key, rf) {
+      var l = Ls(key), i = -1, r, t = rf.vals.type && rf.vals.type.value;
+      for (r = 0; r < l.rows.length && i < 0; r++) if (t && l.rows[r].type === t) i = r;                                       // the same kind of loan is already there
+      for (r = 0; r < l.rows.length && i < 0; r++) if (!Object.keys(l.rows[r]).some(function (k) { return l.rows[r][k] !== ''; })) i = r;   // a blank row
+      if (i < 0) i = l.n;
+      commitRow(key, i);
+      var order = INTERVIEW[key] || [], filled = {};
+      Object.keys(rf.vals).forEach(function (k) {
+        var cid = key + ':' + i + ':' + k;
+        actions.push({ do: 'fill', field: cid, res: { kind: 'fill', value: rf.vals[k].value, status: rf.vals[k].status }, explicit: true });
+        l.rows[i][k] = rf.vals[k].value; filled[k] = 1;
+      });
+      var next = order.filter(function (k) { return !filled[k] && (l.rows[i][k] == null || l.rows[i][k] === ''); })[0];
+      if (next) { var nid = key + ':' + i + ':' + next; actions.push({ do: 'ask', field: nid }); target = nid; answered = false; selfAsk = true; }
+      else { target = key + ':' + i + ':' + Object.keys(filled).pop(); answered = true; }
+    }
+    function askCell(p) { var id = p.commit(); actions.push({ do: 'ask', field: id }); target = id; answered = false; selfAsk = false; return id; }
 
     clauses(text).forEach(function (seg) {
       var core = seg.replace(LEADWORDS, '').trim(), isQ = /\?\s*["')]*$/.test(core), words = seg.split(/\s+/).length;
@@ -835,16 +919,30 @@
       /* waiting for a count: "how many children do you have?" ... "two" */
       var ct = /^count:(\w+)$/.exec(String(target || ''));
       if (ct && !answered && !isQ && !(NEGATE_HAVE.test(seg) && !NO_WORDS.test(core))) {
-        var cn = wordsToNumber(core) != null ? Math.round(wordsToNumber(core)) : (/^(?:yes|yeah|yep|yup|ja|i do|we do|i have|we have)\b/i.test(core) ? 1 : null);
+        var cn = wordsToNumber(core) != null && words <= 3 ? Math.round(wordsToNumber(core)) : (/^(?:yes|yeah|yep|yup|ja|i do|we do|i have|we have)\b/i.test(core) ? 1 : null);
         if (NO_WORDS.test(core)) { answered = true; return; }             // none: nothing to record
+        var crf = rowFacts(idx, ct[1], core);
+        if (cn === 1 || (cn == null && Object.keys(crf.vals).length)) {                                      // "yes, a home loan with ABSA": the row, and what was said about it
+          if (Object.keys(crf.vals).length) { answered = true; introRow(ct[1], crf); if (crf.leftover > 1) sure = false; return; }
+        }
         if (cn != null && cn >= 1 && cn <= 10) { answered = true; addRows(ct[1], cn); return; }
       }
-      /* "I have two children", "we have a loan": make the rows, then ask about the first */
+      /* "I have two children", "we have a loan": make the rows, then ask about the first. "I have a home loan with ABSA bank": the row is made and what is said about it goes in. */
       if (!isQ && !WH.test(core)) {
         var lkc = listFirst(core), cc = lkc ? countIn(core, lkc) : null;
-        if (lkc && cc && /\b(?:have|has|got|had|there are|there is|with|we've|i've|three|two|one|four|five)\b/i.test(core)) {
-          var colHit = matchQuestion(core, idx, near);
-          if (!(colHit && idx.byId[colHit.id].list === lkc && colHit.score >= 4 && /\bis\b/.test(core))) { addRows(lkc, cc); return; }
+        var colHit = lkc ? matchQuestion(core, idx, near) : null, namesColumn = colHit && idx.byId[colHit.id].list === lkc && colHit.score >= 4;
+        var rf = lkc ? rowFacts(idx, lkc, core) : null, MONEY_KEYS = { bal: 1, inst: 1, asset: 1, spend: 1, val: 1, contrib: 1, prem: 1, cost: 1 };
+        var nFacts = rf ? Object.keys(rf.vals).filter(function (k) { return !MONEY_KEYS[k]; }).length : 0;
+        if (colHit && !idx.byId[colHit.id].list && colHit.score >= 4 && !cc) lkc = null;      // the clause is about a specific box elsewhere ("the loan account balance" of a business loan)
+        var tcp = cellParts(target), waitingHere = false;
+        if (lkc && tcp && !answered) {                                                                        // a plain answer to the box being asked is an answer, not a new row
+          var probe = answerFor(defOf(target), seg, valueOf(target));
+          waitingHere = (tcp.list === lkc || words <= 4 || probe.kind === 'fill' || probe.kind === 'confirm') && nFacts <= 1;
+        }
+        var explicitIntro = !!(cc && /\b(?:have|has|got|had|there are|there is|with|we've|i've|three|two|one|four|five)\b/i.test(core));
+        if (lkc && !waitingHere && (explicitIntro || (nFacts && !namesColumn))) {
+          if (cc && cc > 1) { addRows(lkc, cc); if (rf.leftover > 1) sure = false; return; }
+          introRow(lkc, rf); if (rf.leftover > 1) sure = false; return;
         }
         if (lkc && NEGATE_HAVE.test(seg) && !Object.keys(idx.byId).some(function (id) { return idx.byId[id].none && matchQuestion(core, idx, near) && matchQuestion(core, idx, near).id === id; })) { answered = true; return; }   // "no children": nothing to record
       }
@@ -885,6 +983,7 @@
         if (!isChatter(core)) sure = false;
         return;
       }
+      if (selfAsk && target && !answered && !isChatter(seg)) { sure = false; return; }                  // the rest of the same sentence is not an answer to a box the page moved to itself: Claude reads it
       if (target && !answered && !/^count:/.test(target)) {                // a plain statement while a box is waiting answers it
         var a = answerFor(defOf(target), seg, valueOf(target));
         if (a.kind === 'fill' || a.kind === 'confirm') { var longText = words >= 6 && isFreeText(defOf(target)); actions.push({ do: a.kind, field: target, res: a, tentative: longText }); answered = true; if (longText) sure = false; return; }

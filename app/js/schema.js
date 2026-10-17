@@ -308,7 +308,7 @@
       { k: 'name', l: 'Full name' }, { k: 'id', l: 'ID number' }, { k: 'cell', l: 'Cell number' }, { k: 'pct', l: 'Shareholding %', num: 1 }
     ], sum: {} },
     debts: { cards: 'Debt', title: 'Debts', add: 'Add debt', cols: [
-      { k: 'prov', l: 'Loan provider / bank', o: BANKS }, { k: 'prov_other', l: 'Other (if the bank is not in the list)' }, { k: 'type', l: 'Type', o: ['Home loan', 'Vehicle finance', 'Credit card', 'Personal loan', 'Revolving credit', 'Other'] },
+      { k: 'type', l: 'Type', o: ['Home loan', 'Vehicle finance', 'Credit card', 'Personal loan', 'Revolving credit', 'Other'] }, { k: 'prov', l: 'Loan provider / bank', o: BANKS }, { k: 'prov_other', l: 'Other (if the bank is not in the list)' },
       { k: 'desc', l: 'Description' }, { k: 'owner', l: 'Owner', o: WHO }, { k: 'payer', l: 'Payer', o: WHO }, { k: 'term', l: 'Term left' },
       { k: 'inst', money: 1, l: 'Instalment (R p.m.)', num: 1 }, { k: 'bal', money: 1, l: 'Balance (R)', num: 1 }, { k: 'asset', money: 1, l: 'Asset value (R)', num: 1 },
       { k: 'cl', l: 'Credit life with lender', o: YN }, { k: 'surety', l: 'Surety signed', o: ['Yes', 'No', 'Unsure'] },
