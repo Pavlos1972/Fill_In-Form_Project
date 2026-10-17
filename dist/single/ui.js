@@ -537,7 +537,7 @@
       case 'cmd': return vmCommand(a.cmd);
       case 'section': return vmOpenSection(a.section);
       case 'ask': return f && vmVisible(f) ? vmPoint(a.field) : null;
-      case 'wait': return vm.target ? vmNote(vm.target, 'Waiting for the correct answer') : null;
+      case 'wait': return vm.target ? vmNote(vm.target, a.dangling ? 'Listening for the rest' : 'Waiting for the correct answer') : null;
       case 'confirm': case 'fill':
         if (!f || !vmVisible(f)) return;
         var cell = state.f[a.field], res = a.res;
@@ -589,8 +589,12 @@
   $('#vdText').addEventListener('keydown', function (e) {
     if (e.key !== 'Enter') return;
     e.preventDefault();
-    var raw = this.value, c = /^\s*(?:c\s*:|clients?\s*:)\s*(.*)$/i.exec(raw), a = /^\s*(?:m|me|adviser|advisor)\s*:\s*(.*)$/i.exec(raw);
-    vmHear(c ? c[1] : a ? a[1] : raw, c ? 'client' : a ? 'me' : undefined); this.value = '';
+    /* Dictation may still be finishing its last word when Return is tapped, so read the line a moment later. */
+    var el = this;
+    setTimeout(function () {
+      var raw = el.value, c = /^\s*(?:c\s*:|clients?\s*:)\s*(.*)$/i.exec(raw), a = /^\s*(?:m|me|adviser|advisor)\s*:\s*(.*)$/i.exec(raw);
+      el.value = ''; vmHear(c ? c[1] : a ? a[1] : raw, c ? 'client' : a ? 'me' : undefined);
+    }, 350);
   });
 
   /* Open on a fresh page. The last client comes back only if it had unsaved changes. */

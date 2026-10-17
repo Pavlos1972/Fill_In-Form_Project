@@ -364,8 +364,36 @@
   var LEAD_NAME = /^(?:my (?:first |full |sur)?name is |my (?:first |sur)?name's |i am |i'm |it's |it is |that's |that is |the name is |name is |it's called |called |surname is |first name is |my surname is |this is )/i;
   var LEAD_COMPANY = /^(?:i (?:currently )?(?:work|am working|'m working|am employed|'m employed)\s+(?:at|for|with|in)\s+|i'?m (?:at|with|employed (?:at|by|with))\s+|i am (?:at|with|employed (?:at|by|with))\s+|it'?s |it is |the company is |company is |we are |for |at |with |it's called |called |the name is |name is |my company is |my employer is |employer is )/i;
   var LEAD_OCC = /^(?:i(?:'m| am) (?:now |currently |still |just )?(?:a |an |the )?|i work as (?:a |an |the )?|i'm working as (?:a |an |the )?|my (?:job|occupation|role|position|title) is (?:a |an |the )?|i do |i'm doing |i am doing |it's |it is )/i;
+  /* The words around an answer are not part of it: "my second name my surname is Snow" means Snow. A leading run of such words (possessives,
+     "is", "called", the box's own name) is dropped when it holds a marker word; if nothing is left, no answer has been given yet. */
+  var NAMEVOC = ['name', 'names', 'first', 'second', 'last', 'sur', 'surname', 'family', 'given', 'christian', 'full'];
+  var GENVOC = ['my', 'your', 'his', 'her', 'their', 'our', 'the', 'is', 'are', 'was', 'were', "it's", 'its', "that's", 'thats', 'it', 'that', 'called', 'named', 'um', 'uh', 'er', 'oh', 'well', 'so', 'and', 'but', 'okay', 'ok', 'yes', 'yeah', 'no', 'right', 'actually', 'then', 'now'];
+  var MARKERS = ['is', 'are', 'was', 'were', "it's", "that's", 'thats', 'called', 'named'];
+  function stripLead(f, s) {
+    var isName = NAME_IDS.indexOf(f.id) >= 0, own = norm(f.label || '').split(' ').filter(Boolean);
+    var voc = GENVOC.concat(own, isName ? NAMEVOC : []), mark = MARKERS.concat(own, isName ? NAMEVOC : []);
+    var toks = String(s).trim().split(/\s+/), i = 0, hasMark = false;
+    while (i < toks.length) {
+      var w = toks[i].toLowerCase().replace(/[.,;:!?]+$/, '');
+      if (voc.indexOf(w) < 0) break;
+      if (mark.indexOf(w) >= 0) hasMark = true;
+      i++;
+    }
+    return hasMark ? toks.slice(i).join(' ') : toks.join(' ');
+  }
+  /* Does what is left look like an answer rather than a sentence fragment? */
+  function looksLikeValue(f, c) {
+    if (!c || /(?:^|\s)(?:is|are|was|were|am|and|but|the|a|an|of|my|your)[.,;:!?]*\s*$/i.test(c)) return false;
+    if (/^(?:my|your)\s/i.test(c)) return false;
+    if (NAME_IDS.indexOf(f.id) >= 0) {
+      var t = c.split(/\s+/);
+      if (t.length > 5 || !/^[A-Za-zÀ-ÿ'’.\- ]+$/.test(c)) return false;
+      return !t.some(function (w) { w = w.toLowerCase().replace(/[.,]+$/, ''); return GENVOC.indexOf(w) >= 0 || NAMEVOC.indexOf(w) >= 0 || w === 'i' || w === "i'm" || w === 'am'; });
+    }
+    return true;
+  }
   function cleanText(f, raw) {
-    var s = String(raw).trim().replace(FILLER, '').trim();
+    var s = stripLead(f, String(raw).trim().replace(FILLER, '').trim()).trim();
     var id = f.id;
     if (NAME_IDS.indexOf(id) >= 0) s = s.replace(LEAD_NAME, '');
     else if (COMPANY_IDS.indexOf(id) >= 0) s = s.replace(LEAD_COMPANY, '');
@@ -538,7 +566,8 @@
       return { value: String(y), status: 'heard' };
     }
     var c = cleanText(f, raw);
-    if (!c) return null;
+    if (!c) return { error: 'lead-in-only' };
+    if (!looksLikeValue(f, c)) return { error: 'unclear', note: 'not a clear answer: "' + c + '"' };
     if (NAME_IDS.indexOf(id) >= 0) return { value: titleCase(c), status: 'verify' };
     if (f.t === 'area') return { value: c.charAt(0).toUpperCase() + c.slice(1), status: 'heard', append: true };
     if (COMPANY_IDS.indexOf(id) >= 0 && c === c.toLowerCase()) c = titleCase(c);
@@ -569,6 +598,10 @@
       if (!core) return;
       var cmd = parseCommand(core, idx);
       if (cmd) { actions.push({ do: 'cmd', cmd: cmd }); return; }
+      if (!isQ && !WH.test(core) && /\b(?:is|are|was|were)[.,;:!]*\s*$/i.test(core)) {   // "my surname is" ... and then nothing yet: glow that box and keep listening
+        var dh = matchQuestion(core, idx, near);
+        if (dh && dh.score >= 2.5 && visible(dh.id)) { actions.push({ do: 'ask', field: dh.id }); target = dh.id; answered = false; return; }
+      }
       var m = !isQ && !WH.test(core) ? ASSERT.exec(core) : null;           // "your first name is John", "my surname is Peters"
       if (m) {
         var hit = matchQuestion((m[1] || '') + m[2], idx, near);
@@ -586,7 +619,7 @@
       if (target && !answered) {                                           // a plain statement while a box is waiting answers it
         var a = answerFor(idx.byId[target], seg, valueOf(target));
         if (a.kind === 'fill' || a.kind === 'confirm') { actions.push({ do: a.kind, field: target, res: a }); answered = true; if (words >= 6) sure = false; return; }
-        if (a.kind === 'wait') { actions.push({ do: 'wait', field: target }); return; }
+        if (a.kind === 'wait') { actions.push({ do: 'wait', field: target, dangling: !!a.dangling }); return; }
         sure = false; return;
       }
       if (!isChatter(seg)) sure = false;
@@ -624,6 +657,7 @@
     }
     var r = interpret(f, raw);
     if (!r) return { kind: 'none' };
+    if (r.error === 'lead-in-only') return { kind: 'wait', dangling: true };
     if (r.error) return { kind: 'error', error: r.error, note: r.note };
     if (existing && norm(r.value) === norm(existing)) return { kind: 'confirm' };
     return { kind: 'fill', value: r.value, status: r.status, extra: r.extra, append: r.append, note: r.note };

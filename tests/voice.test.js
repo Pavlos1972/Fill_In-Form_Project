@@ -323,3 +323,26 @@ test('a check-back tag on a stated fact is not part of the value', () => {
   assert.strictEqual(brief(planOf('so your surname is Peters, correct', { cur: 'info' })), 'fill:sname=Peters');
   assert.strictEqual(brief(planOf('your employer is Discovery, correct?', { cur: 'occ' })), 'ask:employer');
 });
+
+/* ---- never type what was merely heard: the lead-in words are not the answer ---- */
+test('lead-in words, repeated or dangling, are never put in a box', () => {
+  const sname = f('sname'), fname = f('fname'), employer = f('employer');
+  assert.strictEqual(V.answerFor(sname, 'my second name my surname is Snow', '').value, 'Snow');
+  assert.strictEqual(V.answerFor(sname, 'My second name my surname is', '').kind, 'wait');
+  assert.strictEqual(V.answerFor(sname, 'my surname is', '').dangling, true);
+  assert.strictEqual(V.answerFor(fname, 'Oh, my first name is John', '').value, 'John');
+  assert.notStrictEqual(V.answerFor(fname, 'John my second', '').kind, 'fill');
+  assert.notStrictEqual(V.answerFor(fname, 'is the', '').kind, 'fill');
+  assert.strictEqual(V.answerFor(employer, 'my employer is', '').kind, 'wait');
+  assert.strictEqual(V.answerFor(employer, 'my employer Discovery', '').value, 'Discovery');
+  assert.strictEqual(V.answerFor(employer, 'The Foschini Group', '').value, 'The Foschini Group');
+  assert.strictEqual(V.answerFor(employer, 'Name Brand Holdings', '').value, 'Name Brand Holdings');
+});
+test('a sentence that stops before the answer glows that box and keeps listening, and the answer then fills it', () => {
+  assert.strictEqual(brief(planOf('My second name my surname is')), 'ask:sname');
+  assert.ok(planOf('My second name my surname is').sure);
+  assert.strictEqual(brief(planOf('Snow', { target: 'sname', answered: false })), 'fill:sname=Snow');
+  assert.strictEqual(brief(planOf('my surname is', { target: 'sname', answered: false })), 'ask:sname');
+  assert.strictEqual(brief(planOf('John my second', { target: 'fname', answered: false })), '');
+  assert.ok(!planOf('John my second', { target: 'fname', answered: false }).sure);
+});
