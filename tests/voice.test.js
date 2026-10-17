@@ -485,7 +485,7 @@ test('another child, one more policy, another one: each adds a row and asks its 
   assert.strictEqual(briefL(planL('Add another child', thandi)), 'addrow(kids) ask:kids:1:name');
   assert.strictEqual(briefL(planL('another one', thandi)), 'addrow(kids) ask:kids:1:name');
   assert.strictEqual(briefL(planL('one more policy', { cur: 'cover' })), 'addrow(risk) ask:risk:0:prov');
-  assert.strictEqual(briefL(planL('add a debt', { cur: 'debts' })), 'addrow(debts) ask:debts:0:prov');
+  assert.strictEqual(briefL(planL('add a debt', { cur: 'debts' })), 'addrow(debts) ask:debts:0:type');
   assert.strictEqual(briefL(planL('another one', { cur: 'income' })), '');                // no list in that section
   assert.strictEqual(briefL(planL('next child', thandi)), 'addrow(kids) ask:kids:1:name');
 });
@@ -497,4 +497,47 @@ test('debts and policies: balances, instalments and providers', () => {
   assert.strictEqual(briefL(planL('yes', { cur: 'debts', target: 'debts:0:cl', answered: false })), 'fill:debts:0:cl=Yes');
   assert.strictEqual(briefL(planL('Old Mutual', { cur: 'cover', target: 'risk:0:prov', answered: false })), 'fill:risk:0:prov=Old Mutual');
   assert.strictEqual(briefL(planL('the premium is R1 200 a month', { cur: 'cover', rows: { risk: [{ prov: 'Old Mutual' }] }, curRow: { risk: 0 } })), 'fill:risk:0:spend=R 1 200.00');
+});
+
+/* ---- "I have a home loan with ABSA bank": a row introduced in a sentence is filled from what the sentence says ---- */
+test('a sentence that introduces a row fills what it says about it', () => {
+  const d = (t, o) => briefL(planL(t, Object.assign({ cur: 'debts' }, o || {})));
+  assert.strictEqual(d('I have a home loan with ABSA bank'), 'addrow(debts) fill:debts:0:type=Home loan fill:debts:0:prov=ABSA ask:debts:0:desc');
+  assert.ok(planL('I have a home loan with ABSA bank', { cur: 'debts' }).sure);
+  assert.strictEqual(d('we have a bond with Standard Bank, about R6 200 a month'), 'addrow(debts) fill:debts:0:type=Home loan fill:debts:0:prov=Standard Bank fill:debts:0:inst=R 6 200.00 ask:debts:0:desc');
+  assert.strictEqual(d('I have a car loan with Wesbank'), 'addrow(debts) fill:debts:0:type=Vehicle finance fill:debts:0:prov=Wesbank ask:debts:0:desc');
+  assert.strictEqual(d('I have a credit card with Capitec'), 'addrow(debts) fill:debts:0:type=Credit card fill:debts:0:prov=Capitec ask:debts:0:desc');
+  assert.strictEqual(d('I have a home loan'), 'addrow(debts) fill:debts:0:type=Home loan ask:debts:0:prov');
+  assert.strictEqual(d('I have a home loan with Bank of Athens'), 'addrow(debts) fill:debts:0:type=Home loan fill:debts:0:prov=Other fill:debts:0:prov_other=Bank of Athens ask:debts:0:desc');
+  assert.strictEqual(d('my home loan is with FNB', { rows: { debts: [{ type: 'Home loan' }] }, curRow: { debts: 0 } }), 'fill:debts:0:type=Home loan fill:debts:0:prov=FNB ask:debts:0:desc');
+});
+test('two items in one breath become two rows', () => {
+  assert.strictEqual(briefL(planL('I have a home loan with ABSA bank and a car loan with Wesbank', { cur: 'debts' })),
+    'addrow(debts) fill:debts:0:type=Home loan fill:debts:0:prov=ABSA ask:debts:0:desc addrow(debts) fill:debts:1:type=Vehicle finance fill:debts:1:prov=Wesbank ask:debts:1:desc');
+  assert.strictEqual(briefL(planL('we have a daughter called Thandi and a son, Sipho', { cur: 'kids' })).replace(/ask:\S+/g, '').replace(/\s+/g, ' ').trim(),
+    'addrow(kids) fill:kids:0:gender=Female fill:kids:0:name=Thandi addrow(kids) fill:kids:1:gender=Male fill:kids:1:name=Sipho');
+});
+test('retirement funds, policies and children work the same way', () => {
+  assert.strictEqual(briefL(planL('I have a life policy with Discovery paying R900 a month', { cur: 'cover' })), 'addrow(risk) fill:risk:0:prov=Discovery fill:risk:0:spend=R 900.00 ask:risk:0:broker');
+  assert.strictEqual(briefL(planL('I have a retirement annuity with Allan Gray', { cur: 'cover' })), 'addrow(ret) fill:ret:0:type=Retirement annuity fill:ret:0:prov=Allan Gray ask:ret:0:val');
+  assert.strictEqual(briefL(planL('we have a daughter called Thandi, born 22 August 2019', { cur: 'kids' })).replace(/ask:\S+/g, '').replace(/\s+/g, ' ').trim(), 'addrow(kids) fill:kids:0:gender=Female fill:kids:0:name=Thandi fill:kids:0:dob=22/08/2019');
+});
+test('"yes, a home loan with ABSA" answers "do you have any debts?" and fills the row', () => {
+  assert.strictEqual(briefL(planL('yes, a home loan with ABSA', { cur: 'debts', target: 'count:debts', answered: false })), 'addrow(debts) fill:debts:0:type=Home loan fill:debts:0:prov=ABSA ask:debts:0:desc');
+});
+test('a plain answer to the box being asked stays an answer, even when it holds a list word', () => {
+  assert.strictEqual(briefL(planL('Home loan', { cur: 'debts', target: 'debts:0:type', answered: false })), 'fill:debts:0:type=Home loan');
+  assert.strictEqual(briefL(planL('Unit trust / voluntary funds', { cur: 'q_ret', target: 'invq:0:product', answered: false })), 'fill:invq:0:product=Unit trust / voluntary funds');
+  assert.strictEqual(briefL(planL('Home loan with ABSA bank', { cur: 'debts', target: 'debts:0:type', answered: false, rows: { debts: [{}] }, curRow: { debts: 0 } })), 'fill:debts:0:type=Home loan fill:debts:0:prov=ABSA ask:debts:0:desc');
+});
+test('what the page asks for itself is not answered by the rest of the same sentence', () => {
+  const p = planL('I have a home loan with ABSA bank and we owe it jointly', { cur: 'debts' });
+  assert.ok(!p.actions.some(a => a.field === 'debts:0:desc' && a.do === 'fill'));      // "we owe it jointly" is not a Description
+  assert.ok(!p.sure);                                                                    // it is left for Claude to read
+});
+test('a statement about a box elsewhere is not turned into a new debt', () => {
+  assert.strictEqual(briefL(planL('my loan account balance is R85 000', { cur: 'q_biz' })), 'fill:cl_bal=R 85 000.00');
+  assert.strictEqual(briefL(planL('the balance on the home loan is R450 000', { cur: 'debts', rows: { debts: [{ type: 'Home loan', prov: 'ABSA' }, { type: 'Vehicle finance' }] }, curRow: { debts: 1 } })), 'fill:debts:0:bal=R 450 000.00');
+  assert.strictEqual(V.parseCommand('add a debt', idx).type, 'addrow');
+  assert.deepStrictEqual(require('../app/js/schema.js').lists.debts.cols.map(c => c.k).slice(0, 3), ['type', 'prov', 'prov_other']);   // Type comes before the loan provider
 });
