@@ -270,3 +270,19 @@ test('answers that cannot be used are reported, not guessed', () => {
 test('private fields are the ones that are never sent to Claude', () => {
   assert.deepStrictEqual([...V.PRIVATE_IDS].sort(), ['cell', 'home', 'idno', 'pemail', 'sp_tel', 'tax', 'wemail', 'work']);
 });
+
+test('the adviser asking or steering is told apart from the client answering', () => {
+  const asks = ['What is your occupation', 'what is your occupation?', "Let's talk about your employer", 'who do you work for', 'Do you work for a company', 'Are you employed', 'Tell me about your job',
+    'you work for a company, right?', 'So you work at Discovery', 'And your employer', 'Okay, now how long have you been there', "Can you tell me your cell number", 'Next, your employer', 'Where do you live', 'Employer?',
+    'Have you got any children', 'Moving on to health', "I'd like to ask about your health", 'Your date of birth', 'How old are you'];
+  const answers = ['my employer is Discovery', 'My employer is Discovery.', "I'm a teacher", 'I work for Discovery', 'Discovery', 'Discovery Limited', "it's Discovery", 'yes that is correct', 'No, I changed jobs last year',
+    'I have two children', 'about eight years', 'Next year in March', 'We live in Cape Town', 'My cell is 082 555 0148', 'I do not smoke', 'two', 'Well, my employer is Discovery'];
+  asks.forEach(t => assert.ok(V.looksLikeQuestion(t), 'should be the adviser: ' + t));
+  answers.forEach(t => assert.ok(!V.looksLikeQuestion(t), 'should be the client: ' + t));
+  assert.ok(!V.looksLikeQuestion('') && !V.looksLikeQuestion(null));
+});
+
+test('acknowledgements and small talk are ignored, real answers are not', () => {
+  ['okay great', 'Perfect, thank you', 'Thanks so much', 'mm hm', 'I see', 'Lovely.', 'Alright, that is fine', 'ok'].forEach(t => assert.ok(V.isChatter(t), 'chatter: ' + t));
+  ['my employer is Discovery', "I'm a teacher", 'Discovery', 'two', 'no I changed jobs', 'yes Discovery', 'that is correct, I am married'].forEach(t => assert.ok(!V.isChatter(t), 'not chatter: ' + t));
+});
