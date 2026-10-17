@@ -1,0 +1,740 @@
+<title>Live Fact Find</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: three columns - section list | the form being filled | live transcript. Stacks on narrow screens. */
+:root {
+  --bg: #eef3f6; --surface: #ffffff; --surface-2: #f6f9fb; --ink: #13222c; --muted: #596a76; --line: #d5dfe6;
+  --accent: #1b86b8; --accent-soft: #e1f1f8; --accent-ink: #ffffff;
+  --ok: #1c7a4b; --ok-soft: #e0f3e8; --warn: #9a5a00; --warn-soft: #fff0d1; --calc: #6a7782; --calc-soft: #edf1f4;
+  --new: #7a3fb0; --new-soft: #f0e6fa;
+  --font: "IBM Plex Sans", system-ui, "Segoe UI", sans-serif; --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0f1a21; --surface: #16252e; --surface-2: #1b2d38; --ink: #e6eef3; --muted: #93a6b3; --line: #2b404d;
+  --accent: #4fb4e0; --accent-soft: #163847; --accent-ink: #08202b;
+  --ok: #5cc98d; --ok-soft: #163a29; --warn: #f0b35a; --warn-soft: #3d2d10; --calc: #9fb0bb; --calc-soft: #213440;
+  --new: #c39af0; --new-soft: #2d2142; color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #0f1a21; --surface: #16252e; --surface-2: #1b2d38; --ink: #e6eef3; --muted: #93a6b3; --line: #2b404d;
+  --accent: #4fb4e0; --accent-soft: #163847; --accent-ink: #08202b;
+  --ok: #5cc98d; --ok-soft: #163a29; --warn: #f0b35a; --warn-soft: #3d2d10; --calc: #9fb0bb; --calc-soft: #213440;
+  --new: #c39af0; --new-soft: #2d2142; color-scheme: dark; }
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font: 14px/1.45 var(--font); padding-inline: max(16px, env(safe-area-inset-left, 0px)) max(16px, env(safe-area-inset-right, 0px)); padding-block: 14px 40px; }
+h1, h2, h3, p { margin: 0; }
+button, select, input, textarea { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+.top { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px; padding: 10px 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
+.top h1 { font-size: 16px; font-weight: 600; }
+.top .who { color: var(--muted); }
+.top .who b { color: var(--ink); font-weight: 500; }
+.grow { flex: 1 1 auto; }
+.pill { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; padding: 3px 9px; border-radius: 99px; background: var(--calc-soft); color: var(--calc); white-space: nowrap; }
+.pill.ok { background: var(--ok-soft); color: var(--ok); }
+.pill.rec::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: #d23b3b; }
+.mockflag { font: 500 11px var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--warn); background: var(--warn-soft); padding: 3px 8px; border-radius: 4px; }
+
+.app { display: grid; grid-template-columns: 210px minmax(0, 1fr) 320px; gap: 14px; margin-top: 14px; align-items: start; }
+@media (max-width: 1080px) { .app { grid-template-columns: 190px minmax(0, 1fr); } .side { grid-column: 1 / -1; } }
+@media (max-width: 720px) { .app { grid-template-columns: minmax(0, 1fr); } }
+
+.nav { display: flex; flex-direction: column; gap: 2px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 6px; position: sticky; top: env(safe-area-inset-top, 0px); }
+@media (max-width: 720px) { .nav { flex-direction: row; overflow-x: auto; position: static; } }
+.nav button { white-space: normal; display: flex; justify-content: space-between; align-items: center; gap: 10px; text-align: left; background: none; border: 0; padding: 8px 10px; border-radius: 6px; cursor: pointer; }
+.nav button:hover { background: var(--surface-2); }
+.nav button[aria-current="true"] { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+.nav .n { font: 11px var(--mono); color: var(--muted); }
+.nav .sep { font: 500 10px var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); padding: 10px 10px 2px; }
+@media (max-width: 720px) { .nav .sep { display: none; } }
+
+.main { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 18px; min-width: 0; }
+.main > header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; margin-bottom: 14px; }
+.main h2 { font-size: 19px; font-weight: 600; }
+.tier { font: 500 11px var(--mono); letter-spacing: .05em; text-transform: uppercase; padding: 2px 7px; border-radius: 4px; background: var(--accent-soft); color: var(--accent); }
+.tier.c { background: var(--calc-soft); color: var(--calc); }
+.grid + .note, .tablewrap + .note, .addrow + .note { margin-top: 14px; }
+.note { background: var(--surface-2); border: 1px solid var(--line); border-radius: 6px; padding: 9px 12px; color: var(--muted); margin-bottom: 14px; font-size: 13px; }
+.note b { color: var(--ink); font-weight: 500; }
+.note.new { background: var(--new-soft); border-color: transparent; color: var(--new); }
+.note.new b { color: var(--new); }
+.block-title { font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin: 18px 0 8px; }
+.block-title:first-of-type { margin-top: 0; }
+
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px 14px; }
+.f { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.f.wide { grid-column: 1 / -1; }
+.f > span.l { font-size: 12px; color: var(--muted); display: flex; justify-content: space-between; gap: 6px; }
+.f .box { position: relative; display: flex; }
+.f input, .f select, .f textarea { width: 100%; min-width: 0; border: 1px solid var(--line); background: var(--surface); border-radius: 6px; padding: 7px 78px 7px 9px; min-height: 34px; }
+.f select { padding-right: 96px; }
+.f textarea { padding-right: 9px; min-height: 56px; resize: vertical; }
+.f .st { position: absolute; right: 24px; pointer-events: auto; top: 50%; transform: translateY(-50%); }
+.f.s-empty input, .f.s-empty select { background: var(--surface-2); border-style: dashed; }
+.f.s-heard input, .f.s-heard select, .f.s-heard textarea { border-color: var(--accent); background: var(--accent-soft); }
+.f.s-verify input, .f.s-verify select { border-color: var(--warn); background: var(--warn-soft); }
+.f.s-confirmed input, .f.s-confirmed select, .f.s-confirmed textarea { border-color: var(--ok); }
+.f.s-calc input, .f.s-preset input, .f.s-preset select { background: var(--calc-soft); color: var(--calc); border-color: var(--line); }
+.f.flash input, .f.flash select { animation: flash 1.4s ease-out; }
+@keyframes flash { from { box-shadow: 0 0 0 4px var(--accent); } to { box-shadow: 0 0 0 0 transparent; } }
+@media (prefers-reduced-motion: reduce) { .f.flash input, .f.flash select { animation: none; } }
+
+.badge { font: 500 10px var(--mono); letter-spacing: .04em; text-transform: uppercase; padding: 2px 6px; border-radius: 4px; border: 0; cursor: default; white-space: nowrap; }
+.badge.empty { background: transparent; color: var(--muted); }
+.badge.heard { background: var(--accent); color: var(--accent-ink); cursor: pointer; }
+.badge.verify { background: var(--warn); color: var(--surface); cursor: pointer; }
+.badge.confirmed { background: var(--ok-soft); color: var(--ok); }
+.badge.calc, .badge.preset { background: var(--calc-soft); color: var(--calc); }
+.badge.suggest { background: var(--accent); color: var(--accent-ink); cursor: pointer; }
+.badge.newcol { background: var(--new); color: var(--surface); }
+
+.tablewrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 6px; }
+table { width: 100%; border-collapse: collapse; min-width: 640px; }
+th { text-align: left; font: 500 11px var(--mono); letter-spacing: .05em; text-transform: uppercase; color: var(--muted); background: var(--surface-2); padding: 7px 8px; white-space: nowrap; }
+td { padding: 5px 6px; border-top: 1px solid var(--line); vertical-align: middle; }
+td input, td select { width: 100%; min-width: 80px; border: 1px solid transparent; background: transparent; border-radius: 4px; padding: 5px 6px; }
+td input:hover, td select:hover { border-color: var(--line); }
+tr.s-heard td { background: var(--accent-soft); }
+tr.s-verify td { background: var(--warn-soft); }
+tr.flash td { animation: rowflash 1.6s ease-out; }
+@keyframes rowflash { from { background: var(--accent); } }
+@media (prefers-reduced-motion: reduce) { tr.flash td { animation: none; } }
+td.num input { text-align: right; font-variant-numeric: tabular-nums; }
+tfoot td { background: var(--surface-2); font-weight: 600; font-variant-numeric: tabular-nums; }
+.addrow { margin-top: 8px; background: none; border: 1px dashed var(--accent); color: var(--accent); border-radius: 6px; padding: 6px 12px; cursor: pointer; }
+.addrow:hover { background: var(--accent-soft); }
+.x { background: none; border: 0; color: var(--muted); cursor: pointer; padding: 2px 6px; border-radius: 4px; }
+.x:hover { color: var(--ink); background: var(--calc-soft); }
+
+.check { display: flex; align-items: center; gap: 8px; padding: 6px 0; }
+.adv .f input, .adv .f select { padding-right: 9px; }
+.adv-lock { opacity: .94; }
+
+.side { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 14px; }
+.card h3 { font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin-bottom: 10px; }
+.legend { display: grid; grid-template-columns: auto 1fr; gap: 6px 10px; align-items: center; font-size: 12.5px; color: var(--muted); }
+.log { display: flex; flex-direction: column; gap: 8px; max-height: 430px; overflow-y: auto; }
+.msg { border-radius: 6px; padding: 7px 9px; font-size: 13px; }
+.msg .who { font: 500 10px var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); display: block; margin-bottom: 2px; }
+.msg.q { background: var(--surface-2); }
+.msg.a { background: var(--accent-soft); }
+.msg.skip { color: var(--muted); border: 1px dashed var(--line); font-style: italic; }
+.msg .got { margin-top: 5px; display: flex; flex-wrap: wrap; gap: 4px; }
+.chip { font: 11px var(--mono); padding: 2px 6px; border-radius: 4px; background: var(--surface); border: 1px solid var(--line); }
+.chip.v { border-color: var(--warn); color: var(--warn); }
+.ctrl { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+.btn { background: var(--accent); color: var(--accent-ink); border: 0; border-radius: 6px; padding: 7px 12px; cursor: pointer; font-weight: 500; }
+.btn.ghost { background: none; border: 1px solid var(--line); color: var(--ink); }
+.btn:disabled { opacity: .45; cursor: default; }
+.summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; text-align: center; }
+.summary b { display: block; font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.summary span { font-size: 11px; color: var(--muted); }
+.foot { margin-top: 16px; font-size: 12px; color: var(--muted); }
+.rowcard { border: 1px solid var(--line); border-radius: 8px; padding: 12px 16px 16px; margin-bottom: 12px; background: var(--surface); }
+.rowcard.s-heard { background: var(--accent-soft); border-color: var(--accent); }
+.rowcard.s-verify { background: var(--warn-soft); border-color: var(--warn); }
+.rowcard.flash { animation: cardflash 1.6s ease-out; }
+@keyframes cardflash { from { box-shadow: 0 0 0 4px var(--accent); } to { box-shadow: 0 0 0 0 transparent; } }
+@media (prefers-reduced-motion: reduce) { .rowcard.flash { animation: none; } }
+.rowhead { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.rowhead b { font-weight: 600; }
+.rowcard .grid { grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 14px 22px; }
+.rowcard .f input, .rowcard .f select { padding-right: 9px; background: var(--surface); }
+.rowcard .f input[readonly] { background: var(--calc-soft); color: var(--calc); }
+.sumstrip { display: flex; flex-wrap: wrap; gap: 6px 22px; padding: 10px 14px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 6px; font-variant-numeric: tabular-nums; margin-bottom: 10px; }
+.sumstrip span { color: var(--muted); }
+.sumstrip b { margin-left: 6px; font-weight: 600; }
+.lnk { font-size: 12px; color: var(--accent); text-decoration: none; white-space: nowrap; }
+.lnk:hover { text-decoration: underline; }
+.lookup { background: none; border: 0; color: var(--accent); cursor: pointer; font-size: 12px; padding: 0; white-space: nowrap; }
+.lookup:hover { text-decoration: underline; }
+.f > span.l .rt { display: inline-flex; gap: 8px; align-items: center; }
+.empty-list { padding: 14px; color: var(--muted); border: 1px dashed var(--line); border-radius: 6px; margin-bottom: 10px; }
+.sub { font-size: 13px; color: var(--muted); margin: -4px 0 10px; }
+</style>
+
+<div class="top">
+  <h1>Live Fact Find</h1>
+  <span class="who">Client <b>Sample Client</b> · Teams call · <b id="clock">00:12:40</b></span>
+  <span class="pill ok">Consent to record: Yes</span>
+  <span class="pill rec">Listening</span>
+  <span class="grow"></span>
+  <span class="mockflag">Mock-up · example data only</span>
+</div>
+
+<div class="app">
+  <nav class="nav" id="nav" aria-label="Sections"></nav>
+  <main class="main" id="main"></main>
+  <aside class="side">
+    <div class="card">
+      <h3>Live from the call</h3>
+      <div class="log" id="log" aria-live="polite"></div>
+      <div class="ctrl">
+        <button class="btn" id="next">Play next line</button>
+        <button class="btn ghost" id="reset">Restart</button>
+      </div>
+    </div>
+    <div class="card">
+      <h3>Progress</h3>
+      <div class="summary">
+        <div><b id="sFilled">0</b><span>filled</span></div>
+        <div><b id="sVerify">0</b><span>to verify</span></div>
+        <div><b id="sEmpty">0</b><span>not asked</span></div>
+      </div>
+    </div>
+    <div class="card">
+      <h3>How to read the form</h3>
+      <div class="legend">
+        <span class="badge empty">not asked</span><span>Blank. Never filled with N/A or 0.00.</span>
+        <span class="badge heard">heard</span><span>Filled from the call. Click to accept.</span>
+        <span class="badge verify">verify</span><span>Names, IDs, numbers and amounts. Tick once you have checked.</span>
+        <span class="badge confirmed">confirmed</span><span>You accepted it or typed it.</span>
+        <span class="badge calc">calc</span><span>Worked out by the software.</span>
+        <span class="badge newcol">new</span><span>Added in this revision.</span>
+      </div>
+    </div>
+  </aside>
+</div>
+
+<p class="foot">Mock-up of the proposed revised Fact Find. Every value shown is example data. The "Play next line" button simulates the call so you can see fields fill as the client speaks.</p>
+
+<script>
+(function () {
+  var $ = function (s) { return document.querySelector(s); };
+  var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
+  var num = function (v) { var n = parseFloat(String(v == null ? '' : v).replace(/[^0-9.\-]/g, '')); return isNaN(n) ? 0 : n; };
+  var fmt = function (n) { return 'R ' + Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' '); };
+
+  var YN = ['Yes', 'No'], BROKER = ['Paul K', 'Other broker', 'Through company', 'None'];
+  var INS = ['Old Mutual', 'Momentum', 'Liberty', 'Sanlam', 'Discovery', 'BrightRock', 'Hollard', 'Assupol', 'Clientele', 'Other'];
+  var BANKS = ['Nedbank', 'FNB', 'Investec', 'Standard Bank', 'ABSA', 'Discovery Bank', 'Capitec', 'Wesbank', 'Other'];
+  var WHO = ['Client', 'Spouse', 'Joint', 'Business'];
+  var ACI = ['Fixed', 'CPI', 'None'], REQ = ['Request a quote', 'Not required'];
+  var N = function (id, l) { return { id: id, l: l || 'Notes', t: 'area', wide: 1, opt: 1 }; };
+
+  /* ---------- Direct Net Income (illustrative SARS calculation) ---------- */
+  var BRK = [[245100, 0, .18, 0], [383100, 44118, .26, 245100], [530200, 79998, .31, 383100], [695800, 125599, .36, 530200], [887000, 185215, .39, 695800], [1878600, 259783, .41, 887000], [1e12, 659969, .45, 1878600]];
+  function directNet() {
+    var g = num(S.gross && S.gross.v); if (!g) return '';
+    var ann = g * 12, tax = 0, i;
+    for (i = 0; i < BRK.length; i++) if (ann <= BRK[i][0]) { tax = BRK[i][1] + BRK[i][2] * (ann - BRK[i][3]); break; }
+    var m = /(\d{4})/.exec((S.dob && S.dob.v) || ''), age = m ? 2026 - parseInt(m[1], 10) : 40;
+    var rebate = 17820 + (age >= 65 ? 9765 : 0) + (age >= 75 ? 3249 : 0);
+    tax = Math.max(0, tax - rebate);
+    var uif = Math.min(g, 17712) * 0.01;
+    return fmt((ann - tax) / 12 - uif);
+  }
+  var kidsTotal = function () { return R.kids.reduce(function (a, r) { return a + num(r.d.cost); }, 0); };
+  var debtTotal = function () { return R.debts.reduce(function (a, r) { return a + num(r.d.inst); }, 0); };
+  function riskCalc(p) {
+    return [
+      { id: p + '_hh', l: 'Household net income (R)', t: 'txt', calc: function () { return S.net && S.net.v ? fmt(num(S.net.v)) : ''; } },
+      { id: p + '_cc', l: 'Minus childcare costs (R)', t: 'txt', calc: function () { return R.kids.length ? fmt(kidsTotal()) : ''; } },
+      { id: p + '_dr', l: 'Minus debt repayments (R)', t: 'txt', calc: function () { return R.debts.length ? fmt(debtTotal()) : ''; } },
+      { id: p + '_need', l: 'Total household income needed (R)', t: 'txt', calc: function () { return S.net && S.net.v ? fmt(num(S.net.v) - kidsTotal() - debtTotal()) : ''; } }
+    ];
+  }
+
+  var SECTIONS = [
+    { id: 'info', title: 'Client info', blocks: [
+      { fields: [
+        { id: 'consent', l: 'Consent to record and transcribe', t: 'sel', o: YN },
+        { id: 'advisor', l: 'Advisor', t: 'txt', preset: 'Paul Kafentzis' },
+        { id: 'date', l: 'Date completed', t: 'txt', preset: '14 Oct 2026' },
+        { id: 'meet', l: 'Type of meeting', t: 'txt', preset: 'Teams Meeting' },
+        { id: 'fname', l: 'First name', t: 'txt' },
+        { id: 'sname', l: 'Surname', t: 'txt', risky: 1 },
+        { id: 'dob', l: 'Date of birth', t: 'txt', risky: 1 },
+        { id: 'idtype', l: 'ID or passport', t: 'sel', o: ['ID', 'Passport'] },
+        { id: 'idno', l: 'ID / passport number', t: 'txt', risky: 1 },
+        { id: 'tax', l: 'Income tax number', t: 'txt', risky: 1 },
+        { id: 'cell', l: 'Cell number', t: 'txt', risky: 1 },
+        { id: 'work', l: 'Work number', t: 'txt', risky: 1 },
+        { id: 'pemail', l: 'Personal email', t: 'txt', risky: 1 },
+        { id: 'wemail', l: 'Work email', t: 'txt', risky: 1 },
+        { id: 'nat', l: 'Nationality', t: 'sel', o: ['South African', 'Other'] },
+        { id: 'smoker', l: 'Smoker', t: 'sel', o: ['Non-smoker', 'Smoker'] },
+        { id: 'ref', l: 'Referral from', t: 'sel', o: ['D&R Marketing', 'Current client', 'Referral prospect', 'Spouse', 'Other'] },
+        { id: 'edu', l: 'Highest education', t: 'sel', o: ['Matric', 'Matric & diploma', '4-year diploma', '3-year degree', 'Postgraduate', 'Other'] },
+        { id: 'edu_notes', l: 'Qualification details', t: 'area', wide: 1, isnew: 1 }
+      ] },
+      { note: '<b>Changes:</b> <b>Qualification details</b> text box added under Highest education. Consent tick added at the top (POPIA). The duplicate "ID or Passport" field is gone and the name is split into first name and surname.' }
+    ] },
+    { id: 'income', title: 'Income & household', blocks: [
+      { fields: [
+        { id: 'gross', l: 'Gross monthly income (R)', t: 'txt', risky: 1 },
+        { id: 'dnet', l: 'Direct Net Income (R p.m.)', t: 'txt', link: ['Check on TaxTim', 'https://www.taxtim.com/za/calculators/income-tax'], isnew: 1, calc: directNet },
+        { id: 'net', l: 'Take-home net income (R p.m.)', t: 'txt', risky: 1 },
+        { id: 'exp', l: 'Monthly expenses / budget (R)', t: 'txt', risky: 1 },
+        { id: 'disp', l: 'Disposable income (R)', t: 'txt', calc: function () { return S.net && S.net.v && S.exp && S.exp.v ? fmt(num(S.net.v) - num(S.exp.v)) : ''; } },
+        { id: 'marital', l: 'Marital status', t: 'sel', o: ['Single', 'Married in community of property', 'Married out of community (with accrual)', 'Married out of community (no accrual)', 'Customary marriage', 'Civil union', 'Life partner', 'Divorced', 'Widowed'] },
+        { id: 'sp_name', l: 'Spouse / partner name', t: 'txt', risky: 1 },
+        { id: 'sp_tel', l: 'Spouse telephone number', t: 'txt', risky: 1, isnew: 1 },
+        { id: 'sp_occ', l: 'Spouse occupation', t: 'txt' }
+      ] },
+      { note: '<b>Direct Net Income</b> is worked out automatically from the gross income, using the SARS income tax tables, so you no longer type it into TaxTim. <b>Take-home net income</b> stays a separate field: what the employer actually pays after all deductions. <b>Spouse income, spouse date of birth and spouse smoker are removed</b> (handled in the spouse\'s own Fact Find). <b>Spouse telephone number added.</b>', cls: 'new' },
+      { note: '<b>About the calculation:</b> the figure is the monthly gross less PAYE and UIF, using the 2026/27 SARS rates. It matches all five of your TaxTim results to the cent (R20 000 to R100 000 gross, no pension, under 65). Pension contributions and medical credits are not included yet.' }
+    ] },
+    { id: 'occ', title: 'Occupation', blocks: [
+      { title: 'Work', fields: [
+        { id: 'employed', l: 'Employed', t: 'sel', o: YN },
+        { id: 'employer', l: 'Employer', t: 'txt' },
+        { id: 'co_does', l: 'What does the company do?', t: 'area', wide: 1, lookup: 'employer', isnew: 1 },
+        { id: 'bizowner', l: 'Business owner', t: 'sel', o: YN },
+        { id: 'occ', l: 'Occupation', t: 'txt' },
+        { id: 'ft', l: 'Full time or contract', t: 'sel', o: ['Full time', 'Contract'] },
+        { id: 'years', l: 'Years in this occupation', t: 'txt' }
+      ] },
+      { title: 'Business owner details', cond: function () { return S.bizowner.v === 'Yes'; }, condMsg: 'These fields appear when Business owner is set to Yes. Set it to Yes above to see them.', fields: [
+        { id: 'biz_name', l: 'Business name', t: 'txt', isnew: 1 },
+        { id: 'biz_struct', l: 'Type of ownership', t: 'sel', o: ['Sole proprietor', 'Partnership', 'Private company (Pty) Ltd', 'Close corporation', 'Trust', 'Other'], isnew: 1 },
+        { id: 'biz_does', l: 'What does the business do?', t: 'area', wide: 1, lookup: 'biz_name', isnew: 1 },
+        { id: 'biz_partners', l: 'Has partners or co-owners', t: 'sel', o: YN, isnew: 1 },
+        { id: 'biz_pct', l: 'Your shareholding / interest %', t: 'txt', isnew: 1 },
+        { id: 'biz_loans', l: 'Business loans / surety signed', t: 'sel', o: ['Yes', 'No', 'Unsure'] }
+      ] },
+      { title: 'Partners and shareholders', cond: function () { return S.bizowner.v === 'Yes' && S.biz_partners.v === 'Yes'; }, condMsg: 'Partner and shareholder details appear when Business owner = Yes and Has partners = Yes.', list: 'shares' },
+      { title: 'Duties split (proposed from the description, you confirm)', fields: [
+        { id: 'd_desk', l: 'Deskbound / office %', t: 'txt' },
+        { id: 'd_supo', l: 'Supervising staff in office %', t: 'txt' },
+        { id: 'd_trav', l: 'Travelling (not commute) %', t: 'txt' },
+        { id: 'd_sups', l: 'Supervising staff on site %', t: 'txt' },
+        { id: 'd_light', l: 'Light manual %', t: 'txt' },
+        { id: 'd_mod', l: 'Moderate manual %', t: 'txt' },
+        { id: 'd_heavy', l: 'Heavy manual %', t: 'txt' },
+        { id: 'd_tot', l: 'Total (must be 100%)', t: 'txt', calc: function () { var t = 0, any = 0; ['d_desk', 'd_supo', 'd_trav', 'd_sups', 'd_light', 'd_mod', 'd_heavy'].forEach(function (k) { if (S[k] && S[k].v !== '') { any = 1; t += num(S[k].v); } }); return any ? t + '%' : ''; } },
+        { id: 'd_desc', l: 'Brief description of duties', t: 'area', wide: 1 }
+      ] },
+      { note: '<b>Changes:</b> <b>"What does the company do?"</b> is back. Use <b>Look up online</b> and the software searches the web for the employer and proposes a short summary for you to accept or edit. For a business owner the form now asks for the type of ownership (sole proprietor, partnership, company and so on), whether there are partners, and lists each partner or shareholder with their <b>name, ID number, cell number and shareholding %</b>. These feed the Buy & Sell cover.', cls: 'new' }
+    ] },
+    { id: 'cover', title: 'Existing cover & retirement', blocks: [
+      { title: 'Personal risk cover', fields: [
+        { id: 'has_risk', l: 'Has personal risk cover', t: 'sel', o: YN },
+        { id: 'joint', l: 'Joint cover with spouse', t: 'sel', o: YN },
+        { id: 'has_group', l: 'Group risk through employer', t: 'sel', o: ['Yes', 'No', 'Not sure'] }
+      ] },
+      { list: 'risk' },
+      { title: 'Retirement funding', list: 'ret' },
+      { fields: [N('n_cover')] },
+      { note: '<b>Changes:</b> notes field added.' }
+    ] },
+    { id: 'inv', title: 'Investments', blocks: [
+      { list: 'inv' },
+      { fields: [N('n_inv')] },
+      { note: '<b>Changes:</b> notes field added. Monthly premium (R p.m.) and the removal of Bank Savings stay as agreed.', cls: 'new' }
+    ] },
+    { id: 'other', title: 'Medical, will & short-term', blocks: [
+      { title: 'Medical aid', fields: [
+        { id: 'ma', l: 'Medical aid', t: 'sel', o: ['Medical aid', 'Hospital plan', 'None'] },
+        { id: 'ma_prov', l: 'Medical aid provider', t: 'sel', o: ['Discovery Health', 'Momentum', 'Bonitas', 'Bestmed', 'Fedhealth', 'Medihelp', 'KeyHealth', 'Medshield', 'GEMS', 'POLMED', 'Other'] },
+        { id: 'ma_plan', l: 'Plan', t: 'txt', risky: 1 },
+        { id: 'ma_broker', l: 'Medical aid broker', t: 'sel', o: ['Through company', 'Privately paid, no broker', 'Privately paid, other broker', 'Paul K'] },
+        N('n_ma')
+      ] },
+      { title: 'Gap cover', fields: [
+        { id: 'gap', l: 'Gap cover', t: 'sel', o: YN },
+        { id: 'gap_prov', l: 'Gap cover provider', t: 'txt' },
+        { id: 'gap_broker', l: 'Gap cover broker', t: 'sel', o: ['Through company', 'Privately paid, no broker', 'Privately paid, other broker', 'Paul K'], isnew: 1 },
+        N('n_gap')
+      ] },
+      { title: 'Will', fields: [
+        { id: 'will', l: 'Has a will', t: 'sel', o: YN },
+        { id: 'will_up', l: 'Will is up to date', t: 'sel', o: YN },
+        { id: 'will_where', l: 'Held with', t: 'sel', o: ['Capital Legacy', 'Other provider'] },
+        { id: 'will_broker', l: 'Will broker', t: 'sel', o: ['Paul K', 'Other broker', 'None'], isnew: 1 },
+        { id: 'will_date', l: 'Last updated', t: 'txt' },
+        N('n_will')
+      ] },
+      { title: 'Short-term insurance', fields: [
+        { id: 'sti', l: 'Has short-term insurance', t: 'sel', o: ['Yes', 'No', 'Handled by spouse'] },
+        { id: 'sti_broker', l: 'Short-term broker', t: 'sel', o: ['Cameron Maritz', 'Other broker'] },
+        { id: 'sti_car', l: 'Car', t: 'sel', o: YN },
+        { id: 'sti_house', l: 'Household contents', t: 'sel', o: YN },
+        { id: 'sti_struct', l: 'Structural', t: 'sel', o: YN },
+        { id: 'sti_biz', l: 'Business', t: 'sel', o: YN },
+        N('n_sti')
+      ] },
+      { note: '<b>Changes:</b> <b>Gap cover and Will each have their own Broker field.</b> A notes field was added to every group.', cls: 'new' }
+    ] },
+    { id: 'health', title: 'Health', blocks: [
+      { fields: [
+        { id: 'h_gen', l: 'General health good', t: 'sel', o: YN },
+        { id: 'h_dia', l: 'Diabetes / high sugar', t: 'sel', o: YN },
+        { id: 'h_chol', l: 'High cholesterol', t: 'sel', o: YN },
+        { id: 'h_bp', l: 'High blood pressure', t: 'sel', o: YN },
+        { id: 'h_bmi', l: 'High BMI', t: 'sel', o: YN },
+        { id: 'h_oth', l: 'Other health issues', t: 'sel', o: YN },
+        N('h_notes', 'Health notes')
+      ] }
+    ] },
+    { id: 'debts', title: 'Debts', blocks: [
+      { list: 'debts' },
+      { fields: [N('n_debts')] },
+      { note: '<b>Changes:</b> each debt is now its own spread-out card with room for every field, instead of a cramped table row. A notes area was added.', cls: 'new' }
+    ] },
+    { id: 'kids', title: 'Children', blocks: [
+      { list: 'kids' },
+      { fields: [N('n_kids')] },
+      { note: '<b>Changes:</b> each child is now a spread-out card, modelled on the Debts layout, with a notes area. Education stage is still worked out from the date of birth.', cls: 'new' }
+    ] },
+
+    { id: 'q_risk', adv: 1, title: 'Personal risk quotes', blocks: [
+      { title: 'FNA quote', fields: [
+        { id: 'fna_req', l: 'FNA quote', t: 'sel', o: ['Request a quote', 'Not required', 'No FNA done'] },
+        { id: 'fna_ins', l: 'Insurer', t: 'sel', o: INS, isnew: 1 }
+      ] },
+      { title: 'Shortfall quote', fields: [
+        { id: 'sf_req', l: 'Shortfall quote', t: 'sel', o: REQ },
+        { id: 'sf_ins', l: 'Insurer', t: 'sel', o: INS, isnew: 1 }
+      ] },
+      { title: 'Reduced quotes', list: 'redq' },
+      { fields: [{ id: 'pref_spend', l: 'Preferred monthly spend (R)', t: 'txt', opt: 1 }, N('n_q_risk')] },
+      { note: '<b>Changes:</b> FNA and Shortfall are now generic requests that can go to <b>any insurer</b>, with a new <b>Insurer</b> dropdown. Reduced quotes are a list, so you can add as many as you need, each with its own insurer and monthly amount.', cls: 'new' }
+    ] },
+    { id: 'q_ret', adv: 1, title: 'Retirement & investment quotes', blocks: [
+      { title: 'Retirement goal analysis (RGAR)', fields: [
+        { id: 'rgar_req', l: 'RGAR', t: 'sel', o: ['Request an RGAR', 'Not required'] },
+        { id: 'ret_age', l: 'Retirement age', t: 'sel', o: ['50', '55', '60', '65', '70'], isnew: 1 },
+        { id: 'ret_net', l: 'Net amount (today\'s terms) (R)', t: 'txt', isnew: 1 }
+      ] },
+      { title: 'Retirement annuity quotes', list: 'raq' },
+      { title: 'Education goal analysis (EGAR)', fields: [{ id: 'egar_req', l: 'EGAR', t: 'sel', o: ['Request an EGAR', 'Not required'] }] },
+      { title: 'Investment quotes', list: 'invq' },
+      { fields: [N('n_q_ret')] },
+      { note: '<b>Changes:</b> RGAR now holds both <b>Retirement age</b> and <b>Net amount (today\'s terms)</b>. Retirement annuity and investment quotes are lists. Each quote takes an <b>Insurer</b> from a dropdown plus a <b>monthly amount and/or a lump sum</b>. Investment quotes use the same format and add a purpose (children\'s education or general investing). EGAR is unchanged.', cls: 'new' }
+    ] },
+    { id: 'q_ref', adv: 1, title: 'Referrals & documents', blocks: [
+      { title: 'Referrals', fields: [
+        { id: 'ref_sti', l: 'Short-term (Cameron)', t: 'sel', o: ['Cameron to contact client', 'Must not contact client', 'Client has own broker', 'Not interested'] },
+        { id: 'ref_med', l: 'Medical & gap (Valerie)', t: 'sel', o: ['Valerie to contact for medical aid', 'Valerie to contact for gap cover', 'Valerie to contact for both', 'Not required'] },
+        { id: 'ref_will', l: 'Will (Capital Legacy)', t: 'sel', o: ['Capital Legacy to contact client', 'Has updated will', 'Not interested'] }
+      ] },
+      { docs: 1 },
+      { note: 'Referrals are unchanged. The documents checklist replaces the "Client to send through / Draw an Astute Report" dropdowns.' }
+    ] },
+    { id: 'q_calc', adv: 1, title: 'Risk calculation', blocks: [
+      { title: 'Life cover: fractured cover', fields: riskCalc('lc').concat([
+        { id: 'lc_f_aci', l: 'ACI', t: 'sel', o: ACI, opt: 1 },
+        { id: 'lc_f_aciv', l: 'ACI value', t: 'txt', opt: 1 },
+        { id: 'lc_wol', l: 'Life cover (WOL) ABI', t: 'txt', opt: 1 },
+        { id: 'lc_ccabi', l: 'Childcare ABI', t: 'txt', opt: 1 }
+      ]) },
+      { title: 'Life cover: standard', fields: [
+        { id: 'lc_sa', l: 'Sum assured (R)', t: 'txt', opt: 1 },
+        { id: 'lc_term', l: 'Term', t: 'sel', o: ['WOL', 'Fixed term', 'Other'], opt: 1 },
+        { id: 'lc_termv', l: 'Term value', t: 'txt', opt: 1 },
+        { id: 'lc_aci', l: 'ACI', t: 'sel', o: ACI, opt: 1 },
+        { id: 'lc_aciv', l: 'ACI value', t: 'txt', opt: 1 },
+        { id: 'lc_abiv', l: 'ABI', t: 'txt', opt: 1 },
+        N('lc_cmt', 'Comments')
+      ] },
+      { title: 'Permanent disability: fractured cover', fields: riskCalc('pd').concat([
+        { id: 'pd_f_aci', l: 'ACI', t: 'sel', o: ACI, opt: 1 },
+        { id: 'pd_f_aciv', l: 'ACI value', t: 'txt', opt: 1 },
+        { id: 'pd_ccabi', l: 'Childcare ABI', t: 'txt', opt: 1 }
+      ]) },
+      { title: 'Permanent disability: standard', fields: [
+        { id: 'pd_sa', l: 'Sum assured (R)', t: 'txt', opt: 1 },
+        { id: 'pd_term', l: 'Term', t: 'sel', o: ['To age 65', 'To age 70', 'Fixed term', 'Other'], opt: 1 },
+        { id: 'pd_termv', l: 'Term value', t: 'txt', opt: 1 },
+        { id: 'pd_aci', l: 'ACI', t: 'sel', o: ACI, opt: 1 },
+        { id: 'pd_aciv', l: 'ACI value', t: 'txt', opt: 1 },
+        { id: 'pd_abiv', l: 'ABI', t: 'txt', opt: 1 },
+        N('pd_cmt', 'Comments')
+      ] },
+      { title: 'Dread disease', fields: [
+        { id: 'dd_cover', l: 'Dread disease cover (R)', t: 'txt', opt: 1 },
+        { id: 'dd_term', l: 'Term', t: 'sel', o: ['WOL', 'Specified Age', 'Other'], opt: 1 },
+        { id: 'dd_termv', l: 'Term value', t: 'txt', opt: 1 },
+        { id: 'dd_aci', l: 'ACI', t: 'sel', o: ['Fixed', 'Age-rated', 'Other'], opt: 1 },
+        { id: 'dd_aciv', l: 'ACI value', t: 'txt', opt: 1 },
+        { id: 'dd_abiv', l: 'ABI', t: 'txt', opt: 1 },
+        N('dd_cmt', 'Comments')
+      ] },
+      { title: 'Income protection / sickness benefit', fields: [
+        { id: 'ip_age', l: 'Income protection age', t: 'sel', o: ['65', '70'], opt: 1 },
+        { id: 'ip_amt', l: 'Insured amount (R p.m.)', t: 'txt', opt: 1 },
+        { id: 'ip_wait', l: 'Waiting period', t: 'sel', o: ['7 days', '14 days', '1 month', '3 months', 'Other'], opt: 1 },
+        { id: 'ip_aci', l: 'ACI', t: 'sel', o: ['Fixed', 'Age-rated', 'Other'], opt: 1 },
+        { id: 'ip_aciv', l: 'ACI value', t: 'txt', opt: 1 },
+        { id: 'ip_abiv', l: 'ABI', t: 'txt', opt: 1 },
+        N('ip_cmt', 'Comments')
+      ] },
+      { note: '<b>Changes:</b> follows the Fact Find. The four fractured-cover lines (household net income, childcare, debt repayments, total needed) are <b>calculated for you</b> from the take-home income, children and debts already captured, for both life cover and permanent disability. Nothing is pre-filled: the old defaults (3%, 5%, R500 000, 1 month, "??") are gone.', cls: 'new' }
+    ] },
+    { id: 'q_biz', adv: 1, title: 'Business assurance', blocks: [
+      { title: 'Buy & Sell', fields: [
+        { id: 'bs_req', l: 'Buy & Sell quote', t: 'sel', o: REQ },
+        { id: 'bs_ins', l: 'Insurer', t: 'sel', o: INS },
+        { id: 'bs_value', l: 'Agreed cover value (R)', t: 'txt' },
+        { id: 'bs_basis', l: 'Basis of value', t: 'sel', o: ['Formal valuation', 'Shareholders agreement', 'Agreed between parties'] },
+        { id: 'bs_own', l: 'Partner completes own Fact Find', t: 'sel', o: YN },
+        N('n_bs')
+      ] },
+      { note: 'Partner names, ID numbers, cell numbers and shareholding % come from the <b>Partners and shareholders</b> list on the Occupation page, so they are captured once and used here.', cls: 'new' },
+      { title: 'Contingent liability', fields: [
+        { id: 'cl_req', l: 'Contingent liability quote', t: 'sel', o: REQ },
+        { id: 'cl_lender', l: 'Lender / credit provider', t: 'txt' },
+        { id: 'cl_bal', l: 'Loan account balance (R)', t: 'txt' },
+        { id: 'cl_life', l: 'Life to be insured', t: 'txt' }
+      ] },
+      { title: 'Keyman', fields: [
+        { id: 'km_req', l: 'Keyman quote', t: 'sel', o: REQ },
+        { id: 'km_name', l: 'Keyman name', t: 'txt' },
+        { id: 'km_role', l: 'Keyman role', t: 'txt' },
+        { id: 'km_amt', l: 'Cover amount (R)', t: 'txt' },
+        { id: 'km_basis', l: 'Basis of cover amount', t: 'sel', o: ['Multiple of salary', 'Profit contribution', 'Replacement cost', 'Other'] }
+      ] },
+      { note: 'In the finished form this section would show only when Business owner = Yes.' }
+    ] }
+  ];
+
+  var LISTS = {
+    risk: { title: 'Existing personal risk policies', add: 'Add policy', cols: [
+      { k: 'prov', l: 'Provider', o: INS }, { k: 'spend', l: 'Spend (R p.m.)', num: 1 }, { k: 'broker', l: 'Broker on record', o: BROKER }, { k: 'notes', l: 'Notes' }
+    ], sum: { spend: 'Total spend' } },
+    ret: { title: 'Retirement funding', add: 'Add fund', cols: [
+      { k: 'type', l: 'Type', o: ['Retirement annuity', 'Pension fund', 'Provident fund'] }, { k: 'prov', l: 'Provider / administrator', o: INS.concat(['Allan Gray']) },
+      { k: 'val', l: 'Value (R)', num: 1 }, { k: 'contrib', l: 'Monthly contribution (R p.m.)', num: 1, isnew: 1 }, { k: 'broker', l: 'Broker on record', o: BROKER }
+    ], sum: { contrib: 'Total contributions' } },
+    inv: { title: 'Investments', add: 'Add investment', cols: [
+      { k: 'type', l: 'Type', o: ['Unit trust', 'Tax-free savings', 'Endowment', 'Offshore', 'Share portfolio', 'Living annuity', 'Other'] },
+      { k: 'prov', l: 'Provider', o: ['Old Mutual', 'Momentum', 'Sanlam', 'Liberty', 'Discovery Invest', 'Allan Gray', 'Coronation', 'Ninety One', 'PSG', 'Sygnia', 'Satrix', '10X', 'Glacier', 'Other'] },
+      { k: 'val', l: 'Current value (R)', num: 1 }, { k: 'prem', l: 'Monthly premium (R p.m.)', num: 1, isnew: 1 }, { k: 'broker', l: 'Broker on record', o: BROKER }
+    ], sum: { val: 'Total value', prem: 'Total monthly' } },
+    shares: { title: 'Partners and shareholders', add: 'Add partner / shareholder', cols: [
+      { k: 'name', l: 'Full name' }, { k: 'id', l: 'ID number' }, { k: 'cell', l: 'Cell number' }, { k: 'pct', l: 'Shareholding %', num: 1 }
+    ], sum: {} },
+    debts: { cards: 'Debt', title: 'Debts', add: 'Add debt', cols: [
+      { k: 'prov', l: 'Loan provider / bank', o: BANKS }, { k: 'type', l: 'Type', o: ['Home loan', 'Vehicle finance', 'Credit card', 'Personal loan', 'Revolving credit', 'Other'] },
+      { k: 'desc', l: 'Description' }, { k: 'owner', l: 'Owner', o: WHO }, { k: 'payer', l: 'Payer', o: WHO }, { k: 'term', l: 'Term left' },
+      { k: 'inst', l: 'Instalment (R p.m.)', num: 1 }, { k: 'bal', l: 'Balance (R)', num: 1 }, { k: 'asset', l: 'Asset value (R)', num: 1 },
+      { k: 'cl', l: 'Credit life with lender', o: YN }, { k: 'surety', l: 'Surety signed', o: ['Yes', 'No', 'Unsure'] }
+    ], sum: { inst: 'Total monthly', bal: 'Total liabilities', asset: 'Total assets' } },
+    kids: { cards: 'Child', title: 'Children', add: 'Add child', cols: [
+      { k: 'name', l: 'Name & surname' }, { k: 'gender', l: 'Gender', o: ['Female', 'Male'] }, { k: 'dob', l: 'Date of birth (yyyy-mm-dd)' },
+      { k: 'stage', l: 'Education stage (from date of birth)', calc: 1 }, { k: 'cost', l: 'Monthly cost (R)', num: 1 }
+    ], sum: { cost: 'Total childcare' } },
+    redq: { cards: 'Reduced quote', title: 'Reduced quotes', add: 'Add reduced quote', cols: [
+      { k: 'req', l: 'Request', o: REQ }, { k: 'ins', l: 'Insurer', o: INS, isnew: 1 }, { k: 'amt', l: 'Monthly amount (R p.m.)', num: 1 }
+    ], sum: {} },
+    raq: { cards: 'RA quote', title: 'Retirement annuity quotes', add: 'Add RA quote', cols: [
+      { k: 'req', l: 'Request', o: ['Request a quote', 'Not required', 'Cannot afford now', 'Not interested'] }, { k: 'ins', l: 'Insurer', o: INS, isnew: 1 },
+      { k: 'monthly', l: 'Monthly amount (R p.m.)', num: 1, isnew: 1 }, { k: 'lump', l: 'Lump sum (R)', num: 1, isnew: 1 }
+    ], sum: {} },
+    invq: { cards: 'Investment quote', title: 'Investment quotes', add: 'Add investment quote', cols: [
+      { k: 'purpose', l: 'Purpose', o: ['Children\'s education', 'General investing'] }, { k: 'product', l: 'Product', o: ['Tax-free savings', 'Endowment', 'Unit trust / voluntary funds', 'Other'] },
+      { k: 'ins', l: 'Insurer', o: INS, isnew: 1 }, { k: 'monthly', l: 'Monthly amount (R p.m.)', num: 1, isnew: 1 }, { k: 'lump', l: 'Lump sum (R)', num: 1, isnew: 1 }
+    ], sum: {} }
+  };
+  var DOCS = ['Existing life policy schedules', 'Group risk benefit summary', 'Retirement annuity statements', 'Pension / provident statement', 'Investment statements'];
+  var LOOKUP = {
+    co_does: 'Public primary school offering education from Grade R to Grade 7. (Example summary, found online. Check before accepting.)',
+    biz_does: 'Example: a small business summary found online. Check before accepting.'
+  };
+
+  /* ---------- state ---------- */
+  var S, R, DOC, cur, step, flashId, FIELDS = {};
+  function eachField(fn) { SECTIONS.forEach(function (s) { s.blocks.forEach(function (b) { (b.fields || []).forEach(fn); }); }); }
+  eachField(function (f) { FIELDS[f.id] = f; });
+  function initState() {
+    S = {}; R = { risk: [], ret: [], inv: [], shares: [], debts: [], kids: [], redq: [], raq: [], invq: [] }; DOC = {}; step = 0; flashId = null;
+    eachField(function (f) { S[f.id] = { v: f.preset || '', st: f.preset ? 'preset' : (f.calc ? 'calc' : 'empty') }; });
+  }
+  function setF(id, v, st) { S[id] = { v: v, st: st || (FIELDS[id] && FIELDS[id].risky ? 'verify' : 'heard') }; flashId = id; }
+  function addRow(list, row, st) { var r = { d: row, st: st || 'heard', flash: 1 }; R[list].push(r); return r; }
+
+  /* ---------- scripted call ---------- */
+  var SCRIPT = [
+    { w: 'a', t: 'Hi Paul, sorry I am a minute late, the traffic was crazy this morning.', skip: 1 },
+    { w: 'q', t: 'No problem at all. Do I have your permission to record and transcribe this call?' },
+    { w: 'a', t: 'Yes, that is fine.', run: function () { setF('consent', 'Yes', 'confirmed'); }, got: ['Consent: Yes'] },
+    { w: 'q', t: 'Great. What is your first name and surname, and when were you born?' },
+    { w: 'a', t: 'Thandi Dlamini, D-L-A-M-I-N-I. I was born on 14 March 1986.', run: function () { setF('fname', 'Thandi', 'heard'); setF('sname', 'Dlamini'); setF('dob', '14 March 1986'); }, got: ['First name: Thandi', 'Surname: Dlamini', 'DOB: 14 March 1986'], v: 2 },
+    { w: 'a', t: 'Sorry, the dog is barking. Be quiet!', skip: 1 },
+    { w: 'q', t: 'What do you do for work, who for, and what do you earn?' },
+    { w: 'a', t: 'I am a teacher at Sample Primary School. I earn about forty thousand gross, and thirty-two thousand after everything comes off.', run: function () { setF('occ', 'Teacher', 'heard'); setF('employed', 'Yes', 'heard'); setF('employer', 'Sample Primary School', 'heard'); setF('gross', 'R 40 000'); setF('net', 'R 32 000'); setF('d_desk', '60', 'suggest'); setF('d_supo', '40', 'suggest'); }, got: ['Occupation: Teacher', 'Employer: Sample Primary School', 'Gross: R 40 000', 'Take-home: R 32 000', 'Duties split proposed'], v: 2 },
+    { w: 'q', t: 'Are you married, and does your spouse work?' },
+    { w: 'a', t: 'Married out of community with accrual. My husband is an engineer.', run: function () { setF('marital', 'Married out of community (with accrual)', 'heard'); setF('sp_occ', 'Engineer', 'heard'); }, got: ['Marital: out of community (accrual)', 'Spouse occupation: Engineer'] },
+    { w: 'q', t: 'Do you have any loans or a bond?' },
+    { w: 'a', t: 'We have a bond with Nedbank. About eleven thousand four hundred a month, one point two million still owing, eighteen years to go. It is in both our names.', run: function () { addRow('debts', { prov: 'Nedbank', type: 'Home loan', desc: 'House', owner: 'Joint', payer: 'Joint', term: '18 years', inst: '11 400', bal: '1 200 000', asset: '', cl: '', surety: '' }, 'verify'); }, got: ['Debt: Nedbank home loan', 'R 11 400 p.m.', 'Balance R 1 200 000'], v: 2 },
+    { w: 'q', t: 'And children?' },
+    { w: 'a', t: 'Two. Lebo, a girl, born in March 2015, and Sipho, a boy, born in August 2019. Aftercare for Sipho is about two thousand five hundred.', run: function () { addRow('kids', { name: 'Lebo Dlamini', gender: 'Female', dob: '2015-03-10', cost: '' }, 'verify'); addRow('kids', { name: 'Sipho Dlamini', gender: 'Male', dob: '2019-08-22', cost: '2 500' }, 'verify'); }, got: ['Child: Lebo (F)', 'Child: Sipho (M)', 'Cost: R 2 500'], v: 2 }
+  ];
+  var LOG = [];
+  function playStep() {
+    if (step >= SCRIPT.length) return;
+    var s = SCRIPT[step++];
+    if (s.run) s.run();
+    LOG.push(s);
+    redraw();
+    var l = $('#log'); l.scrollTop = l.scrollHeight;
+  }
+  function resetAll() { initState(); LOG = []; seed(); redraw(); }
+  function seed() {
+    for (var i = 0; i < 12; i++) playStep();
+    S.nat = { v: 'South African', st: 'confirmed' };
+    S.ref = { v: 'D&R Marketing', st: 'confirmed' };
+    S.cell = { v: '082 555 0148', st: 'verify' };
+    S.pemail = { v: 'thandi.d@example.co.za', st: 'verify' };
+    S.bizowner = { v: 'No', st: 'heard' };
+    flashId = null;
+    R.risk.push({ d: { prov: 'Old Mutual', spend: '1 850', broker: 'Other broker', notes: 'Life and dread disease' }, st: 'heard' });
+    R.inv.push({ d: { type: 'Tax-free savings', prov: 'Satrix', val: '48 000', prem: '1 000', broker: 'None' }, st: 'heard' });
+    R.ret.push({ d: { type: 'Retirement annuity', prov: 'Momentum', val: '215 000', contrib: '1 500', broker: 'Other broker' }, st: 'verify' });
+    R.redq.push({ d: { req: 'Request a quote', ins: 'BrightRock', amt: '1 200' }, st: 'confirmed' });
+    R.raq.push({ d: { req: 'Request a quote', ins: 'Old Mutual', monthly: '2 000', lump: '' }, st: 'confirmed' });
+    R.invq.push({ d: { purpose: 'Children\'s education', product: 'Tax-free savings', ins: 'Old Mutual', monthly: '1 500', lump: '' }, st: 'confirmed' });
+    DOC['Existing life policy schedules'] = 1;
+    R.debts.concat(R.kids).forEach(function (r) { r.flash = 0; });
+  }
+
+  /* ---------- rendering ---------- */
+  function badge(st, id) {
+    var t = { empty: 'not asked', heard: 'heard', verify: 'verify', confirmed: 'confirmed', calc: 'calc', preset: 'preset', suggest: 'accept' }[st] || st;
+    var act = (st === 'heard' || st === 'verify' || st === 'suggest') ? ' data-accept="' + id + '" title="Click to accept"' : '';
+    return '<button type="button" class="badge ' + st + '"' + act + '>' + t + '</button>';
+  }
+  function fieldHTML(f) {
+    var cell = S[f.id], st = cell.st, v = f.calc ? f.calc() : cell.v;
+    if (f.calc) st = 'calc';
+    if (f.opt && st === 'empty') st = 'empty';
+    var ro = (st === 'calc' || st === 'preset') ? ' readonly' : '';
+    var inner;
+    if (f.t === 'sel') {
+      inner = '<select data-f="' + f.id + '"' + (ro ? ' disabled' : '') + '><option value="">&nbsp;</option>' + f.o.map(function (o) { return '<option' + (o === v ? ' selected' : '') + '>' + esc(o) + '</option>'; }).join('') + '</select>';
+    } else if (f.t === 'area') {
+      inner = '<textarea data-f="' + f.id + '">' + esc(v) + '</textarea>';
+    } else {
+      inner = '<input data-f="' + f.id + '" value="' + esc(v) + '"' + ro + ' autocomplete="off">';
+    }
+    var nw = f.isnew ? ' <span class="badge newcol">new</span>' : '';
+    var rt = '';
+    if (f.link) rt += '<a class="lnk" href="' + f.link[1] + '" target="_blank" rel="noopener">' + esc(f.link[0]) + ' ↗</a>';
+    if (f.lookup) rt += '<button type="button" class="lookup" data-lookup="' + f.id + '">Look up online</button>';
+    if (f.t === 'area' && !f.opt) rt += badge(st, f.id);
+    return '<label class="f s-' + st + (f.wide ? ' wide' : '') + (flashId === f.id ? ' flash' : '') + '"><span class="l"><span>' + esc(f.l) + nw + '</span>' + (rt ? '<span class="rt">' + rt + '</span>' : '') + '</span><span class="box">' + inner + (f.t === 'area' ? '' : '<span class="st">' + badge(st, f.id) + '</span>') + '</span></label>';
+  }
+  function cellHTML(L, key, i, c, r, inCard) {
+    var v = r.d[c.k];
+    if (c.calc) v = stage(r.d.dob);
+    var at = ' data-l="' + key + '" data-i="' + i + '" data-k="' + c.k + '"';
+    var ctl = c.o
+      ? '<select' + at + '><option value="">&nbsp;</option>' + c.o.map(function (o) { return '<option' + (o === v ? ' selected' : '') + '>' + esc(o) + '</option>'; }).join('') + '</select>'
+      : '<input' + at + ' value="' + esc(v) + '"' + (c.calc ? ' readonly' : '') + ' autocomplete="off">';
+    if (inCard) return '<label class="f"><span class="l"><span>' + esc(c.l) + (c.isnew ? ' <span class="badge newcol">new</span>' : '') + '</span></span><span class="box">' + ctl + '</span></label>';
+    return '<td' + (c.num ? ' class="num"' : '') + '>' + ctl + '</td>';
+  }
+  function sums(L, rows) {
+    return Object.keys(L.sum).map(function (k) {
+      var c = L.cols.filter(function (x) { return x.k === k; })[0];
+      return '<span>' + esc(L.sum[k]) + '<b>' + fmt(rows.reduce(function (a, r) { return a + num(r.d[k]); }, 0)) + '</b></span>';
+    }).join('');
+  }
+  function listHTML(key) {
+    var L = LISTS[key], rows = R[key], h = '';
+    if (L.cards) {
+      if (!rows.length) h += '<div class="empty-list">Nothing yet. A card is added when the client mentions one.</div>';
+      rows.forEach(function (r, i) {
+        h += '<div class="rowcard s-' + r.st + (r.flash ? ' flash' : '') + '"><div class="rowhead"><b>' + esc(L.cards) + ' ' + (i + 1) + '</b>' +
+          ((r.st === 'heard' || r.st === 'verify') ? badge(r.st, 'row:' + key + ':' + i) : '<span class="badge confirmed">confirmed</span>') +
+          '<span class="grow"></span><button type="button" class="x" data-del="' + key + ':' + i + '" aria-label="Remove">✕ Remove</button></div><div class="grid">' +
+          L.cols.map(function (c) { return cellHTML(L, key, i, c, r, true); }).join('') + '</div></div>';
+      });
+      if (rows.length && Object.keys(L.sum).length) h += '<div class="sumstrip">' + sums(L, rows) + '</div>';
+      return h + '<button type="button" class="addrow" data-add="' + key + '">+ ' + esc(L.add) + '</button>';
+    }
+    h = '<div class="tablewrap"><table><thead><tr>' + L.cols.map(function (c) { return '<th>' + esc(c.l) + (c.isnew ? ' <span class="badge newcol">new</span>' : '') + '</th>'; }).join('') + '<th>Status</th><th></th></tr></thead><tbody>';
+    rows.forEach(function (r, i) {
+      h += '<tr class="s-' + r.st + '">' + L.cols.map(function (c) { return cellHTML(L, key, i, c, r, false); }).join('') +
+        '<td>' + (r.st === 'heard' || r.st === 'verify' ? badge(r.st, 'row:' + key + ':' + i) : badge('confirmed', '')) + '</td><td><button type="button" class="x" data-del="' + key + ':' + i + '" aria-label="Remove row">✕</button></td></tr>';
+    });
+    if (!rows.length) h += '<tr><td colspan="' + (L.cols.length + 2) + '" style="padding:14px;color:var(--muted)">Nothing yet.</td></tr>';
+    h += '</tbody>';
+    if (rows.length && Object.keys(L.sum).length) {
+      h += '<tfoot><tr>' + L.cols.map(function (c) { return '<td' + (c.num ? ' class="num"' : '') + '>' + (L.sum[c.k] ? fmt(rows.reduce(function (a, r) { return a + num(r.d[c.k]); }, 0)) : '') + '</td>'; }).join('') + '<td colspan="2"><span class="badge calc">calc</span></td></tr></tfoot>';
+    }
+    return h + '</table></div><button type="button" class="addrow" data-add="' + key + '">+ ' + esc(L.add) + '</button>';
+  }
+  function stage(dob) {
+    var m = /^(\d{4})/.exec(dob || ''); if (!m) return '';
+    var age = 2026 - parseInt(m[1], 10);
+    return age < 3 ? 'Not yet in school' : age < 6 ? 'Pre-school' : age < 13 ? 'Primary' : age < 19 ? 'High school' : 'Tertiary';
+  }
+  function docsHTML() {
+    return '<div class="block-title">Documents to request <span class="badge newcol">new</span></div>' + DOCS.map(function (d) { return '<label class="check"><input type="checkbox" data-doc="' + esc(d) + '"' + (DOC[d] ? ' checked' : '') + '> ' + esc(d) + '</label>'; }).join('');
+  }
+  function counts(sec) {
+    var tot = 0, fill = 0, ver = 0;
+    sec.blocks.forEach(function (b) {
+      if (b.cond && !b.cond()) return;
+      (b.fields || []).forEach(function (f) { var st = S[f.id].st; if (f.calc || f.opt || st === 'preset') return; tot++; if (st !== 'empty') fill++; if (st === 'verify') ver++; });
+      if (b.list) { var n = R[b.list].length; fill += n; tot += n; R[b.list].forEach(function (r) { if (r.st === 'verify') ver++; }); }
+    });
+    return { tot: tot, fill: fill, ver: ver };
+  }
+  function redraw() {
+    var nav = '<div class="sep">Client answers</div>', A = 0, V = 0, E = 0, lastAdv = false;
+    SECTIONS.forEach(function (s) {
+      if (s.adv && !lastAdv) { nav += '<div class="sep">Advisor</div>'; lastAdv = true; }
+      var c = counts(s); if (!s.adv) { A += c.fill; V += c.ver; E += c.tot - c.fill; }
+      nav += '<button type="button" data-sec="' + s.id + '"' + (s.id === cur ? ' aria-current="true"' : '') + '><span>' + esc(s.title) + '</span><span class="n">' + (s.adv ? '' : c.fill + '/' + c.tot) + '</span></button>';
+    });
+    $('#nav').innerHTML = nav;
+    var sec = SECTIONS.filter(function (s) { return s.id === cur; })[0];
+    var h = '<header><h2>' + esc(sec.title) + '</h2><span class="tier ' + (sec.adv ? 'c' : '') + '">' + (sec.adv ? 'Advisor only' : 'Filled live') + '</span></header>';
+    sec.blocks.forEach(function (b) {
+      if (b.docs) { h += docsHTML(); return; }
+      if (b.note) { h += '<div class="note ' + (b.cls || '') + '">' + b.note + '</div>'; return; }
+      if (b.cond && !b.cond()) { h += '<div class="block-title">' + esc(b.title) + '</div><div class="note">' + esc(b.condMsg) + '</div>'; return; }
+      if (b.title) h += '<div class="block-title">' + esc(b.title) + '</div>';
+      if (b.fields) h += '<div class="grid">' + b.fields.map(fieldHTML).join('') + '</div>';
+      if (b.list) { h += (b.title ? '' : '<div class="block-title">' + esc(LISTS[b.list].title) + '</div>') + listHTML(b.list); }
+    });
+    $('#main').innerHTML = h;
+    $('#log').innerHTML = LOG.map(function (m) {
+      if (m.skip) return '<div class="msg skip"><span class="who">Client · ignored (general conversation)</span>' + esc(m.t) + '</div>';
+      return '<div class="msg ' + m.w + '"><span class="who">' + (m.w === 'q' ? 'You asked' : 'Client said') + '</span>' + esc(m.t) +
+        (m.got ? '<div class="got">' + m.got.map(function (g, i) { return '<span class="chip' + (m.v && i >= m.got.length - m.v ? ' v' : '') + '">' + esc(g) + '</span>'; }).join('') + '</div>' : '') + '</div>';
+    }).join('');
+    $('#sFilled').textContent = A; $('#sVerify').textContent = V; $('#sEmpty').textContent = E;
+    $('#next').disabled = step >= SCRIPT.length;
+    $('#next').textContent = step >= SCRIPT.length ? 'End of sample call' : 'Play next line';
+    flashId = null; R.debts.concat(R.kids).forEach(function (r) { r.flash = 0; });
+  }
+
+  /* ---------- events ---------- */
+  document.addEventListener('click', function (e) {
+    var t = e.target.closest('[data-sec],[data-accept],[data-add],[data-del],[data-lookup]');
+    if (!t) return;
+    if (t.dataset.sec) { cur = t.dataset.sec; redraw(); return; }
+    if (t.dataset.lookup) {
+      var id = t.dataset.lookup; t.textContent = 'Searching…';
+      setTimeout(function () { S[id] = { v: LOOKUP[id], st: 'heard' }; flashId = id; redraw(); }, 700);
+      return;
+    }
+    if (t.dataset.accept) {
+      var a = t.dataset.accept;
+      if (a.indexOf('row:') === 0) { var p = a.split(':'); R[p[1]][+p[2]].st = 'confirmed'; } else { S[a].st = 'confirmed'; }
+      redraw(); return;
+    }
+    if (t.dataset.add) { var k = t.dataset.add; var row = {}; LISTS[k].cols.forEach(function (c) { row[c.k] = ''; }); R[k].push({ d: row, st: 'confirmed' }); redraw(); return; }
+    if (t.dataset.del) { var q = t.dataset.del.split(':'); R[q[0]].splice(+q[1], 1); redraw(); }
+  });
+  document.addEventListener('change', function (e) {
+    var t = e.target;
+    if (t.dataset.f) { S[t.dataset.f] = { v: t.value, st: t.value === '' ? 'empty' : 'confirmed' }; redraw(); }
+    else if (t.dataset.l) { var r = R[t.dataset.l][+t.dataset.i]; r.d[t.dataset.k] = t.value; r.st = 'confirmed'; redraw(); }
+    else if (t.dataset.doc) { DOC[t.dataset.doc] = t.checked ? 1 : 0; }
+  });
+  $('#next').addEventListener('click', playStep);
+  $('#reset').addEventListener('click', resetAll);
+
+  cur = 'info';
+  initState(); seed(); redraw();
+  var secs = 760, tick = function () { secs++; var h = Math.floor(secs / 3600), m = Math.floor(secs % 3600 / 60), s = secs % 60; $('#clock').textContent = [h, m, s].map(function (x) { return (x < 10 ? '0' : '') + x; }).join(':'); };
+  setInterval(tick, 1000);
+})();
+</script>
