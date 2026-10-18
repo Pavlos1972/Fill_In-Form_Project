@@ -393,8 +393,18 @@
   /* "let me take some notes", "note that down", "I'll make a note": the glow moves to the section's notes box and what follows is noted in point form. */
   var NOTES_ON = /\b(?:(?:let me|let's|lets|let us|i'll|i will|i'm going to|im going to|i am going to|i want to|i wanted to|i need to|i'd like to|id like to|i would like to|we'd like to|we want to|we need to|we're going to|going to|can i|could i|can we|could we|just|quickly|now)\s+(?:just\s+)?(?:take|make|jot|write|add|put|do|start|record|capture|log)\s+(?:down\s+)?(?:a\s+|some\s+|a few\s+|a quick\s+|a couple of\s+)?(?:quick\s+)?notes?|notes? (?:on|about|for) (?:that|this)|(?:for|in|to|into) the notes)\b|^(?:please\s+)?(?:take|make|add|put|jot|start)\s+(?:a\s+|some\s+)?notes?\b|^(?:(?:go to|open|show|move to)\s+)?(?:the\s+)?(?:[a-z]+\s+){0,3}notes(?:\s+box)?$/;
   var NOTES_RETRO = /\b(?:(?:note|write|jot|put|log|record|capture)\s+(?:that|this|it)\s+(?:down|in|into|to)|make a note of (?:that|this)|note (?:that|this) down|note that|note this)\b/;
+  /* "let's move on", "okay, we can move on", "time to carry on": the same as "next". While notes are being taken it also ends them. */
+  var NEXT_ON = /^(?:(?:okay|ok|right|so|alright|now|well|please|and)\s+)*(?:(?:lets|let us|we can|we should|we could|time to)\s+)?(?:move on|carry on)(?:\s+(?:then|now|please))?$/;
   var ADD_ROW = /\b(?:add|another|one more|a new|new|next|additional|a second|a third|the other)\b/;
   var NOTES_OFF = /^(?:that(?:'s|s| is)? all (?:for|the) (?:the )?notes|that(?:'s|s| is)? it for the notes|end (?:of )?(?:the )?notes|stop (?:the |taking )?notes|no more notes|done with (?:the )?notes|finished with (?:the )?notes|close (?:the )?notes|back to the (?:form|questions))\b/;
+  /* Ending the notes can be said many ways ("let's end the notes", "I'm done with the notes", "that's enough notes", "okay, back to the form"): a short line that opens like a wrap-up, names the notes and says they are over. */
+  var NOTES_END_LEAD = /^(?:(?:okay|ok|right|so|and|alright|now|well|yes|yeah|please)\s+)*(?:lets|let us|let me|i'm|i am|i'll|i will|we're|we are|we'll|we will|we can|you can|that|this|it|stop|end|finish|finished|done|enough|no more|close|quit)\b/;
+  var NOTES_END_WORD = /\b(?:end|ended|stop|finish|finished|done|enough|close|quit|over|complete|completed|no more|that all|that it|that the end)\b/;
+  var NOTES_BACK = /^(?:(?:okay|ok|right|so|and|alright|now|well|please|lets|let us|go|get|come)\s+)*back to (?:the )?(?:form|questions?|fact find)\b/;
+  function endsNotes(t) {
+    return NOTES_BACK.test(t) || /^notes (?:are |is )?(?:done|finished|over|complete|completed)$/.test(t) ||
+      (t.split(' ').length <= 9 && /\bnotes?\b/.test(t) && NOTES_END_LEAD.test(t) && NOTES_END_WORD.test(t) && !/\b(?:take|make|write|jot|add|start|begin|new)\b/.test(t));
+  }
   /* "remove them all", "delete everything on the form", "wipe the entire form", "start again from scratch": the whole form, not one box. */
   var WIPE_VERB = '(?:remove|delete|clear|wipe|erase|empty|reset|scrap|get rid of|throw away)';
   var WIPE_ALL = new RegExp('\\b' + WIPE_VERB + '\\s+(?:(?:all|every)\\s+(?:of\\s+)?)?(?:(?:the|my|his|her|their|these|those|our)\\s+)?(?:(?:entire|whole|full)\\s+)?' +
@@ -419,7 +429,7 @@
     if (wipeAsked(t)) return { type: 'clearAll' };
     if (/\b(scratch that|undo that|undo|never mind|nevermind|ignore that|cancel that|forget that)\b/.test(t)) return { type: 'undo' };
     if (/^(clear that|clear this|clear it|delete that|empty that)$/.test(t)) return { type: 'clear' };
-    if (NOTES_OFF.test(t)) return { type: 'notesOff' };
+    if (NOTES_OFF.test(t) || endsNotes(t)) return { type: 'notesOff' };
     if (!/^(?:what|who|where|when|why|how|which)\b/.test(t) && !/\?$/.test(String(text).trim())) {          // "add another child", "one more policy", "another one"
       var ln = listsNamed(t), lk = Object.keys(ln)[0] || null;
       if ((lk && ADD_ROW.test(t)) || (!lk && /^(?:(?:and|okay|ok|now|please)\s+)*(?:add\s+)?(?:another(?:\s+one)?|one more|a new one|add one|add another(?:\s+one)?|add a row|next one please)$/.test(t))) return { type: 'addrow', list: lk };
@@ -434,7 +444,7 @@
     }
     if (/^(next section|go to the next section|move on to the next section|next screen)$/.test(t)) return { type: 'nextSection' };
     if (/^(previous section|go to the previous section|go back a section|previous screen)$/.test(t)) return { type: 'prevSection' };
-    if (/^(next|next one|next question|skip|skip that|skip this one|skip it|move on|carry on)$/.test(t)) return { type: 'next' };
+    if (/^(next|next one|next question|skip|skip that|skip this one|skip it|move on|carry on)$/.test(t) || NEXT_ON.test(t)) return { type: 'next' };
     if (/^(previous|previous one|go back|back|previous question)$/.test(t)) return { type: 'prev' };
     var m = NAV_RE.exec(t);
     if (m) {

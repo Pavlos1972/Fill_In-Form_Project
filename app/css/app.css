@@ -250,3 +250,5 @@ dialog .f input, dialog .f select { padding-right: 9px; background: var(--surfac
 .f.s-preset .st { display: none; }
 .f.s-preset input, .f.s-preset select { padding-right: 9px; }
 .f.s-calc input { padding-right: 74px; }
+.vm-stopnotes { background: var(--accent); color: var(--accent-ink); border: 0; border-radius: 4px; padding: 2px 9px; font: 500 11px var(--mono); letter-spacing: .04em; text-transform: uppercase; cursor: pointer; }
+.vm-stopnotes:hover { filter: brightness(1.08); }
