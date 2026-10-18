@@ -55,6 +55,8 @@
   function spokenPassport(raw) {
     var t = String(raw), m = /\b([A-Za-z]{1,2})[\s-]?(\d[\d\s-]{4,18}\d)\b/.exec(t);
     if (m && !/^(?:id|is|no|at|in|on|to|or|my|it|as|am|an|be|by|do|go|he|if|me|of|so|up|us|we)$/i.test(m[1])) return (m[1] + m[2].replace(/[\s-]/g, '')).toUpperCase();   // not a plain word before the number ("my ID is 7212...")
+    var sp = /^\s*([A-Za-z]{1,2})[\s,-]+((?:(?:zero|oh|one|two|three|four|five|six|seven|eight|nine|double|triple)[\s,-]*){6,})$/i.exec(t);      // "A one two three four five six seven"
+    if (sp && spokenDigits(sp[2]).length >= 6) return (sp[1] + spokenDigits(sp[2])).toUpperCase();
     if (!/passport/i.test(t)) return null;
     var out = '';
     norm(t.replace(/^.*passport(?:\s+number)?\s*(?:is|:)?/i, '')).split(' ').forEach(function (w) {

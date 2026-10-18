@@ -58,6 +58,7 @@
      generic: [number] and [email], for lines that only give context. Otherwise [N1], [E1] ... with the real values kept in the vault, and a
      short description of each, so Claude can tell a cell number from a landline or an ID without ever seeing the digits. */
   var DIGITWORD = '(?:zero|oh|one|two|three|four|five|six|seven|eight|nine|double|triple)';
+  var PLAIN = /^(?:r|id|is|no|at|in|on|to|or|my|it|as|am|an|be|by|do|go|he|if|me|of|so|up|us|we)$/i;      // not a passport prefix: money (R450000), plain words
   function kindOf(d) {
     if (d.length === 13) return '13 digits, the length of an ID number';
     if (/^0[6-8]\d{8}$/.test(d)) return '10 digits, starts like a cell number';
@@ -82,9 +83,13 @@
       if (d.length >= 9 || (d.length >= 7 && d.charAt(0) === '0')) return hold('N', m, kindOf(d));
       return m;
     });
-    t = t.replace(new RegExp('\\b' + DIGITWORD + '(?:[\\s,-]+' + DIGITWORD + '){6,}\\b', 'gi'), function (m) {
-      var d = V.spokenDigits(m);
-      return d.length >= 7 ? hold('N', m, kindOf(d)) : m;
+    t = t.replace(/(^|[^A-Za-z0-9])([A-Za-z]{1,2})[ \t-]?(\d(?:[ \t-]?\d){5,})(?!\d)/g, function (m, pre, letters) {         // a passport number: letters then digits
+      return PLAIN.test(letters) ? m : pre + hold('N', m.slice(pre.length), 'letters then digits, like a passport number');
+    });
+    t = t.replace(new RegExp('\\b(?:([A-Za-z]{1,2})[\\s,-]+)?(' + DIGITWORD + '(?:[\\s,-]+' + DIGITWORD + '){5,})\\b', 'gi'), function (m, letters, run) {
+      var d = V.spokenDigits(run);
+      if (letters && !PLAIN.test(letters) && d.length >= 6) return hold('N', m, 'letters then digits, like a passport number');
+      return d.length >= 7 ? (letters ? letters + ' ' : '') + hold('N', run, kindOf(d)) : m;
     });
     return { text: t, vault: vault, list: list };
   }

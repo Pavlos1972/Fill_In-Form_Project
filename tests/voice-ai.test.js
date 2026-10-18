@@ -154,3 +154,11 @@ test('a reply that never comes is given up on, so the conversation is never held
   const r = await AI.decide({ model: 'm', idx, who: 'auto', text: 'x', ctx: {}, timeoutMs: 500, ask: () => Promise.resolve('{"actions":[{"do":"ask","field":"occ"}]}') });
   assert.deepStrictEqual(r.actions, [{ do: 'ask', field: 'occ' }]);
 });
+test('a passport number is a private value too, said as letters and digits or as letters and spoken digits', () => {
+  assert.strictEqual(AI.shield("it is A 1 2 3 4 5 6 7").text, 'it is [N1]');
+  assert.strictEqual(AI.shield('my passport is A1234567').text, 'my passport is [N1]');
+  assert.strictEqual(AI.shield('passport number is A one two three four five six seven').text, 'passport number is [N1]');
+  assert.deepStrictEqual(AI.shield('it is M 8 7 6 5 4 3 2 1').list, [{ id: 'N1', kind: 'letters then digits, like a passport number' }]);
+  const same = 'I earn R450000, R 1 234 567 and R4500000, invoice no 1234567, I have a one two three four';
+  assert.strictEqual(AI.shield(same).text, same);                                              // money and plain words are not passports
+});
