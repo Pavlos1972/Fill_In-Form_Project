@@ -25,24 +25,24 @@
   function recallHandle() { return idb(function (st, done) { var r = st.get('current'); r.onsuccess = function () { done(r.result || null); }; r.onerror = function () { done(null); }; }); }
   function loadDraft() { try { var t = localStorage.getItem(DRAFT_KEY); return t ? store.fromJSON(t) : null; } catch (e) { return null; } }
   function touch() { dirty = true; saveDraft(); refreshChrome(); }
-  /* A South African ID number holds the date of birth (YYMMDD). When the ID number is set, the date goes into an empty date of birth box,
-     or replaces the one that came from the previous ID number. A date typed or said some other way is left alone (the Checks panel warns
-     when it does not match). The date takes the status of the ID number: amber "verify" while the ID is, confirmed once the ID is (typed, clicked
-     or agreed to by the client). Returns what the box held before (so it can be undone), or null when nothing changed. This happens on this
-     computer: the ID number is never sent anywhere. */
-  function autoDob(prevId) {
+  /* A South African ID number holds the date of birth (YYMMDD), and the date of birth always follows it: when the ID number is entered or changed,
+     the date goes into the date of birth box, replacing whatever was there (a date entered before the ID, or the date of the previous ID), and a note says so.
+     A date typed or said after the ID is left as it is (the Checks panel warns when it does not match). The date takes the status of the ID number:
+     amber "verify" while the ID is, confirmed once the ID is (typed, clicked or agreed to by the client). Returns what the box held before (so it can be
+     undone), or null when nothing changed. This happens on this computer: the ID number is never sent anywhere. */
+  function autoDob() {
     var id = String(state.f.idno.v || '').replace(/\s/g, ''), d = state.f.dob;
     if (state.f.idtype.v === 'Passport' || !/^\d{13}$/.test(id)) return null;
     var dob = util.dobFromSaId(id);
     if (!dob) return null;
-    var txt = util.formatDate(dob), before = util.dobFromSaId(String(prevId || '').replace(/\s/g, '')), idOk = state.f.idno.st === 'confirmed', was = { v: d.v, st: d.st };
+    var txt = util.formatDate(dob), idOk = state.f.idno.st === 'confirmed', was = { v: d.v, st: d.st };
     if (d.v === txt) {                                                       // already the date of this ID number: it follows the ID's status
       if (!idOk || (d.st !== 'verify' && d.st !== 'heard')) return null;
       store.setField(state, 'dob', txt, 'confirmed');
       return was;
     }
-    if (d.v !== '' && !(before && util.formatDate(before) === d.v)) return null;
     store.setField(state, 'dob', txt, idOk ? 'confirmed' : 'verify');
+    if (was.v !== '') toast('Date of birth changed to ' + txt + ' to match the ID number.');
     return was;
   }
   /* Show a box's value and status in place (used when a box changes without the screen being redrawn). */
@@ -311,7 +311,7 @@
     if (t.dataset.accept) {
       var p = t.dataset.accept.split(':');
       store.accept(state, p[0] === 'r' ? { list: p[1], i: +p[2] } : { id: p[1] });
-      if (p[0] === 'f' && p[1] === 'idno') autoDob(state.f.idno.v);                  // the ID is agreed to, so is the date of birth that came from it
+      if (p[0] === 'f' && p[1] === 'idno') autoDob();                  // the ID is agreed to, so is the date of birth that came from it
       touch(); redraw(); return;
     }
     if (t.dataset.add) { store.addRow(state, t.dataset.add); touch(); redraw(); var last = document.querySelectorAll('[data-l="' + t.dataset.add + '"][data-i="' + (state.l[t.dataset.add].length - 1) + '"]')[0]; if (last) last.focus(); return; }
@@ -330,9 +330,8 @@
       var def = schema.fieldsById[t.dataset.f], val = t.value.trim() === '' ? '' : t.value;
       if (def && def.money) { val = util.formatMoney(val); t.value = val; }
       if (def && def.date) { var pd = util.parseDate(val); if (pd) { val = util.formatDate(pd); t.value = val; } }
-      var prevId = t.dataset.f === 'idno' ? state.f.idno.v : '';
       store.setField(state, t.dataset.f, val);
-      var dobSet = t.dataset.f === 'idno' && autoDob(prevId);
+      var dobSet = (t.dataset.f === 'idno' || t.dataset.f === 'idtype') && autoDob();        // the date of birth follows the ID number (and the ID type going back to ID)
       var wrap = t.closest('.f'); if (wrap) { wrap.className = wrap.className.replace(/\bs-\w+/, 's-' + state.f[t.dataset.f].st); var b = wrap.querySelector('.st'); if (b) b.innerHTML = badge(state.f[t.dataset.f].st, 'f:' + t.dataset.f); }
       touch();
       if (t.dataset.f === 'employer' || t.dataset.f === 'biz_name') autoCompanyLookup(t.dataset.f);
@@ -738,13 +737,13 @@
     if (res.kind === 'confirm') {
       if (cell.v === '') return false;
       store.setField(state, id, cell.v, 'confirmed');
-      if (id === 'idno') { var dobAgreed = autoDob(cell.v); if (dobAgreed) { entry.extras.push({ id: 'dob', prev: dobAgreed }); extraIds.push('dob'); } }   // the date of birth that came from this ID is agreed to with it
+      if (id === 'idno') { var dobAgreed = autoDob(); if (dobAgreed) { entry.extras.push({ id: 'dob', prev: dobAgreed }); extraIds.push('dob'); } }   // the date of birth that came from this ID is agreed to with it
     } else {
       var value = res.value;
       if (res.append && cell.v && (cell.st === 'heard' || cell.st === 'verify')) value = cell.v + ' ' + value;
       store.setField(state, id, value, res.status);
       (res.extra || []).forEach(function (x) { var c2 = state.f[x.id]; entry.extras.push({ id: x.id, prev: { v: c2.v, st: c2.st } }); store.setField(state, x.id, x.value, x.status); extraIds.push(x.id); });
-      if (id === 'idno') { var dobWas = autoDob(entry.prev.v); if (dobWas) { entry.extras.push({ id: 'dob', prev: dobWas }); extraIds.push('dob'); } }   // the date of birth comes from the ID number
+      if (id === 'idno') { var dobWas = autoDob(); if (dobWas) { entry.extras.push({ id: 'dob', prev: dobWas }); extraIds.push('dob'); } }   // the date of birth comes from the ID number
     }
     vm.undo.push(entry);
     if (id === vm.target) vm.answered = true;
