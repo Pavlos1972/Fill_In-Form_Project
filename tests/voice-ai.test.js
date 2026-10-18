@@ -235,3 +235,12 @@ test('a note from the page says what it already did for the line, so a second lo
   assert.ok(!('note' in JSON.parse(AI.buildRequest(idx, { sectionId: 'inv', recent: [] }, 'auto', 'x', 'm').messages[0].content)));
   assert.ok(/"note"/.test(AI.SYSTEM));
 });
+test('Claude can hand back the points for the notes box; a held-back number is put back on this computer, and an empty note is ignored', async () => {
+  assert.ok(/Notes\. "let me take some notes"/.test(AI.SYSTEM) && /Never stop at the notes command/.test(AI.SYSTEM) && /"do":"note"/.test(AI.SYSTEM));
+  const run = (actions, text) => AI.decide({ apiKey: 'k', model: 'm', idx, who: 'auto', text: text || 'x', ctx: { sectionId: 'inv', recent: [] }, fetchImpl: reply({ actions }) });
+  const r = await run([{ do: 'cmd', cmd: 'notes' }, { do: 'note', text: "- Old Mutual tax free: for his son's university fees\n- To be used when he turns 18" }]);
+  assert.deepStrictEqual(r.actions, [{ do: 'cmd', cmd: { type: 'notes', retro: false, box: null } }, { do: 'note', text: "- Old Mutual tax free: for his son's university fees\n- To be used when he turns 18", ready: true }]);
+  const withNumber = await run([{ do: 'note', text: '- Spouse cell [N1], calls in the morning' }], 'make a note, his wife is on 082 555 0148, calls in the morning');
+  assert.strictEqual(withNumber.actions[0].text, '- Spouse cell 082 555 0148, calls in the morning');
+  assert.strictEqual((await run([{ do: 'note', text: '   ' }, { do: 'note' }, { do: 'note', text: 5 }])).kind, 'none');
+});

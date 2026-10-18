@@ -659,3 +659,13 @@ test('the public profile box is not a notes box: notes go to the Notes box of th
   assert.deepStrictEqual(info, ['n_info']);
   assert.ok(!idx.byId.profile && !idx.noteById.profile);                                    // and voice never fills it
 });
+test('more ways of asking to make notes are understood, and what follows in the same line is noted', () => {
+  ["I wanted to make a couple of notes regarding the client's Old Mutual tax-free investment", "I'd like to make a note about the will", 'can we make some notes about the bond', 'we need to record some notes', 'I would like to take a few notes']
+    .forEach(s => assert.strictEqual((V.parseCommand(s, idx) || {}).type, 'notes', s));
+  const line = "I wanted to make a couple of notes regarding the client's Old Mutual tax-free investment. The client told me that the Old Mutual tax-free investment was for his son's education when he turns 18 for his university fees.";
+  const pl = V.plan(line, idx, { cur: 'inv', noting: false, target: null, answered: false, rows: () => [], curRow: {}, value: () => '', visible: () => true });
+  assert.deepStrictEqual(pl.actions.map(a => a.do), ['cmd', 'note']);
+  assert.strictEqual(pl.actions[0].cmd.type, 'notes');
+  assert.ok(/son's education/.test(pl.actions[1].text));
+  assert.ok(!pl.actions.some(a => a.do === 'fill' || a.do === 'addrow'));
+});
