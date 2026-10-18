@@ -128,7 +128,7 @@
       return '<input ' + attrs + ' list="' + lid + '" value="' + esc(v) + '" autocomplete="off"><datalist id="' + lid + '">' + def.o.map(function (x) { return '<option value="' + esc(x) + '">'; }).join('') + '</datalist>';
     }
     if (def.t === 'sel' || def.o) return '<select ' + attrs + (disabled ? ' disabled' : '') + '>' + optionsHTML(def.o, v) + '</select>';
-    if (def.t === 'area') return '<textarea ' + attrs + '>' + esc(v) + '</textarea>';
+    if (def.t === 'area') return '<textarea ' + attrs + (def.rows ? ' rows="' + def.rows + '" style="height:' + (def.rows * 21 + 14) + 'px"' : '') + '>' + esc(v) + '</textarea>';
     return '<input ' + attrs + ' value="' + esc(v) + '"' + (disabled ? ' readonly' : '') + ' autocomplete="off">';
   }
   function fieldHTML(f, g12) {
@@ -318,6 +318,7 @@
       var wrap = t.closest('.f'); if (wrap) { wrap.className = wrap.className.replace(/\bs-\w+/, 's-' + state.f[t.dataset.f].st); var b = wrap.querySelector('.st'); if (b) b.innerHTML = badge(state.f[t.dataset.f].st, 'f:' + t.dataset.f); }
       touch();
       if (t.dataset.f === 'employer' || t.dataset.f === 'biz_name') autoCompanyLookup(t.dataset.f);
+      if (PROFILE_SRC.indexOf(t.dataset.f) >= 0) autoProfileLookup();
       if (dobSet) paintField('dob');
       if (condIds[t.dataset.f]) { redraw(); var again = document.querySelector('[data-f="' + t.dataset.f + '"]'); if (again) again.focus(); } else refreshLive();
     } else if (t.dataset.l) {
@@ -368,22 +369,22 @@
     if (job.kind !== 'person' && FF.voiceBackend && FF.voiceBackend.available) return FF.lookup.runAsk({ ask: FF.voiceBackend.ask, name: job.name, kind: job.kind }).then(function (t) { return { text: t, st: 'verify' }; });
     return Promise.reject(new Error(job.kind === 'person' ? 'The LinkedIn search needs the Anthropic key in Settings, because it uses web search.' : 'Add your Anthropic API key in Settings first.'));
   }
-  var NOT_FOUND = /^Could not (?:identify|find)/;
+  var NOT_FOUND = /^(?:Could not (?:identify|find)|No public profile found)/;
   /* Fills box id with the answer. auto: the page started it, so an answer typed in the box meanwhile is never replaced and "not found" is a note, not text in the box. */
   function runLookup(id, job, auto) {
     looking[id] = job.name;
-    var el = document.querySelector('[data-f="' + id + '"]'); if (el) el.placeholder = 'Searching online…';
-    function done() { delete looking[id]; var e2 = document.querySelector('[data-f="' + id + '"]'); if (e2) e2.placeholder = ''; }
+    var el = document.querySelector('[data-f="' + id + '"]'), hint = el ? el.placeholder : ''; if (el) el.placeholder = 'Searching online…';
+    function done() { delete looking[id]; var e2 = document.querySelector('[data-f="' + id + '"]'); if (e2) e2.placeholder = hint; }
     return lookupText(job).then(function (r) {
       done();
       if (JSON.stringify(lookupJob(id)) !== JSON.stringify(job)) return;                         // the name changed while searching: this answer is for something else
       var box = state.f[id], miss = NOT_FOUND.test(r.text);
       if (auto) {
         if (box.v !== '' && !(autoLook[id] && box.v === autoLook[id].text)) return;               // something was typed or said there meanwhile
-        if (miss) { toast('Could not find what ' + job.name + ' does online.'); return; }
+        if (miss && job.kind !== 'person') { toast('Could not find what ' + job.name + ' does online.'); return; }     // for a person, "no match" is written in the box, so it is clear the search was done
       }
       store.setField(state, id, r.text, miss ? 'empty' : r.st);
-      autoLook[id] = { name: job.name, text: r.text };
+      autoLook[id] = { name: job.name, sig: JSON.stringify(job), text: r.text };
       touch(); paintField(id); if (vm.on) vmFlash(id);
     }, function (err) { done(); throw err; });
   }
@@ -397,6 +398,21 @@
     if (prev && box.v === prev.text) { store.setField(state, target, '', 'empty'); delete autoLook[target]; touch(); paintField(target); box = state.f[target]; }   // the name changed: the old description no longer applies
     if (box.v !== '') return;                                                                   // written by hand: leave it
     runLookup(target, job, true).catch(function (e) { if (Date.now() - lookFail > 60000) { lookFail = Date.now(); toast('Could not look up ' + job.name + ' (' + e.message + ').'); } });
+  }
+  /* The client's name and employer or occupation are known: search for their public profile by itself, a few seconds after the last of them was entered
+     (so a name, an employer and an occupation said one after the other are one search). Only with the Anthropic key: it needs web search. */
+  var profileTimer = null, PROFILE_SRC = ['fname', 'sname', 'employer', 'biz_name', 'bizowner', 'occ'];
+  function autoProfileLookup() {
+    clearTimeout(profileTimer);
+    if (!FF.lookup.getSettings().apiKey) return;
+    profileTimer = setTimeout(function () {
+      var job = lookupJob('profile'), box = state.f.profile, prev = autoLook.profile;
+      if (!String(state.f.fname.v).trim() || !String(state.f.sname.v).trim() || !(job.org || job.role)) return;
+      if (prev && prev.sig === JSON.stringify(job) && box.v === prev.text) return;                 // already searched for exactly this
+      if (prev && box.v === prev.text) { store.setField(state, 'profile', '', 'empty'); delete autoLook.profile; touch(); paintField('profile'); box = state.f.profile; }   // something changed: the old summary may be about someone else
+      if (box.v !== '' || looking.profile) return;                                                  // written by hand, or already searching
+      runLookup('profile', job, true).catch(function (e) { if (Date.now() - lookFail > 60000) { lookFail = Date.now(); toast('Could not search for the profile (' + e.message + ').'); } });
+    }, FF.profileDelay != null ? FF.profileDelay : 4000);
   }
   function doLookup(btn) {
     var id = btn.dataset.lookup, job = lookupJob(id), set = FF.lookup.getSettings();
@@ -712,7 +728,7 @@
     if (id === vm.target) vm.answered = true;
     touch(); redraw(); vmFlash(id); extraIds.forEach(vmFlash);
     /* Employer or business name filled: look up what the company does. Only the company name is sent. */
-    if (res.kind === 'fill') autoCompanyLookup(id);
+    if (res.kind === 'fill') { autoCompanyLookup(id); if (PROFILE_SRC.indexOf(id) >= 0) autoProfileLookup(); }
     return true;
   }
   /* What is already in the boxes of the current section, so Claude can tell a new fact from a correction. Private boxes are only said to be filled, never their values. */

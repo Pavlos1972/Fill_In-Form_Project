@@ -61,7 +61,7 @@ test('a client look-up names only the person, the employer and the occupation, a
   const r = L.buildRequest('Jane Doe', 'person', 'claude-opus-5-5', null, { org: 'Acme (Pty) Ltd', role: 'Financial planner' });
   const ask = r.messages[0].content;
   assert.ok(ask.includes('"Jane Doe"') && ask.includes('Acme (Pty) Ltd') && ask.includes('Financial planner') && ask.includes('LinkedIn'));
-  assert.ok(/never mix up two people with the same name/.test(ask) && /Could not find a profile that clearly matches/.test(ask));
+  assert.ok(/never mix two people up/.test(ask) && /No public profile found that clearly matches/.test(ask) && /Likely match:/.test(ask) && /Possible match, check it:/.test(ask));
   assert.ok(/family, health, money, age, address/.test(ask));                                       // nothing personal is asked for
   assert.strictEqual(r.tools[0].name, 'web_search');
   assert.ok(!/\d{6,}|@/.test(ask));                                                                  // no number or address in it

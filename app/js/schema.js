@@ -3,7 +3,7 @@
    Field keys:  id, l (label), t ('txt' | 'sel' | 'area'), o (options), free (pick a value or type your own),
                 preset (default value), calc (name of a calculation in calc.js), risky (check the spelling or number),
                 opt (optional, left out of the progress count), wide (full width), link ([text, url]), hint,
-                lookup (a box with a look-up button: the id of the box holding the name to search for, or 'client'), lookupBtn (the button's words), nopdf (left off the PDF).
+                lookup (a box with a look-up button: the id of the box holding the name to search for, or 'client'), lookupBtn (the button's words), nopdf (left off the PDF), rows (lines of a text box).
    Block keys:  title, fields, list, cond (show only when true), condMsg, help (guidance shown on screen only), docs. */
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
@@ -63,6 +63,9 @@
         { id: 'edu', l: 'Highest education', t: 'sel', o: ['Matric', 'Matric & diploma', '4-year diploma', '3-year degree', 'Postgraduate', 'Other'], s: 3 },
         { id: 'edu_notes', l: 'Qualification details', t: 'area', s: 6 }
       ] },
+      { title: 'Public profile (LinkedIn)', help: 'Searched by itself once the client\'s name and employer or occupation are known. It is the best match found, with how sure it is: a pointer to check with the client, not a fact. Advisor only: it is not printed on the PDF.', fields: [
+        { id: 'profile', l: 'Public profile summary', t: 'area', wide: 1, opt: 1, nopdf: 1, lookup: 'client', lookupBtn: 'Search LinkedIn', rows: 3, hint: 'Filled in by itself when the name and employer or occupation are known. Needs the Anthropic key on the laptop; it is not available on the practice page.' }
+      ] },
       { fields: [N('n_info')] }
     ] },
 
@@ -91,8 +94,7 @@
         { id: 'bizowner', l: 'Business owner', t: 'sel', o: YN },
         { id: 'occ', l: 'Occupation', t: 'txt' },
         { id: 'ft', l: 'Full time or contract', t: 'sel', o: ['Full time', 'Contract'] },
-        { id: 'years', l: 'Years in this occupation', t: 'txt' },
-        { id: 'profile', l: 'Public profile summary (LinkedIn), for the advisor only', t: 'area', wide: 1, opt: 1, nopdf: 1, lookup: 'client', lookupBtn: 'Search LinkedIn' }
+        { id: 'years', l: 'Years in this occupation', t: 'txt' }
       ] },
       { title: 'Business owner details', cond: BIZ, condMsg: 'These fields appear when Business owner is set to Yes.', fields: [
         { id: 'biz_name', l: 'Business name', t: 'txt' },

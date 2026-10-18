@@ -43,13 +43,14 @@
       'If you cannot identify it with confidence, reply exactly: Could not identify this company. ' +
       'Reply with the description only: no headings, no bullet points, no links and no citation marks.';
   }
-  /* A client's public professional profile (LinkedIn and other public pages), for the adviser to check. Only a match on the name AND the employer or role counts. */
+  /* A client's public professional profile (LinkedIn and other public pages), for the adviser to check. The best match is given, with how sure it is. */
   function personPrompt(name, x) {
     var who = '"' + name + '"' + (x.org ? ', who works for, or owns, "' + x.org + '"' : '') + (x.role ? ', as ' + x.role : '');
-    return 'A South African financial adviser is preparing for a meeting with a client. Search the public web, LinkedIn in particular, for the professional ' + who + ' (most likely in South Africa). ' +
-      'Use only publicly available information. In at most 70 words, in plain sentences, say who they work for and what they do: their role, the employer and what the employer does, and for how long if it is clear. ' +
-      'Only describe a person who matches the name AND the employer or role given, and never mix up two people with the same name. ' +
-      'If you cannot find one that clearly matches, reply exactly: Could not find a profile that clearly matches. ' +
+    return 'A South African financial adviser is preparing for a meeting with a client. Search the public web, LinkedIn in particular, for the most likely public profile of the professional ' + who + ' (most likely in South Africa). ' +
+      'Use only publicly available information. Match as best you can: use the employer and the occupation to choose between people with the same name, and never mix two people up. ' +
+      'In at most 70 words, in plain sentences, start with "Likely match:" when the name and the employer or occupation clearly agree, or "Possible match, check it:" when only some of it agrees. ' +
+      'Then say who they work for and what they do: their role, the employer and what the employer does, and for how long if it is clear. ' +
+      'If nobody plausible turns up, reply exactly: No public profile found that clearly matches. ' +
       'Say nothing about family, health, money, age, address or any other personal matter. ' +
       'End with "Source: " and the web address of the page you relied on. Reply with that text only: no headings, no bullet points and no citation marks.';
   }
