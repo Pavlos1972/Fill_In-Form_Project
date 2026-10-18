@@ -116,7 +116,7 @@
   /* ---------- rendering ---------- */
   function badge(st, target) {
     var t = { empty: 'not asked', heard: 'heard', verify: 'verify', confirmed: 'confirmed', calc: 'calc', preset: 'preset', suggest: 'accept' }[st] || st;
-    var act = (st === 'heard' || st === 'verify' || st === 'suggest') ? ' data-accept="' + esc(target) + '" title="Click to accept"' : '';
+    var act = (st === 'heard' || st === 'verify' || st === 'suggest') ? ' data-accept="' + esc(target) + '" title="Click to confirm"' : '';
     return '<button type="button" class="badge ' + st + '"' + act + ' tabindex="-1">' + t + '</button>';
   }
   function optionsHTML(o, v) {
@@ -131,6 +131,16 @@
     if (def.t === 'area') return '<textarea ' + attrs + (def.rows ? ' rows="' + def.rows + '" style="height:' + (def.rows * 21 + 14) + 'px"' : '') + '>' + esc(v) + '</textarea>';
     return '<input ' + attrs + ' value="' + esc(v) + '"' + (disabled ? ' readonly' : '') + ' autocomplete="off">';
   }
+  /* The live digit count under the ID and tax number boxes: grey when empty, amber while short, green when right, red when too long or not valid. */
+  function lenChip(id) {
+    var s = validate.lengthState(id, state.f[id].v, state.f.idtype.v);
+    return '<span class="len' + (s ? ' ' + s.level : '') + '" data-len="' + id + '"' + (s ? '' : ' hidden') + '>' + (s ? esc(s.text) : '') + '</span>';
+  }
+  function showLen(id, value) {
+    var el = document.querySelector('[data-len="' + id + '"]'); if (!el) return;
+    var s = validate.lengthState(id, value, state.f.idtype.v);
+    el.hidden = !s; el.className = 'len' + (s ? ' ' + s.level : ''); el.textContent = s ? s.text : '';
+  }
   function fieldHTML(f, g12) {
     var c = state.f[f.id], st = c.st, v = c.v, isNone = !!f.none && v === 'None';
     if (f.calc) { v = FF.calc.field(f.calc, ctx()); st = 'calc'; }
@@ -142,7 +152,7 @@
     var style = g12 ? ' style="--s:' + (f.wide ? 12 : (f.s || 4)) + '"' : '';
     return '<label class="f s-' + st + (f.wide ? ' wide' : '') + '" data-field="' + f.id + '"' + style + '><span class="l"><span>' + esc(f.l) + '</span>' + (rt ? '<span class="rt">' + rt + '</span>' : '') + '</span>' +
       '<span class="box">' + control(attrs, f, v, !!f.calc || isNone) + (f.t === 'area' ? '' : '<span class="st">' + badge(st, 'f:' + f.id) + '</span>') + '</span>' +
-      '<span class="warn" data-warn="' + f.id + '" hidden></span></label>';
+      (f.len ? lenChip(f.id) : '') + '<span class="warn" data-warn="' + f.id + '" hidden></span></label>';
   }
   function cellHTML(key, i, c, r, card) {
     var L = schema.lists[key], v = c.calc ? FF.calc.rowCalc(c.calc, r, ctx()) : r.d[c.k];
@@ -255,8 +265,10 @@
         var el = document.querySelector('[data-l="' + key + '"][data-i="' + i + '"][data-k="' + c.k + '"]'); if (el) el.value = FF.calc.rowCalc(c.calc, r, ctx());
       }); });
     });
+    ['idno', 'tax'].forEach(function (id) { showLen(id, state.f[id].v); });
     refreshWarnings(); refreshChrome();
   }
+  document.addEventListener('input', function (e) { var t = e.target; if (t.dataset && (t.dataset.f === 'idno' || t.dataset.f === 'tax')) showLen(t.dataset.f, t.value); });
   function refreshWarnings() {
     var warns = validate.check(ctx()), box = $('#checks'), html = '';
     document.querySelectorAll('[data-warn],[data-rwarn]').forEach(function (el) { el.hidden = true; el.textContent = ''; });
@@ -673,8 +685,11 @@
     var rows = state.l[c.list];
     while (rows.length <= c.i) store.addRow(state, c.list, {}, 'heard');
     var row = rows[c.i], prev = row.d[c.k] == null ? '' : String(row.d[c.k]);
-    if (res.kind === 'confirm') { if (prev === '') return false; }
-    else {
+    if (res.kind === 'confirm') {
+      if (prev === '') return false;
+      vm.undo.push({ kind: 'cell', list: c.list, i: c.i, k: c.k, prev: { v: prev, st: row.st } });
+      row.st = 'confirmed';                                                    // the status belongs to the whole row
+    } else {
       var value = res.value;
       if (res.append && prev) value = prev.replace(/\s+$/, '') + '\n' + value;
       var auto = c.list === 'kids' && c.k === 'dob' && (row.d.stage === '' || row.d.stage === FF.calc.rowCalc('stage', row, ctx()));   // a child's stage follows the date of birth until set by hand
@@ -742,12 +757,32 @@
     });
     return { filled: filled, filledPrivate: priv };
   }
+  /* The boxes and rows of this section that were filled by voice and still wait for the client to agree (amber "verify" or "heard"). Private boxes are listed without their values; the values stay here, to check a read-back against. */
+  function vmAwaiting() {
+    var out = [], held = {};
+    vidx.fields.forEach(function (f) {
+      if (f.list || f.sec !== cur || !vmVisible(f)) return;
+      var c = state.f[f.id];
+      if (!c || c.v === '' || (c.st !== 'heard' && c.st !== 'verify')) return;
+      var priv = V.PRIVATE_IDS.indexOf(f.id) >= 0;
+      out.push({ id: f.id, label: f.label, private: priv, value: priv ? null : String(c.v) });
+      if (priv) held[f.id] = String(c.v);
+    });
+    Object.keys(vidx.lists).forEach(function (key) {
+      if (vidx.lists[key].sec !== cur) return;
+      state.l[key].forEach(function (r, i) {
+        if (r.st !== 'heard' && r.st !== 'verify') return;
+        if (Object.keys(r.d).some(function (k) { return r.d[k] !== '' && r.d[k] != null; })) out.push({ list: key, row: i + 1, label: vidx.lists[key].title + ' ' + (i + 1) });
+      });
+    });
+    return { awaiting: out, held: held };
+  }
   function vmAsk(who, text) {
-    var set = FF.lookup.getSettings(), tcr = vm.target ? vmCellRef(vm.target) : null, tid = vm.target && !/^count:/.test(vm.target) && vmField(vm.target) ? (tcr ? tcr.list + '.' + tcr.k : vm.target) : null, fl = vmFilled();
+    var set = FF.lookup.getSettings(), tcr = vm.target ? vmCellRef(vm.target) : null, tid = vm.target && !/^count:/.test(vm.target) && vmField(vm.target) ? (tcr ? tcr.list + '.' + tcr.k : vm.target) : null, fl = vmFilled(), aw = vmAwaiting();
     vm.busy++; vmRender();
     return VAI.decide({
       apiKey: set.apiKey, ask: !set.apiKey && FF.voiceBackend && FF.voiceBackend.available ? FF.voiceBackend.ask : null, model: set.voiceModel, idx: vidx, who: who, text: text,
-      ctx: { sectionId: cur, targetId: tid, targetRow: tcr ? tcr.i + 1 : null, targetValue: tid && !vmPrivate(vm.target) ? vmValue(vm.target) : '', targetFilled: !!(tid && vmValue(vm.target) !== ''), filled: fl.filled, filledPrivate: fl.filledPrivate,
+      ctx: { sectionId: cur, targetId: tid, targetRow: tcr ? tcr.i + 1 : null, targetValue: tid && !vmPrivate(vm.target) ? vmValue(vm.target) : '', targetFilled: !!(tid && vmValue(vm.target) !== ''), filled: fl.filled, filledPrivate: fl.filledPrivate, awaiting: aw.awaiting, privateHeld: aw.held,
         listRows: function (key) { return state.l[key].map(function (r) { return r.d; }); }, recent: vm.recent.slice(-7, -1) }
     }).then(function (r) { vm.busy--; vmRender(); return r; }, function (err) {
       vm.busy--; vmRender();
@@ -777,13 +812,17 @@
         return vmDo({ do: 'fill', field: a.list + ':' + ri + ':' + a.col, value: a.value, explicit: a.explicit });
       case 'wait': return vm.target ? vmNote(vm.target, a.dangling ? 'Listening for the rest' : 'Waiting for the correct answer') : null;
       case 'confirm': case 'fill':
+        if (a.do === 'confirm' && a.list) {                                     // Claude: the client agrees to a row of a list; its first filled box carries the status
+          var cl = state.l[a.list] || [], ci = a.row === 'last' ? Math.max(cl.length - 1, 0) : a.row - 1, crow = cl[ci], ck = crow && vidx.lists[a.list].cols.map(function (id) { return id.split('.')[1]; }).filter(function (k) { return crow.d[k] !== '' && crow.d[k] != null; })[0];
+          return ck ? vmDo({ do: 'confirm', field: a.list + ':' + ci + ':' + ck }) : null;
+        }
         if (!f || !vmVisible(f)) return;
         var cell = vmCellRef(a.field) ? { v: vmValue(a.field), st: (state.l[vmCellRef(a.field).list][vmCellRef(a.field).i] || { st: 'heard' }).st } : state.f[a.field], res = a.res;
         if (!res && a.do === 'confirm') res = { kind: 'confirm' };
         if (!res) { var x = V.interpret(f, a.value); if (x && !x.error) res = { kind: 'fill', value: x.value, status: x.status, extra: x.extra, append: x.append }; }
         if (!res) return;
         if (res.kind === 'fill' && !res.extra && cell.v !== '' && String(res.value).trim().toLowerCase() === String(cell.v).trim().toLowerCase()) res = { kind: 'confirm' };   // saying the same thing again agrees with it
-        if (a.field !== vm.target) {
+        if (a.field !== vm.target && a.do !== 'confirm') {                  // agreeing to a box does not move the cursor: it turns green where it is
           if (!a.explicit && res.kind === 'fill' && cell.v !== '' && cell.st === 'confirmed') return;   // Claude's volunteered fact never overwrites a confirmed value
           vmShow(a.field);                                                                              // the screen follows the conversation to that box
         }
@@ -809,10 +848,12 @@
     }
     var pl = V.plan(text, vidx, { cur: cur, noting: !!vm.noteMode, target: vm.target, answered: vm.answered, rows: function (key) { return state.l[key].map(function (r) { return r.d; }); }, curRow: vm.rowCur, value: function (id) { return state.f[id].v; }, visible: function (id) { var f = vmField(id); return !!f && vmVisible(f); } });
     var words = text.split(/\s+/).length, onlyCommand = pl.actions.length > 0 && pl.actions.every(function (a) { return a.do === 'cmd'; }) && words <= 8;
-    if (vm.noteMode || onlyCommand || words <= 2 || !vmAIReady()) return vmRun(pl.actions);
+    /* A bare "yes" or "correct" may agree to several boxes that were just read back: Claude decides which, from the lines before it. */
+    var agree = words <= 2 && V.isConfirm(text, true) && !pl.actions.some(function (a) { return a.do === 'fill'; }) && vmAwaiting().awaiting.length > 0;
+    if (vm.noteMode || onlyCommand || (words <= 2 && !agree) || !vmAIReady()) return vmRun(pl.actions);
     return vmAsk('auto', text).then(function (r) {
       if (r && r.kind === 'actions') return vmRun(r.actions);
-      if (!r) return vmRun(pl.actions);                                  // Claude could not be reached: this computer's best reading
+      if (!r || agree) return vmRun(pl.actions);                         // Claude could not be reached, or had nothing to add to a plain yes: this computer's best reading
     });
   }
   /* Called for every line heard. who is 'me' (the adviser), 'client', or left out when the source cannot tell and the words decide.
