@@ -662,14 +662,14 @@
     var prev = vm.noteMode.prev; vm.noteMode = null; vm.target = prev.target; vm.answered = prev.answered; vmMarkWait();
   }
   /* Add what was said to the notes box as short points (Claude writes them when it can; otherwise they are tidied here). */
-  function vmAddNote(text) {
+  function vmAddNote(text, ready) {
     var id = vm.noteMode && vm.noteMode.id;
     if (!id || !text) return null;
-    var local = V.pointForm(text);
+    var local = ready ? String(text).split(/\n+/).map(function (x) { return x.replace(/^[\s\-•*]+/, '').trim(); }).filter(Boolean) : V.pointForm(text);     // ready: Claude already wrote the points
     if (!local.length) return null;
     var set = FF.lookup.getSettings(), secret = !VAI || VAI.scrub(text) !== text;
     var pts = Promise.resolve(local);
-    if (vmAIReady() && !secret) {
+    if (!ready && vmAIReady() && !secret) {
       vm.busy++; vmRender();
       pts = VAI.points({ apiKey: set.apiKey, ask: !set.apiKey && FF.voiceBackend && FF.voiceBackend.available ? FF.voiceBackend.ask : null, model: set.voiceModel, text: text, topic: vmSecTitle(cur) })
         .then(function (r) { vm.busy--; vmRender(); return r.length ? r : local; }, function () { vm.busy--; vmRender(); return local; });
@@ -802,7 +802,9 @@
     switch (a.do) {
       case 'cmd': return vmCommand(a.cmd);
       case 'section': return vmOpenSection(a.section);
-      case 'note': return vmAddNote(a.text);
+      case 'note':
+        if (!vm.noteMode) vmStartNotes({});                                     // a note with no "let me take some notes" before it starts them
+        return vmAddNote(a.text, a.ready);
       case 'addrow': return void vmAddRow(a.list, null);
       case 'row': return void vmAddRow(a.list, a.values);
       case 'ask':
@@ -862,17 +864,22 @@
       if (!r || agree) return vmRun(pl.actions);                         // Claude could not be reached, or had nothing to add to a plain yes: this computer's best reading
     });
   }
-  /* A long line that only moved to another section may have more in it for that section ("let's talk about your investments. Do you have a tax free? Yes, Old Mutual, R3400 a month").
-     Safety net: ask Claude once more, now standing in that section, for the rest of the line. Nothing was filled by the first answer, so nothing is done twice. */
+  /* A long line that only moved to another section, or only switched the notes on, may have more in it ("let's talk about your investments. Do you have a tax free? Yes, Old Mutual, R3400 a month";
+     "I'd like to make some notes about the tax free. The client told me it is for his son's fees").
+     Safety net: ask Claude once more, with a note saying what the page already did, for the rest of the line. Nothing was filled or written by the first answer, so nothing is done twice. */
   var vmRest = false;
   function vmRestOfLine(actions, text, words) {
-    var moved = actions.some(function (a) { return a.do === 'section' || (a.do === 'cmd' && a.cmd && /^(goto|nextSection|prevSection)$/.test(a.cmd.type)); });
-    var did = actions.some(function (a) { return a.do === 'fill' || a.do === 'row' || a.do === 'cell' || a.do === 'confirm'; });
-    if (!moved || did || words < 14 || vmRest || vm.noteMode) return null;
+    var cmdIs = function (a, re) { return a.do === 'cmd' && a.cmd && re.test(a.cmd.type); }, moveRe = /^(goto|nextSection|prevSection)$/;
+    var moved = actions.some(function (a) { return a.do === 'section' || cmdIs(a, moveRe); });
+    var did = actions.some(function (a) { return a.do === 'fill' || a.do === 'row' || a.do === 'cell' || a.do === 'confirm' || a.do === 'note'; });
+    var noted = actions.some(function (a) { return cmdIs(a, /^notes$/) && !a.cmd.retro; }) && !actions.some(function (a) { return a.do === 'note'; });   // "note that down" takes the line before, so it is not asked again
+    var why = noted && words >= 10 ? 'The page has already switched the notes on for this line. Do not switch them on again: write what was said in the notes with "note" actions, and do anything else the line asks.'
+      : moved && !did && !vm.noteMode && words >= 14 ? 'The page has already moved to the section "' + vmSecTitle(cur) + '" because of this line. Do not move again: do the rest of the line that belongs here.' : null;
+    if (!why || vmRest) return null;
     vmRest = true;
-    return vmAsk('auto', text, 'The page has already moved to the section "' + vmSecTitle(cur) + '" because of this line. Do not move again: do the rest of the line that belongs here.').then(function (r) {
+    return vmAsk('auto', text, why).then(function (r) {
       vmRest = false;
-      if (r && r.kind === 'actions') return vmRun(r.actions.filter(function (a) { return a.do !== 'section' && !(a.do === 'cmd' && /^(goto|nextSection|prevSection)$/.test(a.cmd.type)); }));
+      if (r && r.kind === 'actions') return vmRun(r.actions.filter(function (a) { return a.do !== 'section' && !cmdIs(a, moveRe) && !cmdIs(a, /^notes$/); }));
     }, function () { vmRest = false; });
   }
   /* Called for every line heard. who is 'me' (the adviser), 'client', or left out when the source cannot tell and the words decide.

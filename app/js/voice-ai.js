@@ -27,6 +27,7 @@
     '                                               "clear that" is clear (only the box being talked about), and clearAll is for wanting EVERYTHING on the whole form removed',
     '                                               ("all my details are wrong, remove them all", "wipe the entire form", "start again from scratch"). For clearAll give just that one action:',
     '                                               the page asks "are you sure?" before anything is cleared. A wrong value in ONE box is not clearAll: that is a correction or "wait".',
+    '  {"do":"note","text":"- ...\n- ..."}           something for the notes box, WHOEVER says it (see "Notes" below)',
     '',
     'How to read the line:',
     '- Facts count whoever says them. The adviser saying "your first name is John" and the client saying "my surname is Peters" each fill a box. A full name fills the first name AND the surname.',
@@ -39,6 +40,12 @@
     '- Never invent a value that was not said, and never fill a box for something that is only being asked.',
     '- One line can move to another part of the form and carry on there: "let\'s talk about your investments. Do you have a tax free? Yes, an Old Mutual one, R3400 a month" is [section, row]. Everything said after the move',
     '  belongs to the boxes and lists of THAT section, which are all described in "fields" and "lists" whichever section is open now. Give every action of the line in one reply. Never stop after the "section" action.',
+    '',
+    'Notes. "let me take some notes", "I\'d like to make a couple of notes about ...", "note that down" start the notes (cmd notes). The notes box takes what you give it in "note" actions, so when the line holds the thing to be noted, ALSO give it:',
+    '"I\'d like to make a couple of notes about the Old Mutual tax free. The client told me it is for his son\'s university fees when he turns 18" is',
+    '[{"do":"cmd","cmd":"notes"}, {"do":"note","text":"- Old Mutual tax free: for his son\'s university fees\n- To be used when the son turns 18"}]. Never stop at the notes command when more was said.',
+    'Write the note in short points, one per line, each starting with "- ", with every fact that was said (names, amounts, ages, reasons, dates) and nothing that was not. Leave out the adviser\'s questions, small talk, and any ID, phone or tax number or email address.',
+    '"Note that down" on its own, with nothing new in the line, is {"do":"cmd","cmd":"notes","retro":true} with no "note" action: the page takes the last thing said. Someone saying "make a note that he smokes" is [cmd notes, note "- Smokes"].',
     '',
     'Confirming. "awaiting_confirmation" lists the boxes (and rows of lists) that were filled by voice and still wait for the client to agree; a box with "private": true is listed without its value.',
     'When the client agrees to what is on the form ("yes", "that\'s right", "correct", "exactly", "yes it is") in answer to a value that was read back or a question such as "is that right?", give one',
@@ -230,6 +237,7 @@
         else if (a.do === 'fill' && okAny(a.field) && (v = clean(a.field, a.value)) != null) acts.push({ do: 'fill', field: a.field, value: v, explicit: a.correction === true });
         else if (a.do === 'confirm' && okAny(a.field)) { if (agreeable(a.field)) acts.push({ do: 'confirm', field: a.field }); }
         else if (a.do === 'confirm' && okList(a.list)) acts.push({ do: 'confirm', list: a.list, row: rowRef(a.row, false) });
+        else if (a.do === 'note' && typeof a.text === 'string' && (v = a.text.replace(/\[((?:N|E)\d+)\]/g, function (m, k) { return vault && vault[k] != null ? vault[k] : ''; }).replace(/[ \t]+\n/g, '\n').trim())) acts.push({ do: 'note', text: v, ready: true });   // the points Claude wrote for the notes box (a number or address that was held back is put back here, on this computer)
         else if (a.do === 'wait') acts.push({ do: 'wait' });
         else if (a.do === 'cmd' && a.cmd === 'notes') acts.push({ do: 'cmd', cmd: { type: 'notes', retro: a.retro === true, box: null } });
         else if (a.do === 'cmd' && typeof a.cmd === 'string' && CMDS.hasOwnProperty(a.cmd)) acts.push({ do: 'cmd', cmd: { type: CMDS[a.cmd].type } });
