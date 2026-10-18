@@ -30,6 +30,11 @@ Open `app/index.html` in Microsoft Edge or Google Chrome. There is nothing to in
 | `tests/` | Automated tests. Run `npm test` (needs Node 20 or later). |
 | `docs/` | The revision analysis, the approved mock-up and the TaxTim examples |
 
+## Look and colours
+
+The page uses the Wealth Revolution logo (`app/assets/logo.png`, shown in the top bar and as the browser-tab icon) and colours taken from it: the logo blue `#27a8e0` for lines, stripes and focus rings, a deeper blue of the same hue (`#0f6fa3`) for text, buttons and the open section, and the logo's charcoal grey for the advisor-only pages. Amber still means "to verify", green "confirmed", and the red glow is the box Claude is waiting for.
+All colours live as variables at the top of `app/css/app.css`, with a light and a dark set, so a colour is changed in one place. The PDF uses the same blue (see the top of `app/js/pdf.js`).
+
 ## Updating the tax tables
 
 When a new tax year starts (1 March), add its brackets and rebates to `app/js/tax.js`, add that year's TaxTim results to `docs/`, and extend `tests/tax.test.js`. The tests must pass before the new tables are used.

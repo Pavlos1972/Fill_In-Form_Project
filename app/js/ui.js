@@ -255,7 +255,7 @@
   function refreshKey() {
     var el = $('#keyState'), st = FF.lookup.keyStatus(FF.lookup.getSettings());
     el.textContent = st.text; el.hidden = !st.text;
-    el.style.color = st.level === 'expired' ? '#ff8a80' : (st.level === 'soon' || st.level === 'unset') ? '#f5c451' : '';
+    el.style.color = st.level === 'expired' ? 'var(--bad)' : (st.level === 'soon' || st.level === 'unset') ? 'var(--warn)' : '';
   }
   /* Update calculated boxes, totals and warnings in place so the cursor never jumps. */
   function refreshLive() {
