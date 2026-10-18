@@ -27,17 +27,22 @@
   function touch() { dirty = true; saveDraft(); refreshChrome(); }
   /* A South African ID number holds the date of birth (YYMMDD). When the ID number is set, the date goes into an empty date of birth box,
      or replaces the one that came from the previous ID number. A date typed or said some other way is left alone (the Checks panel warns
-     when it does not match). Returns what the box held before (so it can be undone), or null when nothing changed. This happens on this
+     when it does not match). The date takes the status of the ID number: amber "verify" while the ID is, confirmed once the ID is (typed, clicked
+     or agreed to by the client). Returns what the box held before (so it can be undone), or null when nothing changed. This happens on this
      computer: the ID number is never sent anywhere. */
   function autoDob(prevId) {
     var id = String(state.f.idno.v || '').replace(/\s/g, ''), d = state.f.dob;
     if (state.f.idtype.v === 'Passport' || !/^\d{13}$/.test(id)) return null;
     var dob = util.dobFromSaId(id);
     if (!dob) return null;
-    var txt = util.formatDate(dob), before = util.dobFromSaId(String(prevId || '').replace(/\s/g, ''));
-    if (d.v === txt || (d.v !== '' && !(before && util.formatDate(before) === d.v))) return null;
-    var was = { v: d.v, st: d.st };
-    store.setField(state, 'dob', txt, 'verify');
+    var txt = util.formatDate(dob), before = util.dobFromSaId(String(prevId || '').replace(/\s/g, '')), idOk = state.f.idno.st === 'confirmed', was = { v: d.v, st: d.st };
+    if (d.v === txt) {                                                       // already the date of this ID number: it follows the ID's status
+      if (!idOk || (d.st !== 'verify' && d.st !== 'heard')) return null;
+      store.setField(state, 'dob', txt, 'confirmed');
+      return was;
+    }
+    if (d.v !== '' && !(before && util.formatDate(before) === d.v)) return null;
+    store.setField(state, 'dob', txt, idOk ? 'confirmed' : 'verify');
     return was;
   }
   /* Show a box's value and status in place (used when a box changes without the screen being redrawn). */
@@ -306,6 +311,7 @@
     if (t.dataset.accept) {
       var p = t.dataset.accept.split(':');
       store.accept(state, p[0] === 'r' ? { list: p[1], i: +p[2] } : { id: p[1] });
+      if (p[0] === 'f' && p[1] === 'idno') autoDob(state.f.idno.v);                  // the ID is agreed to, so is the date of birth that came from it
       touch(); redraw(); return;
     }
     if (t.dataset.add) { store.addRow(state, t.dataset.add); touch(); redraw(); var last = document.querySelectorAll('[data-l="' + t.dataset.add + '"][data-i="' + (state.l[t.dataset.add].length - 1) + '"]')[0]; if (last) last.focus(); return; }
@@ -732,6 +738,7 @@
     if (res.kind === 'confirm') {
       if (cell.v === '') return false;
       store.setField(state, id, cell.v, 'confirmed');
+      if (id === 'idno') { var dobAgreed = autoDob(cell.v); if (dobAgreed) { entry.extras.push({ id: 'dob', prev: dobAgreed }); extraIds.push('dob'); } }   // the date of birth that came from this ID is agreed to with it
     } else {
       var value = res.value;
       if (res.append && cell.v && (cell.st === 'heard' || cell.st === 'verify')) value = cell.v + ' ' + value;
