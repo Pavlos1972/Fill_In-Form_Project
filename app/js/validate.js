@@ -4,6 +4,20 @@
   else { root.FF = root.FF || {}; root.FF.validate = factory(root.FF.util, root.FF.calc); }
 })(typeof self !== 'undefined' ? self : this, function (util, calc) {
   var EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+  /* How many digits the boxes with a length rule need: a South African ID number has 13, an income tax reference number 10. */
+  var LEN = { idno: 13, tax: 10 };
+  /* The live indicator beside those boxes -> null when there is nothing to show (no rule, or a passport), else { level: 'hint' | 'short' | 'ok' | 'bad', text }. */
+  function lengthState(id, value, idtype) {
+    var n = LEN[id], raw = String(value == null ? '' : value).trim();
+    if (!n || (id === 'idno' && idtype === 'Passport')) return null;
+    if (raw === '' || raw === 'None') return { level: 'hint', text: n + ' digits' };
+    if (/[^\d\s\-]/.test(raw)) return { level: 'bad', text: 'digits only' };
+    var d = raw.replace(/\D/g, '');
+    if (d.length < n) return { level: 'short', text: d.length + ' of ' + n + ' digits' };
+    if (d.length > n) return { level: 'bad', text: d.length + ' digits, ' + (d.length - n) + ' too many' };
+    if (id === 'idno' && !util.saIdValid(d)) return { level: 'bad', text: n + ' digits, ' + (util.dobFromSaId(d) ? 'check digit wrong' : 'date part wrong') };
+    return { level: 'ok', text: n + ' digits ✓' };
+  }
   function phoneOk(v) { var d = String(v).replace(/[\s()\-]/g, ''); return /^0\d{9}$/.test(d) || /^\+?27\d{9}$/.test(d); }
 
   /* Returns [{ id, msg }] for a field, or [{ list, i, msg }] for a list row. */
@@ -16,6 +30,8 @@
       if (!/^\d{13}$/.test(idno)) warn('idno', 'A South African ID number has 13 digits.');
       else if (!util.saIdValid(idno)) warn('idno', 'This is not a valid South African ID number. Check each digit.');
     }
+    var tax = v('tax').replace(/[\s\-]/g, '');
+    if (tax && !/^\d{10}$/.test(tax)) warn('tax', /^\d+$/.test(tax) ? 'A tax number has 10 digits.' : 'A tax number has digits only (10 of them).');
     if (v('dob') && !util.parseDate(v('dob'))) warn('dob', 'Date not recognised. Use day/month/year, such as 14/03/1986.');
     var fromId = util.saIdValid(idno) ? util.dobFromSaId(idno) : null, typed = util.parseDate(v('dob'));
     if (fromId && typed && (fromId.y !== typed.y || fromId.m !== typed.m || fromId.d !== typed.d)) warn('dob', 'Does not match the date of birth in the ID number (' + util.longDate(fromId) + ').');
@@ -51,5 +67,5 @@
     if (ctx.v('dob').trim() || !util.saIdValid(id)) return null;
     return util.dobFromSaId(id);
   }
-  return { check: check, dobFromIdSuggestion: dobFromIdSuggestion };
+  return { check: check, dobFromIdSuggestion: dobFromIdSuggestion, lengthState: lengthState };
 });

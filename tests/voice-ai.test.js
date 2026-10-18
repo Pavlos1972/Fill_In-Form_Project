@@ -198,3 +198,18 @@ test('both numbers of the sentence reach their boxes, and digits sent unshielded
   const r = await AI.decide({ apiKey: 'k', model: 'm', idx, who: 'auto', text: 'okay 5547259 thanks', ctx: { sectionId: 'info', recent: [] }, fetchImpl: reply({ actions: [{ do: 'fill', field: 'tax', value: '5547259' }] }) });
   assert.deepStrictEqual(r.actions.map(a => [a.field, a.value]), [['tax', '5547259']]);
 });
+test('Claude is told which boxes still wait for the client to agree (private ones without their values), and may confirm them one by one or a whole row', async () => {
+  const ctx = { sectionId: 'info', recent: [], awaiting: [{ id: 'fname', label: 'First name', value: 'John' }, { id: 'idno', label: 'ID / passport number', private: true, value: '7212095268086' }, { list: 'kids', row: 1, label: 'Children 1' }], privateHeld: { idno: '7212095268086' } };
+  const req = AI.buildRequest(idx, ctx, 'auto', 'yes', 'm'), body = JSON.parse(req.messages[0].content);
+  assert.deepStrictEqual(body.awaiting_confirmation, [{ id: 'fname', label: 'First name', value: 'John' }, { id: 'idno', label: 'ID / passport number', private: true }, { list: 'kids', row: 1, label: 'Children 1' }]);
+  assert.ok(!/7212095268086/.test(JSON.stringify(req)));                                       // the held values stay here
+  assert.ok(!('awaiting_confirmation' in JSON.parse(AI.buildRequest(idx, { sectionId: 'info', recent: [] }, 'auto', 'yes', 'm').messages[0].content)));
+  assert.ok(/Confirming/.test(AI.SYSTEM) && /EVERY listed box/.test(AI.SYSTEM) && /acknowledgement/.test(AI.SYSTEM));
+  const run = (actions, text) => AI.decide({ apiKey: 'k', model: 'm', idx, who: 'auto', text: text || 'yes', ctx, fetchImpl: reply({ actions }) });
+  assert.deepStrictEqual((await run([{ do: 'confirm', field: 'fname' }, { do: 'confirm', field: 'sname' }, { do: 'confirm', list: 'kids', row: 1 }, { do: 'confirm', field: 'nope' }])).actions,
+    [{ do: 'confirm', field: 'fname' }, { do: 'confirm', field: 'sname' }, { do: 'confirm', list: 'kids', row: 1 }]);
+  /* a private box: a "yes" after a read-back is accepted when no number was read back, or the same number; refused when a different number was read back */
+  assert.deepStrictEqual((await run([{ do: 'confirm', field: 'idno' }])).actions, [{ do: 'confirm', field: 'idno' }]);
+  assert.deepStrictEqual((await run([{ do: 'confirm', field: 'idno' }], 'so it is 721209 5268086, right?')).actions, [{ do: 'confirm', field: 'idno' }]);
+  assert.strictEqual((await run([{ do: 'confirm', field: 'idno' }], 'so it is 721209 5268087, right?')).kind, 'none');
+});

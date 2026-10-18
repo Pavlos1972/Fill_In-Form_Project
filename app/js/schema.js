@@ -3,7 +3,7 @@
    Field keys:  id, l (label), t ('txt' | 'sel' | 'area'), o (options), free (pick a value or type your own),
                 preset (default value), calc (name of a calculation in calc.js), risky (check the spelling or number),
                 opt (optional, left out of the progress count), wide (full width), link ([text, url]), hint,
-                lookup (a box with a look-up button: the id of the box holding the name to search for, or 'client'), lookupBtn (the button's words), nopdf (left off the PDF), rows (lines of a text box).
+                lookup (a box with a look-up button: the id of the box holding the name to search for, or 'client'), lookupBtn (the button's words), nopdf (left off the PDF), rows (lines of a text box), len (shows a live digit count: see validate.lengthState).
    Block keys:  title, fields, list, cond (show only when true), condMsg, help (guidance shown on screen only), docs. */
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
@@ -46,10 +46,10 @@
         { id: 'dob', l: 'Date of birth', t: 'txt', date: 1, risky: 1, hint: 'e.g. 14/03/1986', s: 3 },
         { id: 'age', l: 'Age at date of form', t: 'txt', calc: 'age', s: 3 },
         { id: 'idtype', l: 'ID or passport', t: 'sel', o: ['ID', 'Passport'], preset: 'ID', voice: 1, s: 3 },
-        { id: 'idno', l: 'ID / passport number', t: 'txt', risky: 1, s: 3 },
+        { id: 'idno', l: 'ID / passport number', t: 'txt', risky: 1, len: 1, s: 4 },
         { id: 'nat', l: 'Nationality', t: 'sel', o: ['South African', 'Other'], preset: 'South African', voice: 1, s: 3 },
         { id: 'nat_other', l: 'Other', t: 'txt', s: 3 },
-        { id: 'tax', l: 'Income tax number', t: 'txt', risky: 1, s: 3 }
+        { id: 'tax', l: 'Income tax number', t: 'txt', risky: 1, len: 1, s: 4 }
       ] },
       { title: 'Contact details', layout: 'g12', fields: [
         { id: 'cell', l: 'Cell number', t: 'txt', risky: 1, s: 4 },

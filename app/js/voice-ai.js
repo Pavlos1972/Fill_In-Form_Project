@@ -19,7 +19,7 @@
     '  {"do":"ask","field":"<id>"}                  someone asks about, or moves to, one box ("do you have a work number?", "and your second name?")',
     '  {"do":"section","section":"<id>"}            someone moves to a whole topic ("let\'s talk about your health")',
     '  {"do":"fill","field":"<id>","value":"..."}   a value is stated for a box, WHOEVER says it. Add "correction":true when it replaces a value that is already in the box (see "filled")',
-    '  {"do":"confirm","field":"<id>"}              the value in position.current_value is agreed to ("yes, that\'s right")',
+    '  {"do":"confirm","field":"<id>"}              the client agrees to a value on the form ("yes, that\'s right"): see "Confirming" below',
     '  {"do":"wait"}                                the value in position.current_value is rejected and the new one has not come yet',
     '  {"do":"cmd","cmd":"undo|next|prev|nextSection|prevSection|clear|clearAll|notes|notesOff"}   a request about the form itself: "scratch that" is undo, "skip" or "next question" is next,',
     '                                               "let me take some notes" is notes (add "retro":true for "note that down"), "that\'s all for the notes" is notesOff,',
@@ -36,6 +36,13 @@
     '  "I haven\'t got a work email") fill that box with the value "None". Several can be said in one line: one fill per box. Never give "None" to a box the client does give a value for.',
     '- Understand meaning, not exact words. Ignore filler, false starts and small talk. Give {"actions": []} for acknowledgements and small talk ("okay great", "thank you", "I see", "mm hm", "lovely").',
     '- Never invent a value that was not said, and never fill a box for something that is only being asked.',
+    '',
+    'Confirming. "awaiting_confirmation" lists the boxes (and rows of lists) that were filled by voice and still wait for the client to agree; a box with "private": true is listed without its value.',
+    'When the client agrees to what is on the form ("yes", "that\'s right", "correct", "exactly", "yes it is") in answer to a value that was read back or a question such as "is that right?", give one',
+    '{"do":"confirm","field":"<id>"} for EVERY listed box that the read-back or question covered: "so that\'s John Snow?" "yes" confirms the first name and the surname; "is your cell still [N1]?" "yes" confirms the cell number.',
+    'For a row of a list use {"do":"confirm","list":"<list id>","row":<row number>}. A bare "yes" with nothing read back confirms position.field, only when that box is listed.',
+    'Never confirm a box nobody talked about, and never confirm what the client said no to or changed: a different value is a fill with "correction":true, and a "no" without the new value is "wait".',
+    'A mere acknowledgement ("okay", "mm hm", "I see", "great") is not agreement: it asks for nothing to be confirmed.',
     '',
     'Values:',
     '- A box with "options": the value must be exactly one of the options. If none fits, leave it out.',
@@ -148,9 +155,16 @@
       recent: (ctx.recent || []).map(function (l) { return { who: l.who, text: scrub(l.text) }; }),
       newest: { who: who === 'client' ? 'client' : who === 'auto' ? 'unclear' : 'adviser', text: sh.text }
     };
+    var awaiting = (ctx.awaiting || []).slice(0, 16).map(function (a) {
+      var o = a.list ? { list: a.list, row: a.row } : { id: a.id };
+      if (a.label) o.label = a.label;
+      if (a.private) o.private = true; else if (a.value != null) o.value = scrub(String(a.value)).slice(0, 80);
+      return o;
+    });
+    if (awaiting.length) body.awaiting_confirmation = awaiting;
     if (tPriv) body.position.box_has_value = !!ctx.targetFilled;
     if (sh.list.length) body.private_values = sh.list;
-    var vault = { _line: String(text == null ? '' : text), _sent: sh.text };                                      // the line itself (to check the words in front of an email marker) and what was sent (to recover a number that was sent unshielded)
+    var vault = { _line: String(text == null ? '' : text), _sent: sh.text, _held: ctx.privateHeld || {} };                                      // the line itself (to check the words in front of an email marker), what was sent (to recover a number that was sent unshielded) and the values already in the private boxes waiting to be confirmed (to check a read-back against; never sent)
     Object.keys(sh.vault).forEach(function (k) { vault[k] = sh.vault[k]; });
     return { req: { model: model, max_tokens: 900, system: SYSTEM, messages: [{ role: 'user', content: JSON.stringify(body) }] }, vault: vault };
   }
@@ -178,6 +192,13 @@
       var okList = function (id) { return typeof id === 'string' && idx.lists[id]; };
       var okCol = function (l, k) { return typeof k === 'string' && idx.byId[l + '.' + k]; };
       var rowRef = function (r, allowNew) { return typeof r === 'number' && r >= 1 && r <= 50 ? Math.floor(r) : (allowNew && r === 'new' ? 'new' : 'last'); };
+      /* A "yes" to a private box is accepted unless a number was read back that is not the one in the box: then it is not agreement with what is there. */
+      var agreeable = function (id) {
+        var held = isPriv(id) && vault && vault._held && vault._held[id];
+        if (!held) return true;
+        var said = Object.keys(vault).filter(function (k) { return /^N\d+$/.test(k); });
+        return !said.length || said.some(function (k) { return String(vault[k]).replace(/\D/g, '') === String(held).replace(/\D/g, ''); });
+      };
       var okSec = function (id) { return typeof id === 'string' && idx.sections.some(function (x) { return x.id === id; }); }, acts = [];
       /* A value for box id: a marker is swapped for what was really said; a private box takes nothing else (but "None" for a "No" box). */
       var clean = function (id, v) {
@@ -203,7 +224,8 @@
         if (a.do === 'ask' && okAny(a.field)) acts.push({ do: 'ask', field: a.field });
         else if (a.do === 'section' && okSec(a.section)) acts.push({ do: 'section', section: a.section });
         else if (a.do === 'fill' && okAny(a.field) && (v = clean(a.field, a.value)) != null) acts.push({ do: 'fill', field: a.field, value: v, explicit: a.correction === true });
-        else if (a.do === 'confirm' && okAny(a.field)) acts.push({ do: 'confirm', field: a.field });
+        else if (a.do === 'confirm' && okAny(a.field)) { if (agreeable(a.field)) acts.push({ do: 'confirm', field: a.field }); }
+        else if (a.do === 'confirm' && okList(a.list)) acts.push({ do: 'confirm', list: a.list, row: rowRef(a.row, false) });
         else if (a.do === 'wait') acts.push({ do: 'wait' });
         else if (a.do === 'cmd' && a.cmd === 'notes') acts.push({ do: 'cmd', cmd: { type: 'notes', retro: a.retro === true, box: null } });
         else if (a.do === 'cmd' && typeof a.cmd === 'string' && CMDS.hasOwnProperty(a.cmd)) acts.push({ do: 'cmd', cmd: { type: CMDS[a.cmd].type } });

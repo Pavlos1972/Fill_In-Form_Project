@@ -68,6 +68,26 @@ test('checks catch a bad ID, email, phone and duties total', () => {
   set(s, 'idno', '8001015009087'); set(s, 'pemail', 'a@b.co.za'); set(s, 'cell', '082 555 0148'); set(s, 'd_supo', '40');
   assert.deepStrictEqual(validate.check(store.ctxFor(s)), []);
 });
+test('the ID and tax number boxes show a live length indicator, and the checks warn about a tax number that is not 10 digits', () => {
+  const L = (id, v, t) => validate.lengthState(id, v, t);
+  assert.deepStrictEqual(L('idno', '', 'ID'), { level: 'hint', text: '13 digits' });
+  assert.deepStrictEqual(L('idno', '72120', 'ID'), { level: 'short', text: '5 of 13 digits' });
+  assert.strictEqual(L('idno', '7212095268086', 'ID').level, 'ok');
+  assert.strictEqual(L('idno', '721209 5268 086', 'ID').level, 'ok');                           // spaces are ignored
+  assert.deepStrictEqual(L('idno', '7212095268087', 'ID'), { level: 'bad', text: '13 digits, check digit wrong' });
+  assert.deepStrictEqual(L('idno', '72120952680860', 'ID'), { level: 'bad', text: '14 digits, 1 too many' });
+  assert.strictEqual(L('idno', 'A1234567', 'Passport'), null);                                 // a passport has no fixed length
+  assert.deepStrictEqual(L('idno', 'A1234567', 'ID'), { level: 'bad', text: 'digits only' });
+  assert.deepStrictEqual(L('tax', '554-7259'), { level: 'short', text: '7 of 10 digits' });
+  assert.strictEqual(L('tax', '5547259123').level, 'ok');
+  assert.deepStrictEqual(L('tax', '55472591234'), { level: 'bad', text: '11 digits, 1 too many' });
+  assert.strictEqual(L('cell', '0825550148'), null);                                           // no rule for other boxes
+  const f = schema.fieldsById; assert.ok(f.idno.len && f.tax.len && !f.cell.len);
+  const s = fresh(); set(s, 'tax', '554-7259');
+  assert.ok(validate.check(store.ctxFor(s)).some(w => w.id === 'tax' && /10 digits/.test(w.msg)));
+  set(s, 'tax', '5547259123'); assert.ok(!validate.check(store.ctxFor(s)).some(w => w.id === 'tax'));
+  set(s, 'tax', ''); assert.ok(!validate.check(store.ctxFor(s)).some(w => w.id === 'tax'));
+});
 test('a saved file reopens exactly, and unknown or missing parts are tolerated', () => {
   const s = fresh(); set(s, 'fname', 'Thandi'); set(s, 'sname', 'Dlamini');
   store.addRow(s, 'debts', { prov: 'Nedbank', inst: '11 400' });
