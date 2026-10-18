@@ -628,3 +628,10 @@ test('a stated number, a correction and a "no ..." in one sentence each keep the
   assert.strictEqual(brief(planOf('my cell is 082 454 1750 and my email is john at snow dot com and I have no home number')), 'fill:cell=082 454 1750 fill:pemail=john@snow.com fill:home=None');
   assert.strictEqual(brief(planOf('my work number is 011 555 1234 and my cell is 082 454 1750 no sorry 083 454 1751')), 'fill:work=011 555 1234 fill:cell=083 454 1751');
 });
+test('a passport number said as letters and spoken digits keeps its letter and sets the type', () => {
+  ['A one two three four five six seven', 'A 1 2 3 4 5 6 7', 'A1234567'].forEach(t => {
+    const r = V.interpret(idx.byId.idno, t);
+    assert.strictEqual(r.value, 'A1234567', t);
+    assert.strictEqual(r.extra[0].value, 'Passport', t);
+  });
+});

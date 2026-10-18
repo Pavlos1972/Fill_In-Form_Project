@@ -654,6 +654,7 @@
         if (!res && a.do === 'confirm') res = { kind: 'confirm' };
         if (!res) { var x = V.interpret(f, a.value); if (x && !x.error) res = { kind: 'fill', value: x.value, status: x.status, extra: x.extra, append: x.append }; }
         if (!res) return;
+        if (res.kind === 'fill' && !res.extra && cell.v !== '' && String(res.value).trim().toLowerCase() === String(cell.v).trim().toLowerCase()) res = { kind: 'confirm' };   // saying the same thing again agrees with it
         if (a.field !== vm.target) {
           if (!a.explicit && res.kind === 'fill' && cell.v !== '' && cell.st === 'confirmed') return;   // Claude's volunteered fact never overwrites a confirmed value
           vmShow(a.field);                                                                              // the screen follows the conversation to that box
