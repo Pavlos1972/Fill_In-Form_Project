@@ -641,3 +641,15 @@ test('an address whose first part was split off by dictation is put back togethe
   assert.strictEqual(brief(planOf('you can email me at jsnow@gmail.com')), 'fill:pemail=jsnow@gmail.com');
   assert.strictEqual(brief(planOf('my work email is Sandra mokoena at acme dot co dot za')), 'fill:wemail=sandramokoena@acme.co.za');
 });
+test('asking to remove everything is a whole-form command; nothing narrower or negated is', () => {
+  const cmd = t => { const c = V.parseCommand(t, idx); return c && c.type; };
+  ['All my details on the entire form are wrong, please remove them all', 'remove them all', 'delete everything', 'Delete everything on the form please', 'wipe the entire form',
+    'clear the whole form', 'remove all my details', 'get rid of everything', 'start again from scratch', 'my details are not right, remove them all'].forEach(t => assert.strictEqual(cmd(t), 'clearAll', t));
+  ['clear that', 'delete that'].forEach(t => assert.strictEqual(cmd(t), 'clear', t));                  // one box only
+  ["don't delete everything", 'I do not want to remove everything', 'please do not wipe the form', 'remove the work number', 'what is your name'].forEach(t => assert.notStrictEqual(cmd(t), 'clearAll', t));
+});
+test('only a plain yes or no answers "delete all data from the entire form?"', () => {
+  ['yes', 'Yes, delete everything', 'yeah go ahead', 'Yes please', 'yes I am sure', 'okay yes', 'Sure'].forEach(t => assert.strictEqual(V.wipeAnswer(t), 'yes', t));
+  ['no', 'No, keep it', 'cancel', 'not yet', 'undo', 'wait'].forEach(t => assert.strictEqual(V.wipeAnswer(t), 'no', t));
+  ['delete everything', 'remove them all', 'yes but keep the name', 'hmm', 'yes no', '', 'All my details on the entire form are wrong, please remove them all'].forEach(t => assert.strictEqual(V.wipeAnswer(t), null, t));
+});

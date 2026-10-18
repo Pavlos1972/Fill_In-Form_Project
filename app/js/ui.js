@@ -360,7 +360,7 @@
      client's answer is in or confirmed. Simple wording is understood on this computer; looser wording goes to Claude (voice-ai.js).
      Whatever listens calls FF.app.voiceHear(text, who), who being 'me' (the adviser) or 'client'. Typing works as always when voice is off. */
   var V = FF.voice, VAI = FF.voiceAI, vidx = V.buildIndex(schema);
-  var vm = { on: false, target: null, answered: false, secGlow: false, noteMode: null, rowCur: {}, undo: [], recent: [], flashes: {}, queue: Promise.resolve(), busy: 0, lastFail: 0 };
+  var vm = { on: false, target: null, answered: false, secGlow: false, noteMode: null, rowCur: {}, undo: [], recent: [], flashes: {}, queue: Promise.resolve(), busy: 0, lastFail: 0, wipe: null };
   /* A box in a list is named list:row:column (kids:0:dob). "count:kids" is the Add button, waiting for how many there are. */
   function vmCellRef(id) { var m = /^(\w+):(\d+):(\w+)$/.exec(String(id)); return m ? { list: m[1], i: +m[2], k: m[3] } : null; }
   function vmField(id) { var c = vmCellRef(id); if (c) return vidx.byId[c.list + '.' + c.k]; return vidx.byId[id] || vidx.noteById[id]; }
@@ -456,6 +456,10 @@
     var e = vm.undo.pop();
     if (!e) return;
     if (e.kind === 'nav') { cur = e.sec; vm.target = e.target; vm.answered = e.answered; vm.secGlow = false; redraw(); vmPulseNav(); return; }
+    if (e.kind === 'wipe') {
+      state = e.snap; fileBase = e.base; fileHandle = e.handle; rememberHandle(e.handle); dirty = e.dirty; cur = e.sec;
+      vm.target = null; vm.answered = false; vm.secGlow = true; saveDraft(); redraw(); vmMarkWait(); toast('Everything is back as it was.'); return;
+    }
     if (e.kind === 'addrow') { store.delRow(state, e.list, e.i); vm.rowCur[e.list] = Math.min(vm.rowCur[e.list] == null ? 0 : vm.rowCur[e.list], state.l[e.list].length - 1); touch(); redraw(); return; }
     if (e.kind === 'cell') { var ur = state.l[e.list][e.i]; if (ur) { ur.d[e.k] = e.prev.v; ur.st = e.prev.st; } touch(); redraw(); return; }
     state.f[e.id] = { v: e.prev.v, st: e.prev.st };
@@ -473,6 +477,7 @@
       case 'nextSection': return vmStepSection(1);
       case 'prevSection': return vmStepSection(-1);
       case 'undo': return vmUndo();
+      case 'clearAll': return vmWipeAsk();
       case 'clear':
         if (!vm.target) return;
         var ccr = vmCellRef(vm.target);
@@ -482,6 +487,41 @@
         vm.undo.push({ kind: 'fill', id: vm.target, prev: { v: cell.v, st: cell.st }, extras: [] });
         store.setField(state, vm.target, '', 'empty'); vm.answered = false; touch(); redraw(); vmMarkWait();
     }
+  }
+  /* ---------- "remove everything": nothing is cleared until the window over the form is answered ("yes" / "no" said, or a button tapped) ---------- */
+  function vmWipeDialog() {
+    var d = document.getElementById('wipe');
+    if (d) return d;
+    d = document.createElement('dialog'); d.id = 'wipe';
+    d.innerHTML = '<h2>Delete all data from the entire form?</h2><p class="help">Are you sure? Everything on this form will be cleared. A file you have already saved is not changed. Say "yes" or "no", or tap a button.</p>' +
+      '<div class="dlg-actions"><button class="btn ghost small" id="wipeNo" type="button">No, keep it</button><span class="grow"></span><button class="btn small" id="wipeYes" type="button">Yes, delete everything</button></div>';
+    document.body.appendChild(d);
+    d.querySelector('#wipeNo').addEventListener('click', function () { vmWipeEnd(false); });
+    d.querySelector('#wipeYes').addEventListener('click', function () { vmWipeEnd(true); });
+    return d;
+  }
+  function vmWipeAsk() {
+    if (vm.wipe) return;
+    vm.wipe = { after: [] };
+    var d = vmWipeDialog();
+    d.show();                                                    // not modal: the line for dictation stays usable, so "yes" can be said
+    d.querySelector('#wipeNo').focus();
+  }
+  /* The window closes; yes empties the form, then whatever else was said in the same line is done. */
+  function vmWipeEnd(yes) {
+    var w = vm.wipe;
+    if (!w) return Promise.resolve();
+    vm.wipe = null;
+    var d = document.getElementById('wipe'); if (d && d.open) d.close();
+    if (yes) vmWipe();
+    return vmRun(w.after || []);
+  }
+  function vmWipe() {
+    vm.undo.push({ kind: 'wipe', snap: JSON.parse(JSON.stringify(state)), base: fileBase, handle: fileHandle, dirty: dirty, sec: cur });
+    state = store.blank(); fileHandle = null; fileBase = ''; rememberHandle(null); dirty = false; saveDraft();
+    cur = 'info'; vm.target = null; vm.answered = false; vm.noteMode = null; vm.rowCur = {}; vm.recent = []; vm.flashes = {}; vm.secGlow = true;
+    redraw(); vmMarkWait(); window.scrollTo(0, 0);
+    toast('The whole form is empty. Say "undo" to bring everything back.');
   }
   /* ---------- notes: \"let me take some notes\", \"note that down\" ---------- */
   /* The notes box of this section; where there are several (Medical, will & short-term), the one in the block being discussed. */
@@ -663,11 +703,22 @@
     }
   }
   /* One after another, so a note written by Claude lands before the next thing in the line. */
-  function vmRun(actions) { return actions.reduce(function (p, a) { return p.then(function () { return vmDo(a); }); }, Promise.resolve()); }
+  function vmRun(actions) {
+    var k = -1;                                                  // "remove everything" ends the line for now: the rest waits for the answer
+    actions.forEach(function (a, i) { if (k < 0 && a.do === 'cmd' && a.cmd && a.cmd.type === 'clearAll') k = i; });
+    var now = k < 0 ? actions : actions.slice(0, k + 1);
+    return now.reduce(function (p, a) { return p.then(function () { return vmDo(a); }); }, Promise.resolve()).then(function () { if (k >= 0 && vm.wipe) vm.wipe.after = actions.slice(k + 1); });
+  }
   /* A line whose speaker is not known. It may hold the adviser and the client together, in any order, with corrections and things they do not have.
      Claude reads it and says what to do on the form; this computer's own reading is used only for a bare command word, while notes are being taken,
      for a one or two word answer, and when Claude cannot be reached. */
   function vmProcessAuto(text, entry) {
+    if (vm.wipe) {                                                       // "Delete all data from the entire form?" is waiting: only yes or no counts, and nothing goes to Claude
+      var ans = V.wipeAnswer(text);
+      if (ans) return vmWipeEnd(ans === 'yes');
+      toast('Waiting for a yes or no: delete all data from the entire form?');
+      return Promise.resolve();
+    }
     var pl = V.plan(text, vidx, { cur: cur, noting: !!vm.noteMode, target: vm.target, answered: vm.answered, rows: function (key) { return state.l[key].map(function (r) { return r.d; }); }, curRow: vm.rowCur, value: function (id) { return state.f[id].v; }, visible: function (id) { var f = vmField(id); return !!f && vmVisible(f); } });
     var words = text.split(/\s+/).length, onlyCommand = pl.actions.length > 0 && pl.actions.every(function (a) { return a.do === 'cmd'; }) && words <= 8;
     if (vm.noteMode || onlyCommand || words <= 2 || !vmAIReady()) return vmRun(pl.actions);
@@ -688,6 +739,7 @@
   }
   function vmToggle(on) {
     vm.on = on; vm.target = null; vm.answered = false; vm.secGlow = on; vm.noteMode = null; vm.rowCur = {}; vm.queue = Promise.resolve();
+    if (vm.wipe) { vm.wipe = null; var wd = document.getElementById('wipe'); if (wd && wd.open) wd.close(); }   // switching Voice on or off never leaves the question hanging
     if (!on) { document.querySelectorAll('.voice-wait,.voice-ok').forEach(function (e) { e.classList.remove('voice-wait', 'voice-ok'); }); $('#vdText').hidden = true; }
     vmRender(); vmMarkWait();
     if (on && FF.voiceBackend && FF.voiceBackend.warm) {   // ask permission now, so it never interrupts a conversation later

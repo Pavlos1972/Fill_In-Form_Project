@@ -395,10 +395,28 @@
   var NOTES_RETRO = /\b(?:(?:note|write|jot|put|log|record|capture)\s+(?:that|this|it)\s+(?:down|in|into|to)|make a note of (?:that|this)|note (?:that|this) down|note that|note this)\b/;
   var ADD_ROW = /\b(?:add|another|one more|a new|new|next|additional|a second|a third|the other)\b/;
   var NOTES_OFF = /^(?:that(?:'s|s| is)? all (?:for|the) (?:the )?notes|that(?:'s|s| is)? it for the notes|end (?:of )?(?:the )?notes|stop (?:the |taking )?notes|no more notes|done with (?:the )?notes|finished with (?:the )?notes|close (?:the )?notes|back to the (?:form|questions))\b/;
-  /* -> { type: 'goto', sec } | next | prev | nextSection | prevSection | undo | clear | notes | notesOff, or null when it is not a command. */
+  /* "remove them all", "delete everything on the form", "wipe the entire form", "start again from scratch": the whole form, not one box. */
+  var WIPE_VERB = '(?:remove|delete|clear|wipe|erase|empty|reset|scrap|get rid of|throw away)';
+  var WIPE_ALL = new RegExp('\\b' + WIPE_VERB + '\\s+(?:(?:all|every)\\s+(?:of\\s+)?)?(?:(?:the|my|his|her|their|these|those|our)\\s+)?(?:(?:entire|whole|full)\\s+)?' +
+    '(?:everything|form|fact find|details|data|answers|information|info|entries|fields|boxes|them all|it all|all of it|all)(?:\\s+(?:on|from|in|of)\\s+(?:the|this)\\s+(?:(?:entire|whole|full)\\s+)?(?:form|fact find))?(?:\\s+(?:clean|out))?(?:\\s+(?:please|now|again))?$');
+  var WIPE_NOT = new RegExp('\\b(?:dont|don\'t|do not|never|not to|no need to|without)\\s+(?:\\w+\\s+){0,2}' + WIPE_VERB + '\\b');
+  var WIPE_START = /\bstart (?:again|over) (?:from )?(?:scratch|the beginning)\b|\bstart (?:with )?a (?:blank|fresh|clean) form\b/;
+  function wipeAsked(t) { return !WIPE_NOT.test(t) && (WIPE_ALL.test(t) || WIPE_START.test(t)); }
+  /* The answer to "Delete all data from the entire form?": 'yes', 'no', or null when it is neither (then nothing happens).
+     Only a plain yes counts: repeating the request ("delete everything") is not a yes. */
+  function wipeAnswer(text) {
+    var t = norm(text), w = t ? t.split(' ') : [];
+    if (!t || w.length > 8) return null;
+    var no = /^(?:(?:oh|ok|okay|actually|please|sorry|hmm|um|uh)\s+)*(?:no|nope|nah|cancel|stop|wait|dont|don't|do not|keep|leave|never mind|nevermind|hang on|hold on|not yet|abort|forget it|negative|undo|scratch that)\b/.test(t);
+    if (no) return 'no';
+    var yes = /^(?:(?:oh|ok|okay|please|um|uh)\s+)*(?:yes|yeah|yep|yup|yip|sure|correct|confirm|confirmed|absolutely|definitely|affirmative|do it|go ahead|im sure|i'm sure|i am sure)\b/.test(t);
+    return yes && !/\b(?:no|not|dont|don't|cancel|keep|except|but|wait|stop|only)\b/.test(t) ? 'yes' : null;
+  }
+  /* -> { type: 'goto', sec } | next | prev | nextSection | prevSection | undo | clear | clearAll | notes | notesOff, or null when it is not a command. */
   function parseCommand(text, idx) {
     var t = norm(text);
     if (!t) return null;
+    if (wipeAsked(t)) return { type: 'clearAll' };
     if (/\b(scratch that|undo that|undo|never mind|nevermind|ignore that|cancel that|forget that)\b/.test(t)) return { type: 'undo' };
     if (/^(clear that|clear this|clear it|delete that|empty that)$/.test(t)) return { type: 'clear' };
     if (NOTES_OFF.test(t)) return { type: 'notesOff' };
@@ -1134,7 +1152,7 @@
 
   return {
     norm: norm, wordsToNumber: wordsToNumber, spokenDigits: spokenDigits, spokenDate: spokenDate, spokenEmail: spokenEmail, yesNo: yesNo,
-    buildIndex: buildIndex, parseCommand: parseCommand, looksLikeQuestion: looksLikeQuestion, isChatter: isChatter, plan: plan, pointForm: pointForm, LIST_NOUNS: LIST_NOUNS, matchQuestion: matchQuestion, interpret: interpret, titleCase: titleCase,
+    buildIndex: buildIndex, parseCommand: parseCommand, wipeAnswer: wipeAnswer, looksLikeQuestion: looksLikeQuestion, isChatter: isChatter, plan: plan, pointForm: pointForm, LIST_NOUNS: LIST_NOUNS, matchQuestion: matchQuestion, interpret: interpret, titleCase: titleCase,
     isConfirm: isConfirm, answerFor: answerFor, clauses: clauses, PRIVATE_IDS: PRIVATE_IDS
   };
 });
