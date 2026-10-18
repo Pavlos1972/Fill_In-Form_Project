@@ -422,6 +422,20 @@ test('asking to take notes is recognised in the ways it is said, and not in ordi
   assert.strictEqual(V.parseCommand('let me take some notes on the will', idx).box, 'n_will');
   assert.strictEqual(V.parseCommand('medical aid notes', idx).box, 'n_ma');
 });
+test('the notes end however the adviser says it, and ending them never starts them again', () => {
+  ["Okay, that's all for the notes.", "let's end the notes", "I'm done with the notes", 'we are done with the notes', "that's the end of the notes", "that's enough notes", 'finish the notes', 'notes done',
+    "I'm finished with the notes", 'okay back to the questions', "let's go back to the form", 'stop taking notes', "I'm done taking notes", "that's it for the notes", 'close the notes', 'no more notes'
+  ].forEach(t => assert.strictEqual((V.parseCommand(t, idx) || {}).type, 'notesOff', t));
+  ['let me take some notes', "I'd like to take some notes", 'I wanted to make a couple of notes regarding the Old Mutual tax free', "I'm going to make a note", 'that is the notes', 'go to the notes'].forEach(t => assert.strictEqual((V.parseCommand(t, idx) || {}).type, 'notes', t));
+  const st = { cur: 'other', noting: true };
+  const p = V.plan("Okay, that's all for the notes.", idx, st);
+  assert.deepStrictEqual(p.actions, [{ do: 'cmd', cmd: { type: 'notesOff' } }]);
+  assert.ok(!V.plan('he pays half of it', idx, st).actions.some(a => a.do === 'cmd'));          // an ordinary note is still just a note
+  ["let's move on", "Okay, let's move on.", 'we can move on now', 'time to carry on', 'move on'].forEach(t => assert.strictEqual((V.parseCommand(t, idx) || {}).type, 'next', t));      // "let's move on" ends the notes and goes to the next question
+  assert.deepStrictEqual(V.plan("Okay, let's move on.", idx, st).actions, [{ do: 'cmd', cmd: { type: 'next' } }]);
+  assert.strictEqual(V.parseCommand("let's move on to health", idx).sec, 'health');
+  assert.ok(!V.parseCommand('he wants to move on', idx));
+});
 test('while notes are taken, what is said is noted and questions move on', () => {
   const p = (t) => V.plan(t, idx, { cur: 'health', noting: true, value: () => '', visible: () => true });
   assert.strictEqual(p('He wants to retire at sixty and they are worried about school fees').actions.map(a => a.do).join(), 'note');   // one line is one note

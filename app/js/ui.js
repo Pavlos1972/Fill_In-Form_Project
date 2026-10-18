@@ -488,6 +488,7 @@
   /* The red-amber glow: on the box being asked about, else on the section heading. */
   function vmMarkWait() {
     document.querySelectorAll('.voice-wait').forEach(function (e) { e.classList.remove('voice-wait'); });
+    vmNotesButton();
     if (!vm.on) return;
     var el = vm.target && !vm.answered ? vmEl(vm.target) : (vm.secGlow ? document.querySelector('.main header h2') : null);
     if (el) el.classList.add('voice-wait');
@@ -504,6 +505,18 @@
       if (el && !el.classList.contains('voice-ok')) { el.style.animationDelay = '-' + age + 'ms'; el.classList.add('voice-ok'); }
     });
   }
+  /* While notes are being taken, a "Stop notes" button sits in the notes box's label: a tap ends the notes, for when the words are not heard or the line is typed. */
+  function vmNotesButton() {
+    document.querySelectorAll('.vm-stopnotes').forEach(function (e) { e.remove(); });
+    var el = vm.on && vm.noteMode ? vmEl(vm.noteMode.id) : null, lab = el && el.querySelector('.l');
+    if (!lab) return;
+    var b = document.createElement('button'); b.type = 'button'; b.className = 'vm-stopnotes'; b.textContent = 'Stop notes'; b.title = 'Or say "that\'s all for the notes"';
+    lab.appendChild(b);
+  }
+  document.addEventListener('click', function (e) {
+    if (!e.target.closest('.vm-stopnotes')) return;
+    e.preventDefault(); vmStopNotes(); toast('Notes ended. What is said now goes back into the form.');
+  });
   function vmNote(id, text) {
     var el = vmEl(id); if (!el) return;
     var n = el.querySelector('.vm-note');
@@ -784,7 +797,7 @@
     return { awaiting: out, held: held };
   }
   function vmAsk(who, text, note) {
-    var set = FF.lookup.getSettings(), tcr = vm.target ? vmCellRef(vm.target) : null, tid = vm.target && !/^count:/.test(vm.target) && vmField(vm.target) ? (tcr ? tcr.list + '.' + tcr.k : vm.target) : null, fl = vmFilled(), aw = vmAwaiting();
+    var set = FF.lookup.getSettings(), tcr = vm.target ? vmCellRef(vm.target) : null, tid = !vm.noteMode && vm.target && !/^count:/.test(vm.target) && vmField(vm.target) ? (tcr ? tcr.list + '.' + tcr.k : vm.target) : null, fl = vmFilled(), aw = vmAwaiting();
     vm.busy++; vmRender();
     return VAI.decide({
       apiKey: set.apiKey, ask: !set.apiKey && FF.voiceBackend && FF.voiceBackend.available ? FF.voiceBackend.ask : null, model: set.voiceModel, idx: vidx, who: who, text: text,
@@ -799,6 +812,7 @@
   /* Do what a line of conversation says, in order. Actions come from V.plan (on this computer) or from Claude. */
   function vmDo(a) {
     var f = a.field ? vmField(a.field) : null;
+    if (vm.noteMode && /^(?:section|ask|fill|cell|row|addrow|confirm)$/.test(a.do)) vmStopNotes();       // going to another box or section ends the notes
     switch (a.do) {
       case 'cmd': return vmCommand(a.cmd);
       case 'section': return vmOpenSection(a.section);
@@ -844,6 +858,22 @@
     var now = k < 0 ? actions : actions.slice(0, k + 1);
     return now.reduce(function (p, a) { return p.then(function () { return vmDo(a); }); }, Promise.resolve()).then(function () { if (k >= 0 && vm.wipe) vm.wipe.after = actions.slice(k + 1); });
   }
+  /* While notes are on, what is said is noted, but a line that asks something, or names a box of the form that is not what the notes are about (notes on the
+     medical aid, then "do you have gap cover?" or "gap cover with Stratum"), may be leaving the notes. Questions this computer can place itself are dealt with here; the rest Claude decides. */
+  function vmMayLeaveNotes(text) {
+    var box = vidx.noteById[vm.noteMode.id], hit = V.matchQuestion(text, vidx, { cur: cur }), f = hit && hit.score >= 4 ? vmField(hit.id) : null;
+    var asks = V.clauses(text).some(function (c) { return /\?\s*$/.test(c) || V.looksLikeQuestion(c); });
+    return asks || !!(f && box && (f.sec !== box.sec || f.blk !== box.blk));
+  }
+  function vmAskInNotes(text, pl) {
+    var nb = vidx.noteById[vm.noteMode.id];
+    return vmAsk('auto', text, 'The page is taking notes now: what is said goes into the notes box "' + (nb.blkTitle || nb.label) + '" of the section "' + vmSecTitle(nb.sec) + '" until the notes end. Decide for this line: ' +
+      '(1) it is more to note about that topic, or small talk: answer with "note" actions in point form and nothing else. ' +
+      '(2) it asks about another part of the form, moves on to it, or states a fact that belongs in another box (for example notes about the medical aid, then "do you have gap cover?" or "gap cover with Stratum"): the notes end, so answer {"do":"cmd","cmd":"notesOff"} followed by what the line asks (section, ask, fill, row ...). ' +
+      'A line with both a thing to note and something that leaves the notes: the "note" actions first, then notesOff, then the rest. Never switch the notes on again.').then(function (r) {
+      return vmRun(r && r.kind === 'actions' && r.actions.length ? r.actions : pl.actions);
+    });
+  }
   /* A line whose speaker is not known. It may hold the adviser and the client together, in any order, with corrections and things they do not have.
      Claude reads it and says what to do on the form; this computer's own reading is used only for a bare command word, while notes are being taken,
      for a one or two word answer, and when Claude cannot be reached. */
@@ -858,6 +888,7 @@
     var words = text.split(/\s+/).length, onlyCommand = pl.actions.length > 0 && pl.actions.every(function (a) { return a.do === 'cmd'; }) && words <= 8;
     /* A bare "yes" or "correct" may agree to several boxes that were just read back: Claude decides which, from the lines before it. */
     var agree = words <= 2 && V.isConfirm(text, true) && !pl.actions.some(function (a) { return a.do === 'fill'; }) && vmAwaiting().awaiting.length > 0;
+    if (vm.noteMode && vmAIReady() && pl.actions.every(function (a) { return a.do === 'note'; }) && vmMayLeaveNotes(text)) return vmAskInNotes(text, pl);
     if (vm.noteMode || onlyCommand || (words <= 2 && !agree) || !vmAIReady()) return vmRun(pl.actions);
     return vmAsk('auto', text).then(function (r) {
       if (r && r.kind === 'actions') return vmRun(r.actions).then(function () { return vmRestOfLine(r.actions, text, words); });
