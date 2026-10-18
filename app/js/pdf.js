@@ -9,7 +9,7 @@
 
   /* Standard PDF fonts cannot show every character. Keep to what they can. */
   function t(s) {
-    return String(s == null ? '' : s).replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/[–—]/g, '-').replace(/ /g, ' ').replace(/[^\x09\x0a\x0d\x20-\x7e¡-ÿ]/g, '?');
+    return String(s == null ? '' : s).replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/[–—]/g, '-').replace(/\xa0/g, ' ').replace(/[^\x09\x0a\x0d\x20-\x7e\xa1-\xff]/g, '?');
   }
   function fieldValue(f, state, ctx) { return f.calc ? calc.field(f.calc, ctx) : (f.money ? util.formatMoney(state.f[f.id].v) : state.f[f.id].v); }
 
@@ -62,7 +62,7 @@
       y += 5;
     }
     function fieldsTable(fields, head) {
-      var items = fields.map(function (f) { return { label: t(f.l), value: t(fieldValue(f, state, ctx)), wide: f.t === 'area' || f.wide }; });
+      var items = fields.filter(function (f) { return !f.nopdf; }).map(function (f) { return { label: t(f.l), value: t(fieldValue(f, state, ctx)), wide: f.t === 'area' || f.wide }; });
       var rows = fieldRows(items); ensure(Math.min(rows.length * 7 + 4, 95));
       table({ body: rows, columnStyles: PAIR_COLS, head: head || undefined });
     }

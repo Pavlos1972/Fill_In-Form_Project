@@ -2,7 +2,8 @@
    One place describes the form, so the screen, the saved file, the checks and the PDF all agree.
    Field keys:  id, l (label), t ('txt' | 'sel' | 'area'), o (options), free (pick a value or type your own),
                 preset (default value), calc (name of a calculation in calc.js), risky (check the spelling or number),
-                opt (optional, left out of the progress count), wide (full width), link ([text, url]), hint.
+                opt (optional, left out of the progress count), wide (full width), link ([text, url]), hint,
+                lookup (a box with a look-up button: the id of the box holding the name to search for, or 'client'), lookupBtn (the button's words), nopdf (left off the PDF).
    Block keys:  title, fields, list, cond (show only when true), condMsg, help (guidance shown on screen only), docs. */
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
@@ -90,7 +91,8 @@
         { id: 'bizowner', l: 'Business owner', t: 'sel', o: YN },
         { id: 'occ', l: 'Occupation', t: 'txt' },
         { id: 'ft', l: 'Full time or contract', t: 'sel', o: ['Full time', 'Contract'] },
-        { id: 'years', l: 'Years in this occupation', t: 'txt' }
+        { id: 'years', l: 'Years in this occupation', t: 'txt' },
+        { id: 'profile', l: 'Public profile summary (LinkedIn), for the advisor only', t: 'area', wide: 1, opt: 1, nopdf: 1, lookup: 'client', lookupBtn: 'Search LinkedIn' }
       ] },
       { title: 'Business owner details', cond: BIZ, condMsg: 'These fields appear when Business owner is set to Yes.', fields: [
         { id: 'biz_name', l: 'Business name', t: 'txt' },

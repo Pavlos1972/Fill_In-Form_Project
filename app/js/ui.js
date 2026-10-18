@@ -44,7 +44,7 @@
   function paintField(id) {
     var el = document.querySelector('[data-f="' + id + '"]'); if (!el) return;
     var c = state.f[id]; el.value = c.v;
-    var wrap = el.closest('.f'); if (wrap) { wrap.className = wrap.className.replace(/\bs-\w+/, 's-' + c.st); var b = wrap.querySelector('.st'); if (b) b.innerHTML = badge(c.st, 'f:' + id); }
+    var wrap = el.closest('.f'); if (wrap) { wrap.className = wrap.className.replace(/\bs-\w+/, 's-' + c.st); var b = wrap.querySelector('.st'), ab = wrap.querySelector('.rt > .badge'); if (b) b.innerHTML = badge(c.st, 'f:' + id); if (ab) ab.outerHTML = badge(c.st, 'f:' + id); }
   }
   function toast(msg) {
     var t = $('#toast'); t.textContent = msg; t.hidden = false;
@@ -135,7 +135,7 @@
     var c = state.f[f.id], st = c.st, v = c.v, isNone = !!f.none && v === 'None';
     if (f.calc) { v = FF.calc.field(f.calc, ctx()); st = 'calc'; }
     var rt = f.link ? '<a class="lnk" href="' + f.link[1] + '" target="_blank" rel="noopener">' + esc(f.link[0]) + ' ↗</a>' : '';
-    if (f.lookup) rt += '<button type="button" class="lookup" data-lookup="' + f.id + '">Look up online</button>';
+    if (f.lookup) rt += '<button type="button" class="lookup" data-lookup="' + f.id + '">' + esc(f.lookupBtn || 'Look up online') + '</button>';
     if (f.none) rt += '<label class="nonebox"><input type="checkbox" data-none="' + f.id + '"' + (isNone ? ' checked' : '') + '> ' + esc(f.none) + '</label>';
     if (f.t === 'area' && !f.opt) rt += badge(st, 'f:' + f.id);
     var attrs = 'data-f="' + f.id + '"' + (f.hint ? ' placeholder="' + esc(f.hint) + '"' : '');
@@ -317,6 +317,7 @@
       var dobSet = t.dataset.f === 'idno' && autoDob(prevId);
       var wrap = t.closest('.f'); if (wrap) { wrap.className = wrap.className.replace(/\bs-\w+/, 's-' + state.f[t.dataset.f].st); var b = wrap.querySelector('.st'); if (b) b.innerHTML = badge(state.f[t.dataset.f].st, 'f:' + t.dataset.f); }
       touch();
+      if (t.dataset.f === 'employer' || t.dataset.f === 'biz_name') autoCompanyLookup(t.dataset.f);
       if (dobSet) paintField('dob');
       if (condIds[t.dataset.f]) { redraw(); var again = document.querySelector('[data-f="' + t.dataset.f + '"]'); if (again) again.focus(); } else refreshLive();
     } else if (t.dataset.l) {
@@ -346,17 +347,64 @@
   $('#btnPdf').addEventListener('click', savePdf);
   document.addEventListener('keydown', function (e) { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); saveJson(false); } });
 
-  /* ---------- online look-up of what a company does ---------- */
-  function doLookup(btn) {
-    var id = btn.dataset.lookup, def = schema.fieldsById[id], nameId = def.lookup, name = String(state.f[nameId].v || '').trim();
+  /* ---------- online look-up: what a company does (done by itself when the name is entered), and the client's public profile (on a tap) ---------- */
+  var autoLook = {};     // box id -> { name, text }: what a look-up last wrote there, so a new name can replace it but a typed answer never is
+  var looking = {};      // box id -> the name being looked up now
+  var lookFail = 0;
+  function lookupReady() { return !!(FF.lookup.getSettings().apiKey || (FF.voiceBackend && FF.voiceBackend.available)); }
+  /* What to ask about for a look-up box: a company or business (named in another box), or the client (name, with the employer and occupation so the right person is found). */
+  function lookupJob(id) {
+    var def = schema.fieldsById[id], f = function (k) { return String(state.f[k].v || '').trim(); };
+    if (def.lookup === 'client') {
+      var orgs = [f('employer')].concat(f('bizowner') === 'Yes' ? [f('biz_name')] : []).filter(Boolean);
+      return { kind: 'person', name: store.clientName(state), org: orgs.join(' and '), role: f('occ') };
+    }
+    return { kind: id === 'biz_does' ? 'business' : 'company', name: f(def.lookup) };
+  }
+  /* The description: web search with the key from Settings or, on the practice page with no key, what Claude itself knows (companies only, shown as "verify"). */
+  function lookupText(job) {
     var set = FF.lookup.getSettings();
-    if (!name) { toast('Enter the ' + schema.fieldsById[nameId].l.toLowerCase() + ' first.'); return; }
-    if (!set.apiKey) { openSettings(); toast('Add your Anthropic API key first.'); return; }
+    if (set.apiKey) return FF.lookup.run({ apiKey: set.apiKey, model: set.model, name: job.name, kind: job.kind, org: job.org, role: job.role }).then(function (t) { return { text: t, st: job.kind === 'person' ? 'verify' : 'heard' }; });
+    if (job.kind !== 'person' && FF.voiceBackend && FF.voiceBackend.available) return FF.lookup.runAsk({ ask: FF.voiceBackend.ask, name: job.name, kind: job.kind }).then(function (t) { return { text: t, st: 'verify' }; });
+    return Promise.reject(new Error(job.kind === 'person' ? 'The LinkedIn search needs the Anthropic key in Settings, because it uses web search.' : 'Add your Anthropic API key in Settings first.'));
+  }
+  var NOT_FOUND = /^Could not (?:identify|find)/;
+  /* Fills box id with the answer. auto: the page started it, so an answer typed in the box meanwhile is never replaced and "not found" is a note, not text in the box. */
+  function runLookup(id, job, auto) {
+    looking[id] = job.name;
+    var el = document.querySelector('[data-f="' + id + '"]'); if (el) el.placeholder = 'Searching online…';
+    function done() { delete looking[id]; var e2 = document.querySelector('[data-f="' + id + '"]'); if (e2) e2.placeholder = ''; }
+    return lookupText(job).then(function (r) {
+      done();
+      if (JSON.stringify(lookupJob(id)) !== JSON.stringify(job)) return;                         // the name changed while searching: this answer is for something else
+      var box = state.f[id], miss = NOT_FOUND.test(r.text);
+      if (auto) {
+        if (box.v !== '' && !(autoLook[id] && box.v === autoLook[id].text)) return;               // something was typed or said there meanwhile
+        if (miss) { toast('Could not find what ' + job.name + ' does online.'); return; }
+      }
+      store.setField(state, id, r.text, miss ? 'empty' : r.st);
+      autoLook[id] = { name: job.name, text: r.text };
+      touch(); paintField(id); if (vm.on) vmFlash(id);
+    }, function (err) { done(); throw err; });
+  }
+  /* The company or business name was just entered (typed, or heard): look up what it does, without being asked, unless something is already written there. */
+  function autoCompanyLookup(srcId) {
+    var target = { employer: 'co_does', biz_name: 'biz_does' }[srcId];
+    if (!target || !lookupReady()) return;
+    var job = lookupJob(target), box = state.f[target], prev = autoLook[target];
+    if (!job.name || looking[target] === job.name) return;
+    if (prev && prev.name === job.name && box.v === prev.text) return;                          // already done for this name
+    if (prev && box.v === prev.text) { store.setField(state, target, '', 'empty'); delete autoLook[target]; touch(); paintField(target); box = state.f[target]; }   // the name changed: the old description no longer applies
+    if (box.v !== '') return;                                                                   // written by hand: leave it
+    runLookup(target, job, true).catch(function (e) { if (Date.now() - lookFail > 60000) { lookFail = Date.now(); toast('Could not look up ' + job.name + ' (' + e.message + ').'); } });
+  }
+  function doLookup(btn) {
+    var id = btn.dataset.lookup, job = lookupJob(id), set = FF.lookup.getSettings();
+    if (!job.name) { toast(job.kind === 'person' ? "Enter the client's first name and surname first." : 'Enter the ' + schema.fieldsById[schema.fieldsById[id].lookup].l.toLowerCase() + ' first.'); return; }
+    if (job.kind === 'person' && !job.org && !job.role) { toast('Enter the employer or occupation first, so the right person is found.'); return; }
+    if (!set.apiKey && !(job.kind !== 'person' && FF.voiceBackend && FF.voiceBackend.available)) { if (job.kind !== 'person') openSettings(); toast(job.kind === 'person' ? 'The LinkedIn search needs the Anthropic key in Settings, because it uses web search.' : 'Add your Anthropic API key first.'); return; }
     var old = btn.textContent; btn.textContent = 'Searching…'; btn.disabled = true;
-    FF.lookup.run({ apiKey: set.apiKey, model: set.model, name: name, kind: id === 'biz_does' ? 'business' : 'company' }).then(function (text) {
-      store.setField(state, id, text, text.indexOf('Could not identify') === 0 ? 'empty' : 'heard');
-      touch(); redraw();
-    }, function (err) { btn.textContent = old; btn.disabled = false; toast(err.message); });
+    runLookup(id, job, false).then(function () { btn.textContent = old; btn.disabled = false; }, function (err) { btn.textContent = old; btn.disabled = false; toast(err.message); });
   }
   function openSettings() {
     var set = FF.lookup.getSettings(), dlg = $('#settings');
@@ -664,8 +712,7 @@
     if (id === vm.target) vm.answered = true;
     touch(); redraw(); vmFlash(id); extraIds.forEach(vmFlash);
     /* Employer or business name filled: look up what the company does. Only the company name is sent. */
-    var lk = res.kind === 'fill' ? { employer: 'co_does', biz_name: 'biz_does' }[id] : null;
-    if (lk && state.f[lk].v === '' && FF.lookup.getSettings().apiKey) { var btn = document.querySelector('[data-lookup="' + lk + '"]'); if (btn) doLookup(btn); }
+    if (res.kind === 'fill') autoCompanyLookup(id);
     return true;
   }
   /* What is already in the boxes of the current section, so Claude can tell a new fact from a correction. Private boxes are only said to be filled, never their values. */

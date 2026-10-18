@@ -653,3 +653,8 @@ test('only a plain yes or no answers "delete all data from the entire form?"', (
   ['no', 'No, keep it', 'cancel', 'not yet', 'undo', 'wait'].forEach(t => assert.strictEqual(V.wipeAnswer(t), 'no', t));
   ['delete everything', 'remove them all', 'yes but keep the name', 'hmm', 'yes no', '', 'All my details on the entire form are wrong, please remove them all'].forEach(t => assert.strictEqual(V.wipeAnswer(t), null, t));
 });
+test('the public profile box is not a notes box: notes go to the Notes box of the page', () => {
+  const occ = idx.notes.filter(n => n.sec === 'occ').map(n => n.id);
+  assert.deepStrictEqual(occ, ['n_occ']);
+  assert.ok(!idx.byId.profile && !idx.noteById.profile);                                    // and voice never fills it
+});

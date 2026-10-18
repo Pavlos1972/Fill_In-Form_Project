@@ -56,3 +56,26 @@ test('the top bar counts down the days to the key expiry date', () => {
   assert.strictEqual(L.keyStatus({ apiKey: 'k', expires: '2026-10-16' }, now).text, 'Key expires today');
   assert.strictEqual(L.keyStatus({ apiKey: 'k', expires: '2026-10-15' }, now).level, 'expired');
 });
+
+test('a client look-up names only the person, the employer and the occupation, and keeps to what matches', () => {
+  const r = L.buildRequest('Jane Doe', 'person', 'claude-opus-5-5', null, { org: 'Acme (Pty) Ltd', role: 'Financial planner' });
+  const ask = r.messages[0].content;
+  assert.ok(ask.includes('"Jane Doe"') && ask.includes('Acme (Pty) Ltd') && ask.includes('Financial planner') && ask.includes('LinkedIn'));
+  assert.ok(/never mix up two people with the same name/.test(ask) && /Could not find a profile that clearly matches/.test(ask));
+  assert.ok(/family, health, money, age, address/.test(ask));                                       // nothing personal is asked for
+  assert.strictEqual(r.tools[0].name, 'web_search');
+  assert.ok(!/\d{6,}|@/.test(ask));                                                                  // no number or address in it
+});
+test('a person look-up through run() sends the employer and occupation too', async () => {
+  let sent;
+  const fetchImpl = (url, opts) => { sent = JSON.parse(opts.body); return reply(200, textReply('A planner at Acme.'))(); };
+  assert.strictEqual(await L.run({ apiKey: 'k', name: 'Jane Doe', kind: 'person', org: 'Acme', role: 'Planner', fetchImpl }), 'A planner at Acme.');
+  assert.ok(sent.messages[0].content.includes('Acme') && sent.messages[0].content.includes('Planner'));
+});
+test('without web search, Claude says what it knows about a company, or that it could not identify it', async () => {
+  const ask = out => () => Promise.resolve(out);
+  assert.strictEqual(await L.runAsk({ ask: ask('{"description": "A health insurer."}'), name: 'Discovery', kind: 'company' }), 'A health insurer.');
+  assert.strictEqual(await L.runAsk({ ask: ask('{"description": null}'), name: 'Zzyzx', kind: 'company' }), 'Could not identify this company.');
+  assert.strictEqual(await L.runAsk({ ask: ask('not json at all'), name: 'Zzyzx', kind: 'business' }), 'Could not identify this company.');
+  await assert.rejects(L.runAsk({ ask: () => Promise.reject({ code: 'not_granted' }), name: 'X', kind: 'company' }), /Could not reach Claude/);
+});
