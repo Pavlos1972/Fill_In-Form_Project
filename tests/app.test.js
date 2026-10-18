@@ -129,3 +129,17 @@ test('a box in a list can be set with the status it was heard with', () => {
   store.setCell(s, 'kids', 0, 'dob', '22/08/2019', 'verify'); assert.strictEqual(s.l.kids[0].st, 'verify'); assert.strictEqual(s.l.kids[0].d.dob, '22/08/2019');
   store.setCell(s, 'kids', 0, 'cost', 'R 2 500.00'); assert.strictEqual(s.l.kids[0].st, 'confirmed');   // typed by hand: confirmed, as before
 });
+test('age is worked out on the date of the form, from the date of birth', () => {
+  const s = fresh(); s.f.date = { v: '15/10/2026', st: 'confirmed' };
+  assert.strictEqual(calc.field('age', store.ctxFor(s)), '');                                // nothing to work from yet
+  set(s, 'dob', '14/03/1986');
+  assert.strictEqual(calc.field('age', store.ctxFor(s)), '40 years');
+  set(s, 'dob', '15/10/1986'); assert.strictEqual(calc.field('age', store.ctxFor(s)), '40 years');   // birthday on the day itself
+  set(s, 'dob', '16/10/1986'); assert.strictEqual(calc.field('age', store.ctxFor(s)), '39 years');   // the day after
+  s.f.date = { v: '15/10/2027', st: 'confirmed' };
+  assert.strictEqual(calc.field('age', store.ctxFor(s)), '40 years');                        // a different date of the form, a different age
+  set(s, 'dob', '20/10/2025'); assert.strictEqual(calc.field('age', store.ctxFor(s)), '1 year');
+  set(s, 'dob', '01/01/2030'); assert.strictEqual(calc.field('age', store.ctxFor(s)), '');   // a date of birth after the form is not an age
+  set(s, 'dob', ''); set(s, 'idno', '7212095268086');
+  assert.strictEqual(calc.field('age', store.ctxFor(s)), '54 years');                        // no date of birth yet: the ID number gives it
+});

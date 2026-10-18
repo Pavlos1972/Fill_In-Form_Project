@@ -43,6 +43,7 @@
         { id: 'fname', l: 'First name', t: 'txt', s: 3 },
         { id: 'sname', l: 'Surname', t: 'txt', risky: 1, s: 3 },
         { id: 'dob', l: 'Date of birth', t: 'txt', date: 1, risky: 1, hint: 'e.g. 14/03/1986', s: 3 },
+        { id: 'age', l: 'Age at date of form', t: 'txt', calc: 'age', s: 3 },
         { id: 'idtype', l: 'ID or passport', t: 'sel', o: ['ID', 'Passport'], preset: 'ID', voice: 1, s: 3 },
         { id: 'idno', l: 'ID / passport number', t: 'txt', risky: 1, s: 3 },
         { id: 'nat', l: 'Nationality', t: 'sel', o: ['South African', 'Other'], preset: 'South African', voice: 1, s: 3 },

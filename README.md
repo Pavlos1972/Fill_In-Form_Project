@@ -10,6 +10,7 @@ Open `app/index.html` in Microsoft Edge or Google Chrome. There is nothing to in
 - **Save** keeps the client's answers as a `.json` file. **Open…** reopens one. Your work is also kept as a draft in the browser, so a closed tab does not lose it.
 - **Preview PDF** and **Save PDF** make the finished Fact Find in the Wealth Revolution layout. Lists such as debts and children continue onto extra pages as needed.
 - **Direct Net Income** is calculated from the gross income using the SARS tables. It is gross less PAYE and UIF, the same as TaxTim's "Take-home pay".
+- **Date of birth and age.** A South African ID number holds the date of birth, so when the ID number is typed or said the date of birth fills itself in (amber "verify"). This is worked out on this computer; the ID number is never sent to Claude. A date already typed or said is left alone, and the Checks warn when it does not match the ID. If the ID number is later corrected, a date that came from the old number follows it. **Age at date of form** (next to the date of birth) is worked out from the date of birth and the Date completed, so it changes with either. It is printed on the PDF too.
 - **Checks** on the right warn about an invalid ID number, a date of birth that does not match the ID, a bad email or phone number, and duties that do not add to 100%. Nothing is blocked.
 
 ## Layout
