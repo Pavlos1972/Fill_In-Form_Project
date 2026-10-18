@@ -344,7 +344,7 @@
     schema.sections.forEach(function (sec) {
       sec.blocks.forEach(function (b, bi) {
         (b.fields || []).forEach(function (f) {
-          if (f.opt && f.t === 'area') {            // a notes box: not asked about, but "let me take some notes" goes there
+          if (f.opt && f.t === 'area' && !f.lookup) {            // a notes box: not asked about, but "let me take some notes" goes there (a box with a look-up button is not one)
             var ne = { id: f.id, label: f.l, sec: sec.id, blk: bi, blkTitle: b.title || '', cond: b.cond, secCond: sec.cond, t: 'area', options: null, notes: true, lt: [] };
             notes.push(ne); noteById[f.id] = ne; return;
           }
