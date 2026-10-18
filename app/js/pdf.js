@@ -99,6 +99,7 @@
       sectionHeading(sec.title);
       sec.blocks.forEach(function (b) {
         if (!calc.showIf(b.cond, ctx)) return;
+        if (b.fields && b.fields.length && b.fields.every(function (f) { return f.nopdf; })) return;     // a block of boxes that are left off the PDF has no heading either
         if (b.title) blockTitle(b.title);
         if (b.fields) fieldsTable(b.fields);
         if (b.docs) table({ body: schema.docs.map(function (d) { return [d, state.docs[d] ? 'Requested' : '']; }), columnStyles: { 0: { cellWidth: CW - 40 }, 1: { cellWidth: 40, fontStyle: 'bold', textColor: DEEP } } });
