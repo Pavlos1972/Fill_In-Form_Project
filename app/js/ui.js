@@ -752,11 +752,11 @@
     if (res.kind === 'fill') { autoCompanyLookup(id); if (PROFILE_SRC.indexOf(id) >= 0) autoProfileLookup(); }
     return true;
   }
-  /* What is already in the boxes of the current section, so Claude can tell a new fact from a correction. Private boxes are only said to be filled, never their values. */
+  /* What is already in the boxes of the form, so Claude can tell a new fact from a correction, in whichever section the line ends up. Private boxes are only said to be filled, never their values. */
   function vmFilled() {
     var filled = {}, priv = [];
     vidx.fields.forEach(function (f) {
-      if (f.list || f.sec !== cur || !vmVisible(f)) return;
+      if (f.list || !vmVisible(f)) return;
       var c = state.f[f.id];
       if (!c || c.v === '') return;
       if (V.PRIVATE_IDS.indexOf(f.id) >= 0) priv.push(f.id); else filled[f.id] = String(c.v);
@@ -783,12 +783,12 @@
     });
     return { awaiting: out, held: held };
   }
-  function vmAsk(who, text) {
+  function vmAsk(who, text, note) {
     var set = FF.lookup.getSettings(), tcr = vm.target ? vmCellRef(vm.target) : null, tid = vm.target && !/^count:/.test(vm.target) && vmField(vm.target) ? (tcr ? tcr.list + '.' + tcr.k : vm.target) : null, fl = vmFilled(), aw = vmAwaiting();
     vm.busy++; vmRender();
     return VAI.decide({
       apiKey: set.apiKey, ask: !set.apiKey && FF.voiceBackend && FF.voiceBackend.available ? FF.voiceBackend.ask : null, model: set.voiceModel, idx: vidx, who: who, text: text,
-      ctx: { sectionId: cur, targetId: tid, targetRow: tcr ? tcr.i + 1 : null, targetValue: tid && !vmPrivate(vm.target) ? vmValue(vm.target) : '', targetFilled: !!(tid && vmValue(vm.target) !== ''), filled: fl.filled, filledPrivate: fl.filledPrivate, awaiting: aw.awaiting, privateHeld: aw.held,
+      ctx: { sectionId: cur, targetId: tid, targetRow: tcr ? tcr.i + 1 : null, targetValue: tid && !vmPrivate(vm.target) ? vmValue(vm.target) : '', targetFilled: !!(tid && vmValue(vm.target) !== ''), filled: fl.filled, filledPrivate: fl.filledPrivate, awaiting: aw.awaiting, privateHeld: aw.held, note: note,
         listRows: function (key) { return state.l[key].map(function (r) { return r.d; }); }, recent: vm.recent.slice(-7, -1) }
     }).then(function (r) { vm.busy--; vmRender(); return r; }, function (err) {
       vm.busy--; vmRender();
@@ -858,9 +858,22 @@
     var agree = words <= 2 && V.isConfirm(text, true) && !pl.actions.some(function (a) { return a.do === 'fill'; }) && vmAwaiting().awaiting.length > 0;
     if (vm.noteMode || onlyCommand || (words <= 2 && !agree) || !vmAIReady()) return vmRun(pl.actions);
     return vmAsk('auto', text).then(function (r) {
-      if (r && r.kind === 'actions') return vmRun(r.actions);
+      if (r && r.kind === 'actions') return vmRun(r.actions).then(function () { return vmRestOfLine(r.actions, text, words); });
       if (!r || agree) return vmRun(pl.actions);                         // Claude could not be reached, or had nothing to add to a plain yes: this computer's best reading
     });
+  }
+  /* A long line that only moved to another section may have more in it for that section ("let's talk about your investments. Do you have a tax free? Yes, Old Mutual, R3400 a month").
+     Safety net: ask Claude once more, now standing in that section, for the rest of the line. Nothing was filled by the first answer, so nothing is done twice. */
+  var vmRest = false;
+  function vmRestOfLine(actions, text, words) {
+    var moved = actions.some(function (a) { return a.do === 'section' || (a.do === 'cmd' && a.cmd && /^(goto|nextSection|prevSection)$/.test(a.cmd.type)); });
+    var did = actions.some(function (a) { return a.do === 'fill' || a.do === 'row' || a.do === 'cell' || a.do === 'confirm'; });
+    if (!moved || did || words < 14 || vmRest || vm.noteMode) return null;
+    vmRest = true;
+    return vmAsk('auto', text, 'The page has already moved to the section "' + vmSecTitle(cur) + '" because of this line. Do not move again: do the rest of the line that belongs here.').then(function (r) {
+      vmRest = false;
+      if (r && r.kind === 'actions') return vmRun(r.actions.filter(function (a) { return a.do !== 'section' && !(a.do === 'cmd' && /^(goto|nextSection|prevSection)$/.test(a.cmd.type)); }));
+    }, function () { vmRest = false; });
   }
   /* Called for every line heard. who is 'me' (the adviser), 'client', or left out when the source cannot tell and the words decide.
      Lines are handled one after another, in order. */

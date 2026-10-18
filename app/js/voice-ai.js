@@ -11,8 +11,9 @@
 
   var SYSTEM = [
     'You are the listening brain of a Fact Find form. A financial adviser is on a call with a client and the form fills in live while they talk.',
-    'You receive JSON: "position" (where the adviser is on the form now), "sections", "fields" (every box of the form), "filled" (what is already in the boxes of the current section),',
-    '"lists" (the lists of rows in the current section), "recent" (the last few lines) and "newest" (the line just heard).',
+    'You receive JSON: "position" (where the adviser is on the form now), "sections", "fields" (every box of the whole form, with its section), "filled" (what is already in the boxes of the form),',
+    '"lists" (every list of rows in the form, with its section, its columns and the rows already there), "recent" (the last few lines) and "newest" (the line just heard).',
+    'When "note" is present it says what the page has already done for the newest line (for example that it already moved to a section): do not do that again, do the rest of the line.',
     'Nobody tells you who is speaking. The adviser and the client talk fluidly: ONE line can hold the adviser asking, the client answering, a correction and a new fact.',
     'Read the whole line and work out what was ASKED, what was STATED and what was CHANGED, however loosely it was worded, then say what to do on the form.',
     'Reply with ONE JSON object and nothing else: {"actions": [ ... ]}. Put the actions in the order things were said. Each action is one of:',
@@ -36,6 +37,8 @@
     '  "I haven\'t got a work email") fill that box with the value "None". Several can be said in one line: one fill per box. Never give "None" to a box the client does give a value for.',
     '- Understand meaning, not exact words. Ignore filler, false starts and small talk. Give {"actions": []} for acknowledgements and small talk ("okay great", "thank you", "I see", "mm hm", "lovely").',
     '- Never invent a value that was not said, and never fill a box for something that is only being asked.',
+    '- One line can move to another part of the form and carry on there: "let\'s talk about your investments. Do you have a tax free? Yes, an Old Mutual one, R3400 a month" is [section, row]. Everything said after the move',
+    '  belongs to the boxes and lists of THAT section, which are all described in "fields" and "lists" whichever section is open now. Give every action of the line in one reply. Never stop after the "section" action.',
     '',
     'Confirming. "awaiting_confirmation" lists the boxes (and rows of lists) that were filled by voice and still wait for the client to agree; a box with "private": true is listed without its value.',
     'When the client agrees to what is on the form ("yes", "that\'s right", "correct", "exactly", "yes it is") in answer to a value that was read back or a question such as "is that right?", give one',
@@ -58,7 +61,7 @@
     '{"do":"fill","field":"wemail","value":"Jonathan [E1]"}. Use only words that are really there, immediately before the marker. Otherwise give the marker alone.',
     'A plain "my email" or "email address" is the personal email (pemail); "work email" or "office email" is the work email (wemail). A plain "my number" or "cell" is the cell number, an "office" or "work" number is the work number.',
     '',
-    'Some sections hold LISTS of rows: children, debts, existing policies, retirement funds, investments, partners and shareholders, quotes. "lists" describes each list in the current section: its columns, and the rows already there (row numbers start at 1).',
+    'Some sections hold LISTS of rows: children, debts, existing policies, retirement funds, investments, partners and shareholders, quotes. "lists" describes every list of the form: its section, its columns, and the rows already there (row numbers start at 1).',
     'Three more actions work on lists:',
     '  {"do":"row","list":"<list id>","values":{"<column id>":"<value>", ...}}   someone introduces a NEW row and says things about it ("we have a daughter, Thandi, born 22 August 2019")',
     '  {"do":"cell","list":"<list id>","row":<row number or "last">,"col":"<column id>","value":"..."}   a value for one box of a row that is already there ("the balance on the bond is R450 000")',
@@ -111,12 +114,12 @@
   }
   function scrub(t) { return shield(t, true).text; }
 
-  /* The lists of the section being talked about: their columns (private ones marked, their values never shown) and the rows already in them. */
+  /* Every list of the form, whichever section is open (a line can move to another section and carry on there): the section it is in, its columns
+     (private ones marked, their values never shown) and the rows already in it. */
   function listsFor(idx, ctx) {
     var out = [];
     Object.keys(idx.lists).forEach(function (key) {
       var L = idx.lists[key];
-      if (L.sec !== ctx.sectionId) return;
       var cols = L.cols.map(function (id) {
         var c = idx.byId[id], o = { id: c.k, label: c.label };
         if (c.options) o.options = c.options;
@@ -128,7 +131,7 @@
         var v = {}; open.forEach(function (c) { if (d[c.id] != null && String(d[c.id]).trim() !== '') v[c.id] = scrub(d[c.id]); });
         return { n: i + 1, values: v };
       });
-      out.push({ id: key, title: L.title, columns: cols, rows: rows });
+      out.push({ id: key, section: L.sec, title: L.title, columns: cols, rows: rows });
     });
     return out;
   }
@@ -140,7 +143,7 @@
       var o = { id: f.id, label: f.label, section: f.sec };
       if (priv(f.id)) o.private = true;
       if (f.none) o.none_box = true;
-      if (f.options && (f.sec === ctx.sectionId || f.id === ctx.targetId)) o.options = f.options;
+      if (f.options) o.options = f.options;
       return o;
     });
     var filled = {};
@@ -162,6 +165,7 @@
       return o;
     });
     if (awaiting.length) body.awaiting_confirmation = awaiting;
+    if (ctx.note) body.note = String(ctx.note);
     if (tPriv) body.position.box_has_value = !!ctx.targetFilled;
     if (sh.list.length) body.private_values = sh.list;
     var vault = { _line: String(text == null ? '' : text), _sent: sh.text, _held: ctx.privateHeld || {} };                                      // the line itself (to check the words in front of an email marker), what was sent (to recover a number that was sent unshielded) and the values already in the private boxes waiting to be confirmed (to check a read-back against; never sent)

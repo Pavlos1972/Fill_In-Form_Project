@@ -34,11 +34,12 @@ test('amounts of six or seven digits are not mistaken for private numbers', () =
   assert.ok(AI.scrub('I earn 120000 and 1 250 000').includes('120000'));
   assert.ok(AI.scrub('I earn 120000 and 1 250 000').includes('1 250 000'));
 });
-test('only the fields of the current section carry their option lists', () => {
+test('every box carries its option lists, whichever section is open, because a line can move to another section and carry on there', () => {
   const req = AI.buildRequest(idx, { sectionId: 'occ', targetId: 'employer', targetValue: '', recent: [] }, 'me', 'so who do you work for', 'm');
   const body = JSON.parse(req.messages[0].content);
   assert.ok(body.fields.find(x => x.id === 'employed').options);
-  assert.ok(!body.fields.find(x => x.id === 'smoker').options);
+  assert.deepStrictEqual(body.fields.find(x => x.id === 'smoker').options, ['Non-smoker', 'Smoker']);
+  assert.ok(body.fields.find(x => x.id === 'h_dia').options);
   assert.strictEqual(body.position.field, 'employer');
   assert.strictEqual(body.newest.who, 'adviser');
 });
@@ -93,18 +94,22 @@ test('a host that can reach Claude without a key can be used in place of the key
   await assert.rejects(() => AI.decide({ model: 'm', idx, who: 'me', text: 'x', ctx: {} }), /no API key/);
 });
 
-test('Claude is told about the lists in the section; private columns are named, their values never shown; list boxes are never plain fields', () => {
+test('Claude is told about every list of the form, with its section; private columns are named, their values never shown; list boxes are never plain fields', () => {
   const rows = { shares: [{ name: 'Sipho Dlamini', id: '8001015800087', cell: '0825550148', pct: '40' }], kids: [{ name: 'Thandi', dob: '22/08/2019' }] };
   const req = AI.buildRequest(idx, { sectionId: 'occ', targetId: null, recent: [], listRows: k => rows[k] || [] }, 'auto', 'my partner owns forty percent', 'm');
   const body = JSON.parse(req.messages[0].content), s = JSON.stringify(body);
-  assert.deepStrictEqual(body.lists.map(l => l.id), ['shares']);
-  assert.deepStrictEqual(body.lists[0].columns.map(c => c.id + (c.private ? '(private)' : '')), ['name', 'id(private)', 'cell(private)', 'pct']);
+  assert.deepStrictEqual(body.lists.map(l => l.id).sort(), ['debts', 'inv', 'invq', 'kids', 'raq', 'redq', 'ret', 'risk', 'shares']);
+  const shares = body.lists.find(l => l.id === 'shares'), inv = body.lists.find(l => l.id === 'inv');
+  assert.strictEqual(shares.section, 'occ'); assert.strictEqual(inv.section, 'inv');
+  assert.deepStrictEqual(shares.columns.map(c => c.id + (c.private ? '(private)' : '')), ['name', 'id(private)', 'cell(private)', 'pct']);
+  assert.deepStrictEqual(inv.columns.map(c => c.id), ['type', 'prov', 'val', 'prem', 'broker']);              // a line that moves to Investments can fill a row there
+  assert.ok(inv.columns[0].options.includes('Tax-free savings'));
   assert.ok(!/8001015800087|0825550148/.test(s));
-  assert.deepStrictEqual(body.lists[0].rows, [{ n: 1, values: { name: 'Sipho Dlamini', pct: '40' } }]);
+  assert.deepStrictEqual(shares.rows, [{ n: 1, values: { name: 'Sipho Dlamini', pct: '40' } }]);
   assert.ok(!body.fields.some(f => String(f.id).includes('.')));
   const kids = JSON.parse(AI.buildRequest(idx, { sectionId: 'kids', targetId: 'kids.dob', targetRow: 2, recent: [], listRows: k => rows[k] || [] }, 'auto', 'x', 'm').messages[0].content);
   assert.strictEqual(kids.position.row, 2); assert.strictEqual(kids.position.field, 'kids.dob');
-  assert.deepStrictEqual(kids.lists[0].rows[0], { n: 1, values: { name: 'Thandi', dob: '22/08/2019' } });
+  assert.deepStrictEqual(kids.lists.find(l => l.id === 'kids').rows[0], { n: 1, values: { name: 'Thandi', dob: '22/08/2019' } });
 });
 test('Claude can add rows and fill boxes of rows, and nothing else gets through', async () => {
   const run = body => AI.decide({ apiKey: 'k', model: 'm', idx, who: 'auto', text: 'x', ctx: { sectionId: 'kids', recent: [] }, fetchImpl: reply(body) });
@@ -212,4 +217,21 @@ test('Claude is told which boxes still wait for the client to agree (private one
   assert.deepStrictEqual((await run([{ do: 'confirm', field: 'idno' }])).actions, [{ do: 'confirm', field: 'idno' }]);
   assert.deepStrictEqual((await run([{ do: 'confirm', field: 'idno' }], 'so it is 721209 5268086, right?')).actions, [{ do: 'confirm', field: 'idno' }]);
   assert.strictEqual((await run([{ do: 'confirm', field: 'idno' }], 'so it is 721209 5268087, right?')).kind, 'none');
+});
+test('a line that moves to another section and carries on is described with that section\'s lists, and Claude is told to do the rest of the line', async () => {
+  const line = "I'd like to talk about your investment planning. Do you have any investments in place like a tax free? Yes I do. I have an Old Mutual tax free which I'm contributing R3400 per month towards.";
+  const body = JSON.parse(AI.buildRequest(idx, { sectionId: 'cover', recent: [] }, 'auto', line, 'm').messages[0].content);
+  assert.strictEqual(body.position.section, 'cover');
+  assert.ok(body.lists.some(l => l.id === 'inv' && l.section === 'inv'));
+  assert.ok(/Never stop after the "section" action/.test(AI.SYSTEM) && /every list of the form/.test(AI.SYSTEM));
+  const r = await AI.decide({ apiKey: 'k', model: 'm', idx, who: 'auto', text: line, ctx: { sectionId: 'cover', recent: [] },
+    fetchImpl: reply({ actions: [{ do: 'section', section: 'inv' }, { do: 'row', list: 'inv', values: { type: 'Tax-free savings', prov: 'Old Mutual', prem: '3400' } }] }) });
+  assert.deepStrictEqual(r.actions.map(a => a.do), ['section', 'row']);
+  assert.deepStrictEqual(r.actions[1].values, { type: 'Tax-free savings', prov: 'Old Mutual', prem: '3400' });
+});
+test('a note from the page says what it already did for the line, so a second look at the same line does not move again', () => {
+  const body = JSON.parse(AI.buildRequest(idx, { sectionId: 'inv', recent: [], note: 'The page has already moved to the section "Investments" because of this line.' }, 'auto', 'long line', 'm').messages[0].content);
+  assert.ok(/already moved/.test(body.note) && body.position.section === 'inv');
+  assert.ok(!('note' in JSON.parse(AI.buildRequest(idx, { sectionId: 'inv', recent: [] }, 'auto', 'x', 'm').messages[0].content)));
+  assert.ok(/"note"/.test(AI.SYSTEM));
 });
