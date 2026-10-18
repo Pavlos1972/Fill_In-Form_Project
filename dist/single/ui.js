@@ -25,6 +25,27 @@
   function recallHandle() { return idb(function (st, done) { var r = st.get('current'); r.onsuccess = function () { done(r.result || null); }; r.onerror = function () { done(null); }; }); }
   function loadDraft() { try { var t = localStorage.getItem(DRAFT_KEY); return t ? store.fromJSON(t) : null; } catch (e) { return null; } }
   function touch() { dirty = true; saveDraft(); refreshChrome(); }
+  /* A South African ID number holds the date of birth (YYMMDD). When the ID number is set, the date goes into an empty date of birth box,
+     or replaces the one that came from the previous ID number. A date typed or said some other way is left alone (the Checks panel warns
+     when it does not match). Returns what the box held before (so it can be undone), or null when nothing changed. This happens on this
+     computer: the ID number is never sent anywhere. */
+  function autoDob(prevId) {
+    var id = String(state.f.idno.v || '').replace(/\s/g, ''), d = state.f.dob;
+    if (state.f.idtype.v === 'Passport' || !/^\d{13}$/.test(id)) return null;
+    var dob = util.dobFromSaId(id);
+    if (!dob) return null;
+    var txt = util.formatDate(dob), before = util.dobFromSaId(String(prevId || '').replace(/\s/g, ''));
+    if (d.v === txt || (d.v !== '' && !(before && util.formatDate(before) === d.v))) return null;
+    var was = { v: d.v, st: d.st };
+    store.setField(state, 'dob', txt, 'verify');
+    return was;
+  }
+  /* Show a box's value and status in place (used when a box changes without the screen being redrawn). */
+  function paintField(id) {
+    var el = document.querySelector('[data-f="' + id + '"]'); if (!el) return;
+    var c = state.f[id]; el.value = c.v;
+    var wrap = el.closest('.f'); if (wrap) { wrap.className = wrap.className.replace(/\bs-\w+/, 's-' + c.st); var b = wrap.querySelector('.st'); if (b) b.innerHTML = badge(c.st, 'f:' + id); }
+  }
   function toast(msg) {
     var t = $('#toast'); t.textContent = msg; t.hidden = false;
     clearTimeout(toastTimer); toastTimer = setTimeout(function () { t.hidden = true; }, 3500);
@@ -291,9 +312,12 @@
       var def = schema.fieldsById[t.dataset.f], val = t.value.trim() === '' ? '' : t.value;
       if (def && def.money) { val = util.formatMoney(val); t.value = val; }
       if (def && def.date) { var pd = util.parseDate(val); if (pd) { val = util.formatDate(pd); t.value = val; } }
+      var prevId = t.dataset.f === 'idno' ? state.f.idno.v : '';
       store.setField(state, t.dataset.f, val);
+      var dobSet = t.dataset.f === 'idno' && autoDob(prevId);
       var wrap = t.closest('.f'); if (wrap) { wrap.className = wrap.className.replace(/\bs-\w+/, 's-' + state.f[t.dataset.f].st); var b = wrap.querySelector('.st'); if (b) b.innerHTML = badge(state.f[t.dataset.f].st, 'f:' + t.dataset.f); }
       touch();
+      if (dobSet) paintField('dob');
       if (condIds[t.dataset.f]) { redraw(); var again = document.querySelector('[data-f="' + t.dataset.f + '"]'); if (again) again.focus(); } else refreshLive();
     } else if (t.dataset.l) {
       var key = t.dataset.l, i = +t.dataset.i, k = t.dataset.k, col = schema.lists[key].cols.filter(function (c) { return c.k === k; })[0], row0 = state.l[key][i];
@@ -634,6 +658,7 @@
       if (res.append && cell.v && (cell.st === 'heard' || cell.st === 'verify')) value = cell.v + ' ' + value;
       store.setField(state, id, value, res.status);
       (res.extra || []).forEach(function (x) { var c2 = state.f[x.id]; entry.extras.push({ id: x.id, prev: { v: c2.v, st: c2.st } }); store.setField(state, x.id, x.value, x.status); extraIds.push(x.id); });
+      if (id === 'idno') { var dobWas = autoDob(entry.prev.v); if (dobWas) { entry.extras.push({ id: 'dob', prev: dobWas }); extraIds.push('dob'); } }   // the date of birth comes from the ID number
     }
     vm.undo.push(entry);
     if (id === vm.target) vm.answered = true;

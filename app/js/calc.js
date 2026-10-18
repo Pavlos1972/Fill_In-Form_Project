@@ -9,12 +9,17 @@
   function meetingDate(ctx) { return util.parseDate(ctx.v('date')) || util.parseDate(util.isoToday()); }
   /* Age from the typed date of birth, else from a South African ID number. */
   function clientAge(ctx) {
-    var dob = util.parseDate(ctx.v('dob')) || util.dobFromSaId(ctx.v('idno'));
+    var dob = util.parseDate(ctx.v('dob')) || (ctx.v('idtype') === 'Passport' ? null : util.dobFromSaId(ctx.v('idno')));
     return dob ? util.ageAt(dob, meetingDate(ctx)) : null;
   }
   function sumRows(ctx, key, col) { return ctx.rows(key).reduce(function (a, r) { return a + util.num(r.d[col]); }, 0); }
 
   var fieldCalcs = {
+    /* The client's age on the date of the form (Date completed), from the date of birth. */
+    age: function (ctx) {
+      var a = clientAge(ctx);
+      return a == null || a < 0 || a > 130 ? '' : a + (a === 1 ? ' year' : ' years');
+    },
     /* Gross less PAYE and UIF: the figure TaxTim shows as "Take-home pay". */
     dnet: function (ctx) {
       var g = ctx.n('gross');
