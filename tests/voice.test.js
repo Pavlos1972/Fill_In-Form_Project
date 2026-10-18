@@ -635,3 +635,9 @@ test('a passport number said as letters and spoken digits keeps its letter and s
     assert.strictEqual(r.extra[0].value, 'Passport', t);
   });
 });
+test('an address whose first part was split off by dictation is put back together on this computer too', () => {
+  assert.strictEqual(brief(planOf('my work email address is Jonathan snow@discovery.co.ZA')), 'fill:wemail=jonathansnow@discovery.co.za');
+  assert.strictEqual(brief(planOf('my email is john@snow.com')), 'fill:pemail=john@snow.com');
+  assert.strictEqual(brief(planOf('you can email me at jsnow@gmail.com')), 'fill:pemail=jsnow@gmail.com');
+  assert.strictEqual(brief(planOf('my work email is Sandra mokoena at acme dot co dot za')), 'fill:wemail=sandramokoena@acme.co.za');
+});

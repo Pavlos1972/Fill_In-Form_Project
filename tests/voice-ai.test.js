@@ -162,3 +162,15 @@ test('a passport number is a private value too, said as letters and digits or as
   const same = 'I earn R450000, R 1 234 567 and R4500000, invoice no 1234567, I have a one two three four';
   assert.strictEqual(AI.shield(same).text, same);                                              // money and plain words are not passports
 });
+test('when dictation leaves the start of an address outside the marker, Claude can name those words, and only words that are really there count', async () => {
+  const text = 'my work email address is Jonathan snow@discovery.co.ZA and my cell is 0834541751';
+  const run = value => AI.decide({ apiKey: 'k', model: 'm', idx, who: 'auto', text, ctx: { sectionId: 'info', recent: [] }, fetchImpl: reply({ actions: [{ do: 'fill', field: 'wemail', value }] }) });
+  assert.deepStrictEqual((await run('Jonathan [E1]')).actions, [{ do: 'fill', field: 'wemail', value: 'Jonathan snow@discovery.co.ZA', explicit: false }]);
+  assert.deepStrictEqual((await run('[E1]')).actions, [{ do: 'fill', field: 'wemail', value: 'snow@discovery.co.ZA', explicit: false }]);
+  assert.deepStrictEqual(await run('Susan [E1]'), { kind: 'none' });                          // words that were not said in front of the address
+  assert.deepStrictEqual(await run('is [E1]'), { kind: 'none' });                             // a lead-in word is not part of an address
+  assert.deepStrictEqual(await run('Jonathan snow@discovery.co.za'), { kind: 'none' });       // an address written out by the model
+  const sent = AI.buildRequest(idx, { sectionId: 'info', recent: [] }, 'auto', text, 'm');
+  assert.ok(/Jonathan \[E1\]/.test(sent.messages[0].content) && !/discovery/.test(sent.messages[0].content));
+  assert.ok(/start of the address/.test(AI.SYSTEM));
+});

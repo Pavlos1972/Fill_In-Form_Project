@@ -848,6 +848,12 @@
     if (!quals && heads.some(function (n) { return NONE_HEAD[tk[n]] === 'e'; })) add('pemail');       // "I have no email address"
     return out;
   }
+  /* A typed address, with the name in front of it when the dictation split it off ("Jonathan snow@discovery.co.ZA" is jonathansnow@discovery.co.za). */
+  var EMAIL_LEAD = /^(?:is|are|it|its|it's|my|our|email|e-mail|mail|address|at|on|me|to|and|or|the|a|an|work|personal|private|office|business|use|using|via|send|sent|contact|reach|for|from)$/i;
+  function typedEmail(core) {
+    var m = /(?:^|\s)([A-Za-z][A-Za-z.-]*)\s+([\w.+-]+@[\w-]+(?:\.[\w-]+)+)/.exec(core), plain = /[\w.+-]+@[\w-]+(?:\.[\w-]+)+/.exec(core);
+    return m && !EMAIL_LEAD.test(m[1]) ? [m[1] + ' ' + m[2]] : plain;
+  }
   var ORD_IDX = { first: 0, '1st': 0, second: 1, '2nd': 1, third: 2, '3rd': 2, fourth: 3, '4th': 3, fifth: 4, '5th': 4 };
   var NO_WORDS = /^(?:no|none|nope|nah|nothing|not any|zero|we don'?t|i don'?t|don'?t have any)\b/i;
   function rowName(d) { return d ? String(d.name || d.desc || '') : ''; }
@@ -1028,7 +1034,7 @@
       if (!isQ && !WH.test(core)) {                                        // a value of a typed box, found in the clause however it is phrased
         var th = matchQuestion(core, idx, near);
         if (th && th.score >= 2.5 && visible(th.id) && TYPED.indexOf(vid(idx.byId[th.id])) >= 0) {
-          var tp = aim(th, core), tv = EMAIL_IDS.indexOf(vid(tp.def)) >= 0 ? (/[\w.+-]+@[\w-]+(?:\.[\w-]+)+/.exec(core) || [core.replace(/^.*\b(?:is|are|it's|its|address|email|e-mail)\b[,:\s]*(?:me\s+)?(?:(?:at|on)\s+)?/i, '')])[0] : core;   // an email is what follows "is" / "it's"
+          var tp = aim(th, core), tv = EMAIL_IDS.indexOf(vid(tp.def)) >= 0 ? (typedEmail(core) || [core.replace(/^.*\b(?:is|are|it's|its|address|email|e-mail)\b[,:\s]*(?:me\s+)?(?:(?:at|on)\s+)?/i, '')])[0] : core;   // an email is what follows "is" / "it's"
           var tr = answerFor(tp.def, tv, tp.existing);
           if (tr.kind === 'fill') { var tid = tp.commit(); actions.push({ do: 'fill', field: tid, res: tr, explicit: true }); target = tid; answered = true; return; }
         }
