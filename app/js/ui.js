@@ -603,12 +603,24 @@
     if (lk && state.f[lk].v === '' && FF.lookup.getSettings().apiKey) { var btn = document.querySelector('[data-lookup="' + lk + '"]'); if (btn) doLookup(btn); }
     return true;
   }
+  /* What is already in the boxes of the current section, so Claude can tell a new fact from a correction. Private boxes are only said to be filled, never their values. */
+  function vmFilled() {
+    var filled = {}, priv = [];
+    vidx.fields.forEach(function (f) {
+      if (f.list || f.sec !== cur || !vmVisible(f)) return;
+      var c = state.f[f.id];
+      if (!c || c.v === '') return;
+      if (V.PRIVATE_IDS.indexOf(f.id) >= 0) priv.push(f.id); else filled[f.id] = String(c.v);
+    });
+    return { filled: filled, filledPrivate: priv };
+  }
   function vmAsk(who, text) {
-    var set = FF.lookup.getSettings(), tcr = vm.target ? vmCellRef(vm.target) : null, tid = vm.target && !/^count:/.test(vm.target) && vmField(vm.target) && !vmPrivate(vm.target) ? (tcr ? tcr.list + '.' + tcr.k : vm.target) : null;
+    var set = FF.lookup.getSettings(), tcr = vm.target ? vmCellRef(vm.target) : null, tid = vm.target && !/^count:/.test(vm.target) && vmField(vm.target) ? (tcr ? tcr.list + '.' + tcr.k : vm.target) : null, fl = vmFilled();
     vm.busy++; vmRender();
     return VAI.decide({
       apiKey: set.apiKey, ask: !set.apiKey && FF.voiceBackend && FF.voiceBackend.available ? FF.voiceBackend.ask : null, model: set.voiceModel, idx: vidx, who: who, text: text,
-      ctx: { sectionId: cur, targetId: tid, targetRow: tcr ? tcr.i + 1 : null, targetValue: tid ? vmValue(vm.target) : '', listRows: function (key) { return state.l[key].map(function (r) { return r.d; }); }, recent: vm.recent.slice(-7, -1) }
+      ctx: { sectionId: cur, targetId: tid, targetRow: tcr ? tcr.i + 1 : null, targetValue: tid && !vmPrivate(vm.target) ? vmValue(vm.target) : '', targetFilled: !!(tid && vmValue(vm.target) !== ''), filled: fl.filled, filledPrivate: fl.filledPrivate,
+        listRows: function (key) { return state.l[key].map(function (r) { return r.d; }); }, recent: vm.recent.slice(-7, -1) }
     }).then(function (r) { vm.busy--; vmRender(); return r; }, function (err) {
       vm.busy--; vmRender();
       if (Date.now() - vm.lastFail > 60000) { vm.lastFail = Date.now(); toast('Voice: could not reach Claude (' + err.message + '). Using only what this computer can understand.'); }
@@ -634,7 +646,7 @@
         return f && vmVisible(f) ? vmPoint(a.field) : null;
       case 'cell':                                                              // Claude: a value for a box of a row that is there
         var rn = state.l[a.list].length, ri = a.row === 'last' ? Math.max(rn - 1, 0) : a.row - 1;
-        return vmDo({ do: 'fill', field: a.list + ':' + ri + ':' + a.col, value: a.value });
+        return vmDo({ do: 'fill', field: a.list + ':' + ri + ':' + a.col, value: a.value, explicit: a.explicit });
       case 'wait': return vm.target ? vmNote(vm.target, a.dangling ? 'Listening for the rest' : 'Waiting for the correct answer') : null;
       case 'confirm': case 'fill':
         if (!f || !vmVisible(f)) return;
@@ -642,6 +654,7 @@
         if (!res && a.do === 'confirm') res = { kind: 'confirm' };
         if (!res) { var x = V.interpret(f, a.value); if (x && !x.error) res = { kind: 'fill', value: x.value, status: x.status, extra: x.extra, append: x.append }; }
         if (!res) return;
+        if (res.kind === 'fill' && !res.extra && cell.v !== '' && String(res.value).trim().toLowerCase() === String(cell.v).trim().toLowerCase()) res = { kind: 'confirm' };   // saying the same thing again agrees with it
         if (a.field !== vm.target) {
           if (!a.explicit && res.kind === 'fill' && cell.v !== '' && cell.st === 'confirmed') return;   // Claude's volunteered fact never overwrites a confirmed value
           vmShow(a.field);                                                                              // the screen follows the conversation to that box
@@ -651,17 +664,16 @@
   }
   /* One after another, so a note written by Claude lands before the next thing in the line. */
   function vmRun(actions) { return actions.reduce(function (p, a) { return p.then(function () { return vmDo(a); }); }, Promise.resolve()); }
-  /* A line whose speaker is not known. It may hold the adviser and the client together, in any order. Simple lines are understood here,
-     instantly; when some part is unclear Claude reads the whole line (and this computer's reading is the fallback if Claude cannot be reached). */
+  /* A line whose speaker is not known. It may hold the adviser and the client together, in any order, with corrections and things they do not have.
+     Claude reads it and says what to do on the form; this computer's own reading is used only for a bare command word, while notes are being taken,
+     for a one or two word answer, and when Claude cannot be reached. */
   function vmProcessAuto(text, entry) {
     var pl = V.plan(text, vidx, { cur: cur, noting: !!vm.noteMode, target: vm.target, answered: vm.answered, rows: function (key) { return state.l[key].map(function (r) { return r.d; }); }, curRow: vm.rowCur, value: function (id) { return state.f[id].v; }, visible: function (id) { var f = vmField(id); return !!f && vmVisible(f); } });
-    var words = text.split(/\s+/).length;
-    if (pl.sure || !vmAIReady() || words < 3) return vmRun(pl.actions);
-    return vmRun(pl.actions.filter(function (a) { return !a.tentative; })).then(function () {     // what is certain is done now, and is never undone by Claude's reply
-      return vmAsk('auto', text);
-    }).then(function (r) {
+    var words = text.split(/\s+/).length, onlyCommand = pl.actions.length > 0 && pl.actions.every(function (a) { return a.do === 'cmd'; }) && words <= 8;
+    if (vm.noteMode || onlyCommand || words <= 2 || !vmAIReady()) return vmRun(pl.actions);
+    return vmAsk('auto', text).then(function (r) {
       if (r && r.kind === 'actions') return vmRun(r.actions);
-      if (!r) return vmRun(pl.actions.filter(function (a) { return a.tentative; }));   // Claude could not be reached: use this computer's best reading
+      if (!r) return vmRun(pl.actions);                                  // Claude could not be reached: this computer's best reading
     });
   }
   /* Called for every line heard. who is 'me' (the adviser), 'client', or left out when the source cannot tell and the words decide.
