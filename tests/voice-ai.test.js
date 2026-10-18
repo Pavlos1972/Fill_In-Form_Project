@@ -180,3 +180,21 @@ test('Claude can ask for the whole form to be cleared, and is told when that is 
   assert.deepStrictEqual((await run({ actions: [{ do: 'cmd', cmd: 'clear' }] })).actions, [{ do: 'cmd', cmd: { type: 'clear' } }]);
   assert.ok(/clearAll/.test(AI.SYSTEM) && /are you sure/.test(AI.SYSTEM));
 });
+test('a shorter number said as a number (a tax number) is private too, but ordinary amounts and years are not', () => {
+  const line = 'Can you tell me what your ID number is and your tax number? Yeah sure no problem. My ID number is 721209-5268086 and my tax number is 554-7259.';
+  const sh = AI.shield(line);
+  assert.strictEqual(sh.text, 'Can you tell me what your ID number is and your tax number? Yeah sure no problem. My ID number is [N1] and my tax number is [N2].');
+  assert.deepStrictEqual(sh.list.map(x => x.kind), ['13 digits, the length of an ID number', '7 digits']);
+  assert.strictEqual(AI.shield('my policy number is 1234567').text, 'my policy number is [N1]');
+  ['my gross income is 1 250 000 a month', 'I owe 450 000 on the bond', 'the year was 1985 and I have 3 kids'].forEach(t => assert.strictEqual(AI.shield(t).text, t, t));
+  assert.strictEqual(AI.shield('my passport is A1234567').text, 'my passport is [N1]');                      // letters then digits stay one private number
+});
+test('both numbers of the sentence reach their boxes, and digits sent unshielded are still recovered', async () => {
+  const line = 'Can you tell me what your ID number is and your tax number? Yeah sure no problem. My ID number is 721209-5268086 and my tax number is 554-7259.';
+  const run = (value, text) => AI.decide({ apiKey: 'k', model: 'm', idx, who: 'auto', text: text || line, ctx: { sectionId: 'info', recent: [] }, fetchImpl: reply({ actions: [{ do: 'fill', field: 'idno', value: '[N1]' }, { do: 'fill', field: 'tax', value }] }) });
+  assert.deepStrictEqual((await run('[N2]')).actions.map(a => [a.field, a.value]), [['idno', '721209-5268086'], ['tax', '554-7259']]);
+  assert.deepStrictEqual((await run('1234567')).actions.map(a => a.field), ['idno']);                       // a number the model could not have seen is refused
+  // seven digits with no number word before them are not made private, so Claude sees them as plain text; the box still takes them, because they are in the line that was said
+  const r = await AI.decide({ apiKey: 'k', model: 'm', idx, who: 'auto', text: 'okay 5547259 thanks', ctx: { sectionId: 'info', recent: [] }, fetchImpl: reply({ actions: [{ do: 'fill', field: 'tax', value: '5547259' }] }) });
+  assert.deepStrictEqual(r.actions.map(a => [a.field, a.value]), [['tax', '5547259']]);
+});

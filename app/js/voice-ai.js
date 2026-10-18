@@ -45,7 +45,7 @@
     'Private values. ID numbers, phone numbers, tax numbers and email addresses are never shown to you. Where one was said, the line shows a marker such as [N1] (a number) or [E1] (an email address),',
     'and "private_values" says what kind each looks like, for example "10 digits, starts like a cell number". Boxes marked "private": true take ONLY a marker as their value: {"do":"fill","field":"cell","value":"[N1]"}',
     '(or "None" for a "No" box). Never write digits or an address yourself, and never put two markers in one value. A cell number is 10 digits starting 06, 07 or 08; a work or home number usually starts 01 to 05;',
-    'an ID number has 13 digits. When a number is said and then corrected, use the marker of the LAST one. "filled_private" lists the private boxes that already hold a value (the values are not shown).',
+    'an ID number has 13 digits; a tax number is often 10 digits but a number said right after "tax number" is the tax number whatever its length. When a number is said and then corrected, use the marker of the LAST one. "filled_private" lists the private boxes that already hold a value (the values are not shown).',
     'Speech-to-text often leaves the first part of an email address outside the marker: the client says "jonathan snow at discovery dot co dot za" and the line reads "my work email is Jonathan [E1]".',
     'When the word or words right before an [E] marker are clearly the start of the address (a name, not a word like "is", "my", "email", "address", "at" or "on"), give them in front of the marker, separated by a space:',
     '{"do":"fill","field":"wemail","value":"Jonathan [E1]"}. Use only words that are really there, immediately before the marker. Otherwise give the marker alone.',
@@ -66,6 +66,7 @@
      short description of each, so Claude can tell a cell number from a landline or an ID without ever seeing the digits. */
   var DIGITWORD = '(?:zero|oh|one|two|three|four|five|six|seven|eight|nine|double|triple)';
   var PLAIN = /^(?:r|id|is|no|at|in|on|to|or|my|it|as|am|an|be|by|do|go|he|if|me|of|so|up|us|we)$/i;      // not a passport prefix: money (R450000), plain words
+  var NUMBER_CUE = /\b(?:tax|sars|reference|number|account|id|passport|phone|cell|mobile|telephone|landline|policy)\b[^.!?]*$/i;       // words that say the digits just after them are a private number
   function kindOf(d) {
     if (d.length === 13) return '13 digits, the length of an ID number';
     if (/^0[6-8]\d{8}$/.test(d)) return '10 digits, starts like a cell number';
@@ -84,10 +85,11 @@
     t = t.replace(/[\w.+-]+@[\w-]+(?:\.[\w-]+)+/g, function (m) { return hold('E', m, 'email address'); });
     t = t.replace(/\b[\w.+-]+(?:\s+(?:dot|underscore|dash|hyphen)\s+[\w.+-]+)*\s+at\s+[\w-]+(?:\s+dot\s+[\w-]+)+\b/gi, function (m) { return hold('E', m, 'email address'); });
     t = t.replace(/\+?\d(?:[ \t-]?\d){6,}/g, function (m, off, all) {
-      var d = m.replace(/\D/g, ''), before = all.slice(Math.max(0, off - 3), off);
+      var d = m.replace(/\D/g, ''), before = all.slice(Math.max(0, off - 3), off), lead = all.slice(Math.max(0, off - 50), off);
       if (/(?:^|[^A-Za-z])[Rr]\s?$/.test(before)) return m;                                      // an amount of money ("R1 250 000")
       if (/^(?:0[1-9]|[12]\d|3[01])[ \t-](?:0[1-9]|1[0-2])[ \t-](?:19|20)\d\d$/.test(m)) return m;     // a date said as "05 03 1980"
       if (d.length >= 9 || (d.length >= 7 && d.charAt(0) === '0')) return hold('N', m, kindOf(d));
+      if (d.length <= 12 && NUMBER_CUE.test(lead) && !/[A-Za-z]-?$/.test(before)) return hold('N', m, kindOf(d));                   // "my tax number is 554-7259": a shorter number, but said as a number
       return m;
     });
     t = t.replace(/(^|[^A-Za-z0-9])([A-Za-z]{1,2})[ \t-]?(\d(?:[ \t-]?\d){5,})(?!\d)/g, function (m, pre, letters) {         // a passport number: letters then digits
@@ -148,7 +150,7 @@
     };
     if (tPriv) body.position.box_has_value = !!ctx.targetFilled;
     if (sh.list.length) body.private_values = sh.list;
-    var vault = { _line: String(text == null ? '' : text) };                                                     // the line itself, only to check the words in front of an email marker
+    var vault = { _line: String(text == null ? '' : text), _sent: sh.text };                                      // the line itself (to check the words in front of an email marker) and what was sent (to recover a number that was sent unshielded)
     Object.keys(sh.vault).forEach(function (k) { vault[k] = sh.vault[k]; });
     return { req: { model: model, max_tokens: 900, system: SYSTEM, messages: [{ role: 'user', content: JSON.stringify(body) }] }, vault: vault };
   }
@@ -189,7 +191,10 @@
           return raw != null && vault._line && low(vault._line).indexOf(low(pre[1] + ' ' + raw)) >= 0 && !EMAIL_LEAD.test(pre[1].split(/\s+/).pop()) ? pre[1] + ' ' + raw : null;
         }
         if (/\[(?:N|E)\d+\]|\[number\]|\[email\]/.test(s)) return null;
-        if (isPriv(id)) return /^none$/i.test(s) && idx.byId[id] && idx.byId[id].none ? 'None' : null;
+        if (isPriv(id)) {
+          if (/^none$/i.test(s) && idx.byId[id] && idx.byId[id].none) return 'None';
+          return /^[\d\s\-+().]{5,}$/.test(s) && vault && vault._sent && vault._sent.indexOf(s) >= 0 ? s : null;     // digits are taken only if they went out in the line as plain text (nothing was hidden): then the model really saw them
+        }
         return s;
       };
       if (Array.isArray(raw.actions)) raw.actions.forEach(function (a) {
