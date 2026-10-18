@@ -63,7 +63,7 @@
         { id: 'edu', l: 'Highest education', t: 'sel', o: ['Matric', 'Matric & diploma', '4-year diploma', '3-year degree', 'Postgraduate', 'Other'], s: 3 },
         { id: 'edu_notes', l: 'Qualification details', t: 'area', s: 6 }
       ] },
-      { title: 'Public profile (LinkedIn)', help: 'Searched by itself once the client\'s name and employer or occupation are known. It is the best match found, with how sure it is: a pointer to check with the client, not a fact. Advisor only: it is not printed on the PDF.', fields: [
+      { title: 'Public profile (LinkedIn)', fields: [
         { id: 'profile', l: 'Public profile summary', t: 'area', wide: 1, opt: 1, nopdf: 1, lookup: 'client', lookupBtn: 'Search LinkedIn', rows: 3, hint: 'Filled in by itself when the name and employer or occupation are known. Needs the Anthropic key on the laptop; it is not available on the practice page.' }
       ] },
       { fields: [N('n_info')] }
