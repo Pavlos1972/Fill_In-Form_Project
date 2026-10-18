@@ -174,3 +174,9 @@ test('when dictation leaves the start of an address outside the marker, Claude c
   assert.ok(/Jonathan \[E1\]/.test(sent.messages[0].content) && !/discovery/.test(sent.messages[0].content));
   assert.ok(/start of the address/.test(AI.SYSTEM));
 });
+test('Claude can ask for the whole form to be cleared, and is told when that is and is not meant', async () => {
+  const run = body => AI.decide({ apiKey: 'k', model: 'm', idx, who: 'auto', text: 'All my details on the entire form are wrong, please remove them all', ctx: { sectionId: 'info', recent: [] }, fetchImpl: reply(body) });
+  assert.deepStrictEqual((await run({ actions: [{ do: 'cmd', cmd: 'clearAll' }] })).actions, [{ do: 'cmd', cmd: { type: 'clearAll' } }]);
+  assert.deepStrictEqual((await run({ actions: [{ do: 'cmd', cmd: 'clear' }] })).actions, [{ do: 'cmd', cmd: { type: 'clear' } }]);
+  assert.ok(/clearAll/.test(AI.SYSTEM) && /are you sure/.test(AI.SYSTEM));
+});

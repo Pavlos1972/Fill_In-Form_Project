@@ -21,8 +21,11 @@
     '  {"do":"fill","field":"<id>","value":"..."}   a value is stated for a box, WHOEVER says it. Add "correction":true when it replaces a value that is already in the box (see "filled")',
     '  {"do":"confirm","field":"<id>"}              the value in position.current_value is agreed to ("yes, that\'s right")',
     '  {"do":"wait"}                                the value in position.current_value is rejected and the new one has not come yet',
-    '  {"do":"cmd","cmd":"undo|next|prev|nextSection|prevSection|clear|notes|notesOff"}   a request about the form itself: "scratch that" is undo, "skip" or "next question" is next,',
-    '                                               "let me take some notes" is notes (add "retro":true for "note that down"), "that\'s all for the notes" is notesOff',
+    '  {"do":"cmd","cmd":"undo|next|prev|nextSection|prevSection|clear|clearAll|notes|notesOff"}   a request about the form itself: "scratch that" is undo, "skip" or "next question" is next,',
+    '                                               "let me take some notes" is notes (add "retro":true for "note that down"), "that\'s all for the notes" is notesOff,',
+    '                                               "clear that" is clear (only the box being talked about), and clearAll is for wanting EVERYTHING on the whole form removed',
+    '                                               ("all my details are wrong, remove them all", "wipe the entire form", "start again from scratch"). For clearAll give just that one action:',
+    '                                               the page asks "are you sure?" before anything is cleared. A wrong value in ONE box is not clearAll: that is a correction or "wait".',
     '',
     'How to read the line:',
     '- Facts count whoever says them. The adviser saying "your first name is John" and the client saying "my surname is Peters" each fill a box. A full name fills the first name AND the surname.',
@@ -161,7 +164,7 @@
   }
 
   var EMAIL_LEAD = /^(?:is|are|it|its|it's|my|our|email|e-mail|mail|address|at|on|me|to|and|or|the|a|an|work|personal|private|office|business|use|using|via|send|sent|contact|reach|for|from)$/i;   // words that lead into an address but are not part of it
-  var CMDS = { undo: { type: 'undo' }, next: { type: 'next' }, prev: { type: 'prev' }, nextSection: { type: 'nextSection' }, prevSection: { type: 'prevSection' }, clear: { type: 'clear' }, notesOff: { type: 'notesOff' } };
+  var CMDS = { undo: { type: 'undo' }, next: { type: 'next' }, prev: { type: 'prev' }, nextSection: { type: 'nextSection' }, prevSection: { type: 'prevSection' }, clear: { type: 'clear' }, clearAll: { type: 'clearAll' }, notesOff: { type: 'notesOff' } };
   /* Only ids that exist get through. A private box takes only a marker (swapped for the real value here) or "None".
      -> { kind: 'actions', actions } | { kind: 'point', field, section } | { kind: 'answers', answers, waiting } | { kind: 'none' } */
   function normalize(raw, idx, who, vault) {

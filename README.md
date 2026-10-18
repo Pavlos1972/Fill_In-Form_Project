@@ -42,7 +42,9 @@ The **Voice** button in the black bar switches voice mode on and off. Nothing el
 - The **section heading glows red-amber** when a topic is opened ("let's talk about your occupation").
 - The **label and box glow red-amber** when a question points at them ("what is your occupation?"). The cursor is put in the box.
 - When an answer comes, it goes in and the box **glows green** for a moment. If the box already held a value and the client agrees, it is confirmed (green); if the client disagrees, the box stays red-amber until the correction is heard, then it is replaced (green).
-- "Scratch that" undoes the last change. With voice off, nothing is listened to and typing works as always.
+- "Scratch that" undoes the last change. "Clear that" empties only the box being talked about.
+- "Remove everything" ("all my details are wrong, please remove them all", "wipe the entire form"): a window over the form asks "Delete all data from the entire form?". Nothing is cleared until "yes" is said or the button tapped; "no" (or the other button) keeps everything. Repeating the request is not a yes. After a yes, "undo" brings the whole form back, and a file you already saved is never touched. If the same line also stated facts, they are put in after the answer.
+- With voice off, nothing is listened to and typing works as always.
 
 **Natural, fluid talk.** It does not matter who says what. A line is split into parts and worked through in order, and a fact counts whoever says it: "your first name is John and your second name? Oh my second name is Peters" fills First name, moves to Surname and fills it. The words around an answer ("my surname is", "it's") are never typed into a box, and a sentence that stops before the answer makes the box glow and keep listening.
 
