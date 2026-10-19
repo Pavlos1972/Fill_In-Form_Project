@@ -125,3 +125,41 @@ test('the listener reads each line, drops a stuck repeat with a note, and bounds
   assert.ok(said[0][1].audio > 1.4 && said[0][1].took >= 0 && said[0][1].peak > 0.02);
   lsn.stop();
 });
+
+test('Chrome speech: the microphone is asked for once and held while Chrome restarts its recognition', async () => {
+  const recs = []; let opened = 0, stopped = 0;
+  function FakeRec() { recs.push(this); this.started = 0; }
+  FakeRec.prototype.start = function () { this.started++; };
+  FakeRec.prototype.abort = function () {};
+  global.window = { webkitSpeechRecognition: FakeRec };
+  Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { mediaDevices: { getUserMedia: () => { opened++; return Promise.resolve({ getTracks: () => [{ stop: () => { stopped++; } }] }); } } } });
+  try {
+    const states = [];
+    const lsn = L.create({ engine: 'chrome', text: () => {}, state: (s) => states.push(s) });
+    await lsn.start();
+    assert.strictEqual(opened, 1);
+    assert.strictEqual(recs.length, 1);
+    assert.strictEqual(recs[0].started, 1);
+    assert.strictEqual(states[states.length - 1], 'on');
+    for (let i = 0; i < 3; i++) { recs[recs.length - 1].onend(); await new Promise(r => setTimeout(r, 350)); }      // Chrome ends it after a silence: it starts again
+    assert.strictEqual(recs.length, 4);
+    assert.strictEqual(opened, 1, 'the microphone was asked for again');
+    assert.strictEqual(stopped, 0, 'the microphone was let go while listening');
+    lsn.stop();
+    assert.strictEqual(stopped, 1);
+  } finally { delete global.window; delete globalThis.navigator; }
+});
+
+test('Chrome speech: a refused microphone is reported, and recognition is not started', async () => {
+  const recs = []; function FakeRec() { recs.push(this); } FakeRec.prototype.start = function () {}; FakeRec.prototype.abort = function () {};
+  global.window = { webkitSpeechRecognition: FakeRec };
+  Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { mediaDevices: { getUserMedia: () => Promise.reject(Object.assign(new Error('denied'), { name: 'NotAllowedError' })) } } });
+  try {
+    const states = [];
+    const lsn = L.create({ engine: 'chrome', text: () => {}, state: (s, d) => states.push([s, d]) });
+    await lsn.start();
+    assert.strictEqual(recs.length, 0);
+    assert.strictEqual(states[states.length - 1][0], 'error');
+    assert.match(states[states.length - 1][1].message, /microphone/i);
+  } finally { delete global.window; delete globalThis.navigator; }
+});

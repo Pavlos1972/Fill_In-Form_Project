@@ -566,7 +566,7 @@
      Whatever listens calls FF.app.voiceHear(text, who), who being 'me' (the adviser) or 'client'. Typing works as always when voice is off. */
   var V = FF.voice, VAI = FF.voiceAI, vidx = V.buildIndex(schema);
   try { if (VAI && VAI.setShare) VAI.setShare(localStorage.getItem('wr-fact-find-share') === '1'); } catch (e) { /* storage unavailable: sharing stays off */ }
-  var vm = { on: false, target: null, answered: false, secGlow: false, noteMode: null, rowCur: {}, undo: [], recent: [], flashes: {}, queue: Promise.resolve(), slow: 0, epoch: 0, busy: 0, lastFail: 0, wipe: null, digits: null, lastNum: null };
+  var vm = { on: false, target: null, answered: false, secGlow: false, noteMode: null, rowCur: {}, undo: [], recent: [], flashes: {}, queue: Promise.resolve(), slow: 0, epoch: 0, busy: 0, lastFail: 0, wipe: null, digits: null, run: null, lastNum: null };
   /* ---------- "Live Client Conversation": a text box in the right-hand pane under Checks, kept in view while the page scrolls. The lines heard, oldest at the top and the latest at the bottom, each with what was done on the form because of it. ---------- */
   var vmCur = null;                                              // the line being dealt with now, so what is done on the form is listed under it
   var cv = { rows: [], live: '' }, convoT = 0;
@@ -696,6 +696,7 @@
     if (cur !== f.sec) { cur = f.sec; redraw(); vmPulseNav(); }
     if (cr) { vm.rowCur[cr.list] = cr.i; if (!vmEl(id)) redraw(); }
     vm.target = id; vm.answered = false; vm.secGlow = false; vmMarkWait();
+    if (vm.run && vm.run.box !== id) vm.run = null;                                                  // a number being said belongs to its own box
     if (NUMBER_BOXES.indexOf(id) >= 0) vm.lastNum = id;
     var el = vmEl(id);
     if (el) {
@@ -788,7 +789,7 @@
     vm.undo.push({ kind: 'wipe', snap: JSON.parse(JSON.stringify(state)), base: fileBase, handle: fileHandle, dirty: dirty, sec: cur });
     var cost = state.claude; state = store.blank(); state.claude = cost;                                  // what Claude has cost stays, however much of the form is cleared
     fileHandle = null; fileBase = ''; rememberHandle(null); dirty = false; saveDraft();
-    cur = 'info'; vm.target = null; vm.answered = false; vm.noteMode = null; vm.rowCur = {}; vm.recent = []; vm.flashes = {}; vm.secGlow = true;
+    cur = 'info'; vm.target = null; vm.answered = false; vm.noteMode = null; vm.rowCur = {}; vm.recent = []; vm.flashes = {}; vm.secGlow = true; vm.run = null; vm.digits = null;
     redraw(); vmMarkWait(); window.scrollTo(0, 0);
     toast('The whole form is empty. Say "undo" to bring everything back.');
   }
@@ -1006,6 +1007,7 @@
   }
   /* One after another, so a note written by Claude lands before the next thing in the line. */
   function vmRun(actions) {
+    if (vm.run) actions = actions.filter(function (a) { return !(/^(?:fill|confirm|cell)$/.test(a.do) && a.field === vm.run.box); });   // the number being said owns its box until it is complete
     var k = -1;                                                  // "remove everything" ends the line for now: the rest waits for the answer
     actions.forEach(function (a, i) { if (k < 0 && a.do === 'cmd' && a.cmd && a.cmd.type === 'clearAll') k = i; });
     var now = k < 0 ? actions : actions.slice(0, k + 1);
@@ -1066,6 +1068,44 @@
     vm.digits = all.length >= 13 || (all.length >= 10 && !dateLike(all)) ? null : { d: all, text: shown, t: now };
     return shown;
   }
+  /* A number said slowly, in pieces, with words in between ("yes I do, it's 011", "let me see, 312", "3789"): while an ID, tax or phone box is waiting, the digits are kept, nothing is filled
+     and nothing waits on a clock, until there are enough (13 for an ID, 10 for a tax or phone number, 11 for a phone number given as 27...). Then the whole number is read as one line.
+     Only filler words ("let me see", "um", "it's", "one moment") may sit between the pieces. Saying it is wrong, or "let's start again" / "let me give that again", drops what was kept.
+     The kept digits stay on this computer. -> null (not part of a number: read as usual), { hold: true, note } (kept) or { text } (complete: this line is read in place of what was said). */
+  var RUN_NAMES = { cell: 'cell', mobile: 'cell', work: 'work', office: 'work', business: 'work', home: 'home', tax: 'tax', id: 'idno', identity: 'idno' };
+  var RUN_FILLER = {};
+  ('yes yeah yep yup ok okay alright right so um uh er erm ah hm hmm well let lets me see is it its the that thats this a an of in number numbers my mine your cell work home phone mobile telephone tax id sorry hold on moment second sec minute just give you again please then and next hang think check checking looking look sure i im ill am was do does did have has got can could will we us to for at from digits digit about like starts start begins begin with thank thanks wait').split(' ').forEach(function (w) { RUN_FILLER[w] = 1; });
+  var RUN_CANCEL = /\b(?:wrong|incorrect|not (?:right|correct)|from the (?:top|start|beginning)|(?:scratch|clear|forget|ignore|cancel|delete|discard) (?:that|it|those|these|all that|what i (?:said|gave))|(?:give|say|read|do|redo|try|start|begin|go|repeat)\b[^.?!]{0,25}\b(?:again|over|afresh))\b/;
+  function vmGroup(box, s) { return box !== 'idno' && box !== 'tax' && !/^27/.test(s) ? s.slice(0, 3) + (s.length > 3 ? ' ' + s.slice(3, 6) : '') + (s.length > 6 ? ' ' + s.slice(6) : '') : s; }
+  function vmNumberRun(text) {
+    var box = vm.target && NUMBER_BOXES.indexOf(vm.target) >= 0 ? vm.target : null, run = vm.run;
+    if (run && run.box !== box) run = vm.run = null;                                   // the talk has moved on to another box
+    if (!box || (box === 'idno' && state.f.idtype.v === 'Passport')) return null;
+    var raw = String(text == null ? '' : text).toLowerCase().replace(/[\u2018\u2019`]/g, "'").replace(/\bone (?:moment|second|sec|minute)\b/g, 'moment'), named = null;
+    raw.split(/[^a-z]+/).forEach(function (w) { if (RUN_NAMES[w]) named = RUN_NAMES[w]; });
+    if ((named && named !== box) || /\?/.test(raw) || vmReadBack(text) || vmEditParse(text)) return null;
+    if (run && RUN_CANCEL.test(raw)) { var gone = run.d; vm.run = null; vm.answered = false; vmMarkWait(); return { hold: true, note: 'dropped ' + vmGroup(box, gone) + ': ready for the number again' }; }
+    var tk = V.norm(raw).split(' ').filter(Boolean), dt = tk.filter(function (w) { return DIGIT_WORD.test(w); }), d = V.spokenDigits(dt.join(' '));
+    if (!tk.every(function (w) { return DIGIT_WORD.test(w) || RUN_FILLER[w]; })) return null;
+    if (!d) return run ? { hold: true, note: 'still holding ' + vmGroup(box, run.d) + ' (' + run.d.length + ' of ' + run.want + ' digits): waiting for the rest' } : null;
+    var len = NUM_LEN[box], phone = box !== 'idno' && box !== 'tax', want = function (x) { return phone && /^27/.test(x) ? 11 : len; };
+    if (!run && (d.length < 2 || !(!vm.answered || vmValue(box) === '' || d.charAt(0) === '0'))) return null;
+    if (!run && d.length >= want(d)) return null;                                      // the whole number in one line: read as usual
+    var all = (run ? run.d : '') + d;
+    if (run && all.length > want(all)) all = d;                                        // too long to be the rest of it: the number is being said again from the start
+    vm.answered = false;
+    if (all.length >= want(all)) { vm.run = null; return { text: vmGroup(box, all) }; }
+    vm.run = { box: box, d: all, want: want(all) }; vmMarkWait();
+    var note = all.length + ' of ' + want(all) + ' digits so far';
+    vmNote(box, note + ': waiting for the rest');
+    return { hold: true, note: 'holding ' + vmGroup(box, all) + ' (' + note + '): waiting for the rest' };
+  }
+  /* A line kept for a number still being said: shown in the conversation box, not sent to Claude, nothing filled. */
+  function vmKeepLine(text, who, meta, note) {
+    var entry = { who: who === 'me' ? 'adviser' : who === 'client' ? 'client' : 'unclear', text: text, shown: text, at: Date.now(), did: [note], done: true, m: meta || null };
+    cv.rows.push(entry); if (cv.rows.length > 200) cv.rows.shift(); cv.live = ''; convoSoon();
+    var p = Promise.resolve(entry); p.entry = entry; return p;
+  }
   /* A number held in a private box can be edited by speaking: "add an 8 to the end", "put a zero in front", "the last digit is 8", "it ends in 98", "change the last digit to 5", "remove the last digit".
      These boxes are never shown to Claude, so it is done here. The box goes amber again: the client agrees to the new number. */
   var NUM_LEN = { idno: 13, tax: 10, cell: 10, work: 10, home: 10, sp_tel: 10 };
@@ -1088,9 +1128,9 @@
   function vmEditDigits(text) {
     var ed = vmEditParse(text);
     if (!ed) return false;
-    var id = NUMBER_BOXES.indexOf(vm.target) >= 0 ? vm.target : vm.lastNum, cur = id ? vmValue(id).replace(/\D/g, '') : '';
+    var id = NUMBER_BOXES.indexOf(vm.target) >= 0 ? vm.target : vm.lastNum, held = vm.run && vm.run.box === id ? vm.run : null, cur = held ? held.d : (id ? vmValue(id).replace(/\D/g, '') : '');
     if (!id || !cur) return false;                                               // no number is held to edit: the line is read as usual
-    var f = vmField(id), len = NUM_LEN[id], next, what;
+    var f = vmField(id), len = held ? held.want : NUM_LEN[id], next, what;
     if (ed.op === 'add') { next = ed.pos === 'start' ? ed.d + cur : cur + ed.d; what = 'added ' + ed.d + ' to the ' + ed.pos + ' of'; }
     else if (ed.op === 'cut') { next = cur.slice(0, Math.max(0, cur.length - ed.n)); what = 'removed the last ' + (ed.n > 1 ? ed.n + ' digits' : 'digit') + ' of'; }
     else if (ed.op === 'set') { next = cur.slice(0, Math.max(0, cur.length - ed.d.length)) + ed.d; what = 'changed the end to ' + ed.d + ' in'; }
@@ -1098,6 +1138,12 @@
       if (cur.slice(-ed.d.length) === ed.d) { vmLog(f.label + ' already ends in ' + ed.d); return true; }
       next = cur.length + ed.d.length <= len ? cur + ed.d : cur.slice(0, Math.max(0, len - ed.d.length)) + ed.d; what = 'set the end to ' + ed.d + ' in';
     }
+    if (held && next.length < len) {                                             // a number still being said: the digits kept are edited, and it goes on waiting
+      held.d = next; vmNote(id, next.length + ' of ' + len + ' digits so far: waiting for the rest');
+      vmLog(what + ' ' + f.label + ': now holding ' + vmGroup(id, next) + ' (' + next.length + ' of ' + len + ' digits)');
+      return true;
+    }
+    if (held) { vm.run = null; vm.answered = false; }                             // the edit completed it
     var x = V.interpret(f, next);
     if (vmApply(id, { kind: 'fill', value: x && !x.error ? x.value : next, status: 'verify' })) vmLog(what + ' ' + f.label);
     return true;
@@ -1120,7 +1166,7 @@
       vm.undo.push({ kind: 'fill', id: id, prev: { v: cell.v, st: cell.st }, extras: [] });
       store.setField(state, id, '', 'empty'); gone.push(vmField(id).label);
     });
-    vm.digits = null; touch(); redraw();
+    vm.digits = null; vm.run = null; touch(); redraw();
     vmShow(ids[0]);                                                              // the first box glows, waiting for the new answer
     vmLog(gone.length ? 'cleared ' + gone.join(', ') : 'nothing to clear in ' + ids.map(function (id) { return vmField(id).label; }).join(', '));
     if (gone.length) toast('Cleared: ' + gone.join(', ') + '. Say "scratch that" to bring ' + (gone.length > 1 ? 'them' : 'it') + ' back.');
@@ -1137,7 +1183,7 @@
   var QUICK_KEY = 'wr-fact-find-quick';
   function vmQuickOn() { try { return localStorage.getItem(QUICK_KEY) !== '0'; } catch (e) { return true; } }
   function vmQuickTry(text, entry) {
-    if (vmEditParse(text)) return null;
+    if (vmEditParse(text) || vm.run) return null;
     if (!vmQuickOn() || !vmAIReady() || vm.wipe || vm.noteMode || vm.slow > 0 || text.split(/\s+/).length > 16) return null;
     var acts = vmPlanFor(text).actions;
     if (!acts.length || acts.length > 4 || !acts.some(function (a) { return a.do === 'fill'; })) return null;
@@ -1226,8 +1272,9 @@
   function vmHear(text, who, meta) {
     text = String(text == null ? '' : text).trim();
     if (!vm.on || !text) return Promise.resolve();
-    var shown = text;
-    text = vmJoinDigits(text);                                                    // a number said in pieces is one line
+    var shown = text, run = vmNumberRun(text);
+    if (run && run.hold) return vmKeepLine(text, who, meta, run.note);                // part of a number: kept until it is complete
+    text = run ? run.text : vmJoinDigits(text);                                   // a number said in pieces is one line
     var entry = { who: who === 'me' ? 'adviser' : who === 'client' ? 'client' : 'unclear', text: text, shown: shown, at: Date.now(), did: [], done: false, m: meta || null }, t0 = Date.now(), epoch = vm.epoch, quick = null, p;
     vm.recent.push(entry); if (vm.recent.length > 12) vm.recent.shift();
     cv.rows.push(entry); if (cv.rows.length > 200) cv.rows.shift(); cv.live = '';
@@ -1239,7 +1286,7 @@
     return p;
   }
   function vmToggle(on) {
-    vm.on = on; vm.target = null; vm.answered = false; vm.secGlow = on; vm.noteMode = null; vm.rowCur = {}; vm.queue = Promise.resolve(); vm.slow = 0; vm.epoch++; vm.digits = null; cv.live = ''; vmCur = null;
+    vm.on = on; vm.target = null; vm.answered = false; vm.secGlow = on; vm.noteMode = null; vm.rowCur = {}; vm.queue = Promise.resolve(); vm.slow = 0; vm.epoch++; vm.digits = null; vm.run = null; cv.live = ''; vmCur = null;
     if (vm.wipe) { vm.wipe = null; var wd = document.getElementById('wipe'); if (wd && wd.open) wd.close(); }   // switching Voice on or off never leaves the question hanging
     if (!on) listenStop();                                                                                       // no voice mode, nothing to listen for
     if (!on) { document.querySelectorAll('.voice-wait,.voice-ok').forEach(function (e) { e.classList.remove('voice-wait', 'voice-ok'); }); $('#vdText').hidden = true; }
