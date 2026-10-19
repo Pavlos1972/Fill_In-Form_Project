@@ -17,6 +17,17 @@
     return y;
   }
   function rms(x) { var s = 0, i; for (i = 0; i < x.length; i++) s += x[i] * x[i]; return Math.sqrt(s / (x.length || 1)); }
+  function peakOf(x) { var p = 0, i, a; for (i = 0; i < x.length; i++) { a = x[i] < 0 ? -x[i] : x[i]; if (a > p) p = a; } return p; }
+  /* A quiet microphone (a laptop's built-in one often is) gives Whisper too little to work with, and it then makes words up. A line is brought up to a normal level first, never by more than 30 times. */
+  function normalize(x) {
+    var p = peakOf(x), g = Math.min(30, 0.8 / (p || 1)), y, i;
+    if (p < 0.0001 || g < 1.05) return x;
+    y = new Float32Array(x.length);
+    for (i = 0; i < x.length; i++) y[i] = x[i] * g;
+    return y;
+  }
+  /* The loudness meter: 0 to 1, on a decibel scale so that quiet speech still moves it (-60 dB is empty, -10 dB is full). */
+  function meter(r) { return r > 0 ? Math.max(0, Math.min(1, (20 * Math.log10(r) + 60) / 50)) : 0; }
   function join(parts) {
     var n = 0, i, o, p = 0;
     for (i = 0; i < parts.length; i++) n += parts[i].length;
@@ -32,7 +43,7 @@
     var rest = new Float32Array(0), pre = [], cur = null, quiet = 0, run = 0, spoken = 0, floor = 0.003, last = 0;
     function line() { return cur && spoken >= MIN ? join(cur.slice(0, Math.min(cur.length, cur.length - quiet + 7))) : null; }   // the speech, with 0.2 s of the pause; a blip shorter than a short word is not a line
     function frame(fr) {
-      var r = rms(fr), speech = r > Math.max(0.012, floor * 3.5), done = null;
+      var r = rms(fr), speech = r > Math.max(0.008, floor * 3.5), done = null;
       last = r;
       if (!cur) {
         if (speech) run++; else { run = 0; floor = Math.max(0.002, floor * 0.95 + r * 0.05); }
@@ -57,10 +68,17 @@
       level: function () { return last; }
     };
   }
-  /* Whisper writes things like "[BLANK_AUDIO]", "(music)" or "Thank you." when it hears only noise: those are dropped. */
+  /* When Whisper is given noise it can get stuck repeating itself ("more, get, more, get, ..."): a few words said over and over is not speech. */
+  function isLoop(t) {
+    var w = String(t == null ? '' : t).toLowerCase().match(/[a-z0-9']+/g) || [], seen = {}, n = 0;
+    if (w.length < 6) return false;
+    w.forEach(function (x) { if (!seen[x]) { seen[x] = 1; n++; } });
+    return n / w.length <= 0.4 || /\b(\w+(?:\W+\w+){0,3})(?:\W+\1\b){3,}/i.test(String(t));
+  }
+  /* Whisper writes things like "[BLANK_AUDIO]", "(music)" or "Thank you." when it hears only noise: those are dropped, and so is a line that is only a loop. */
   function cleanTranscript(t) {
     var s = String(t == null ? '' : t).replace(/\[[^\]]*\]|\([^)]*\)|\*[^*]*\*|♪/g, ' ').replace(/\s+/g, ' ').trim();
-    if (!s || !/[a-z0-9]/i.test(s) || /^(?:you|thank you|thanks|thanks for watching|bye|bye bye)\W*$/i.test(s)) return '';
+    if (!s || !/[a-z0-9]/i.test(s) || /^(?:you|thank you|thanks|thanks for watching|bye|bye bye)\W*$/i.test(s) || isLoop(s)) return '';
     return s;
   }
 
@@ -76,29 +94,97 @@
         r.onerror = function () { no(r.error); };
       }));
     }
-    return {
-      match: function (key) {
-        return db().then(function (d) {
-          return new Promise(function (ok) {
-            var q = d.transaction('f').objectStore('f').get(String(key));
-            q.onsuccess = function () { ok(q.result ? new Response(q.result.buf, { headers: { 'content-type': q.result.type } }) : undefined); };
-            q.onerror = function () { ok(undefined); };
-          });
-        }, function () { return undefined; });
-      },
-      put: function (key, response) {
-        return response.arrayBuffer().then(function (buf) {
-          return db().then(function (d) {
-            return new Promise(function (ok, no) {
-              var tx = d.transaction('f', 'readwrite');
-              tx.objectStore('f').put({ buf: buf, type: response.headers.get('content-type') || 'application/octet-stream' }, String(key));
-              tx.oncomplete = function () { ok(); };
-              tx.onerror = function () { no(tx.error); };
-            });
-          });
+    function read(key) {
+      return db().then(function (d) {
+        return new Promise(function (ok) {
+          var q = d.transaction('f').objectStore('f').get(String(key));
+          q.onsuccess = function () { ok(q.result || undefined); };
+          q.onerror = function () { ok(undefined); };
         });
+      }, function () { return undefined; });
+    }
+    function write(key, buf, type) {
+      return db().then(function (d) {
+        return new Promise(function (ok, no) {
+          var tx = d.transaction('f', 'readwrite');
+          tx.objectStore('f').put({ buf: buf, type: type || 'application/octet-stream' }, String(key));
+          tx.oncomplete = function () { ok(); };
+          tx.onerror = function () { no(tx.error); };
+        });
+      });
+    }
+    return {
+      read: read, write: write,
+      match: function (key) { return read(key).then(function (r) { return r ? new Response(r.buf, { headers: { 'content-type': r.type } }) : undefined; }); },
+      put: function (key, response) { return response.arrayBuffer().then(function (buf) { return write(key, buf, response.headers.get('content-type')); }); }
+    };
+  }
+  /* The speech model runs in a worker, so reading a sentence never freezes the page or loses what the microphone hears meanwhile.
+     The worker is made from this text (a page opened from a file cannot start a worker from another file). It cannot reach the model's
+     storage itself, so it asks the page for stored files and hands it new ones. */
+  function workerBody() {
+    var pend = {}, seq = 0, pipe = null;
+    function ask(msg) { return new Promise(function (ok) { msg.id = ++seq; pend[msg.id] = ok; postMessage(msg); }); }
+    self.onmessage = function (e) {
+      var m = e.data, f;
+      if (m.t === 'reply') { f = pend[m.id]; delete pend[m.id]; if (f) f(m); }
+      else if (m.t === 'load') {
+        import(m.lib).then(function (lib) {
+          var o = { progress_callback: function (p) { postMessage({ t: 'progress', status: p.status, file: p.file, loaded: p.loaded, total: p.total }); } }, k;
+          lib.env.allowLocalModels = false; lib.env.useBrowserCache = false; lib.env.useCustomCache = true;
+          lib.env.customCache = {
+            match: function (key) { return ask({ t: 'cacheGet', key: key }).then(function (r) { return r.buf ? new Response(r.buf, { headers: { 'content-type': r.type } }) : undefined; }); },
+            put: function (key, response) { return response.arrayBuffer().then(function (buf) { return ask({ t: 'cachePut', key: key, buf: buf, type: response.headers.get('content-type') }); }).then(function () { /* stored */ }); }
+          };
+          for (k in m.opts) o[k] = m.opts[k];
+          return lib.pipeline('automatic-speech-recognition', m.model, o);
+        }).then(function (p) { pipe = p; postMessage({ t: 'ready' }); }, function (err) { postMessage({ t: 'failed', message: String(err && err.message || err) }); });
+      } else if (m.t === 'run') {
+        pipe(m.audio, m.opts).then(function (out) { postMessage({ t: 'result', n: m.n, text: out && out.text || '' }); }, function (err) { postMessage({ t: 'fault', n: m.n, message: String(err && err.message || err) }); });
       }
     };
+  }
+  /* -> Promise of { pipe(audio, options) -> Promise of { text }, close() } once the model is ready in a new worker. */
+  function startWorker(lib, id, opts, progress, store) {
+    return new Promise(function (ok, no) {
+      var w, pend = {}, seq = 0, ready = false, dead = '';
+      try { w = new Worker(URL.createObjectURL(new Blob(['(' + workerBody.toString() + ')()'], { type: 'text/javascript' }))); } catch (e) { no(e); return; }
+      function fail(msg) {
+        dead = msg || 'the speech worker stopped';
+        Object.keys(pend).forEach(function (n) { pend[n].no(new Error(dead)); });
+        pend = {};
+        if (!ready) { try { w.terminate(); } catch (e) { /* gone */ } no(new Error(dead)); }
+      }
+      w.onerror = function (e) { if (e.preventDefault) e.preventDefault(); fail(e.message); };
+      w.onmessage = function (e) {
+        var m = e.data, p;
+        function reply(r) { r.t = 'reply'; r.id = m.id; w.postMessage(r); }
+        if (m.t === 'progress') progress(m);
+        else if (m.t === 'cacheGet') store.read(m.key).then(function (r) { reply(r ? { buf: r.buf, type: r.type } : {}); }, function () { reply({}); });
+        else if (m.t === 'cachePut') store.write(m.key, m.buf, m.type).then(function () { reply({}); }, function () { reply({}); });
+        else if (m.t === 'ready') {
+          ready = true;
+          ok({ close: function () { w.terminate(); }, pipe: function (audio, o) {
+            return new Promise(function (okr, nor) {
+              if (dead) { nor(new Error(dead)); return; }
+              var n = ++seq; pend[n] = { ok: okr, no: nor };
+              w.postMessage({ t: 'run', n: n, audio: audio, opts: o });
+            });
+          } });
+        } else if (m.t === 'failed') fail(m.message);
+        else if (m.t === 'result' || m.t === 'fault') { p = pend[m.n]; delete pend[m.n]; if (p) { if (m.t === 'result') p.ok({ text: m.text }); else p.no(new Error(m.message)); } }
+      };
+      w.postMessage({ t: 'load', lib: lib, model: id, opts: opts });
+    });
+  }
+  /* The same, on the page itself (when a worker cannot be started): it works, but the page is busy while a sentence is read. */
+  function startOnPage(lib, id, opts, progress, store) {
+    return import(lib).then(function (m) {
+      var o = { progress_callback: progress }, k;
+      m.env.allowLocalModels = false; m.env.useBrowserCache = false; m.env.useCustomCache = true; m.env.customCache = store;
+      for (k in opts) o[k] = opts[k];
+      return m.pipeline('automatic-speech-recognition', id, o);
+    }).then(function (pipe) { return { pipe: pipe, close: function () { /* nothing to stop */ } }; });
   }
   var loaded = {};                                                         // model + device -> the loading speech model, so it is loaded once
   var GPU_FLAG = 'wr-fact-find-speech-nogpu';                              // set once the graphics chip has failed on this computer: the processor is used from then on
@@ -109,41 +195,34 @@
     if (typeof navigator === 'undefined' || !navigator.gpu || !navigator.gpu.requestAdapter) return Promise.resolve(false);
     return navigator.gpu.requestAdapter().then(function (a) { return !!a; }, function () { return false; });
   }
-  /* A model that fails to start is not tried again in the same page by the library (the first failure is remembered), so the graphics chip must not be tried unless it is sure to work. */
   function modelError(err) {
     var m = String(err && err.message || err);
-    if (/graphics chip/.test(m)) return m;
     if (/fetch|network|offline|404|403|failed to load/i.test(m)) return 'Could not download the speech model (' + m + '). It needs the internet the first time.';
     return 'Could not start the speech model (' + m + ').';
   }
-  /* -> Promise of { pipe, where }. The graphics chip is used when there is one, otherwise the processor. report(percent) says how far the one-time download is. */
-  function loadWhisper(model, report, noGpu) {
-    var key = model + (noGpu ? ':cpu' : '');
+  /* -> Promise of { pipe, where }. The graphics chip is used when there is one, otherwise the processor. report(percent) says how far the one-time download is.
+     A failed attempt on the graphics chip is followed at once by one on the processor, in a new worker. lib is the speech library's address (changed only by tests). */
+  function loadWhisper(model, report, noGpu, lib) {
+    var key = model + (noGpu ? ':cpu' : '') + (lib || '');
     if (loaded[key]) return loaded[key];
-    var seen = {};
+    var seen = {}, store = modelStore(), url = lib || LIB, id = MODELS[model];
     function progress(e) {
       if (e.status !== 'progress' || !e.total) return;
       seen[e.file] = [e.loaded, e.total];
       var l = 0, t = 0; Object.keys(seen).forEach(function (k) { l += seen[k][0]; t += seen[k][1]; });
       report(Math.round(100 * l / t));
     }
-    loaded[key] = Promise.all([import(LIB), noGpu || gpuBlocked() ? false : gpuUsable()]).then(function (r) {
-      var m = r[0], id = MODELS[model], tries = [];
-      m.env.allowLocalModels = false; m.env.useBrowserCache = false; m.env.useCustomCache = true; m.env.customCache = modelStore();
-      if (r[1]) tries.push({ where: 'graphics chip', opts: { device: 'webgpu', dtype: { encoder_model: 'fp32', decoder_model_merged: 'q4' } } });
-      tries.push({ where: 'processor', opts: { device: 'wasm', dtype: 'q8' } });
-      function attempt(i) {
-        var opts = { progress_callback: progress }, k;
-        for (k in tries[i].opts) opts[k] = tries[i].opts[k];
-        return m.pipeline('automatic-speech-recognition', id, opts).then(function (pipe) { return { pipe: pipe, where: tries[i].where }; }, function (err) {
-          if (tries[i].where === 'graphics chip') {                       // the library cannot start another model in this page after this failure
-            blockGpu();
-            throw new Error('The graphics chip could not run the speech model, so the processor will be used from now on. Press F5 to reload this page, then press Listen again. (' + String(err && err.message || err).slice(0, 160) + ')');
-          }
-          throw err;
-        });
-      }
-      return attempt(0);
+    function processor() {
+      var opts = { device: 'wasm', dtype: 'q8' };
+      return startWorker(url, id, opts, progress, store).then(function (e) { return { pipe: e.pipe, where: 'processor' }; }, function (err) {
+        return startOnPage(url, id, opts, progress, store).then(function (e) { return { pipe: e.pipe, where: 'processor' }; }, function () { throw err; });
+      });
+    }
+    loaded[key] = (noGpu || gpuBlocked() ? Promise.resolve(false) : gpuUsable()).then(function (gpu) {
+      if (!gpu) return processor();
+      return startWorker(url, id, { device: 'webgpu', dtype: { encoder_model: 'fp32', decoder_model_merged: 'q4' } }, progress, store).then(function (e) { return { pipe: e.pipe, where: 'graphics chip' }; }, function () {
+        blockGpu(); return processor();
+      });
     });
     loaded[key].catch(function () { delete loaded[key]; });
     return loaded[key];
@@ -176,13 +255,16 @@
     function pump() {
       if (busy || !queue.length || !tr) return;
       busy = true;
-      var u = queue.shift(), t0 = Date.now(), cur = tr;
-      Promise.resolve(cur.pipe(u, { max_new_tokens: 160 })).then(function (out) {
-        if (alive) h.text(cleanTranscript(out && out.text), { audio: u.length / RATE, took: (Date.now() - t0) / 1000, waiting: queue.length, where: cur.where });
+      var u = queue.shift(), t0 = Date.now(), cur = tr, secs = u.length / RATE, pk = peakOf(u);
+      Promise.resolve(cur.pipe(normalize(u), { max_new_tokens: Math.min(160, Math.round(secs * 8) + 16), no_repeat_ngram_size: 5 })).then(function (out) {
+        if (!alive) return;
+        var raw = out && out.text, text = cleanTranscript(raw);
+        if (text) h.text(text, { audio: secs, took: (Date.now() - t0) / 1000, waiting: queue.length, where: cur.where, peak: pk });
+        else if (isLoop(raw) && h.note) h.note('That sounded like noise, not speech, so it was ignored (the loudest sound was ' + Math.round(pk * 100) + '% of full level' + (pk < 0.05 ? ': the microphone is very quiet, so turn its input volume up in Windows, Settings, System, Sound, Input, or move closer' : '') + ').');
       }, function (err) {
         if (cur.where === 'graphics chip' && !noGpu && alive) {                                  // the graphics chip did not cope: carry on with the processor
           noGpu = true; blockGpu(); queue.unshift(u); h.progress(null);
-          return load(o.model, h.progress, true).then(function (t) { tr = t; h.on({ mic: mic && mic.label, where: t.where, model: o.model }); });
+          return load(o.model, h.progress, true, o.lib).then(function (t) { tr = t; h.on({ mic: mic && mic.label, where: t.where, model: o.model }); });
         }
         throw err;
       }).then(function () { busy = false; pump(); }, function (err) { busy = false; h.error('The speech model stopped: ' + (err && err.message || err)); });
@@ -190,22 +272,22 @@
     return {
       start: function () {
         alive = true;
-        return openMic(function (x) {
+        return (o.mic || openMic)(function (x) {
           var lv = rms(x); if (lv > peak) peak = lv;
-          h.level(lv);                                                                           // the meter moves from the first second, even while the model is loading
+          h.level(meter(lv));                                                                    // the meter moves from the first second, even while the model is loading
           if (!tr || !alive) return;                                                             // nothing is kept while the model is still loading
           seg.push(x).forEach(function (u) { queue.push(u); });
           pump();
         }).then(function (m) {
           mic = m;
           watch = setTimeout(function () { if (alive && mic && peak < 0.0008 && h.note) h.note('No sound is reaching Chrome from "' + (m.label || 'the microphone') + '". Check that it is not muted and that it is the microphone you are using (Windows: Settings, System, Sound, Input).'); }, 7000);
-          return load(o.model, h.progress, false).then(function (t) { if (!alive) return; tr = t; h.on({ mic: m.label, where: t.where, model: o.model }); }, function (err) {
+          return load(o.model, h.progress, false, o.lib).then(function (t) { if (!alive) return; tr = t; h.on({ mic: m.label, where: t.where, model: o.model }); }, function (err) {
             m.close(); mic = null; throw new Error(modelError(err));
           });
         });
       },
       stop: function () { alive = false; clearTimeout(watch); queue = []; seg = segmenter(); peak = 0; if (mic) mic.close(); mic = null; },
-      feed: function (x) { if (tr && alive) { seg.push(x).forEach(function (u) { queue.push(u); }); h.level(seg.level()); pump(); } }       // used by the tests
+      feed: function (x) { if (tr && alive) { seg.push(x).forEach(function (u) { queue.push(u); }); h.level(meter(seg.level())); pump(); } }       // used by the tests
     };
   }
 
@@ -265,5 +347,5 @@
     };
   }
 
-  return { resample: resample, segmenter: segmenter, cleanTranscript: cleanTranscript, create: create, MODELS: MODELS, RATE: RATE };
+  return { resample: resample, segmenter: segmenter, cleanTranscript: cleanTranscript, isLoop: isLoop, normalize: normalize, meter: meter, create: create, MODELS: MODELS, RATE: RATE };
 });

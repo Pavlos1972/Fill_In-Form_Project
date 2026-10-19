@@ -57,3 +57,56 @@ test('the listener runs the speech model on each line and passes the words on (s
   await L2.start();
   assert.strictEqual(states[states.length - 1], 'error');
 });
+
+test('a quiet line is brought up to a normal level, a loud one is left alone, and silence is not boosted', () => {
+  const peak = a => a.reduce((m, v) => Math.max(m, Math.abs(v)), 0);
+  const quiet = Float32Array.from({ length: 16000 }, (_, i) => 0.05 * Math.sin(i * 0.21));
+  assert.ok(Math.abs(peak(L.normalize(quiet)) - 0.8) < 0.01, String(peak(L.normalize(quiet))));
+  const loud = Float32Array.from({ length: 16000 }, (_, i) => 0.85 * Math.sin(i * 0.21));
+  assert.ok(L.normalize(loud) === loud, 'a line that is already loud is left as it is');
+  const hiss = Float32Array.from({ length: 16000 }, (_, i) => 0.00001 * Math.sin(i));
+  assert.ok(L.normalize(hiss) === hiss, 'silence is not boosted');
+  const faint = Float32Array.from({ length: 16000 }, (_, i) => 0.005 * Math.sin(i * 0.2));
+  assert.ok(Math.abs(peak(L.normalize(faint)) - 0.15) < 0.005, 'never boosted more than 30 times: ' + peak(L.normalize(faint)));
+});
+test('the loudness meter is on a decibel scale and stays between empty and full', () => {
+  assert.strictEqual(L.meter(0), 0);
+  assert.strictEqual(L.meter(0.0001), 0);
+  assert.strictEqual(L.meter(1), 1);
+  assert.ok(L.meter(0.02) > 0.4 && L.meter(0.02) < 0.6, 'quiet speech shows: ' + L.meter(0.02));
+  assert.ok(L.meter(0.002) < L.meter(0.02) && L.meter(0.02) < L.meter(0.2));
+});
+test('a stuck repeat is not speech, ordinary speech with repeated words is', () => {
+  const stuck = 'More, get, more, get, more, get, more, get, more, get, more, get, more, get, more, get,';
+  assert.ok(L.isLoop(stuck));
+  assert.ok(L.isLoop('Thank you. Thank you. Thank you. Thank you. Thank you.'));
+  assert.strictEqual(L.cleanTranscript(stuck), '');
+  assert.ok(!L.isLoop('Yes'));
+  assert.ok(!L.isLoop('My first name is John and my surname is Snow, I work for Discovery as a nurse and I earn R35 000 a month'));
+  assert.ok(!L.isLoop('no no no'));
+  assert.strictEqual(L.cleanTranscript('Her name is Anna and his name is Anna too, and the name of the dog is Anna as well'), 'Her name is Anna and his name is Anna too, and the name of the dog is Anna as well');
+});
+test('the listener reads each line, drops a stuck repeat with a note, and bounds what the model may write', async () => {
+  const notes = [], said = [], calls = [];
+  let chunk = null;
+  const lsn = L.create({
+    engine: 'whisper', model: 'tiny.en',
+    mic: onChunk => { chunk = onChunk; return Promise.resolve({ label: 'Test mic', close() {} }); },
+    loader: () => Promise.resolve({ where: 'test', pipe: async (u, opt) => { calls.push([u, opt]); return { text: calls.length === 1 ? 'More, get, more, get, more, get, more, get, more, get' : ' Yes it is. ' }; } }),
+    text: (t, m) => said.push([t, m]), note: n => notes.push(n), state: () => {}
+  });
+  await lsn.start();
+  const speak = s => { for (let i = 0; i < s.length; i += 4096) chunk(s.subarray(i, Math.min(s.length, i + 4096))); };
+  const quiet = s => Float32Array.from({ length: Math.round(s * RATE) }, (_, i) => 0.03 * Math.sin(i * 0.21) * (0.7 + 0.3 * Math.sin(i * 0.0013)));
+  [noise(1), quiet(1.5), noise(1.2), quiet(1.5), noise(1.2)].forEach(speak);
+  await new Promise(r => setTimeout(r, 50));
+  assert.strictEqual(calls.length, 2);
+  calls.forEach(([u, opt]) => { assert.ok(u.length > 1.4 * RATE && u.length < 2.4 * RATE); assert.ok(opt.max_new_tokens >= 16 && opt.max_new_tokens <= 160 && opt.no_repeat_ngram_size === 5, JSON.stringify(opt)); });
+  assert.strictEqual(notes.length, 1);
+  assert.match(notes[0], /noise, not speech/);
+  assert.match(notes[0], /very quiet/);
+  assert.strictEqual(said.length, 1);
+  assert.strictEqual(said[0][0], 'Yes it is.');
+  assert.ok(said[0][1].audio > 1.4 && said[0][1].took >= 0 && said[0][1].peak > 0.02);
+  lsn.stop();
+});
