@@ -55,6 +55,21 @@
     var t = $('#toast'); t.textContent = msg; t.hidden = false;
     clearTimeout(toastTimer); toastTimer = setTimeout(function () { t.hidden = true; }, 3500);
   }
+  /* The layout is adjusted from here, so index.html does not change: the version and tax tables sit small under the heading (the "This Fact Find" card is gone), and the right-hand pane
+     can keep the live conversation in view (the pane is as tall as the page, so a card in it can stay put while the form scrolls). */
+  function layoutSetup() {
+    var meta = $('#meta'), card = meta && meta.closest('.card'), h1 = document.querySelector('.top h1');
+    if (card) card.remove();
+    if (h1 && !$('#verLine')) {
+      var w = document.createElement('div'); w.className = 'ttl';
+      h1.parentNode.insertBefore(w, h1); w.appendChild(h1);
+      var sm = document.createElement('small'); sm.id = 'verLine'; w.appendChild(sm);
+    }
+    var st = document.createElement('style');
+    st.textContent = '.top .ttl{display:flex;flex-direction:column;justify-content:center;padding-left:20px;border-left:1px solid var(--line)}.top .ttl h1{padding-left:0;border-left:0;line-height:22px}' +
+      '.top .ttl small{font-size:11px;line-height:1.3;color:var(--muted)}@media (max-width:720px){.top .ttl{padding-left:0;border-left:0}}.side{align-self:stretch}';
+    document.head.appendChild(st);
+  }
   function download(blob, name) {
     var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
     document.body.appendChild(a); a.click(); a.remove(); setTimeout(function () { URL.revokeObjectURL(a.href); }, 2000);
@@ -246,10 +261,9 @@
       if (!s.adv) { A += c.fill; V += c.ver; E += c.tot - c.fill; }
     });
     $('#sFilled').textContent = A; $('#sVerify').textContent = V; $('#sEmpty').textContent = E;
-    var dtext = '<span>Version <b>' + schema.version + '</b>, ' + schema.released + '</span>';
-    var tax = FF.tax.taxYearFor(calc.meetingDate(ctx()));
+    var tax = FF.tax.taxYearFor(calc.meetingDate(ctx())), ver = $('#verLine');
     refreshKey(); refreshCost();
-    $('#meta').innerHTML = dtext + '<span>Tax tables <b>' + tax + '</b></span><span>Advisor <b>' + esc(state.f.advisor.v) + '</b></span>';
+    if (ver) ver.textContent = 'Version ' + schema.version + ', ' + schema.released + ' · Tax tables ' + tax;
   }
   /* The top bar counts down to the day the Anthropic key stops working. */
   function refreshKey() {
@@ -553,7 +567,7 @@
   var V = FF.voice, VAI = FF.voiceAI, vidx = V.buildIndex(schema);
   try { if (VAI && VAI.setShare) VAI.setShare(localStorage.getItem('wr-fact-find-share') === '1'); } catch (e) { /* storage unavailable: sharing stays off */ }
   var vm = { on: false, target: null, answered: false, secGlow: false, noteMode: null, rowCur: {}, undo: [], recent: [], flashes: {}, queue: Promise.resolve(), slow: 0, epoch: 0, busy: 0, lastFail: 0, wipe: null, digits: null, lastNum: null };
-  /* ---------- "What was heard": a card at the top of the right-hand pane. Each line heard, newest first, with what was done on the form because of it. ---------- */
+  /* ---------- "What was heard": a card in the right-hand pane under Checks, kept in view while the page scrolls. Each line heard, newest first, with what was done on the form because of it. ---------- */
   var vmCur = null;                                              // the line being dealt with now, so what is done on the form is listed under it
   var cv = { rows: [], live: '' }, convoT = 0;
   function vmLog(s) { if (vmCur) { vmCur.did.push(s); convoSoon(); } }
@@ -562,7 +576,7 @@
     var c = document.getElementById('convo'), side = document.querySelector('.side');
     if (c || !side) return c;
     var st = document.createElement('style');
-    st.textContent = '#convo{border-color:var(--brand)}#convo .cv-live{font-size:15px;font-style:italic;color:var(--muted);margin-bottom:8px;overflow-wrap:anywhere}' +
+    st.textContent = '#convo{border-color:var(--brand);position:sticky;top:12px;z-index:5;max-height:calc(100vh - 24px);overflow-y:auto}#convo .cv-live{font-size:15px;font-style:italic;color:var(--muted);margin-bottom:8px;overflow-wrap:anywhere}' +
       '.cv-row{padding:9px 0;border-top:1px solid var(--line)}.cv-row:first-child{border-top:0;padding-top:0}' +
       '.cv-top{display:flex;gap:8px;font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}.cv-who{font-weight:600}' +
       '.cv-adviser .cv-who{color:var(--brand)}.cv-client .cv-who{color:var(--accent)}' +
@@ -571,7 +585,8 @@
     document.head.appendChild(st);
     c = document.createElement('div'); c.className = 'card'; c.id = 'convo'; c.hidden = true;
     c.innerHTML = '<h3>What was heard</h3><div class="cv-live" id="cvLive" hidden></div><div id="cvRows"></div>';
-    side.insertBefore(c, side.firstChild);
+    var chk = document.getElementById('checks'), under = chk && chk.closest('.card');
+    if (under) under.insertAdjacentElement('afterend', c); else side.insertBefore(c, side.firstChild);
     return c;
   }
   function convoMeta(e) {
@@ -1310,6 +1325,7 @@
   if (restored) recallHandle().then(function (h) { if (h && fileBase) { fileHandle = h; } });
   else rememberHandle(null);
   dirty = !!restored;
+  layoutSetup();
   window.FF.app = { get state() { return state; }, redraw: redraw, setState: function (s) { state = s; redraw(); }, makePdf: makePdf, voiceHear: vmHear, voice: vm };
   redraw();
   if (restored) toast('Restored your unsaved changes for ' + (store.clientName(state) || 'the last client') + '.');
