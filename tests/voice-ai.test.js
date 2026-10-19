@@ -358,3 +358,22 @@ test('sharing on: private numbers go out as they are and Claude fills them itsel
   } finally { AI.setShare(false); }
   assert.strictEqual(AI.normalize({ actions: [{ do: 'fill', field: 'cell', value: '082 454 1751' }] }, idx, 'auto', { _sent: 'hello', _line: 'hello' }).kind, 'none', 'off again: digits Claude was never shown are refused');
 });
+
+test('Claude saying wait takes back what the page put in for a line that was only the start of a thought', () => {
+  const mine = [{ do: 'fill', field: 'sname', res: { kind: 'fill', value: 'Spelled', status: 'heard' } }];
+  const r = AI.reconcile(mine, [{ do: 'wait' }], idx);
+  assert.strictEqual(r.agree, false);
+  assert.deepStrictEqual(r.rest, [{ do: 'wait' }]);
+  assert.strictEqual(AI.reconcile([], [{ do: 'wait' }], idx).agree, true, 'nothing was put in, so there is nothing to take back');
+  assert.strictEqual(AI.reconcile(mine, [], idx).agree, true, 'silence still keeps what was heard');
+});
+test('the instructions tell Claude that speech comes in fragments and how to read them', () => {
+  const req = AI.buildRequest(idx, { sectionId: 'info', targetId: 'sname', recent: [{ who: 'adviser', text: 'what is your surname' }], listRows: () => [] }, 'auto', 'Kafentzis', 'm');
+  assert.match(req.system, /Fragments/);
+  assert.match(req.system, /my surname is spelled/);
+  assert.match(req.system, /even if it is a single word/);
+  const body = JSON.parse(req.messages[0].content);
+  assert.strictEqual(body.newest.text, 'Kafentzis');
+  assert.deepStrictEqual(body.recent.map(l => l.text), ['what is your surname'], 'the lines before it go with it');
+  assert.strictEqual(body.position.field, 'sname');
+});

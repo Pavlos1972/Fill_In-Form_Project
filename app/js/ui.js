@@ -529,8 +529,8 @@
   function quickSettings() {
     if ($('#setQuick') || !$('#setSpeech')) return;
     $('#setSpeech').closest('.f').insertAdjacentHTML('beforebegin',
-      '<label class="f"><span class="l"><span>Fill clear answers at once</span></span><select id="setQuick"><option value="1">On: the form fills at once, then Claude checks it</option><option value="0">Off: wait for Claude before filling</option></select></label>' +
-      '<p class="help">With this on, an answer the page itself understands with confidence (a name, a yes, a number) goes into the form straight away and Claude then reads the line too: if Claude reads it differently, the box is changed to what Claude says. Anything the page is not sure of waits for Claude.</p>');
+      '<label class="f"><span class="l"><span>Fill clear answers at once</span></span><select id="setQuick"><option value="0">Off: Claude reads every line first (recommended)</option><option value="1">On: the form fills at once, then Claude checks it</option></select></label>' +
+      '<p class="help">Off means Claude reads every line, with the lines before it, and decides what goes where (about a second a line). On means an answer the page itself understands with confidence (a name, a yes, a number) goes into the form straight away and Claude checks it afterwards: quicker, but the page\'s own reading can be wrong (it once filled a surname with the word "spelled").</p>');
   }
   /* The choice to let Claude see private numbers is added to Settings from here too. */
   function shareSettings() {
@@ -1196,8 +1196,8 @@
   var SHARE_KEY = 'wr-fact-find-share';
   function vmShareOn() { try { return localStorage.getItem(SHARE_KEY) === '1'; } catch (e) { return false; } }
   function vmShareApply() { if (VAI && VAI.setShare) VAI.setShare(vmShareOn()); }
-  var QUICK_KEY = 'wr-fact-find-quick';
-  function vmQuickOn() { try { return localStorage.getItem(QUICK_KEY) !== '0'; } catch (e) { return true; } }
+  var QUICK_KEY = 'wr-fact-find-quick-2';
+  function vmQuickOn() { try { return localStorage.getItem(QUICK_KEY) === '1'; } catch (e) { return false; } }
   function vmQuickTry(text, entry) {
     if (vmEditParse(text) || vm.run) return null;
     if (!vmQuickOn() || !vmAIReady() || vm.wipe || vm.noteMode || vm.slow > 0 || text.split(/\s+/).length > 16) return null;
@@ -1259,7 +1259,7 @@
     /* A bare "yes" or "correct" may agree to several boxes that were just read back: Claude decides which, from the lines before it. */
     var agree = words <= 2 && V.isConfirm(text, true) && !pl.actions.some(function (a) { return a.do === 'fill'; }) && vmAwaiting().awaiting.length > 0;
     if (vm.noteMode && vmAIReady() && pl.actions.every(function (a) { return a.do === 'note'; }) && vmMayLeaveNotes(text)) return vmAskInNotes(text, pl);
-    if (vm.noteMode || onlyCommand || (words <= 2 && !agree) || !vmAIReady()) return vmRun(pl.actions);
+    if (vm.noteMode || onlyCommand || !vmAIReady()) return vmRun(pl.actions);                  // every other line, however short, is read by Claude with the lines before it
     return vmAsk('auto', text, null, entry).then(function (r) {
       if (r && r.kind === 'actions') return vmRun(vmGuardReadBack(r.actions, text)).then(function () { return vmRestOfLine(r.actions, text, words); });
       if (!r || agree) return vmRun(pl.actions);                         // Claude could not be reached, or had nothing to add to a plain yes: this computer's best reading
