@@ -179,7 +179,7 @@
     var vault = { _line: String(text == null ? '' : text), _sent: sh.text, _held: ctx.privateHeld || {} };                                      // the line itself (to check the words in front of an email marker), what was sent (to recover a number that was sent unshielded) and the values already in the private boxes waiting to be confirmed (to check a read-back against; never sent)
     Object.keys(sh.vault).forEach(function (k) { vault[k] = sh.vault[k]; });
     var rest = {}; Object.keys(body).forEach(function (k) { if (k !== 'sections' && k !== 'fields') rest[k] = body[k]; });
-    return { req: { model: model, max_tokens: 900, system: SYSTEM, messages: [{ role: 'user', content: JSON.stringify(body) }] }, vault: vault,
+    return { req: { model: model, max_tokens: 900, output_config: { effort: 'low' }, system: SYSTEM, messages: [{ role: 'user', content: JSON.stringify(body) }] }, vault: vault,        // low effort: the models think before answering unless told otherwise (Sonnet 5.5 at high), which is slow and billed as output
       parts: [JSON.stringify({ sections: body.sections, fields: body.fields }), JSON.stringify(rest)] };        // the same JSON in two pieces: what never changes during a conversation, and what does
   }
   /* The request as sent with a key. The instructions and the form's boxes never change during a conversation, so Anthropic is asked to remember them
@@ -322,7 +322,7 @@
     'Reply with ONE JSON object and nothing else: {"points": ["...", "..."]}. Use {"points": []} when nothing is worth noting (greetings, small talk).'
   ].join('\n');
   function points(opts) {
-    var req = { model: opts.model, max_tokens: 400, system: POINTS_SYSTEM, messages: [{ role: 'user', content: JSON.stringify({ topic: opts.topic || '', said: scrub(opts.text) }) }] };
+    var req = { model: opts.model, max_tokens: 400, output_config: { effort: 'low' }, system: POINTS_SYSTEM, messages: [{ role: 'user', content: JSON.stringify({ topic: opts.topic || '', said: scrub(opts.text) }) }] };
     return callModel(opts, req).then(function (text) {
       var raw = extractJson(text), list = raw && Array.isArray(raw.points) ? raw.points : [];
       return list.map(function (p) { return String(p == null ? '' : p).replace(/^[\s\-•*]+/, '').trim(); }).filter(Boolean).slice(0, 8);

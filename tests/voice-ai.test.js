@@ -270,3 +270,13 @@ test('a host without a key (the practice page) gets the plain request as one pie
   assert.strictEqual(typeof got[1], 'string');
   assert.ok(JSON.parse(got[1]).fields.length > 100);
 });
+
+test('voice requests ask for low effort, so the model does not spend seconds thinking before a short JSON answer', async () => {
+  const sent = [];
+  const fetchImpl = (url, o) => { sent.push(JSON.parse(o.body)); return reply({ actions: [] })(); };
+  const ctx = { sectionId: 'info', recent: [], filled: {}, filledPrivate: [], listRows: () => [] };
+  await AI.decide({ apiKey: 'k', fetchImpl, idx, who: 'auto', text: 'okay thanks', ctx, model: 'm' });
+  await AI.points({ apiKey: 'k', fetchImpl: (u, o) => { sent.push(JSON.parse(o.body)); return reply({ points: [] })(); }, model: 'm', text: 'he smokes', topic: 'Health' });
+  assert.strictEqual(sent.length, 2);
+  sent.forEach(r => { assert.deepStrictEqual(r.output_config, { effort: 'low' }); assert.ok(!('thinking' in r) && !('temperature' in r)); });
+});
