@@ -163,3 +163,15 @@ test('age is worked out on the date of the form, from the date of birth', () => 
   set(s, 'dob', ''); set(s, 'idno', '7212095268086');
   assert.strictEqual(calc.field('age', store.ctxFor(s)), '54 years');                        // no date of birth yet: the ID number gives it
 });
+
+test('what Claude has cost travels with the saved file, starts at nothing, and survives odd values', () => {
+  const s = store.blank();
+  assert.deepStrictEqual(s.claude, { usd: 0, calls: 0, input: 0, output: 0, read: 0, write: 0, searches: 0 });
+  s.claude.usd = 0.1234; s.claude.calls = 12; s.claude.read = 70000;
+  const back = store.fromJSON(store.toJSON(s));
+  assert.strictEqual(back.claude.usd, 0.1234); assert.strictEqual(back.claude.calls, 12); assert.strictEqual(back.claude.read, 70000);
+  const old = JSON.parse(store.toJSON(store.blank())); delete old.claude;
+  assert.strictEqual(store.fromJSON(JSON.stringify(old)).claude.usd, 0, 'a file from before the meter opens at nothing');
+  const odd = JSON.parse(store.toJSON(store.blank())); odd.claude = { usd: 'lots', calls: -3, input: null };
+  assert.deepStrictEqual(store.fromJSON(JSON.stringify(odd)).claude, store.blankTally());
+});

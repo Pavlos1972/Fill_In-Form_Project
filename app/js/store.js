@@ -7,8 +7,15 @@
 })(typeof self !== 'undefined' ? self : this, function (util, schema, calc) {
   var APP_ID = 'wr-fact-find';
 
+  /* What Claude has cost for this fact find (an estimate from the published prices, see lookup.js): dollars and the tokens behind them. It travels with the saved file. */
+  function blankTally() { return { usd: 0, calls: 0, input: 0, output: 0, read: 0, write: 0, searches: 0 }; }
+  function tallyFrom(t) {
+    var o = blankTally();
+    Object.keys(o).forEach(function (k) { if (t && +t[k] > 0 && isFinite(+t[k])) o[k] = +t[k]; });
+    return o;
+  }
   function blank() {
-    var s = { app: APP_ID, schema: schema.version, created: new Date().toISOString(), modified: null, f: {}, l: {}, docs: {} };
+    var s = { app: APP_ID, schema: schema.version, created: new Date().toISOString(), modified: null, f: {}, l: {}, docs: {}, claude: blankTally() };
     Object.keys(schema.fieldsById).forEach(function (id) {
       var d = schema.fieldsById[id], p = d.preset === '@today' ? util.todayDMY() : d.preset;
       s.f[id] = p ? { v: p, st: 'preset' } : { v: '', st: 'empty' };
@@ -62,6 +69,7 @@
       });
     });
     s.docs = j.docs || {};
+    s.claude = tallyFrom(j.claude);
     tidyAmounts(s);
     tidyDates(s);
     return s;
@@ -102,5 +110,5 @@
     return { tot: tot, fill: fill, ver: ver };
   }
 
-  return { blank: blank, ctxFor: ctxFor, setField: setField, addRow: addRow, delRow: delRow, setCell: setCell, accept: accept, clientName: clientName, baseFileName: baseFileName, fromJSON: fromJSON, toJSON: toJSON, counts: counts };
+  return { blank: blank, blankTally: blankTally, ctxFor: ctxFor, setField: setField, addRow: addRow, delRow: delRow, setCell: setCell, accept: accept, clientName: clientName, baseFileName: baseFileName, fromJSON: fromJSON, toJSON: toJSON, counts: counts };
 });

@@ -79,3 +79,25 @@ test('without web search, Claude says what it knows about a company, or that it 
   assert.strictEqual(await L.runAsk({ ask: ask('not json at all'), name: 'Zzyzx', kind: 'business' }), 'Could not identify this company.');
   await assert.rejects(L.runAsk({ ask: () => Promise.reject({ code: 'not_granted' }), name: 'X', kind: 'company' }), /Could not reach Claude/);
 });
+
+test('what a response cost: tokens at the published prices, the cache at its own prices, web searches at a cent each', () => {
+  const close = (a, b) => assert.ok(Math.abs(a - b) < 1e-9, a + ' vs ' + b);
+  close(L.costOf('claude-haiku-5-5', { input_tokens: 1500, output_tokens: 100, cache_read_input_tokens: 5900 }), (1500 * 0.1 + 100 * 0.5 + 5900 * 0.01) / 1e6);
+  close(L.costOf('claude-sonnet-5-5', { input_tokens: 1500, output_tokens: 100, cache_read_input_tokens: 5900, cache_creation_input_tokens: 4000 }), (1500 * 2 + 100 * 10 + 5900 * 0.1 + 4000 * 2.5) / 1e6);
+  close(L.costOf('claude-opus-5-5', { input_tokens: 10000, output_tokens: 300, server_tool_use: { web_search_requests: 3 } }), (10000 * 4 + 300 * 20) / 1e6 + 0.03);
+  close(L.costOf('claude-opus-5-5', undefined), 0);
+  close(L.costOf('claude-opus-5-5', { input_tokens: 'x', output_tokens: -5 }), 0);
+  assert.strictEqual(L.costOf('some-new-model', { input_tokens: 1e6 }), L.costOf('claude-opus-5-5', { input_tokens: 1e6 }), 'a model not in the list is priced as the dearest, so the meter never reads low');
+});
+test('a tally adds up responses and tokens', () => {
+  const t = { usd: 0, calls: 0, input: 0, output: 0, read: 0, write: 0, searches: 0 };
+  const a = L.addUsage(t, 'claude-haiku-5-5', { input_tokens: 1000, output_tokens: 50, cache_read_input_tokens: 5000 });
+  const b = L.addUsage(t, 'claude-opus-5-5', { input_tokens: 2000, output_tokens: 100, server_tool_use: { web_search_requests: 2 } });
+  assert.strictEqual(t.calls, 2);
+  assert.ok(Math.abs(t.usd - (a + b)) < 1e-12);
+  assert.deepStrictEqual([t.input, t.output, t.read, t.write, t.searches], [3000, 150, 5000, 0, 2]);
+  assert.ok(L.addUsage({}, 'claude-haiku-5-5', {}) === 0, 'a tally without its fields still works');
+});
+test('every price on offer in Settings has a price', () => {
+  L.MODELS.forEach(m => assert.ok(L.PRICES[m.id] && L.PRICES[m.id].input > 0 && L.PRICES[m.id].output > L.PRICES[m.id].input && L.PRICES[m.id].read < L.PRICES[m.id].input, m.id));
+});
