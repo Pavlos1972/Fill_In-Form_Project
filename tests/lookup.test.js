@@ -101,3 +101,16 @@ test('a tally adds up responses and tokens', () => {
 test('every price on offer in Settings has a price', () => {
   L.MODELS.forEach(m => assert.ok(L.PRICES[m.id] && L.PRICES[m.id].input > 0 && L.PRICES[m.id].output > L.PRICES[m.id].input && L.PRICES[m.id].read < L.PRICES[m.id].input, m.id));
 });
+test('the voice model defaults to Sonnet, which is the one marked recommended; an older saved voice model is replaced once', () => {
+  const store = {};
+  global.localStorage = { getItem: k => (k in store ? store[k] : null), setItem: (k, v) => { store[k] = String(v); } };
+  try {
+    assert.strictEqual(L.DEFAULT_VOICE_MODEL, 'claude-sonnet-5-5');
+    assert.deepStrictEqual(L.VOICE_MODELS.filter(m => /recommended/.test(m.label)).map(m => m.id), ['claude-sonnet-5-5']);
+    L.VOICE_MODELS.forEach(m => assert.ok(L.PRICES[m.id], 'priced: ' + m.id));
+    store['wr-fact-find-settings'] = JSON.stringify({ apiKey: 'k', voiceModel: 'claude-haiku-5-5' });   // saved by an earlier version
+    assert.strictEqual(L.getSettings().voiceModel, 'claude-sonnet-5-5');
+    L.saveSettings({ apiKey: 'k', model: 'claude-opus-5-5', voiceModel: 'claude-haiku-5-5', expires: '' });   // a choice made now is kept
+    assert.strictEqual(L.getSettings().voiceModel, 'claude-haiku-5-5');
+  } finally { delete global.localStorage; }
+});

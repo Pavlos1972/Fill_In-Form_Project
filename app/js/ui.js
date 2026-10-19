@@ -456,7 +456,7 @@
   function openSettings() {
     var set = FF.lookup.getSettings(), dlg = $('#settings');
     $('#setKey').value = set.apiKey; $('#setExpires').value = set.expires;
-    $('#setVoiceModel').innerHTML = FF.lookup.MODELS.map(function (m) { return '<option value="' + m.id + '"' + (m.id === set.voiceModel ? ' selected' : '') + '>' + esc(m.label.replace(' (recommended)', '')) + '</option>'; }).join('');
+    $('#setVoiceModel').innerHTML = FF.lookup.VOICE_MODELS.map(function (m) { return '<option value="' + m.id + '"' + (m.id === set.voiceModel ? ' selected' : '') + '>' + esc(m.label) + '</option>'; }).join('');
     $('#setModel').innerHTML = FF.lookup.MODELS.map(function (m) { return '<option value="' + m.id + '"' + (m.id === set.model ? ' selected' : '') + '>' + esc(m.label) + '</option>'; }).join('');
     $('#setResult').textContent = '';
     if ($('#setSpeech')) { var sp = speechPrefs(); speechChoices(); $('#setSpeech').value = sp.engine; $('#setWhisper').value = sp.model; }
@@ -1049,10 +1049,7 @@
         if (!res && a.do === 'confirm') res = { kind: 'confirm' };
         if (!res) { var x = V.interpret(f, a.value); if (x && !x.error) res = { kind: 'fill', value: x.value, status: x.status, extra: x.extra, append: x.append }; }
         if (!res) return;
-        if (res.kind === 'fill' && !res.extra && cell.v !== '' && String(res.value).trim().toLowerCase() === String(cell.v).trim().toLowerCase()) {   // saying the same thing again agrees with it, but only for the box being asked about:
-          if (a.field !== vm.target) return;                                                                                                  // a value repeated anywhere else (going over what is already there) is left alone
-          res = { kind: 'confirm' };
-        }
+        if (res.kind === 'fill' && !res.extra && cell.v !== '' && String(res.value).trim().toLowerCase() === String(cell.v).trim().toLowerCase()) return;   // the same value again is not agreement (the adviser echoes what the client said: "950,000. Perfect."): the box stays as it is until the client says yes
         if (a.field !== vm.target && a.do !== 'confirm') {                  // agreeing to a box does not move the cursor: it turns green where it is
           if (!a.explicit && res.kind === 'fill' && cell.v !== '' && cell.st === 'confirmed') return;   // Claude's volunteered fact never overwrites a confirmed value
           vmShow(a.field);                                                                              // the screen follows the conversation to that box
