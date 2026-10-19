@@ -143,6 +143,10 @@
     });
     return out;
   }
+  /* Left to itself the model thinks before it answers, which takes seconds for a short JSON reply. Where the model allows it, thinking is switched off for these requests:
+     Haiku 5.5 takes "disabled", Sonnet 5.5 takes "between_tools" (its way of saying no thinking), and Opus 5.5 cannot switch it off (low effort keeps it short). */
+  function thinkingFor(model) { return model === 'claude-haiku-5-5' ? { type: 'disabled' } : model === 'claude-sonnet-5-5' ? { type: 'between_tools' } : null; }
+  function withThinking(req) { var t = thinkingFor(req.model); if (t) req.thinking = t; return req; }
   /* ctx: { sectionId, targetId, targetRow, targetValue, filled: {id: value}, filledPrivate: [ids], listRows(key), recent: [{who, text}] }; text/who are the newest line.
      -> { req, vault }: the request, and the real values behind the markers in the newest line (kept here, never sent). */
   function prepare(idx, ctx, who, text, model) {
@@ -179,13 +183,13 @@
     var vault = { _line: String(text == null ? '' : text), _sent: sh.text, _held: ctx.privateHeld || {} };                                      // the line itself (to check the words in front of an email marker), what was sent (to recover a number that was sent unshielded) and the values already in the private boxes waiting to be confirmed (to check a read-back against; never sent)
     Object.keys(sh.vault).forEach(function (k) { vault[k] = sh.vault[k]; });
     var rest = {}; Object.keys(body).forEach(function (k) { if (k !== 'sections' && k !== 'fields') rest[k] = body[k]; });
-    return { req: { model: model, max_tokens: 900, output_config: { effort: 'low' }, system: SYSTEM, messages: [{ role: 'user', content: JSON.stringify(body) }] }, vault: vault,        // low effort: the models think before answering unless told otherwise (Sonnet 5.5 at high), which is slow and billed as output
+    return { req: withThinking({ model: model, max_tokens: 900, output_config: { effort: 'low' }, system: SYSTEM, messages: [{ role: 'user', content: JSON.stringify(body) }] }), vault: vault,        // low effort and no thinking: the models think before answering unless told otherwise (Sonnet 5.5 at high), which is slow and billed as output
       parts: [JSON.stringify({ sections: body.sections, fields: body.fields }), JSON.stringify(rest)] };        // the same JSON in two pieces: what never changes during a conversation, and what does
   }
   /* The request as sent with a key. The instructions and the form's boxes never change during a conversation, so Anthropic is asked to remember them
-     for a few minutes: each line is then answered sooner and for less. (A host that reaches Claude without a key gets the plain request.) */
+     for an hour (a call can pause for longer than the usual five minutes): each line is then answered sooner and for less. (A host that reaches Claude without a key gets the plain request.) */
   function cachedRequest(prep) {
-    return Object.assign({}, prep.req, { messages: [{ role: 'user', content: [{ type: 'text', text: prep.parts[0], cache_control: { type: 'ephemeral' } }, { type: 'text', text: prep.parts[1] }] }] });
+    return Object.assign({}, prep.req, { messages: [{ role: 'user', content: [{ type: 'text', text: prep.parts[0], cache_control: { type: 'ephemeral', ttl: '1h' } }, { type: 'text', text: prep.parts[1] }] }] });
   }
   function buildRequest(idx, ctx, who, text, model) { return prepare(idx, ctx, who, text, model).req; }
 
@@ -296,16 +300,48 @@
       });
     }
     if (!opts.apiKey) return Promise.reject(new Error('no API key'));
-    return doFetch(ENDPOINT, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-api-key': opts.apiKey, 'anthropic-version': API_VERSION, 'anthropic-dangerous-direct-browser-access': 'true' },
-      body: JSON.stringify(req)
-    }).then(function (res) {
-      return res.json().catch(function () { return {}; }).then(function (body) {
-        if (!res.ok) throw new Error(friendly(res.status, body));
-        return textOf(body);
-      });
-    }, function () { throw new Error('no connection'); });
+    function send(r) {
+      return doFetch(ENDPOINT, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-api-key': opts.apiKey, 'anthropic-version': API_VERSION, 'anthropic-dangerous-direct-browser-access': 'true' },
+        body: JSON.stringify(r)
+      }).then(function (res) {
+        return res.json().catch(function () { return {}; }).then(function (body) {
+          if (!res.ok && res.status === 400 && r.thinking && /thinking/i.test(friendly(res.status, body))) { var r2 = Object.assign({}, r); delete r2.thinking; return send(r2); }      // the model did not accept the thinking setting: ask again without it
+          if (!res.ok) throw new Error(friendly(res.status, body));
+          return textOf(body);
+        });
+      }, function () { throw new Error('no connection'); });
+    }
+    return send(req);
+  }
+
+  /* Asks Claude to read the unchanging part of the request now (nothing is written back), so the first real line finds it remembered and is answered at once.
+     The request is the real one with an empty line in place of the conversation: the same model, effort and thinking, so it lands in the same place in the memory. */
+  function warm(opts) {
+    if (!opts.apiKey) return Promise.resolve(false);
+    var prep = prepare(opts.idx, { sectionId: 'info', recent: [], listRows: function () { return []; } }, 'auto', '', opts.model), r = cachedRequest(prep);
+    r.messages[0].content[1].text = '{"warming_up":true}'; r.max_tokens = 0;
+    return callModel(opts, r).then(function () { return true; }, function () { return false; });
+  }
+  /* A clear answer can be put on the form before Claude has read the line, and Claude then checks it. This compares what was put there (local) with what Claude says:
+     agree is true when every box that was filled is filled the same way by Claude, and rest is what Claude says besides (those fills left out, as they are already done).
+     When Claude reads the line differently, agree is false and rest is all of Claude's answer: the page takes its own fills back first. */
+  function reconcile(local, claude, idx) {
+    var norm = function (v) { return String(v == null ? '' : v).toLowerCase().replace(/\s+/g, ''); };
+    var mine = {}, theirs = {};
+    local.forEach(function (a) {
+      if (a.do !== 'fill' || !a.res) return;
+      mine[a.field] = norm(a.res.value);
+      (a.res.extra || []).forEach(function (x) { mine[x.id] = norm(x.value); });
+    });
+    claude.forEach(function (a) {
+      if (a.do !== 'fill') return;
+      var f = idx.byId[a.field], x = f ? V.interpret(f, a.value) : null;
+      theirs[a.field] = norm(x && !x.error ? x.value : a.value);
+    });
+    var agree = Object.keys(mine).every(function (id) { return theirs[id] === mine[id]; });
+    return { agree: agree, rest: agree ? claude.filter(function (a) { return !(a.do === 'fill' && mine[a.field] !== undefined && theirs[a.field] === mine[a.field]); }) : claude };
   }
 
   /* opts: { apiKey | ask, model, idx, who, text, ctx, fetchImpl } -> Promise of the normalized answer. */
@@ -322,12 +358,12 @@
     'Reply with ONE JSON object and nothing else: {"points": ["...", "..."]}. Use {"points": []} when nothing is worth noting (greetings, small talk).'
   ].join('\n');
   function points(opts) {
-    var req = { model: opts.model, max_tokens: 400, output_config: { effort: 'low' }, system: POINTS_SYSTEM, messages: [{ role: 'user', content: JSON.stringify({ topic: opts.topic || '', said: scrub(opts.text) }) }] };
+    var req = withThinking({ model: opts.model, max_tokens: 400, output_config: { effort: 'low' }, system: POINTS_SYSTEM, messages: [{ role: 'user', content: JSON.stringify({ topic: opts.topic || '', said: scrub(opts.text) }) }] });
     return callModel(opts, req).then(function (text) {
       var raw = extractJson(text), list = raw && Array.isArray(raw.points) ? raw.points : [];
       return list.map(function (p) { return String(p == null ? '' : p).replace(/^[\s\-•*]+/, '').trim(); }).filter(Boolean).slice(0, 8);
     });
   }
 
-  return { decide: decide, points: points, prepare: prepare, buildRequest: buildRequest, cachedRequest: cachedRequest, normalize: normalize, extractJson: extractJson, scrub: scrub, shield: shield, SYSTEM: SYSTEM };
+  return { decide: decide, points: points, warm: warm, reconcile: reconcile, thinkingFor: thinkingFor, prepare: prepare, buildRequest: buildRequest, cachedRequest: cachedRequest, normalize: normalize, extractJson: extractJson, scrub: scrub, shield: shield, SYSTEM: SYSTEM };
 });

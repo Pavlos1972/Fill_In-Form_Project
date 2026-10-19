@@ -447,6 +447,7 @@
     $('#setResult').textContent = '';
     if ($('#setSpeech')) { var sp = speechPrefs(); speechChoices(); $('#setSpeech').value = sp.engine; $('#setWhisper').value = sp.model; }
     creditSettings(); var left = creditLeft(); $('#setCredit').value = left == null ? '' : left.toFixed(2);
+    quickSettings(); $('#setQuick').value = vmQuickOn() ? '1' : '0';
     dlg.showModal();
   }
   $('#btnSettings').addEventListener('click', openSettings);
@@ -457,6 +458,7 @@
     FF.lookup.saveSettings({ apiKey: $('#setKey').value, model: $('#setModel').value, voiceModel: $('#setVoiceModel').value, expires: $('#setExpires').value });
     if ($('#setSpeech')) { try { localStorage.setItem(SPEECH_KEY, JSON.stringify({ engine: $('#setSpeech').value, model: $('#setWhisper').value })); } catch (e) { /* storage unavailable */ } }
     saveCreditBox();
+    if ($('#setQuick')) { try { localStorage.setItem(QUICK_KEY, $('#setQuick').value); } catch (e) { /* storage unavailable */ } }
     $('#settings').close(); refreshKey(); refreshCost(); toast('Settings saved.');
   });
   $('#setTest').addEventListener('click', function () {
@@ -507,6 +509,13 @@
       '. An estimate from the published prices; the Anthropic Console has the real figure.' + (left == null ? ' Click to type the credit you have left, and it is counted down here.' : ' Click to change the credit.');
     el.style.color = left == null ? '' : left < 1 ? 'var(--bad)' : left < 5 ? 'var(--warn)' : '';
   }
+  /* The "fill at once" choice is added to Settings from here too. */
+  function quickSettings() {
+    if ($('#setQuick') || !$('#setSpeech')) return;
+    $('#setSpeech').closest('.f').insertAdjacentHTML('beforebegin',
+      '<label class="f"><span class="l"><span>Fill clear answers at once</span></span><select id="setQuick"><option value="1">On: the form fills at once, then Claude checks it</option><option value="0">Off: wait for Claude before filling</option></select></label>' +
+      '<p class="help">With this on, an answer the page itself understands with confidence (a name, a yes, a number) goes into the form straight away and Claude then reads the line too: if Claude reads it differently, the box is changed to what Claude says. Anything the page is not sure of waits for Claude.</p>');
+  }
   /* The credit box is added to Settings from here, so index.html does not change. */
   function creditSettings() {
     if ($('#setCredit')) return;
@@ -528,7 +537,7 @@
      client's answer is in or confirmed. Simple wording is understood on this computer; looser wording goes to Claude (voice-ai.js).
      Whatever listens calls FF.app.voiceHear(text, who), who being 'me' (the adviser) or 'client'. Typing works as always when voice is off. */
   var V = FF.voice, VAI = FF.voiceAI, vidx = V.buildIndex(schema);
-  var vm = { on: false, target: null, answered: false, secGlow: false, noteMode: null, rowCur: {}, undo: [], recent: [], flashes: {}, queue: Promise.resolve(), busy: 0, lastFail: 0, wipe: null };
+  var vm = { on: false, target: null, answered: false, secGlow: false, noteMode: null, rowCur: {}, undo: [], recent: [], flashes: {}, queue: Promise.resolve(), slow: 0, epoch: 0, busy: 0, lastFail: 0, wipe: null };
   /* A box in a list is named list:row:column (kids:0:dob). "count:kids" is the Add button, waiting for how many there are. */
   function vmCellRef(id) { var m = /^(\w+):(\d+):(\w+)$/.exec(String(id)); return m ? { list: m[1], i: +m[2], k: m[3] } : null; }
   function vmField(id) { var c = vmCellRef(id); if (c) return vidx.byId[c.list + '.' + c.k]; return vidx.byId[id] || vidx.noteById[id]; }
@@ -860,14 +869,14 @@
     });
     return { awaiting: out, held: held };
   }
-  function vmAsk(who, text, note) {
-    var set = FF.lookup.getSettings(), tcr = vm.target ? vmCellRef(vm.target) : null, tid = !vm.noteMode && vm.target && !/^count:/.test(vm.target) && vmField(vm.target) ? (tcr ? tcr.list + '.' + tcr.k : vm.target) : null, fl = vmFilled(), aw = vmAwaiting();
+  function vmAsk(who, text, note, entry) {
+    var t0 = Date.now(), set = FF.lookup.getSettings(), tcr = vm.target ? vmCellRef(vm.target) : null, tid = !vm.noteMode && vm.target && !/^count:/.test(vm.target) && vmField(vm.target) ? (tcr ? tcr.list + '.' + tcr.k : vm.target) : null, fl = vmFilled(), aw = vmAwaiting();
     vm.busy++; vmRender();
     return VAI.decide({
       apiKey: set.apiKey, ask: !set.apiKey && FF.voiceBackend && FF.voiceBackend.available ? FF.voiceBackend.ask : null, model: set.voiceModel, idx: vidx, who: who, text: text, fetchImpl: meteredFetch,
       ctx: { sectionId: cur, targetId: tid, targetRow: tcr ? tcr.i + 1 : null, targetValue: tid && !vmPrivate(vm.target) ? vmValue(vm.target) : '', targetFilled: !!(tid && vmValue(vm.target) !== ''), filled: fl.filled, filledPrivate: fl.filledPrivate, awaiting: aw.awaiting, privateHeld: aw.held, note: note,
         listRows: function (key) { return state.l[key].map(function (r) { return r.d; }); }, recent: vm.recent.slice(-7, -1) }
-    }).then(function (r) { vm.busy--; vmRender(); return r; }, function (err) {
+    }).then(function (r) { vm.busy--; vmRender(); if (entry) entry.claudeMs = Date.now() - t0; return r; }, function (err) {
       vm.busy--; vmRender();
       if (Date.now() - vm.lastFail > 60000) { vm.lastFail = Date.now(); toast('Voice: could not reach Claude (' + err.message + '). Using only what this computer can understand.'); }
       return null;
@@ -938,6 +947,54 @@
       return vmRun(r && r.kind === 'actions' && r.actions.length ? r.actions : pl.actions);
     });
   }
+  /* What the page itself makes of a line, in the state the form is in now. */
+  function vmPlanFor(text) {
+    return V.plan(text, vidx, { cur: cur, noting: !!vm.noteMode, target: vm.target, answered: vm.answered, rows: function (key) { return state.l[key].map(function (r) { return r.d; }); }, curRow: vm.rowCur, value: function (id) { return state.f[id].v; }, visible: function (id) { var f = vmField(id); return !!f && vmVisible(f); } });
+  }
+  /* ---------- fill at once, then Claude checks ---------- */
+  /* Waiting for Claude takes seconds, so a clear answer (a name, a yes, a number: what the page itself understands with confidence) goes into the form straight away, and Claude then reads
+     the line as well. If Claude reads it the same way nothing changes, and anything more it heard is added; if it reads it differently the box is put back (unless it has been changed
+     since) and Claude's reading is used. A line the page is not sure of, or any line while an earlier one is still waiting for Claude, waits for Claude as before. */
+  var QUICK_KEY = 'wr-fact-find-quick';
+  function vmQuickOn() { try { return localStorage.getItem(QUICK_KEY) !== '0'; } catch (e) { return true; } }
+  function vmQuickTry(text) {
+    if (!vmQuickOn() || !vmAIReady() || vm.wipe || vm.noteMode || vm.slow > 0 || text.split(/\s+/).length > 16) return null;
+    var acts = vmPlanFor(text).actions;
+    if (!acts.length || acts.length > 4 || !acts.some(function (a) { return a.do === 'fill'; })) return null;
+    if (!acts.every(function (a) { var f = a.field && !vmCellRef(a.field) ? vmField(a.field) : null; return (a.do === 'fill' || a.do === 'ask') && !a.tentative && !!f && vmVisible(f); })) return null;
+    var mark = vm.undo.length;
+    acts.forEach(function (a) { vmDo(a); });
+    var entries = vm.undo.slice(mark).filter(function (e) { return e.kind === 'fill'; });
+    entries.forEach(function (e) { e.applied = {}; [e.id].concat((e.extras || []).map(function (x) { return x.id; })).forEach(function (id) { e.applied[id] = state.f[id].v; }); });
+    return { actions: acts, entries: entries };
+  }
+  /* Puts back what a quick fill wrote, for each box that still holds exactly that (one that has been typed in or corrected since is left alone). */
+  function vmTakeBack(entries) {
+    entries.forEach(function (e) {
+      var ids = [e.id].concat((e.extras || []).map(function (x) { return x.id; }));
+      if (!ids.every(function (id) { return state.f[id] && state.f[id].v === e.applied[id]; })) return;
+      state.f[e.id] = { v: e.prev.v, st: e.prev.st };
+      (e.extras || []).forEach(function (x) { state.f[x.id] = { v: x.prev.v, st: x.prev.st }; });
+      var i = vm.undo.indexOf(e); if (i >= 0) vm.undo.splice(i, 1);
+    });
+    touch(); redraw(); vmMarkWait();
+  }
+  function vmCheckQuick(text, entry) {
+    return vmAsk('auto', text, null, entry).then(function (r) {
+      if (!r) return;                                                                // Claude could not be reached: what was filled stands
+      var acts = r.kind === 'actions' ? r.actions : [], rc = VAI.reconcile(entry.quick.actions, acts, vidx);
+      if (!rc.agree) { vmTakeBack(entry.quick.entries); entry.changed = true; }
+      return vmRun(rc.rest).then(function () { return vmRestOfLine(acts, text, text.split(/\s+/).length); });
+    });
+  }
+  /* Claude is asked to read the unchanging part of its instructions as soon as voice mode is on, so the first line is not slowed by it. */
+  var warmedAt = 0, warmedModel = '';
+  function vmWarm() {
+    var set = FF.lookup.getSettings();
+    if (!set.apiKey || !VAI || !VAI.warm || (warmedModel === set.voiceModel && Date.now() - warmedAt < 50 * 60000)) return;
+    warmedModel = set.voiceModel; warmedAt = Date.now();
+    VAI.warm({ apiKey: set.apiKey, model: set.voiceModel, idx: vidx, fetchImpl: meteredFetch });
+  }
   /* A line whose speaker is not known. It may hold the adviser and the client together, in any order, with corrections and things they do not have.
      Claude reads it and says what to do on the form; this computer's own reading is used only for a bare command word, while notes are being taken,
      for a one or two word answer, and when Claude cannot be reached. */
@@ -948,13 +1005,14 @@
       toast('Waiting for a yes or no: delete all data from the entire form?');
       return Promise.resolve();
     }
-    var pl = V.plan(text, vidx, { cur: cur, noting: !!vm.noteMode, target: vm.target, answered: vm.answered, rows: function (key) { return state.l[key].map(function (r) { return r.d; }); }, curRow: vm.rowCur, value: function (id) { return state.f[id].v; }, visible: function (id) { var f = vmField(id); return !!f && vmVisible(f); } });
+    if (entry && entry.quick) return vmCheckQuick(text, entry);
+    var pl = vmPlanFor(text);
     var words = text.split(/\s+/).length, onlyCommand = pl.actions.length > 0 && pl.actions.every(function (a) { return a.do === 'cmd'; }) && words <= 8;
     /* A bare "yes" or "correct" may agree to several boxes that were just read back: Claude decides which, from the lines before it. */
     var agree = words <= 2 && V.isConfirm(text, true) && !pl.actions.some(function (a) { return a.do === 'fill'; }) && vmAwaiting().awaiting.length > 0;
     if (vm.noteMode && vmAIReady() && pl.actions.every(function (a) { return a.do === 'note'; }) && vmMayLeaveNotes(text)) return vmAskInNotes(text, pl);
     if (vm.noteMode || onlyCommand || (words <= 2 && !agree) || !vmAIReady()) return vmRun(pl.actions);
-    return vmAsk('auto', text).then(function (r) {
+    return vmAsk('auto', text, null, entry).then(function (r) {
       if (r && r.kind === 'actions') return vmRun(r.actions).then(function () { return vmRestOfLine(r.actions, text, words); });
       if (!r || agree) return vmRun(pl.actions);                         // Claude could not be reached, or had nothing to add to a plain yes: this computer's best reading
     });
@@ -982,17 +1040,21 @@
   function vmHear(text, who) {
     text = String(text == null ? '' : text).trim();
     if (!vm.on || !text) return Promise.resolve();
-    var w = 'auto', entry = { who: who === 'me' ? 'adviser' : who === 'client' ? 'client' : 'unclear', text: text };
+    var entry = { who: who === 'me' ? 'adviser' : who === 'client' ? 'client' : 'unclear', text: text }, t0 = Date.now(), epoch = vm.epoch, quick = null, p;
     vm.recent.push(entry); if (vm.recent.length > 12) vm.recent.shift();
-    vm.queue = vm.queue.then(function () { return vmProcessAuto(text, entry); }).catch(function () { /* one bad line never stops the next */ });
-    return vm.queue;
+    try { quick = vmQuickTry(text); } catch (e) { quick = null; }                  // a clear answer is on the form already; Claude checks it in its turn below
+    if (quick) { entry.quick = quick; entry.quickMs = Date.now() - t0; } else vm.slow++;
+    vm.queue = vm.queue.then(function () { entry.waited = Date.now() - t0; return vmProcessAuto(text, entry); }).catch(function () { /* one bad line never stops the next */ }).then(function () { if (!quick && epoch === vm.epoch) vm.slow--; });
+    p = vm.queue.then(function () { return entry; }); p.entry = entry;
+    return p;
   }
   function vmToggle(on) {
-    vm.on = on; vm.target = null; vm.answered = false; vm.secGlow = on; vm.noteMode = null; vm.rowCur = {}; vm.queue = Promise.resolve();
+    vm.on = on; vm.target = null; vm.answered = false; vm.secGlow = on; vm.noteMode = null; vm.rowCur = {}; vm.queue = Promise.resolve(); vm.slow = 0; vm.epoch++;
     if (vm.wipe) { vm.wipe = null; var wd = document.getElementById('wipe'); if (wd && wd.open) wd.close(); }   // switching Voice on or off never leaves the question hanging
     if (!on) listenStop();                                                                                       // no voice mode, nothing to listen for
     if (!on) { document.querySelectorAll('.voice-wait,.voice-ok').forEach(function (e) { e.classList.remove('voice-wait', 'voice-ok'); }); $('#vdText').hidden = true; }
     vmRender(); vmMarkWait();
+    if (on) vmWarm();
     if (on && FF.voiceBackend && FF.voiceBackend.warm) {   // ask permission now, so it never interrupts a conversation later
       vm.busy++; vmRender();
       FF.voiceBackend.warm().then(function () { vm.busy--; vmRender(); }, function (e) { vm.busy--; vmRender(); toast('Voice could not use Claude (' + ((e && (e.message || e.code)) || 'not allowed') + '). Only the simple on-page rules will work. Reload the page and tap Allow to try again.'); });
@@ -1042,9 +1104,16 @@
       },
       interim: function (t) { if (t) listenShow(status, '… ' + t, kind); },
       text: function (t, m) {
-        var line = 'Heard: "' + t + '"' + (m.took != null ? '  (' + m.audio.toFixed(1) + ' s of speech read in ' + m.took.toFixed(1) + ' s' + (m.waiting ? ', ' + m.waiting + ' waiting' : '') + ')' : ''), t1 = Date.now();
+        var line = 'Heard: "' + t + '"' + (m.took != null ? '  (' + m.audio.toFixed(1) + ' s of speech read in ' + m.took.toFixed(1) + ' s' + (m.waiting ? ', ' + m.waiting + ' waiting' : '') + ')' : ''), t1 = Date.now(), s1 = function (ms) { return (ms / 1000).toFixed(1) + ' s'; }, pr;
         shown = line; listenShow(status, line, kind);
-        vmHear(t).then(function () { if (shown === line) listenShow(status, line + ' · form updated in ' + ((Date.now() - t1) / 1000).toFixed(1) + ' s', kind); });       // how long the form took after the words were known
+        pr = vmHear(t);
+        if (pr.entry && pr.entry.quick) { line += ' · filled in ' + s1(pr.entry.quickMs); shown = line; listenShow(status, line + ', Claude is checking', kind); }
+        pr.then(function (en) {                                                              // how long each step took after the words were known
+          if (shown !== line) return;
+          if (!en) listenShow(status, line + ' · form updated in ' + s1(Date.now() - t1), kind);
+          else if (en.quick) listenShow(status, line + (en.claudeMs != null ? ', Claude checked it in ' + s1(en.claudeMs) + (en.changed ? ' and changed it' : '') : ', Claude could not be reached'), kind);
+          else listenShow(status, line + ' · form updated in ' + s1(Date.now() - t1) + ' (' + (en.waited > 1500 ? 'waited ' + s1(en.waited) + ' for the line before, ' : '') + (en.claudeMs != null ? 'Claude ' + s1(en.claudeMs) : 'no Claude') + ')', kind);
+        });
       },
       reading: function () { shown = ''; listenShow(status, '… reading what was just said', kind); },
       note: function (msg) { listenShow(status, msg, 'warn'); },

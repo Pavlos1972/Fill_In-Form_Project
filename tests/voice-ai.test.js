@@ -254,7 +254,7 @@ test('with a key the unchanging part of the request (instructions, sections, box
   assert.strictEqual(r.kind, 'actions');
   const blocks = sent[0].messages[0].content;
   assert.strictEqual(blocks.length, 2);
-  assert.deepStrictEqual(blocks[0].cache_control, { type: 'ephemeral' });
+  assert.deepStrictEqual(blocks[0].cache_control, { type: 'ephemeral', ttl: '1h' });
   assert.ok(!('cache_control' in blocks[1]));
   const a = JSON.parse(blocks[0].text), b = JSON.parse(blocks[1].text);
   assert.deepStrictEqual(Object.assign({}, a, b), JSON.parse(prep.req.messages[0].content));      // nothing lost, nothing added
@@ -279,4 +279,57 @@ test('voice requests ask for low effort, so the model does not spend seconds thi
   await AI.points({ apiKey: 'k', fetchImpl: (u, o) => { sent.push(JSON.parse(o.body)); return reply({ points: [] })(); }, model: 'm', text: 'he smokes', topic: 'Health' });
   assert.strictEqual(sent.length, 2);
   sent.forEach(r => { assert.deepStrictEqual(r.output_config, { effort: 'low' }); assert.ok(!('thinking' in r) && !('temperature' in r)); });
+});
+
+test('thinking is switched off where the model allows it, and left out where it does not', async () => {
+  const sent = [];
+  const fetchImpl = (url, o) => { sent.push(JSON.parse(o.body)); return reply({ actions: [] })(); };
+  const ctx = { sectionId: 'info', recent: [], filled: {}, filledPrivate: [], listRows: () => [] };
+  for (const model of ['claude-haiku-5-5', 'claude-sonnet-5-5', 'claude-opus-5-5']) await AI.decide({ apiKey: 'k', fetchImpl, idx, who: 'auto', text: 'okay thanks', ctx, model });
+  assert.deepStrictEqual(sent[0].thinking, { type: 'disabled' });
+  assert.deepStrictEqual(sent[1].thinking, { type: 'between_tools' });
+  assert.ok(!('thinking' in sent[2]), 'Opus 5.5 cannot switch thinking off');
+  sent.forEach(r => assert.deepStrictEqual(r.output_config, { effort: 'low' }));
+});
+test('if the model refuses the thinking setting the same request is sent again without it', async () => {
+  const sent = [];
+  const fetchImpl = (url, o) => {
+    const b = JSON.parse(o.body); sent.push(b);
+    return b.thinking ? Promise.resolve({ ok: false, status: 400, json: () => Promise.resolve({ error: { message: 'thinking.type: between_tools is not supported' } }) }) : reply({ actions: [{ do: 'wait' }] })();
+  };
+  const r = await AI.decide({ apiKey: 'k', fetchImpl, idx, who: 'auto', text: 'no that is wrong', ctx: { sectionId: 'info', recent: [], filled: {}, filledPrivate: [], listRows: () => [] }, model: 'claude-sonnet-5-5' });
+  assert.strictEqual(sent.length, 2); assert.ok(sent[0].thinking && !sent[1].thinking);
+  assert.strictEqual(r.kind, 'actions');
+  let n = 0;
+  await assert.rejects(AI.decide({ apiKey: 'k', fetchImpl: () => { n++; return Promise.resolve({ ok: false, status: 401, json: () => Promise.resolve({ error: { message: 'bad key' } }) }); }, idx, who: 'auto', text: 'x y z', ctx: { sectionId: 'info', recent: [], filled: {}, filledPrivate: [], listRows: () => [] }, model: 'claude-sonnet-5-5' }), /API key/);
+  assert.strictEqual(n, 1, 'another kind of error is not retried');
+});
+test('the warm-up asks for nothing back, and has the same remembered part as a real line', async () => {
+  const sent = [];
+  const fetchImpl = (url, o) => { sent.push(JSON.parse(o.body)); return reply({})(); };
+  const ctx = { sectionId: 'kids', recent: [{ who: 'unclear', text: 'hello' }], filled: { fname: 'John' }, filledPrivate: [], listRows: () => [] };
+  assert.strictEqual(await AI.warm({ apiKey: 'k', fetchImpl, idx, model: 'claude-haiku-5-5' }), true);
+  await AI.decide({ apiKey: 'k', fetchImpl, idx, who: 'auto', text: 'My first name is John', ctx, model: 'claude-haiku-5-5' });
+  const w = sent[0], d = sent[1];
+  assert.strictEqual(w.max_tokens, 0);
+  assert.strictEqual(w.messages[0].content[0].text, d.messages[0].content[0].text);                 // the same bytes in the part that is remembered
+  assert.deepStrictEqual(w.messages[0].content[0].cache_control, d.messages[0].content[0].cache_control);
+  assert.strictEqual(w.system, d.system); assert.deepStrictEqual(w.thinking, d.thinking); assert.deepStrictEqual(w.output_config, d.output_config); assert.strictEqual(w.model, d.model);
+  assert.strictEqual(await AI.warm({ apiKey: '', idx, model: 'm' }), false);
+  assert.strictEqual(await AI.warm({ apiKey: 'k', fetchImpl: () => Promise.reject(new Error('offline')), idx, model: 'm' }), false, 'a failed warm-up is silent');
+});
+test('a clear answer put on the form at once is kept when Claude agrees, and taken back when Claude reads it differently', () => {
+  const local = [{ do: 'ask', field: 'consent' }, { do: 'fill', field: 'consent', res: { kind: 'fill', value: 'Yes', status: 'heard' } }];
+  let r = AI.reconcile(local, [{ do: 'ask', field: 'consent' }, { do: 'fill', field: 'consent', value: 'yes' }], idx);
+  assert.strictEqual(r.agree, true); assert.deepStrictEqual(r.rest, [{ do: 'ask', field: 'consent' }], 'the fill is already done');
+  r = AI.reconcile(local, [{ do: 'fill', field: 'consent', value: 'Yes' }, { do: 'fill', field: 'fname', value: 'John' }], idx);
+  assert.strictEqual(r.agree, true); assert.deepStrictEqual(r.rest, [{ do: 'fill', field: 'fname', value: 'John' }], 'something more that Claude heard is still done');
+  r = AI.reconcile(local, [{ do: 'fill', field: 'consent', value: 'No' }], idx);
+  assert.strictEqual(r.agree, false); assert.strictEqual(r.rest.length, 1);
+  r = AI.reconcile(local, [], idx);
+  assert.strictEqual(r.agree, false, 'Claude found nothing to fill: the fill is taken back');
+  const two = [{ do: 'fill', field: 'fname', res: { kind: 'fill', value: 'John', status: 'verify', extra: [{ id: 'sname', value: 'Snow', status: 'verify' }] } }];
+  assert.strictEqual(AI.reconcile(two, [{ do: 'fill', field: 'fname', value: 'John' }, { do: 'fill', field: 'sname', value: 'Snow' }], idx).agree, true);
+  assert.strictEqual(AI.reconcile(two, [{ do: 'fill', field: 'fname', value: 'John' }, { do: 'fill', field: 'sname', value: 'Snowden' }], idx).agree, false);
+  assert.strictEqual(AI.reconcile([{ do: 'fill', field: 'cell', res: { kind: 'fill', value: '082 555 0148', status: 'verify' } }], [{ do: 'fill', field: 'cell', value: '0825550148' }], idx).agree, true, 'spaces do not matter');
 });
