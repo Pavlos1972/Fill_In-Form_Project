@@ -28,7 +28,7 @@
     '  {"do":"section","section":"<id>"}            someone moves to a whole topic ("let\'s talk about your health")',
     '  {"do":"fill","field":"<id>","value":"..."}   a value is stated for a box, WHOEVER says it. Add "correction":true when it replaces a value that is already in the box (see "filled")',
     '  {"do":"confirm","field":"<id>"}              the client agrees to a value on the form ("yes, that\'s right"): see "Confirming" below',
-    '  {"do":"wait"}                                the value in position.current_value is rejected and the new one has not come yet',
+    '  {"do":"wait"}                                nothing to fill yet: the value in position.current_value was rejected, or the line stopped before the value ("my surname is spelled ...")',
     '  {"do":"cmd","cmd":"undo|next|prev|nextSection|prevSection|clear|clearAll|notes|notesOff"}   a request about the form itself: "scratch that" is undo, "skip" or "next question" is next,',
     '                                               "let me take some notes" is notes (add "retro":true for "note that down"), "that\'s all for the notes" is notesOff,',
     '                                               "clear that" is clear (only the box being talked about), and clearAll is for wanting EVERYTHING on the whole form removed',
@@ -47,6 +47,12 @@
     '- Never invent a value that was not said, and never fill a box for something that is only being asked.',
     '- One line can move to another part of the form and carry on there: "let\'s talk about your investments. Do you have a tax free? Yes, an Old Mutual one, R3400 a month" is [section, row]. Everything said after the move',
     '  belongs to the boxes and lists of THAT section, which are all described in "fields" and "lists" whichever section is open now. Give every action of the line in one reply. Never stop after the "section" action.',
+    '- Fragments. Speech arrives in pieces: a line can be only the start of a thought, or only the value that completes the line before it. Always read "newest" together with "recent", "position" and "filled".',
+    '  A line that announces something and stops before saying it ("my surname is spelled", "let me spell it for you", "it\'s", "my number is", "give me a second") holds no value yet. Give {"do":"wait"} or an empty list,',
+    '  and never fill a box with the announcing word itself ("spelled", "number", "second", "yes I do", "okay"). The next line then holds the value: a bare name, a spelled name, digits, a date, a yes.',
+    '  When that next line answers the question or the announcement before it, fill that box with it, even if it is a single word ("Kafentzis" after "what is your surname?" or "my surname is spelled").',
+    '  If the box already holds a wrong value left by an earlier fragment, fill it again with "correction":true. A name spelled out letter by letter ("K A F E N T Z I S") is one word: Kafentzis.',
+    '- When unsure what a line means, work it out from the conversation: what was just asked (position.field), the last lines, and what is in "filled". Prefer waiting (an empty list) to guessing, and never put a word that is not a value into a box.',
     '',
     'Notes. "let me take some notes", "I\'d like to make a couple of notes about ...", "note that down" start the notes (cmd notes). The notes box takes what you give it in "note" actions, so when the line holds the thing to be noted, ALSO give it:',
     '"I\'d like to make a couple of notes about the Old Mutual tax free. The client told me it is for his son\'s university fees when he turns 18" is',
@@ -341,7 +347,7 @@
   }
   /* A clear answer can be put on the form before Claude has read the line, and Claude then checks it. This compares what was put there (local) with what Claude says:
      agree is true unless Claude fills one of those boxes with a different value, or puts the same value in another box (a number said for the work phone, not the cell). Claude saying nothing
-     about a box is not a disagreement: the box keeps what was heard, still amber to be confirmed. (Taking it back made a cell number vanish whenever Claude had nothing to add.)
+     about a box is not a disagreement: the box keeps what was heard, still amber to be confirmed. Claude saying "wait" is: the line was not a value yet. (Taking it back made a cell number vanish whenever Claude had nothing to add.)
      rest is what Claude says besides (those fills left out, as they are already done). When Claude reads the line differently, rest is all of Claude's answer: the page takes its own fills back first. */
   function reconcile(local, claude, idx) {
     var norm = function (v) { return String(v == null ? '' : v).toLowerCase().replace(/\s+/g, ''); };
@@ -356,8 +362,8 @@
       var f = idx.byId[a.field], x = f ? V.interpret(f, a.value) : null;
       theirs[a.field] = norm(x && !x.error ? x.value : a.value);
     });
-    var ids = Object.keys(mine);
-    var agree = ids.every(function (id) { return theirs[id] === undefined || theirs[id] === mine[id]; }) &&
+    var ids = Object.keys(mine), retract = ids.length > 0 && claude.some(function (a) { return a.do === 'wait'; });        // Claude says there is nothing to fill yet: what the page put in was a guess
+    var agree = !retract && ids.every(function (id) { return theirs[id] === undefined || theirs[id] === mine[id]; }) &&
       !Object.keys(theirs).some(function (id) { return mine[id] === undefined && ids.some(function (m) { return mine[m] === theirs[id]; }); });
     return { agree: agree, rest: agree ? claude.filter(function (a) { return !(a.do === 'fill' && mine[a.field] !== undefined && theirs[a.field] === mine[a.field]); }) : claude };
   }
