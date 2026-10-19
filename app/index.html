@@ -9,7 +9,7 @@
   html { color-scheme: light; }
   body { margin: 0; font: 14px/1.45 system-ui, "Segoe UI", sans-serif; padding-inline: 16px; padding-block: 14px 40px; }
 </style>
-<link rel="stylesheet" href="css/app.css?v=20261018r">
+<link rel="stylesheet" href="css/app.css?v=20261019a">
 <style>
   @keyframes vwait { 0%, 100% { box-shadow: 0 0 0 3px #e5483a, 0 0 14px 3px rgba(255,176,32,.55); } 50% { box-shadow: 0 0 0 3px #f06a2b, 0 0 28px 9px rgba(255,176,32,.9); } }
   @keyframes vok { from { box-shadow: 0 0 0 3px #1f9d55, 0 0 28px 9px rgba(31,157,85,.75); } to { box-shadow: 0 0 0 3px rgba(31,157,85,0), 0 0 0 0 rgba(31,157,85,0); } }
@@ -28,6 +28,9 @@
   #btnVoice.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
   #btnVoice.on .vm-dot { background: #ff4d3d; box-shadow: 0 0 0 2px rgba(255,255,255,.55); animation: vdot 1.3s ease-in-out infinite; }
   #btnVoice.on.busy .vm-dot { background: #ffb020; }
+  #btnListen.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  #btnListen.on .vm-dot { background: #ff4d3d; box-shadow: 0 0 0 2px rgba(255,255,255,.55); animation: vdot 1.3s ease-in-out infinite; }
+  #btnListen.busy .vm-dot { background: #ffb020; animation: vdot 1.3s ease-in-out infinite; }
   #vdText { position: fixed; left: 50%; transform: translateX(-50%); bottom: 10px; width: min(560px, calc(100vw - 32px)); z-index: 50; background: #12212c; color: #f2f8fc; border: 1px solid #2f4a5c; border-radius: 8px; padding: 9px 12px; font: 14px system-ui, sans-serif; box-shadow: 0 6px 24px rgba(0,0,0,.35); }
   #vdText[hidden] { display: none; }
   #wipe { position: fixed; top: 30%; left: 50%; transform: translate(-50%, -50%); margin: 0; z-index: 60; box-shadow: 0 10px 40px rgba(0,0,0,.4); }
@@ -44,6 +47,7 @@
   <span class="grow"></span>
   <div class="actions">
     <button class="btn ghost small" id="btnVoice" type="button" aria-pressed="false" title="Voice mode: the Fact Find follows what you and the client say"><span class="vm-dot"></span><span id="vmLabel">Voice: Off</span></button>
+    <button class="btn ghost small" id="btnListen" type="button" aria-pressed="false" title="Listen: the microphone is the source of the words for voice mode"><span class="vm-dot"></span><span id="lnLabel">Listen: Off</span></button>
     <button class="btn ghost small" id="btnSettings" type="button">Settings</button>
     <button class="btn ghost small" id="btnNew" type="button">New</button>
     <button class="btn ghost small" id="btnOpen" type="button">Open…</button>
@@ -52,6 +56,7 @@
     <button class="btn ghost small" id="btnPreview" type="button">Preview PDF</button>
     <button class="btn small" id="btnPdf" type="button">Save PDF</button>
   </div>
+  <div class="heard" id="heard" hidden><span class="lvl"><i id="lvl"></i></span><span id="heardStatus"></span><b id="heardText"></b></div>
   <input type="file" id="fileIn" accept=".json,application/json" hidden>
 </div>
 
@@ -77,6 +82,9 @@
   <label class="f"><span class="l"><span>Model</span></span><select id="setModel"></select></label>
   <label class="f"><span class="l"><span>Voice model</span></span><select id="setVoiceModel"></select></label>
   <p class="help">Voice mode asks this model what was said and which box each fact belongs in. Only the last few sentences are sent, as text. ID numbers, phone numbers and email addresses are never sent: the model sees a marker such as [N1] and says which box it belongs in, and the real number stays on this computer.</p>
+  <label class="f"><span class="l"><span>Speech source</span></span><select id="setSpeech"><option value="whisper">Whisper on this computer (private)</option><option value="chrome">Chrome speech recognition (audio goes to Google)</option></select></label>
+  <label class="f"><span class="l"><span>Whisper model</span></span><select id="setWhisper"><option value="tiny.en">Tiny (fastest)</option><option value="base.en">Base (more accurate)</option><option value="small.en">Small (most accurate, slowest)</option></select></label>
+  <p class="help">The Listen button in the top bar uses the microphone. Whisper keeps the sound on this computer: the speech model is downloaded once (about 40 MB for Tiny) and kept in this browser. Chrome's own recognition is instant, but Google hears the audio, so use it for practice talk only, never with a client. A change here applies the next time Listen is pressed.</p>
   <label class="f"><span class="l"><span>Key expires on</span></span><input id="setExpires" type="date"></label>
   <p class="help">Enter the date shown as "Expires" next to the key in the Anthropic console. The top bar then counts down the days. <a href="https://platform.claude.com/dashboard" target="_blank" rel="noopener">Open the console ↗</a></p>
   <p class="help" id="setResult"></p>
@@ -98,6 +106,7 @@
 <script src="js/pdf.js?v=20261018p"></script>
 <script src="js/voice.js?v=20261018r"></script>
 <script src="js/voice-ai.js?v=20261018p"></script>
-<script src="js/ui.js?v=20261018r"></script>
+<script src="js/listen.js?v=20261019a"></script>
+<script src="js/ui.js?v=20261019a"></script>
 </body>
 </html>

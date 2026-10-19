@@ -445,6 +445,7 @@
     $('#setVoiceModel').innerHTML = FF.lookup.MODELS.map(function (m) { return '<option value="' + m.id + '"' + (m.id === set.voiceModel ? ' selected' : '') + '>' + esc(m.label.replace(' (recommended)', '')) + '</option>'; }).join('');
     $('#setModel').innerHTML = FF.lookup.MODELS.map(function (m) { return '<option value="' + m.id + '"' + (m.id === set.model ? ' selected' : '') + '>' + esc(m.label) + '</option>'; }).join('');
     $('#setResult').textContent = '';
+    if ($('#setSpeech')) { var sp = speechPrefs(); $('#setSpeech').value = sp.engine; $('#setWhisper').value = sp.model; }
     dlg.showModal();
   }
   $('#btnSettings').addEventListener('click', openSettings);
@@ -452,7 +453,9 @@
   $('#keyState').addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openSettings(); } });
   $('#setCancel').addEventListener('click', function () { $('#settings').close(); });
   $('#setSave').addEventListener('click', function () {
-    FF.lookup.saveSettings({ apiKey: $('#setKey').value, model: $('#setModel').value, voiceModel: $('#setVoiceModel').value, expires: $('#setExpires').value }); $('#settings').close(); refreshKey(); toast('Settings saved.');
+    FF.lookup.saveSettings({ apiKey: $('#setKey').value, model: $('#setModel').value, voiceModel: $('#setVoiceModel').value, expires: $('#setExpires').value });
+    if ($('#setSpeech')) { try { localStorage.setItem(SPEECH_KEY, JSON.stringify({ engine: $('#setSpeech').value, model: $('#setWhisper').value })); } catch (e) { /* storage unavailable */ } }
+    $('#settings').close(); refreshKey(); toast('Settings saved.');
   });
   $('#setTest').addEventListener('click', function () {
     var out = $('#setResult'); out.textContent = 'Testing…';
@@ -926,6 +929,7 @@
   function vmToggle(on) {
     vm.on = on; vm.target = null; vm.answered = false; vm.secGlow = on; vm.noteMode = null; vm.rowCur = {}; vm.queue = Promise.resolve();
     if (vm.wipe) { vm.wipe = null; var wd = document.getElementById('wipe'); if (wd && wd.open) wd.close(); }   // switching Voice on or off never leaves the question hanging
+    if (!on) listenStop();                                                                                       // no voice mode, nothing to listen for
     if (!on) { document.querySelectorAll('.voice-wait,.voice-ok').forEach(function (e) { e.classList.remove('voice-wait', 'voice-ok'); }); $('#vdText').hidden = true; }
     vmRender(); vmMarkWait();
     if (on && FF.voiceBackend && FF.voiceBackend.warm) {   // ask permission now, so it never interrupts a conversation later
@@ -933,6 +937,53 @@
       FF.voiceBackend.warm().then(function () { vm.busy--; vmRender(); }, function (e) { vm.busy--; vmRender(); toast('Voice could not use Claude (' + ((e && (e.message || e.code)) || 'not allowed') + '). Only the simple on-page rules will work. Reload the page and tap Allow to try again.'); });
     }
   }
+  /* ---------- listening: the microphone as the source of the words (js/listen.js) ---------- */
+  var SPEECH_KEY = 'wr-fact-find-speech', lsn = null, lsnState = 'off';
+  function speechPrefs() {
+    var p = { engine: 'whisper', model: 'tiny.en' };
+    try { var sv = JSON.parse(localStorage.getItem(SPEECH_KEY) || '{}'); if (sv.engine) p.engine = sv.engine; if (sv.model) p.model = sv.model; } catch (e) { /* the defaults */ }
+    return p;
+  }
+  /* The line under the top bar: status says what is going on, heard is the last thing the microphone picked up. kind: '' | 'warn' | 'bad'. */
+  function listenShow(status, heard, kind) {
+    var el = $('#heard'); if (!el) return;
+    el.hidden = !status && !heard; el.className = 'heard' + (kind ? ' heard-' + kind : '');
+    $('#heardStatus').textContent = status || ''; $('#heardText').textContent = heard || '';
+  }
+  function listenRender() {
+    var b = $('#btnListen'); if (!b) return;
+    b.classList.toggle('on', lsnState === 'on'); b.classList.toggle('busy', lsnState === 'loading'); b.setAttribute('aria-pressed', lsnState === 'on' ? 'true' : 'false');
+    $('#lnLabel').textContent = lsnState === 'on' ? 'Listen: On' : lsnState === 'loading' ? 'Listen: Starting…' : 'Listen: Off';
+  }
+  function listenStart() {
+    if (!FF.listen || lsn) return;
+    if (!vm.on) vmToggle(true);
+    var p = speechPrefs(), status = '', kind = p.engine === 'chrome' ? 'warn' : '';
+    lsn = FF.listen.create({
+      engine: p.engine, model: p.model,
+      state: function (st, d) {
+        lsnState = st; listenRender();
+        if (st === 'loading') listenShow(p.engine === 'chrome' ? 'Starting Chrome speech recognition…' : 'Getting the speech model ready on this computer' + (d.percent != null ? ' (' + d.percent + '%, only the first time)' : '…'), '');
+        else if (st === 'on') {
+          status = p.engine === 'chrome' ? "Listening with Chrome's speech recognition. Google hears this audio: practice talk only, no clients."
+            : 'Listening' + (d.mic ? ' on ' + d.mic : '') + ' with Whisper ' + d.model + ' on the ' + d.where + '. The sound stays on this computer.';
+          listenShow(status, '', kind);
+        } else if (st === 'error') { lsn = null; lsnState = 'off'; listenRender(); listenShow(d.message, '', 'bad'); }
+        else listenShow('', '');
+      },
+      interim: function (t) { if (t) listenShow(status, '… ' + t, kind); },
+      text: function (t, m) { listenShow(status, 'Heard: "' + t + '"' + (m.took != null ? '  (' + m.took.toFixed(1) + ' s' + (m.waiting ? ', ' + m.waiting + ' waiting' : '') + ')' : ''), kind); vmHear(t); },
+      level: function (v) { var el = $('#lvl'); if (el) el.style.width = Math.min(100, Math.round(v * 900)) + '%'; }
+    });
+    lsn.start();
+  }
+  function listenStop() {
+    if (lsn) { var l = lsn; lsn = null; l.stop(); }
+    lsnState = 'off'; listenRender(); listenShow('', '');
+    var lv = $('#lvl'); if (lv) lv.style.width = '0';
+  }
+  if ($('#btnListen')) $('#btnListen').addEventListener('click', function () { if (lsn) listenStop(); else listenStart(); });
+
   /* Press and hold the Voice button to show a hidden test line. Just type or dictate; the words decide who is speaking ("client: ..." or "me: ..." force it). For testing only. */
   var vmHold = null, vmHeld = false;
   $('#btnVoice').addEventListener('pointerdown', function () { vmHeld = false; vmHold = setTimeout(function () { vmHeld = true; if (vm.on) { var t = $('#vdText'); t.hidden = !t.hidden; if (!t.hidden) t.focus(); } }, 800); });

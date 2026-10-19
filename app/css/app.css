@@ -252,3 +252,11 @@ dialog .f input, dialog .f select { padding-right: 9px; background: var(--surfac
 .f.s-calc input { padding-right: 74px; }
 .vm-stopnotes { background: var(--accent); color: var(--accent-ink); border: 0; border-radius: 4px; padding: 2px 9px; font: 500 11px var(--mono); letter-spacing: .04em; text-transform: uppercase; cursor: pointer; }
 .vm-stopnotes:hover { filter: brightness(1.08); }
+/* The line under the top bar while the microphone is on: what is being heard, and how loud. */
+.heard { flex: 1 0 100%; display: flex; align-items: center; gap: 10px; padding: 6px 10px; border-radius: 6px; background: var(--surface-2); border: 1px solid var(--line); font-size: 13px; color: var(--muted); min-width: 0; }
+.heard[hidden] { display: none; }
+.heard b { color: var(--ink); font-weight: 500; min-width: 0; overflow-wrap: anywhere; }
+.heard.heard-warn { background: var(--warn-soft); border-color: transparent; color: var(--warn); }
+.heard.heard-bad { background: var(--bad-soft); border-color: transparent; color: var(--bad); }
+.lvl { flex: none; width: 46px; height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; }
+.lvl i { display: block; height: 100%; width: 0; background: var(--brand); transition: width .08s linear; }

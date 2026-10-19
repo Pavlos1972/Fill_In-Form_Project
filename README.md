@@ -35,6 +35,16 @@ Open `app/index.html` in Microsoft Edge or Google Chrome. There is nothing to in
 The page uses the Wealth Revolution logo (`app/assets/logo.png`, shown in the top bar and as the browser-tab icon) and colours taken from it: the logo blue `#27a8e0` for lines, stripes and focus rings, a deeper blue of the same hue (`#0f6fa3`) for text, buttons and the open section, and the logo's charcoal grey for the advisor-only pages. Amber still means "to verify", green "confirmed", and the red glow is the box Claude is waiting for.
 All colours live as variables at the top of `app/css/app.css`, with a light and a dark set, so a colour is changed in one place. The PDF uses the same blue (see the top of `app/js/pdf.js`).
 
+## Listening (the microphone)
+
+**Listen: Off / On** in the top bar turns the microphone into the words voice mode reads (it switches Voice on too). Each line that is heard goes through exactly the same path as a typed line. A line under the top bar shows what is going on and the last thing heard, with a small meter for how loud the microphone is.
+
+Two speech sources, chosen in Settings:
+- **Whisper on this computer** (the default). The sound never leaves the computer. The speech model is downloaded once (about 40 MB for Tiny, more for Base and Small) from Hugging Face by way of the jsDelivr CDN, and kept in the browser (IndexedDB), so it needs the internet only the first time. It runs on the graphics chip when Chrome offers one (WebGPU) and on the processor otherwise. The line under the top bar shows how long each line took, so the speed on this laptop can be judged and a bigger model tried. Whisper works in whole lines, not word by word: a line is cut at a pause of about 0.8 s, so the words appear a moment after you stop speaking. What Whisper writes for plain noise ("[BLANK_AUDIO]", "Thank you.") is dropped.
+- **Chrome speech recognition**: instant and good for trying things, but Google hears the audio. The line under the top bar turns amber to say so. Practice talk only, never a client.
+
+The microphone only hears this computer's microphone, so the client's voice on a Teams call is not heard yet (capturing the call's sound is the next piece). Code: `js/listen.js` (the sound cutting and the two sources, tested in `tests/listen.test.js`); the button and the line are in `js/ui.js`.
+
 ## Updating the tax tables
 
 When a new tax year starts (1 March), add its brackets and rebates to `app/js/tax.js`, add that year's TaxTim results to `docs/`, and extend `tests/tax.test.js`. The tests must pass before the new tables are used.
