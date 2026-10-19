@@ -342,9 +342,12 @@
     };
   }
 
-  /* Chrome's own speech recognition: instant, but Google hears the audio. */
+  /* Chrome's own speech recognition: instant, but Google hears the audio.
+     Chrome ends its recognition after every long silence and this starts a new one, and on a file Chrome may ask for the microphone again each time one starts.
+     So the microphone is opened once, when Listen is switched on, and kept open until it is switched off: the one question is asked at the start. */
   function chromeEngine(o, h) {
-    var SR = typeof window !== 'undefined' && (window.SpeechRecognition || window.webkitSpeechRecognition), rec = null, wanted = false, fails = 0;
+    var SR = typeof window !== 'undefined' && (window.SpeechRecognition || window.webkitSpeechRecognition), rec = null, wanted = false, fails = 0, held = null;
+    function release() { if (held) { held.getTracks().forEach(function (t) { t.stop(); }); held = null; } }
     function begin() {
       rec = new SR(); rec.lang = 'en-ZA'; rec.continuous = true; rec.interimResults = true; rec.maxAlternatives = 1;
       rec.onresult = function (e) {
@@ -364,10 +367,12 @@
     return {
       start: function () {
         if (!SR) return Promise.reject(new Error("This browser has no speech recognition. Use Chrome, or choose Whisper in Settings."));
-        wanted = true; fails = 0; begin(); h.on({ mic: '', where: 'Chrome', model: '' });
-        return Promise.resolve();
+        var md = typeof navigator !== 'undefined' && navigator.mediaDevices;
+        wanted = true; fails = 0;
+        return (md && md.getUserMedia ? md.getUserMedia({ audio: true }).then(function (stream) { if (wanted) held = stream; else stream.getTracks().forEach(function (t) { t.stop(); }); }) : Promise.resolve())
+          .then(function () { if (!wanted) return; begin(); h.on({ mic: '', where: 'Chrome', model: '' }); });
       },
-      stop: function () { wanted = false; try { if (rec) rec.abort(); } catch (e) { /* not running */ } rec = null; }
+      stop: function () { wanted = false; try { if (rec) rec.abort(); } catch (e) { /* not running */ } rec = null; release(); }
     };
   }
 
