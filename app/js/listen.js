@@ -7,7 +7,21 @@
 })(typeof self !== 'undefined' ? self : this, function () {
   var RATE = 16000;                                                       // samples a second, the rate Whisper wants
   var LIB = 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1';
-  var MODELS = { 'tiny.en': 'onnx-community/whisper-tiny.en', 'base.en': 'onnx-community/whisper-base.en', 'small.en': 'onnx-community/whisper-small.en' };
+  /* The speech models on offer. Whisper reads the sound in blocks of 30 seconds whatever the length of the line, which is slow on a computer with no graphics chip;
+     Moonshine reads only as much sound as there is, so a short answer comes back in a fraction of the time. */
+  var MODELS = {
+    'moonshine-tiny': { repo: 'onnx-community/moonshine-tiny-ONNX', kind: 'moonshine', label: 'Moonshine Tiny', menu: 'Moonshine Tiny (fastest, recommended)' },
+    'moonshine-base': { repo: 'onnx-community/moonshine-base-ONNX', kind: 'moonshine', label: 'Moonshine Base', menu: 'Moonshine Base (more accurate, slower)' },
+    'tiny.en': { repo: 'onnx-community/whisper-tiny.en', kind: 'whisper', label: 'Whisper Tiny', menu: 'Whisper Tiny (slow without a graphics chip)' },
+    'base.en': { repo: 'onnx-community/whisper-base.en', kind: 'whisper', label: 'Whisper Base', menu: 'Whisper Base (more accurate, slower still)' },
+    'small.en': { repo: 'onnx-community/whisper-small.en', kind: 'whisper', label: 'Whisper Small', menu: 'Whisper Small (most accurate, slowest)' }
+  };
+  var DEFAULT_MODEL = 'moonshine-tiny';
+  /* How each kind of model is read: on the graphics chip, and on the processor (the forms tried in turn: 'q8' and 'q4' are smaller, 'fp32' is the full size). */
+  var KINDS = {
+    whisper: { gpu: { encoder_model: 'fp32', decoder_model_merged: 'q4' }, cpu: ['q8'] },
+    moonshine: { gpu: { encoder_model: 'fp32', decoder_model_merged: 'q4' }, cpu: [{ encoder_model: 'fp32', decoder_model_merged: 'q8' }, { encoder_model: 'fp32', decoder_model_merged: 'q4' }, 'fp32'] }
+  };
 
   /* ---------- sound helpers (they need no browser, so they are tested) ---------- */
   function resample(x, from, to) {                                        // straight-line resampling
@@ -35,11 +49,11 @@
     for (i = 0; i < parts.length; i++) { o.set(parts[i], p); p += parts[i].length; }
     return o;
   }
-  /* Cuts a stream of sound into spoken lines: a line starts when the sound rises clearly above the room's noise and ends after a pause (0.8 s),
+  /* Cuts a stream of sound into spoken lines: a line starts when the sound rises clearly above the room's noise and ends after a pause (0.6 s),
      or after 14 s so a long speech is still handled. push() takes sound and returns the finished lines; flush() returns what is being said now. */
   function segmenter(o) {
     o = o || {};
-    var FR = Math.round(RATE * 0.03), END = Math.round((o.endMs || 800) / 30), MIN = Math.round((o.minMs || 240) / 30), MAX = Math.round((o.maxMs || 14000) / 30), PRE = Math.round((o.preMs || 300) / 30);
+    var FR = Math.round(RATE * 0.03), END = Math.round((o.endMs || 600) / 30), MIN = Math.round((o.minMs || 240) / 30), MAX = Math.round((o.maxMs || 14000) / 30), PRE = Math.round((o.preMs || 300) / 30);
     var rest = new Float32Array(0), pre = [], cur = null, quiet = 0, run = 0, spoken = 0, floor = 0.003, last = 0;
     function line() { return cur && spoken >= MIN ? join(cur.slice(0, Math.min(cur.length, cur.length - quiet + 7))) : null; }   // the speech, with 0.2 s of the pause; a blip shorter than a short word is not a line
     function frame(fr) {
@@ -187,41 +201,58 @@
     }).then(function (pipe) { return { pipe: pipe, close: function () { /* nothing to stop */ } }; });
   }
   var loaded = {};                                                         // model + device -> the loading speech model, so it is loaded once
-  var GPU_FLAG = 'wr-fact-find-speech-nogpu';                              // set once the graphics chip has failed on this computer: the processor is used from then on
-  function gpuBlocked() { try { return localStorage.getItem(GPU_FLAG) === '1'; } catch (e) { return false; } }
-  function blockGpu() { try { localStorage.setItem(GPU_FLAG, '1'); } catch (e) { /* storage unavailable */ } }
+  var GPU_FLAG = 'wr-fact-find-speech-nogpu';                              // set once the graphics chip has failed on this computer for a kind of model: the processor is used from then on
+  function gpuBlocked(kind) { try { return localStorage.getItem(GPU_FLAG + '-' + kind) === '1'; } catch (e) { return false; } }
+  function blockGpu(kind) { try { localStorage.setItem(GPU_FLAG + '-' + kind, '1'); } catch (e) { /* storage unavailable */ } }
   /* Chrome may offer WebGPU and still have no graphics adapter to run it on (this laptop's): ask for the adapter before choosing. */
   function gpuUsable() {
     if (typeof navigator === 'undefined' || !navigator.gpu || !navigator.gpu.requestAdapter) return Promise.resolve(false);
     return navigator.gpu.requestAdapter().then(function (a) { return !!a; }, function () { return false; });
   }
+  function isNetwork(err) { return /fetch|network|offline|ERR_|internet/i.test(String(err && err.message || err)); }
   function modelError(err) {
     var m = String(err && err.message || err);
-    if (/fetch|network|offline|404|403|failed to load/i.test(m)) return 'Could not download the speech model (' + m + '). It needs the internet the first time.';
+    if (isNetwork(err) || /404|403/.test(m)) return 'Could not download the speech model (' + m + '). It needs the internet the first time.';
     return 'Could not start the speech model (' + m + ').';
   }
-  /* -> Promise of { pipe, where }. The graphics chip is used when there is one, otherwise the processor. report(percent) says how far the one-time download is.
-     A failed attempt on the graphics chip is followed at once by one on the processor, in a new worker. lib is the speech library's address (changed only by tests). */
-  function loadWhisper(model, report, noGpu, lib) {
+  /* -> Promise of { pipe, where, model, why }. The graphics chip is used when there is one, otherwise the processor. report(percent) says how far the one-time download is.
+     A failed attempt on the graphics chip is followed at once by one on the processor, in a new worker. A model that cannot start at all is replaced by Whisper Tiny.
+     lib is the speech library's address (changed only by tests). */
+  function loadSpeech(model, report, noGpu, lib) {
     var key = model + (noGpu ? ':cpu' : '') + (lib || '');
     if (loaded[key]) return loaded[key];
-    var seen = {}, store = modelStore(), url = lib || LIB, id = MODELS[model];
+    var seen = {}, store = modelStore(), url = lib || LIB, m = MODELS[model] || MODELS[DEFAULT_MODEL], kind = KINDS[m.kind];
     function progress(e) {
       if (e.status !== 'progress' || !e.total) return;
       seen[e.file] = [e.loaded, e.total];
       var l = 0, t = 0; Object.keys(seen).forEach(function (k) { l += seen[k][0]; t += seen[k][1]; });
       report(Math.round(100 * l / t));
     }
-    function processor() {
-      var opts = { device: 'wasm', dtype: 'q8' };
-      return startWorker(url, id, opts, progress, store).then(function (e) { return { pipe: e.pipe, where: 'processor' }; }, function (err) {
-        return startOnPage(url, id, opts, progress, store).then(function (e) { return { pipe: e.pipe, where: 'processor' }; }, function () { throw err; });
-      });
+    /* In a worker; when that cannot be done, on the page itself (which works, but is busy while a line is read). */
+    function start(repo, opts) {
+      return startWorker(url, repo, opts, progress, store).catch(function (err) { return startOnPage(url, repo, opts, progress, store).catch(function () { throw err; }); });
     }
-    loaded[key] = (noGpu || gpuBlocked() ? Promise.resolve(false) : gpuUsable()).then(function (gpu) {
-      if (!gpu) return processor();
-      return startWorker(url, id, { device: 'webgpu', dtype: { encoder_model: 'fp32', decoder_model_merged: 'q4' } }, progress, store).then(function (e) { return { pipe: e.pipe, where: 'graphics chip' }; }, function () {
-        blockGpu(); return processor();
+    /* The processor: the ways of reading the model are tried in turn until one starts (not every smaller form is published for every model). */
+    function processor(mm, kk) {
+      var ladder = kk.cpu.slice();
+      function next() {
+        return start(mm.repo, { device: 'wasm', dtype: ladder.shift() }).then(function (e) { return { pipe: e.pipe, where: 'processor' }; }, function (err) {
+          if (!ladder.length || isNetwork(err)) throw err;
+          return next();
+        });
+      }
+      return next();
+    }
+    function chosen(mm, kk, gpu) {
+      if (!gpu) return processor(mm, kk);
+      return start(mm.repo, { device: 'webgpu', dtype: kk.gpu }).then(function (e) { return { pipe: e.pipe, where: 'graphics chip' }; }, function () { blockGpu(mm.kind); return processor(mm, kk); });
+    }
+    loaded[key] = (noGpu || gpuBlocked(m.kind) ? Promise.resolve(false) : gpuUsable()).then(function (gpu) {
+      var why = gpu ? '' : noGpu || gpuBlocked(m.kind) ? 'the graphics chip did not work earlier' : 'Chrome offers no graphics chip here, so this is slower';
+      return chosen(m, kind, gpu).then(function (t) { t.model = m.label; t.why = t.where === 'processor' ? why : ''; return t; }, function (err) {
+        if (m.kind === 'whisper' || isNetwork(err)) throw err;
+        var w = MODELS['tiny.en'];                                                  // the model could not start: Whisper Tiny instead, and the page says so
+        return chosen(w, KINDS.whisper, gpu).then(function (t) { t.model = w.label + ' (' + m.label + ' could not start: ' + String(err && err.message || err).slice(0, 120) + ')'; t.why = t.where === 'processor' ? why : ''; return t; });
       });
     });
     loaded[key].catch(function () { delete loaded[key]; });
@@ -249,13 +280,15 @@
     });
   }
 
-  /* Whisper on this computer. h: { text(line, meta), level(0..1), note(message), error(message), progress(percent), on(info) } */
+  function label(id) { return (MODELS[id] || MODELS[DEFAULT_MODEL]).label; }
+  /* The speech model on this computer. h: { text(line, meta), level(0..1), note(message), error(message), progress(percent), on(info) } */
   function whisperEngine(o, h) {
-    var mic = null, seg = segmenter(), queue = [], busy = false, alive = false, tr = null, noGpu = false, load = o.loader || loadWhisper, peak = 0, watch = null;
+    var mic = null, seg = segmenter(), queue = [], busy = false, alive = false, tr = null, noGpu = false, load = o.loader || loadSpeech, peak = 0, watch = null;
     function pump() {
       if (busy || !queue.length || !tr) return;
       busy = true;
       var u = queue.shift(), t0 = Date.now(), cur = tr, secs = u.length / RATE, pk = peakOf(u);
+      if (h.reading) h.reading(secs);
       Promise.resolve(cur.pipe(normalize(u), { max_new_tokens: Math.min(160, Math.round(secs * 8) + 16), no_repeat_ngram_size: 5 })).then(function (out) {
         if (!alive) return;
         var raw = out && out.text, text = cleanTranscript(raw);
@@ -263,8 +296,8 @@
         else if (isLoop(raw) && h.note) h.note('That sounded like noise, not speech, so it was ignored (the loudest sound was ' + Math.round(pk * 100) + '% of full level' + (pk < 0.05 ? ': the microphone is very quiet, so turn its input volume up in Windows, Settings, System, Sound, Input, or move closer' : '') + ').');
       }, function (err) {
         if (cur.where === 'graphics chip' && !noGpu && alive) {                                  // the graphics chip did not cope: carry on with the processor
-          noGpu = true; blockGpu(); queue.unshift(u); h.progress(null);
-          return load(o.model, h.progress, true, o.lib).then(function (t) { tr = t; h.on({ mic: mic && mic.label, where: t.where, model: o.model }); });
+          noGpu = true; blockGpu((MODELS[o.model] || MODELS[DEFAULT_MODEL]).kind); queue.unshift(u); h.progress(null);
+          return load(o.model, h.progress, true, o.lib).then(function (t) { tr = t; h.on({ mic: mic && mic.label, where: t.where, model: t.model || label(o.model), why: t.why }); });
         }
         throw err;
       }).then(function () { busy = false; pump(); }, function (err) { busy = false; h.error('The speech model stopped: ' + (err && err.message || err)); });
@@ -281,7 +314,7 @@
         }).then(function (m) {
           mic = m;
           watch = setTimeout(function () { if (alive && mic && peak < 0.0008 && h.note) h.note('No sound is reaching Chrome from "' + (m.label || 'the microphone') + '". Check that it is not muted and that it is the microphone you are using (Windows: Settings, System, Sound, Input).'); }, 7000);
-          return load(o.model, h.progress, false, o.lib).then(function (t) { if (!alive) return; tr = t; h.on({ mic: m.label, where: t.where, model: o.model }); }, function (err) {
+          return load(o.model, h.progress, false, o.lib).then(function (t) { if (!alive) return; tr = t; h.on({ mic: m.label, where: t.where, model: t.model || label(o.model), why: t.why }); }, function (err) {
             m.close(); mic = null; throw new Error(modelError(err));
           });
         });
@@ -320,7 +353,7 @@
     };
   }
 
-  /* o: { engine: 'whisper' | 'chrome', model, text(line, meta), interim(text), level(0..1), note(message), state(name, detail) } with name off | loading | on | error. */
+  /* o: { engine: 'whisper' | 'chrome', model, text(line, meta), interim(text), reading(seconds of speech), level(0..1), note(message), state(name, detail) } with name off | loading | on | error. */
   function create(o) {
     var eng = null, st = 'off';
     function set(s, d) { st = s; if (o.state) o.state(s, d || {}); }
@@ -330,6 +363,7 @@
       interim: function (t) { if (o.interim && st === 'on') o.interim(t); },
       level: function (v) { if (o.level) o.level(v); },
       note: function (msg) { if (o.note) o.note(msg); },
+      reading: function (secs) { if (o.reading && st === 'on') o.reading(secs); },
       progress: function (pct) { if (st === 'loading' || st === 'on') set('loading', { percent: pct }); },
       on: function (info) { set('on', info); },
       error: fail
@@ -347,5 +381,5 @@
     };
   }
 
-  return { resample: resample, segmenter: segmenter, cleanTranscript: cleanTranscript, isLoop: isLoop, normalize: normalize, meter: meter, create: create, MODELS: MODELS, RATE: RATE };
+  return { resample: resample, segmenter: segmenter, cleanTranscript: cleanTranscript, isLoop: isLoop, normalize: normalize, meter: meter, create: create, MODELS: MODELS, DEFAULT_MODEL: DEFAULT_MODEL, RATE: RATE };
 });

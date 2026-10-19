@@ -12,7 +12,7 @@
   var MODELS = [
     { id: 'claude-opus-5-5', label: 'Claude Opus 5.5 (recommended)' },
     { id: 'claude-sonnet-5-5', label: 'Claude Sonnet 5.5 (lower cost)' },
-    { id: 'claude-haiku-5-5', label: 'Claude Haiku 5.5 (lowest cost)' }
+    { id: 'claude-haiku-5-5', label: 'Claude Haiku 5.5 (fastest, lowest cost)' }
   ];
   var SETTINGS_KEY = 'wr-fact-find-settings';
 

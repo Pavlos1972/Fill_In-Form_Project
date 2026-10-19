@@ -13,6 +13,7 @@
     'You are the listening brain of a Fact Find form. A financial adviser is on a call with a client and the form fills in live while they talk.',
     'You receive JSON: "position" (where the adviser is on the form now), "sections", "fields" (every box of the whole form, with its section), "filled" (what is already in the boxes of the form),',
     '"lists" (every list of rows in the form, with its section, its columns and the rows already there), "recent" (the last few lines) and "newest" (the line just heard).',
+    'The JSON can arrive in two parts one after the other (the first holds "sections" and "fields"): read the two together as one.',
     'When "note" is present it says what the page has already done for the newest line (for example that it already moved to a section): do not do that again, do the rest of the line.',
     'Nobody tells you who is speaking. The adviser and the client talk fluidly: ONE line can hold the adviser asking, the client answering, a correction and a new fact.',
     'Read the whole line and work out what was ASKED, what was STATED and what was CHANGED, however loosely it was worded, then say what to do on the form.',
@@ -177,7 +178,14 @@
     if (sh.list.length) body.private_values = sh.list;
     var vault = { _line: String(text == null ? '' : text), _sent: sh.text, _held: ctx.privateHeld || {} };                                      // the line itself (to check the words in front of an email marker), what was sent (to recover a number that was sent unshielded) and the values already in the private boxes waiting to be confirmed (to check a read-back against; never sent)
     Object.keys(sh.vault).forEach(function (k) { vault[k] = sh.vault[k]; });
-    return { req: { model: model, max_tokens: 900, system: SYSTEM, messages: [{ role: 'user', content: JSON.stringify(body) }] }, vault: vault };
+    var rest = {}; Object.keys(body).forEach(function (k) { if (k !== 'sections' && k !== 'fields') rest[k] = body[k]; });
+    return { req: { model: model, max_tokens: 900, system: SYSTEM, messages: [{ role: 'user', content: JSON.stringify(body) }] }, vault: vault,
+      parts: [JSON.stringify({ sections: body.sections, fields: body.fields }), JSON.stringify(rest)] };        // the same JSON in two pieces: what never changes during a conversation, and what does
+  }
+  /* The request as sent with a key. The instructions and the form's boxes never change during a conversation, so Anthropic is asked to remember them
+     for a few minutes: each line is then answered sooner and for less. (A host that reaches Claude without a key gets the plain request.) */
+  function cachedRequest(prep) {
+    return Object.assign({}, prep.req, { messages: [{ role: 'user', content: [{ type: 'text', text: prep.parts[0], cache_control: { type: 'ephemeral' } }, { type: 'text', text: prep.parts[1] }] }] });
   }
   function buildRequest(idx, ctx, who, text, model) { return prepare(idx, ctx, who, text, model).req; }
 
@@ -303,7 +311,7 @@
   /* opts: { apiKey | ask, model, idx, who, text, ctx, fetchImpl } -> Promise of the normalized answer. */
   function decide(opts) {
     var prep = prepare(opts.idx, opts.ctx || {}, opts.who, opts.text, opts.model);
-    return callModel(opts, prep.req).then(function (text) { return normalize(extractJson(text), opts.idx, opts.who, prep.vault); });
+    return callModel(opts, opts.ask ? prep.req : cachedRequest(prep)).then(function (text) { return normalize(extractJson(text), opts.idx, opts.who, prep.vault); });
   }
 
   /* File notes in point form. opts: { apiKey | ask, model, text, topic, fetchImpl } -> Promise of an array of short points (maybe empty). */
@@ -321,5 +329,5 @@
     });
   }
 
-  return { decide: decide, points: points, prepare: prepare, buildRequest: buildRequest, normalize: normalize, extractJson: extractJson, scrub: scrub, shield: shield, SYSTEM: SYSTEM };
+  return { decide: decide, points: points, prepare: prepare, buildRequest: buildRequest, cachedRequest: cachedRequest, normalize: normalize, extractJson: extractJson, scrub: scrub, shield: shield, SYSTEM: SYSTEM };
 });
