@@ -14,6 +14,14 @@
     { id: 'claude-sonnet-5-5', label: 'Claude Sonnet 5.5 (lower cost)' },
     { id: 'claude-haiku-5-5', label: 'Claude Haiku 5.5 (fastest, lowest cost)' }
   ];
+  /* What the voice model list shows: the choice for reading a conversation is Sonnet (it follows the instructions about read-backs, undo and fragments; Haiku invented answers and let its own thinking leak into
+     the reply in the first recorded conversation). The look-up list above keeps its own recommendation. */
+  var VOICE_MODELS = [
+    { id: 'claude-sonnet-5-5', label: 'Claude Sonnet 5.5 (recommended)' },
+    { id: 'claude-opus-5-5', label: 'Claude Opus 5.5 (most capable, highest cost)' },
+    { id: 'claude-haiku-5-5', label: 'Claude Haiku 5.5 (fastest, lowest cost)' }
+  ];
+  var VOICE_SETTING = 2;   // a voice model saved before this version is replaced once by the default: it was picked when Haiku was on offer without a recommendation
   var SETTINGS_KEY = 'wr-fact-find-settings';
 
   /* What Anthropic charges, in US dollars per million tokens (platform.claude.com/docs/en/about-claude/pricing, checked October 2026), and per web search.
@@ -43,10 +51,10 @@
   }
 
   function getSettings() {
-    try { var s = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}'); return { apiKey: s.apiKey || '', model: s.model || DEFAULT_MODEL, voiceModel: s.voiceModel || DEFAULT_VOICE_MODEL, expires: s.expires || '' }; }
+    try { var s = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}'); return { apiKey: s.apiKey || '', model: s.model || DEFAULT_MODEL, voiceModel: s.voiceSet === VOICE_SETTING && s.voiceModel ? s.voiceModel : DEFAULT_VOICE_MODEL, expires: s.expires || '' }; }
     catch (e) { return { apiKey: '', model: DEFAULT_MODEL, voiceModel: DEFAULT_VOICE_MODEL, expires: '' }; }
   }
-  function saveSettings(s) { try { localStorage.setItem(SETTINGS_KEY, JSON.stringify({ apiKey: String(s.apiKey || '').trim(), model: s.model || DEFAULT_MODEL, voiceModel: s.voiceModel || DEFAULT_VOICE_MODEL, expires: String(s.expires || '').trim() })); return true; } catch (e) { return false; } }
+  function saveSettings(s) { try { localStorage.setItem(SETTINGS_KEY, JSON.stringify({ apiKey: String(s.apiKey || '').trim(), model: s.model || DEFAULT_MODEL, voiceModel: s.voiceModel || DEFAULT_VOICE_MODEL, voiceSet: VOICE_SETTING, expires: String(s.expires || '').trim() })); return true; } catch (e) { return false; } }
 
   /* How the top bar describes the key: nothing without a key, then days left until the date typed in Settings. */
   function keyStatus(set, now) {
@@ -147,5 +155,5 @@
       return d || 'Could not identify this company.';
     }, function (e) { throw new Error('Could not reach Claude (' + ((e && (e.message || e.code)) || 'no connection') + ').'); });
   }
-  return { DEFAULT_MODEL: DEFAULT_MODEL, DEFAULT_VOICE_MODEL: DEFAULT_VOICE_MODEL, MODELS: MODELS, PRICES: PRICES, costOf: costOf, addUsage: addUsage, getSettings: getSettings, saveSettings: saveSettings, keyStatus: keyStatus, buildRequest: buildRequest, promptFor: promptFor, extractText: extractText, run: run, runAsk: runAsk, ENDPOINT: ENDPOINT };
+  return { DEFAULT_MODEL: DEFAULT_MODEL, DEFAULT_VOICE_MODEL: DEFAULT_VOICE_MODEL, MODELS: MODELS, VOICE_MODELS: VOICE_MODELS, PRICES: PRICES, costOf: costOf, addUsage: addUsage, getSettings: getSettings, saveSettings: saveSettings, keyStatus: keyStatus, buildRequest: buildRequest, promptFor: promptFor, extractText: extractText, run: run, runAsk: runAsk, ENDPOINT: ENDPOINT };
 });
