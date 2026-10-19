@@ -244,3 +244,29 @@ test('Claude can hand back the points for the notes box; a held-back number is p
   assert.strictEqual(withNumber.actions[0].text, '- Spouse cell 082 555 0148, calls in the morning');
   assert.strictEqual((await run([{ do: 'note', text: '   ' }, { do: 'note' }, { do: 'note', text: 5 }])).kind, 'none');
 });
+
+test('with a key the unchanging part of the request (instructions, sections, boxes) is marked to be remembered, and the two pieces say the same as the plain request', async () => {
+  const sent = [];
+  const fetchImpl = (url, o) => { sent.push(JSON.parse(o.body)); return reply({ actions: [{ do: 'fill', field: 'consent', value: 'Yes' }] })(); };
+  const ctx = { sectionId: 'info', recent: [{ who: 'unclear', text: 'hello' }], filled: {}, filledPrivate: [], listRows: () => [] };
+  const prep = AI.prepare(idx, ctx, 'auto', 'My ID is 8104120195088. Is that fine? Yes, I am happy for you to record this', 'm');
+  const r = await AI.decide({ apiKey: 'k', fetchImpl, idx, who: 'auto', text: 'My ID is 8104120195088. Is that fine? Yes, I am happy for you to record this', ctx, model: 'm' });
+  assert.strictEqual(r.kind, 'actions');
+  const blocks = sent[0].messages[0].content;
+  assert.strictEqual(blocks.length, 2);
+  assert.deepStrictEqual(blocks[0].cache_control, { type: 'ephemeral' });
+  assert.ok(!('cache_control' in blocks[1]));
+  const a = JSON.parse(blocks[0].text), b = JSON.parse(blocks[1].text);
+  assert.deepStrictEqual(Object.assign({}, a, b), JSON.parse(prep.req.messages[0].content));      // nothing lost, nothing added
+  assert.ok(a.fields.length > 100 && a.sections.length > 5 && !('position' in a));
+  assert.ok(b.newest && b.position && !('fields' in b));
+  assert.ok(!/8104120195088/.test(JSON.stringify(sent[0])), 'the ID number is never sent');
+  assert.strictEqual(sent[0].system, AI.SYSTEM);
+  assert.ok(/two parts/.test(AI.SYSTEM));
+});
+test('a host without a key (the practice page) gets the plain request as one piece of text', async () => {
+  let got = null;
+  await AI.decide({ ask: (system, user) => { got = [system, user]; return Promise.resolve(JSON.stringify({ actions: [] })); }, idx, who: 'auto', text: 'okay', ctx: { sectionId: 'info', recent: [], listRows: () => [] }, model: 'm' });
+  assert.strictEqual(typeof got[1], 'string');
+  assert.ok(JSON.parse(got[1]).fields.length > 100);
+});

@@ -445,7 +445,7 @@
     $('#setVoiceModel').innerHTML = FF.lookup.MODELS.map(function (m) { return '<option value="' + m.id + '"' + (m.id === set.voiceModel ? ' selected' : '') + '>' + esc(m.label.replace(' (recommended)', '')) + '</option>'; }).join('');
     $('#setModel').innerHTML = FF.lookup.MODELS.map(function (m) { return '<option value="' + m.id + '"' + (m.id === set.model ? ' selected' : '') + '>' + esc(m.label) + '</option>'; }).join('');
     $('#setResult').textContent = '';
-    if ($('#setSpeech')) { var sp = speechPrefs(); $('#setSpeech').value = sp.engine; $('#setWhisper').value = sp.model; }
+    if ($('#setSpeech')) { var sp = speechPrefs(); speechChoices(); $('#setSpeech').value = sp.engine; $('#setWhisper').value = sp.model; }
     dlg.showModal();
   }
   $('#btnSettings').addEventListener('click', openSettings);
@@ -938,11 +938,19 @@
     }
   }
   /* ---------- listening: the microphone as the source of the words (js/listen.js) ---------- */
-  var SPEECH_KEY = 'wr-fact-find-speech', lsn = null, lsnState = 'off';
+  var SPEECH_KEY = 'wr-fact-find-speech-2', lsn = null, lsnState = 'off';
   function speechPrefs() {
-    var p = { engine: 'whisper', model: 'tiny.en' };
+    var p = { engine: 'whisper', model: FF.listen ? FF.listen.DEFAULT_MODEL : 'moonshine-tiny' };
     try { var sv = JSON.parse(localStorage.getItem(SPEECH_KEY) || '{}'); if (sv.engine) p.engine = sv.engine; if (sv.model) p.model = sv.model; } catch (e) { /* the defaults */ }
     return p;
+  }
+  /* The speech models on offer come from js/listen.js, so a new one needs no change to index.html. */
+  function speechChoices() {
+    var sel = $('#setWhisper'), L = FF.listen, lab = sel && sel.closest('.f'), on = $('#setSpeech').options[0];
+    if (!sel || !L) return;
+    sel.innerHTML = Object.keys(L.MODELS).map(function (id) { return '<option value="' + id + '">' + esc(L.MODELS[id].menu) + '</option>'; }).join('');
+    lab = lab && lab.querySelector('.l span'); if (lab) lab.textContent = 'Speech model';
+    if (on) on.textContent = 'On this computer (private)';
   }
   /* The line under the top bar: status says what is going on, heard is the last thing the microphone picked up. kind: '' | 'warn' | 'bad'. */
   function listenShow(status, heard, kind) {
@@ -958,7 +966,7 @@
   function listenStart() {
     if (!FF.listen || lsn) return;
     if (!vm.on) vmToggle(true);
-    var p = speechPrefs(), status = '', kind = p.engine === 'chrome' ? 'warn' : '';
+    var p = speechPrefs(), status = '', shown = '', kind = p.engine === 'chrome' ? 'warn' : '';
     lsn = FF.listen.create({
       engine: p.engine, model: p.model,
       state: function (st, d) {
@@ -966,13 +974,18 @@
         if (st === 'loading') { status = p.engine === 'chrome' ? 'Starting Chrome speech recognition…' : 'Getting the speech model ready on this computer' + (d.percent != null ? ' (' + d.percent + '%, only the first time)' : '…'); listenShow(status, ''); }
         else if (st === 'on') {
           status = p.engine === 'chrome' ? "Listening with Chrome's speech recognition. Google hears this audio: practice talk only, no clients."
-            : 'Listening' + (d.mic ? ' on ' + d.mic : '') + ' with Whisper ' + d.model + ' on the ' + d.where + '. The sound stays on this computer.';
+            : 'Listening' + (d.mic ? ' on ' + d.mic : '') + ' with ' + d.model + ' on the ' + d.where + (d.why ? ' (' + d.why + ')' : '') + '. The sound stays on this computer.';
           listenShow(status, '', kind);
         } else if (st === 'error') { lsn = null; lsnState = 'off'; listenRender(); listenShow(d.message, '', 'bad'); var lv0 = $('#lvl'); if (lv0) lv0.style.width = '0'; }
         else listenShow('', '');
       },
       interim: function (t) { if (t) listenShow(status, '… ' + t, kind); },
-      text: function (t, m) { listenShow(status, 'Heard: "' + t + '"' + (m.took != null ? '  (' + m.audio.toFixed(1) + ' s of speech read in ' + m.took.toFixed(1) + ' s' + (m.waiting ? ', ' + m.waiting + ' waiting' : '') + ')' : ''), kind); vmHear(t); },
+      text: function (t, m) {
+        var line = 'Heard: "' + t + '"' + (m.took != null ? '  (' + m.audio.toFixed(1) + ' s of speech read in ' + m.took.toFixed(1) + ' s' + (m.waiting ? ', ' + m.waiting + ' waiting' : '') + ')' : ''), t1 = Date.now();
+        shown = line; listenShow(status, line, kind);
+        vmHear(t).then(function () { if (shown === line) listenShow(status, line + ' · form updated in ' + ((Date.now() - t1) / 1000).toFixed(1) + ' s', kind); });       // how long the form took after the words were known
+      },
+      reading: function () { shown = ''; listenShow(status, '… reading what was just said', kind); },
       note: function (msg) { listenShow(status, msg, 'warn'); },
       level: function (v) { var el = $('#lvl'); if (el) el.style.width = Math.round(v * 100) + '%'; }
     });
