@@ -972,9 +972,9 @@
         else listenShow('', '');
       },
       interim: function (t) { if (t) listenShow(status, '… ' + t, kind); },
-      text: function (t, m) { listenShow(status, 'Heard: "' + t + '"' + (m.took != null ? '  (' + m.took.toFixed(1) + ' s' + (m.waiting ? ', ' + m.waiting + ' waiting' : '') + ')' : ''), kind); vmHear(t); },
+      text: function (t, m) { listenShow(status, 'Heard: "' + t + '"' + (m.took != null ? '  (' + m.audio.toFixed(1) + ' s of speech read in ' + m.took.toFixed(1) + ' s' + (m.waiting ? ', ' + m.waiting + ' waiting' : '') + ')' : ''), kind); vmHear(t); },
       note: function (msg) { listenShow(status, msg, 'warn'); },
-      level: function (v) { var el = $('#lvl'); if (el) el.style.width = Math.min(100, Math.round(v * 900)) + '%'; }
+      level: function (v) { var el = $('#lvl'); if (el) el.style.width = Math.round(v * 100) + '%'; }
     });
     lsn.start();
   }
