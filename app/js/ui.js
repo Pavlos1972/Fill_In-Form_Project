@@ -577,6 +577,7 @@
     if (c || !side) return c;
     var st = document.createElement('style');
     st.textContent = '#convo{border-color:var(--brand);position:sticky;top:12px;z-index:5;max-height:calc(100vh - 24px);display:flex;flex-direction:column}#convo h3{flex:none}' +
+      '#convo .cv-head{display:flex;align-items:baseline;justify-content:space-between;gap:8px;flex:none;margin-bottom:6px}#convo .cv-head h3{margin-bottom:0}#convo .cv-head button{font-size:12px}' +
       '#convo .cv-share{flex:none;font-size:12px;color:var(--muted);margin:-4px 0 6px}' +
       '#cvBox{flex:1 1 300px;min-height:120px;overflow-y:auto;border:1px solid var(--line);background:var(--surface);border-radius:6px;padding:8px 10px}' +
       '#cvBox .cv-empty{color:var(--muted);font-size:13px}#cvBox .cv-live{font-size:15px;font-style:italic;color:var(--muted);overflow-wrap:anywhere;padding-top:6px}' +
@@ -587,7 +588,7 @@
       '.cv-did{font-size:12px;color:var(--muted);margin-top:2px}';
     document.head.appendChild(st);
     c = document.createElement('div'); c.className = 'card'; c.id = 'convo';
-    c.innerHTML = '<h3>Live Client Conversation</h3><div class="cv-share" id="cvShare" hidden>Claude sees ID, tax and phone numbers</div><div id="cvBox" role="log" aria-live="polite" tabindex="0"></div>';
+    c.innerHTML = '<div class="cv-head"><h3>Live Client Conversation</h3><button type="button" class="link-btn" id="cvSave" title="Saves a file of what was heard, what was sent to Claude, what Claude answered and what the form did, so a problem can be found. Numbers and email addresses are hidden in it unless Claude is allowed to see them.">Save log</button></div><div class="cv-share" id="cvShare" hidden>Claude sees ID, tax and phone numbers</div><div id="cvBox" role="log" aria-live="polite" tabindex="0"></div>';
     var chk = document.getElementById('checks'), under = chk && chk.closest('.card');
     if (under) under.insertAdjacentElement('afterend', c); else side.insertBefore(c, side.firstChild);
     return c;
@@ -614,6 +615,40 @@
     box.innerHTML = html;
     if (stick) box.scrollTop = box.scrollHeight;
   }
+  /* The voice log: for each line, what was heard, what Claude was shown and answered, and what the page did. A fetch that notes the request and the reply with the line being dealt with. */
+  function loggedFetch(entry) {
+    return function (url, init) {
+      var rec = { at: new Date().toISOString() };
+      try {
+        var req = JSON.parse(init.body), parts = req.messages[0].content;
+        rec.model = req.model;
+        rec.sent = req.max_tokens === 0 ? 'warm-up' : JSON.parse(Array.isArray(parts) ? parts[1].text : parts);     // everything but the unchanging instructions and form map
+      } catch (e) { rec.sent = String(init && init.body).slice(0, 2000); }
+      (entry.ai = entry.ai || []).push(rec);
+      return meteredFetch(url, init).then(function (res) {
+        rec.status = res.status;
+        res.clone().json().then(function (b) { rec.reply = (b.content || []).filter(function (x) { return x.type === 'text'; }).map(function (x) { return x.text; }).join(' '); if (b.error) rec.error = b.error.message; }, function () { /* not JSON */ });
+        return res;
+      }, function (err) { rec.error = String(err && err.message || err); throw err; });
+    };
+  }
+  function convoLog() {
+    var set = FF.lookup.getSettings(), hide = function (t) { return vmShareOn() || !VAI ? t : VAI.scrub(t); };
+    return {
+      saved: new Date().toISOString(), app: { version: schema.version, released: schema.released },
+      settings: { claude_model: set.voiceModel, fill_at_once: vmQuickOn(), claude_sees_numbers: vmShareOn(), speech: speechPrefs() },
+      lines: cv.rows.map(function (e) {
+        return { at: new Date(e.at).toISOString(), who: e.who, heard: hide(e.shown || e.text), read_as: e.text !== e.shown ? hide(e.text) : undefined, page_did: e.did.map(hide), filled_at_once: e.quick ? true : undefined, taken_back: e.changed || undefined, claude_ms: e.claudeMs, speech: e.m || undefined, claude: e.ai };
+      })
+    };
+  }
+  function convoSave() {
+    var d = new Date(), pad = function (n) { return (n < 10 ? '0' : '') + n; }, stamp = d.getFullYear() + pad(d.getMonth() + 1) + pad(d.getDate()) + '-' + pad(d.getHours()) + pad(d.getMinutes()),
+      blob = new Blob([JSON.stringify(convoLog(), null, 2)], { type: 'application/json' });
+    writeFile(blob, 'fact-find-voice-log-' + stamp + '.json', 'Voice log', '.json', null, 'fact-find-voice-log', null)
+      .then(function () { toast('Voice log saved.'); }).catch(function (e) { if (e && e.name !== 'AbortError') toast('Could not save the log: ' + e.message); });
+  }
+  document.addEventListener('click', function (e) { if (e.target.closest('#cvSave')) { e.preventDefault(); convoSave(); } });
   /* A box in a list is named list:row:column (kids:0:dob). "count:kids" is the Add button, waiting for how many there are. */
   function vmCellRef(id) { var m = /^(\w+):(\d+):(\w+)$/.exec(String(id)); return m ? { list: m[1], i: +m[2], k: m[3] } : null; }
   function vmField(id) { var c = vmCellRef(id); if (c) return vidx.byId[c.list + '.' + c.k]; return vidx.byId[id] || vidx.noteById[id]; }
@@ -953,7 +988,7 @@
     var t0 = Date.now(), set = FF.lookup.getSettings(), tcr = vm.target ? vmCellRef(vm.target) : null, tid = !vm.noteMode && vm.target && !/^count:/.test(vm.target) && vmField(vm.target) ? (tcr ? tcr.list + '.' + tcr.k : vm.target) : null, fl = vmFilled(), aw = vmAwaiting();
     vm.busy++; vmRender();
     return VAI.decide({
-      apiKey: set.apiKey, ask: !set.apiKey && FF.voiceBackend && FF.voiceBackend.available ? FF.voiceBackend.ask : null, model: set.voiceModel, idx: vidx, who: who, text: text, fetchImpl: meteredFetch,
+      apiKey: set.apiKey, ask: !set.apiKey && FF.voiceBackend && FF.voiceBackend.available ? FF.voiceBackend.ask : null, model: set.voiceModel, idx: vidx, who: who, text: text, fetchImpl: entry || vmCur ? loggedFetch(entry || vmCur) : meteredFetch,
       ctx: { sectionId: cur, targetId: tid, targetRow: tcr ? tcr.i + 1 : null, targetValue: tid && (!vmPrivate(vm.target) || vmShareOn()) ? vmValue(vm.target) : '', targetFilled: !!(tid && vmValue(vm.target) !== ''), filled: fl.filled, filledPrivate: fl.filledPrivate, awaiting: aw.awaiting, privateHeld: aw.held, note: note,
         listRows: function (key) { return state.l[key].map(function (r) { return r.d; }); }, recent: vm.recent.slice(-7, -1) }
     }).then(function (r) { vm.busy--; vmRender(); if (entry) entry.claudeMs = Date.now() - t0; return r; }, function (err) {
@@ -1395,7 +1430,7 @@
   else rememberHandle(null);
   dirty = !!restored;
   layoutSetup(); convoRender();
-  window.FF.app = { get state() { return state; }, redraw: redraw, setState: function (s) { state = s; redraw(); }, makePdf: makePdf, voiceHear: vmHear, voice: vm };
+  window.FF.app = { get state() { return state; }, redraw: redraw, setState: function (s) { state = s; redraw(); }, makePdf: makePdf, voiceHear: vmHear, voice: vm, voiceLog: convoLog };
   redraw();
   if (restored) toast('Restored your unsaved changes for ' + (store.clientName(state) || 'the last client') + '.');
 })();
