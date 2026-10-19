@@ -28,6 +28,7 @@
     '  {"do":"section","section":"<id>"}            someone moves to a whole topic ("let\'s talk about your health")',
     '  {"do":"fill","field":"<id>","value":"..."}   a value is stated for a box, WHOEVER says it. Add "correction":true when it replaces a value that is already in the box (see "filled")',
     '  {"do":"confirm","field":"<id>"}              the client agrees to a value on the form ("yes, that\'s right"): see "Confirming" below',
+    '  {"do":"empty","field":"<id>"}                one box is to be emptied ("delete his name", "scratch the surname", "remove the occupation"); for a box of a row: {"do":"empty","list":"<list id>","row":<row number>,"col":"<column id>"}',
     '  {"do":"wait"}                                nothing to fill yet: the value in position.current_value was rejected, or the line stopped before the value ("my surname is spelled ...")',
     '  {"do":"cmd","cmd":"undo|next|prev|nextSection|prevSection|clear|clearAll|notes|notesOff"}   a request about the form itself: "scratch that" is undo, "skip" or "next question" is next,',
     '                                               "let me take some notes" is notes (add "retro":true for "note that down"), "that\'s all for the notes" is notesOff,',
@@ -45,6 +46,9 @@
     '  "I haven\'t got a work email") fill that box with the value "None". Several can be said in one line: one fill per box. Never give "None" to a box the client does give a value for.',
     '- Understand meaning, not exact words. Ignore filler, false starts and small talk. Give {"actions": []} for acknowledgements and small talk ("okay great", "thank you", "I see", "mm hm", "lovely").',
     '- Never invent a value that was not said, and never fill a box for something that is only being asked.',
+    '- Only the newest line asks for something. Never repeat a fill for a value that is already in "filled" unless the newest line says it again as the answer to the box being asked about.',
+    '- Only give "undo" or "clear" when the newest line asks for it in words ("scratch that", "undo", "clear that", "delete the ..."). A correction is a fill with "correction":true, never an undo, and a comment or an unclear line asks for nothing.',
+    '- Remarks about the form or the software itself ("that\'s a definite error", "the program ...", "it did not look up the company", "testing") are not facts, answers or questions: give {"actions": []}.',
     '- One line can move to another part of the form and carry on there: "let\'s talk about your investments. Do you have a tax free? Yes, an Old Mutual one, R3400 a month" is [section, row]. Everything said after the move',
     '  belongs to the boxes and lists of THAT section, which are all described in "fields" and "lists" whichever section is open now. Give every action of the line in one reply. Never stop after the "section" action.',
     '- Fragments. Speech arrives in pieces: a line can be only the start of a thought, or only the value that completes the line before it. Always read "newest" together with "recent", "position" and "filled".',
@@ -57,6 +61,7 @@
     'Notes. "let me take some notes", "I\'d like to make a couple of notes about ...", "note that down" start the notes (cmd notes). The notes box takes what you give it in "note" actions, so when the line holds the thing to be noted, ALSO give it:',
     '"I\'d like to make a couple of notes about the Old Mutual tax free. The client told me it is for his son\'s university fees when he turns 18" is',
     '[{"do":"cmd","cmd":"notes"}, {"do":"note","text":"- Old Mutual tax free: for his son\'s university fees\n- To be used when the son turns 18"}]. Never stop at the notes command when more was said.',
+    'Start the notes only when someone says they want to take, make or add notes, or to note something down. "In the notes", "scratch the notes" and "delete the notes" are not requests to start them.',
     'Write the note in short points, one per line, each starting with "- ", with every fact that was said (names, amounts, ages, reasons, dates) and nothing that was not. Leave out the adviser\'s questions, small talk, and any ID, phone or tax number or email address.',
     '"Note that down" on its own, with nothing new in the line, is {"do":"cmd","cmd":"notes","retro":true} with no "note" action: the page takes the last thing said. Someone saying "make a note that he smokes" is [cmd notes, note "- Smokes"].',
     '',
@@ -65,6 +70,8 @@
     '{"do":"confirm","field":"<id>"} for EVERY listed box that the read-back or question covered: "so that\'s John Snow?" "yes" confirms the first name and the surname; "is your cell still [N1]?" "yes" confirms the cell number.',
     'For a row of a list use {"do":"confirm","list":"<list id>","row":<row number>}. A bare "yes" with nothing read back confirms position.field, only when that box is listed.',
     'Never confirm a box nobody talked about, and never confirm what the client said no to or changed: a different value is a fill with "correction":true, and a "no" without the new value is "wait".',
+    'A read-back is NOT agreement. When the adviser says a value back and asks whether it is right ("I just want to confirm you said R150 000, correct?", "her name is Vicky Zachos, right?", "so your cell is [N1], is that correct?"),',
+    'even if no question mark was written, the line is only {"do":"ask","field":"<id>"} for that box: never confirm in the same line. The client agrees in a LATER line ("yes", "that\'s right"), and that line is the confirm.',
     'A mere acknowledgement ("okay", "mm hm", "I see", "great") is not agreement: it asks for nothing to be confirmed.',
     '',
     'Values:',
@@ -87,6 +94,7 @@
     '  {"do":"cell","list":"<list id>","row":<row number or "last">,"col":"<column id>","value":"..."}   a value for one box of a row that is already there ("the balance on the bond is R450 000")',
     '  {"do":"ask","list":"<list id>","row":<row number, "last" or "new">,"col":"<column id>"}   someone asks about one box of a row',
     'If position.field looks like "kids.dob" with a position.row, the client\'s plain answer belongs in that box: use a "cell" action for it.',
+    'On a row of the partners and shareholders list (position.field "shares.name" and so on) the ID number, cell number and shareholding said about that person belong to the row ("cell" actions, col id, cell, pct), never to the client\'s own boxes (idno, cell, tax, biz_pct).',
     'Two children said in one breath are two "row" actions. Never add a row that is already in "lists" (the same child, the same loan): use "cell" for anything new about it. For a column with "options", the value must be one of them.',
     '"cell" and "ask" only work on rows that are in "lists". If the row is not there yet, add it with a "row" action and put everything said about it in its values.'
   ].join('\n');
@@ -271,6 +279,9 @@
         else if (a.do === 'confirm' && okAny(a.field)) { if (agreeable(a.field)) acts.push({ do: 'confirm', field: a.field }); }
         else if (a.do === 'confirm' && okList(a.list)) acts.push({ do: 'confirm', list: a.list, row: rowRef(a.row, false) });
         else if (a.do === 'note' && typeof a.text === 'string' && (v = a.text.replace(/\[((?:N|E)\d+)\]/g, function (m, k) { return vault && vault[k] != null ? vault[k] : ''; }).replace(/[ \t]+\n/g, '\n').trim())) acts.push({ do: 'note', text: v, ready: true });   // the points Claude wrote for the notes box (a number or address that was held back is put back here, on this computer)
+        else if (a.do === 'fill' && okAny(a.field) && typeof a.value === 'string' && !a.value.trim()) acts.push({ do: 'empty', field: a.field });                      // an empty value, or "empty": one box is to be emptied ("delete his name")
+        else if (a.do === 'empty' && okAny(a.field)) acts.push({ do: 'empty', field: a.field });
+        else if ((a.do === 'cell' || a.do === 'empty') && okList(a.list) && okCol(a.list, a.col) && (a.do === 'empty' || (typeof a.value === 'string' && !a.value.trim()))) acts.push({ do: 'empty', list: a.list, row: rowRef(a.row, false), col: a.col });
         else if (a.do === 'wait') acts.push({ do: 'wait' });
         else if (a.do === 'cmd' && a.cmd === 'notes') acts.push({ do: 'cmd', cmd: { type: 'notes', retro: a.retro === true, box: null } });
         else if (a.do === 'cmd' && typeof a.cmd === 'string' && CMDS.hasOwnProperty(a.cmd)) acts.push({ do: 'cmd', cmd: { type: CMDS[a.cmd].type } });

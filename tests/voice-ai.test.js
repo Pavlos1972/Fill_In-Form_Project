@@ -78,7 +78,7 @@ test('when the page cannot tell who is speaking, Claude returns what to do, in o
   assert.deepStrictEqual(mix.actions.map(a => a.do), ['section', 'confirm', 'wait']);
   assert.deepStrictEqual(await run({ actions: [] }), { kind: 'none' });
   assert.deepStrictEqual(await run({ actions: [{ do: 'fill', field: 'idno', value: '1' }, { do: 'fill', field: 'cell', value: '0825550148' }, { do: 'fill', field: 'home', value: 'None' }, { do: 'fill', field: 'occ', value: 'None' }, { do: 'fill', field: 'nope', value: 'x' }, { do: 'fill', field: 'occ', value: '  ' }, { do: 'section', section: 'zzz' }] }),
-    { kind: 'actions', actions: [{ do: 'fill', field: 'home', value: 'None', explicit: false }, { do: 'fill', field: 'occ', value: 'None', explicit: false }] });     // a private box takes only a marker (or None for a No box); digits written by the model are dropped
+    { kind: 'actions', actions: [{ do: 'fill', field: 'home', value: 'None', explicit: false }, { do: 'fill', field: 'occ', value: 'None', explicit: false }, { do: 'empty', field: 'occ' }] });     // a private box takes only a marker (or None for a No box); digits written by the model are dropped
   const old = await run({ role: 'client', answers: [{ field: 'employer', value: 'Discovery' }] });
   assert.deepStrictEqual(old.actions, [{ do: 'fill', field: 'employer', value: 'Discovery' }]);
   const oldAsk = await run({ role: 'adviser', section: 'occ', field: 'occ' });
@@ -376,4 +376,23 @@ test('the instructions tell Claude that speech comes in fragments and how to rea
   assert.strictEqual(body.newest.text, 'Kafentzis');
   assert.deepStrictEqual(body.recent.map(l => l.text), ['what is your surname'], 'the lines before it go with it');
   assert.strictEqual(body.position.field, 'sname');
+});
+test('the instructions say a read-back is not agreement, that undo and clear need words, and that remarks about the software ask for nothing', () => {
+  const req = AI.buildRequest(idx, { sectionId: 'info', targetId: 'sname', recent: [], listRows: () => [] }, 'auto', 'I just want to confirm you said R150 000 correct', 'm');
+  assert.match(req.system, /A read-back is NOT agreement/);
+  assert.match(req.system, /The client agrees in a LATER line/);
+  assert.match(req.system, /Only give "undo" or "clear" when the newest line asks for it in words/);
+  assert.match(req.system, /Remarks about the form or the software itself/);
+  assert.match(req.system, /Start the notes only when someone says they want to take/);
+  assert.match(req.system, /never to the client's own boxes/);
+});
+test('an empty value for one box means the box is to be emptied, and unknown boxes are ignored', () => {
+  const run = actions => AI.normalize({ actions }, idx, 'auto', { _line: '', _sent: '', _held: {} });
+  assert.deepStrictEqual(run([{ do: 'fill', field: 'sname', value: '' }]).actions, [{ do: 'empty', field: 'sname' }]);
+  assert.deepStrictEqual(run([{ do: 'empty', field: 'fname' }]).actions, [{ do: 'empty', field: 'fname' }]);
+  assert.deepStrictEqual(run([{ do: 'cell', list: 'shares', row: 1, col: 'name', value: '' }]).actions, [{ do: 'empty', list: 'shares', row: 1, col: 'name' }]);
+  assert.deepStrictEqual(run([{ do: 'empty', list: 'shares', row: 'last', col: 'name' }]).actions, [{ do: 'empty', list: 'shares', row: 'last', col: 'name' }]);
+  assert.strictEqual(run([{ do: 'fill', field: '', value: '' }]).kind, 'none');
+  assert.strictEqual(run([{ do: 'fill', field: 'shares', value: '' }]).kind, 'none');
+  assert.strictEqual(run([{ do: 'fill', field: 'shares.name', value: '' }]).kind, 'none');
 });
