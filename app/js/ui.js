@@ -1259,7 +1259,7 @@
     /* A bare "yes" or "correct" may agree to several boxes that were just read back: Claude decides which, from the lines before it. */
     var agree = words <= 2 && V.isConfirm(text, true) && !pl.actions.some(function (a) { return a.do === 'fill'; }) && vmAwaiting().awaiting.length > 0;
     if (vm.noteMode && vmAIReady() && pl.actions.every(function (a) { return a.do === 'note'; }) && vmMayLeaveNotes(text)) return vmAskInNotes(text, pl);
-    if (vm.noteMode || onlyCommand || !vmAIReady()) return vmRun(pl.actions);                  // every other line, however short, is read by Claude with the lines before it
+    if (vm.noteMode || onlyCommand || !vmAIReady()) return vmRun(pl.actions);  // every other line, however short, is read by Claude with the lines before it
     return vmAsk('auto', text, null, entry).then(function (r) {
       if (r && r.kind === 'actions') return vmRun(vmGuardReadBack(r.actions, text)).then(function () { return vmRestOfLine(r.actions, text, words); });
       if (!r || agree) return vmRun(pl.actions);                         // Claude could not be reached, or had nothing to add to a plain yes: this computer's best reading
