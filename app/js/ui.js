@@ -1061,7 +1061,7 @@
         if (!f || !vmVisible(f)) return;
         var cell = vmCellRef(a.field) ? { v: vmValue(a.field), st: (state.l[vmCellRef(a.field).list][vmCellRef(a.field).i] || { st: 'heard' }).st } : state.f[a.field], res = a.res;
         if (!res && a.do === 'confirm') res = { kind: 'confirm' };
-        if (!res) { var x = V.interpret(f, a.value); if (x && !x.error) res = { kind: 'fill', value: x.value, status: x.status, extra: x.extra, append: x.append }; }
+        if (!res) { var x = V.interpret(f, a.value); if (x && !x.error) res = { kind: 'fill', value: x.value, status: x.status, extra: x.extra, append: x.append && !a.explicit }; }   // a correction replaces the text; only a new fact is added to it
         if (!res) return;
         if (res.kind === 'fill' && !res.extra && cell.v !== '' && String(res.value).trim().toLowerCase() === String(cell.v).trim().toLowerCase()) return;   // the same value again is not agreement (the adviser echoes what the client said: "950,000. Perfect."): the box stays as it is until the client says yes
         if (a.field !== vm.target && a.do !== 'confirm') {                  // agreeing to a box does not move the cursor: it turns green where it is
