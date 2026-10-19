@@ -569,8 +569,12 @@
   var vm = { on: false, target: null, answered: false, secGlow: false, noteMode: null, rowCur: {}, undo: [], recent: [], flashes: {}, queue: Promise.resolve(), slow: 0, epoch: 0, busy: 0, lastFail: 0, wipe: null, digits: null, run: null, lastNum: null };
   /* ---------- "Live Client Conversation": a text box in the right-hand pane under Checks, kept in view while the page scrolls. The lines heard, oldest at the top and the latest at the bottom, each with what was done on the form because of it. ---------- */
   var vmCur = null;                                              // the line being dealt with now, so what is done on the form is listed under it
-  var cv = { rows: [], live: '' }, convoT = 0;
+  var cv = { rows: [], all: [], live: '' }, convoT = 0;
   function vmLog(s) { if (vmCur) { vmCur.did.push(s); convoSoon(); } }
+  function cvAdd(entry) {  // the box shows the latest 200 lines; the saved log keeps the whole session
+    cv.rows.push(entry); if (cv.rows.length > 200) cv.rows.shift();
+    cv.all.push(entry); if (cv.all.length > 5000) cv.all.shift();
+  }
   function convoSoon() { if (!convoT) convoT = setTimeout(function () { convoT = 0; convoRender(); }, 30); }
   function convoCard() {
     var c = document.getElementById('convo'), side = document.querySelector('.side');
@@ -637,7 +641,7 @@
     return {
       saved: new Date().toISOString(), app: { version: schema.version, released: schema.released },
       settings: { claude_model: set.voiceModel, fill_at_once: vmQuickOn(), claude_sees_numbers: vmShareOn(), speech: speechPrefs() },
-      lines: cv.rows.map(function (e) {
+      lines: cv.all.map(function (e) {
         return { at: new Date(e.at).toISOString(), who: e.who, heard: hide(e.shown || e.text), read_as: e.text !== e.shown ? hide(e.text) : undefined, page_did: e.did.map(hide), filled_at_once: e.quick ? true : undefined, taken_back: e.changed || undefined, claude_ms: e.claudeMs, speech: e.m || undefined, claude: e.ai };
       })
     };
@@ -1154,7 +1158,7 @@
   /* A line kept for a number still being said: shown in the conversation box, not sent to Claude, nothing filled. */
   function vmKeepLine(text, who, meta, note) {
     var entry = { who: who === 'me' ? 'adviser' : who === 'client' ? 'client' : 'unclear', text: text, shown: text, at: Date.now(), did: [note], done: true, m: meta || null };
-    cv.rows.push(entry); if (cv.rows.length > 200) cv.rows.shift(); cv.live = ''; convoSoon();
+    cvAdd(entry); cv.live = ''; convoSoon();
     var p = Promise.resolve(entry); p.entry = entry; return p;
   }
   /* A number held in a private box can be edited by speaking: "add an 8 to the end", "put a zero in front", "the last digit is 8", "it ends in 98", "change the last digit to 5", "remove the last digit".
@@ -1328,7 +1332,7 @@
     text = run ? run.text : vmJoinDigits(text);  // a number said in pieces is one line
     var entry = { who: who === 'me' ? 'adviser' : who === 'client' ? 'client' : 'unclear', text: text, shown: shown, at: Date.now(), did: [], done: false, m: meta || null }, t0 = Date.now(), epoch = vm.epoch, quick = null, p;
     vm.recent.push(entry); if (vm.recent.length > 12) vm.recent.shift();
-    cv.rows.push(entry); if (cv.rows.length > 200) cv.rows.shift(); cv.live = '';
+    cvAdd(entry); cv.live = '';
     try { quick = vmQuickTry(text, entry); } catch (e) { quick = null; }          // a clear answer is on the form already; Claude checks it in its turn below
     if (quick) { entry.quick = quick; entry.quickMs = Date.now() - t0; } else vm.slow++;
     convoSoon();
