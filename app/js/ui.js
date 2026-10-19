@@ -537,7 +537,7 @@
      client's answer is in or confirmed. Simple wording is understood on this computer; looser wording goes to Claude (voice-ai.js).
      Whatever listens calls FF.app.voiceHear(text, who), who being 'me' (the adviser) or 'client'. Typing works as always when voice is off. */
   var V = FF.voice, VAI = FF.voiceAI, vidx = V.buildIndex(schema);
-  var vm = { on: false, target: null, answered: false, secGlow: false, noteMode: null, rowCur: {}, undo: [], recent: [], flashes: {}, queue: Promise.resolve(), slow: 0, epoch: 0, busy: 0, lastFail: 0, wipe: null, digits: null };
+  var vm = { on: false, target: null, answered: false, secGlow: false, noteMode: null, rowCur: {}, undo: [], recent: [], flashes: {}, queue: Promise.resolve(), slow: 0, epoch: 0, busy: 0, lastFail: 0, wipe: null, digits: null, lastNum: null };
   /* ---------- "What was heard": a card at the top of the right-hand pane. Each line heard, newest first, with what was done on the form because of it. ---------- */
   var vmCur = null;                                              // the line being dealt with now, so what is done on the form is listed under it
   var cv = { rows: [], live: '' }, convoT = 0;
@@ -659,6 +659,7 @@
     if (cur !== f.sec) { cur = f.sec; redraw(); vmPulseNav(); }
     if (cr) { vm.rowCur[cr.list] = cr.i; if (!vmEl(id)) redraw(); }
     vm.target = id; vm.answered = false; vm.secGlow = false; vmMarkWait();
+    if (NUMBER_BOXES.indexOf(id) >= 0) vm.lastNum = id;
     var el = vmEl(id);
     if (el) {
       el.scrollIntoView({ block: 'center', behavior: 'smooth' });
@@ -872,6 +873,7 @@
       if (id === 'idno') { var dobWas = autoDob(); if (dobWas) { entry.extras.push({ id: 'dob', prev: dobWas }); extraIds.push('dob'); } }   // the date of birth comes from the ID number
     }
     vm.undo.push(entry);
+    if (NUMBER_BOXES.indexOf(id) >= 0) vm.lastNum = id;
     if (id === vm.target) vm.answered = true;
     touch(); redraw(); vmFlash(id); extraIds.forEach(vmFlash);
     /* Employer or business name filled: look up what the company does. Only the company name is sent. */
@@ -1027,6 +1029,42 @@
     vm.digits = all.length >= 13 || (all.length >= 10 && !dateLike(all)) ? null : { d: all, text: shown, t: now };
     return shown;
   }
+  /* A number held in a private box can be edited by speaking: "add an 8 to the end", "put a zero in front", "the last digit is 8", "it ends in 98", "change the last digit to 5", "remove the last digit".
+     These boxes are never shown to Claude, so it is done here. The box goes amber again: the client agrees to the new number. */
+  var NUM_LEN = { idno: 13, tax: 10, cell: 10, work: 10, home: 10, sp_tel: 10 };
+  var DWS = '(?:\\d+|oh|zero|one|two|three|four|five|six|seven|eight|nine|double|triple)', DWSEQ = DWS + '(?:[\\s,.-]+' + DWS + ')*';
+  var E_ADD = new RegExp('\\b(?:add|put|stick|tack|attach|append)(?:ing)?\\s+(?:in\\s+)?(?:an?\\s+|the\\s+|another\\s+)?(?:digit\\s+|number\\s+)?(' + DWSEQ + ')\\s+(?:to|at|on|onto|in)\\s+(?:the\\s+)?(end|back|start|front|beginning)\\b', 'i');
+  var E_END = new RegExp('\\b(?:(?:it\\s+|that\\s+|which\\s+)?ends?|ending)\\s+(?:in|with|on)\\s+(?:an?\\s+)?(' + DWSEQ + ')', 'i');
+  var E_LAST = new RegExp('\\blast\\s+(?:(?:one|two|three|four|\\d)\\s+)?(?:digit|digits|number|numbers)\\s+(?:is|are|should be|must be|was|were|will be)\\s+(?:an?\\s+)?(' + DWSEQ + ')', 'i');
+  var E_SET = new RegExp('\\b(?:change|make|replace|correct)\\s+(?:the\\s+)?last\\s+(?:digit|number)\\s+(?:to|with|into|a|an)\\s+(?:an?\\s+)?(' + DWSEQ + ')', 'i');
+  var E_CUT = /\b(?:remove|delete|drop|take off|cut|scratch)\s+(?:the\s+)?last\s+(?:(one|two|three|\d)\s+)?(?:digit|digits|number|numbers)\b/i;
+  /* -> { op: 'add' | 'ends' | 'set' | 'cut', d: digits, pos, n } or null when the line is not an edit of a number. */
+  function vmEditParse(text) {
+    var t = String(text == null ? '' : text), m;
+    if (t.split(/\s+/).length > 20) return null;
+    if ((m = E_CUT.exec(t))) return { op: 'cut', n: ({ one: 1, two: 2, three: 3 })[(m[1] || '').toLowerCase()] || (m[1] ? +m[1] : 1) };
+    if ((m = E_SET.exec(t)) && V.spokenDigits(m[1])) return { op: 'set', d: V.spokenDigits(m[1]) };
+    if ((m = E_ADD.exec(t)) && V.spokenDigits(m[1])) return { op: 'add', d: V.spokenDigits(m[1]), pos: /start|front|beginning/i.test(m[2]) ? 'start' : 'end' };
+    if ((m = E_LAST.exec(t) || E_END.exec(t)) && V.spokenDigits(m[1])) return { op: 'ends', d: V.spokenDigits(m[1]) };
+    return null;
+  }
+  function vmEditDigits(text) {
+    var ed = vmEditParse(text);
+    if (!ed) return false;
+    var id = NUMBER_BOXES.indexOf(vm.target) >= 0 ? vm.target : vm.lastNum, cur = id ? vmValue(id).replace(/\D/g, '') : '';
+    if (!id || !cur) return false;                                               // no number is held to edit: the line is read as usual
+    var f = vmField(id), len = NUM_LEN[id], next, what;
+    if (ed.op === 'add') { next = ed.pos === 'start' ? ed.d + cur : cur + ed.d; what = 'added ' + ed.d + ' to the ' + ed.pos + ' of'; }
+    else if (ed.op === 'cut') { next = cur.slice(0, Math.max(0, cur.length - ed.n)); what = 'removed the last ' + (ed.n > 1 ? ed.n + ' digits' : 'digit') + ' of'; }
+    else if (ed.op === 'set') { next = cur.slice(0, Math.max(0, cur.length - ed.d.length)) + ed.d; what = 'changed the end to ' + ed.d + ' in'; }
+    else {
+      if (cur.slice(-ed.d.length) === ed.d) { vmLog(f.label + ' already ends in ' + ed.d); return true; }
+      next = cur.length + ed.d.length <= len ? cur + ed.d : cur.slice(0, Math.max(0, len - ed.d.length)) + ed.d; what = 'set the end to ' + ed.d + ' in';
+    }
+    var x = V.interpret(f, next);
+    if (vmApply(id, { kind: 'fill', value: x && !x.error ? x.value : next, status: 'verify' })) vmLog(what + ' ' + f.label);
+    return true;
+  }
   /* "Scratch the first name and the surname", "clear his cell number": the boxes named are emptied. (The page's own "scratch that" only undoes the last change.) */
   var CLEAR_NAMED = /\b(?:scratch|clear|delete|remove|erase|wipe|forget|empty)(?:ed|ing)?\s+(?:out\s+)?(?:(?:the|my|his|her|their|our)\s+)?(.+)$/i;
   function vmClearNamed(text) {
@@ -1058,6 +1096,7 @@
   var QUICK_KEY = 'wr-fact-find-quick';
   function vmQuickOn() { try { return localStorage.getItem(QUICK_KEY) !== '0'; } catch (e) { return true; } }
   function vmQuickTry(text, entry) {
+    if (vmEditParse(text)) return null;
     if (!vmQuickOn() || !vmAIReady() || vm.wipe || vm.noteMode || vm.slow > 0 || text.split(/\s+/).length > 16) return null;
     var acts = vmPlanFor(text).actions;
     if (!acts.length || acts.length > 4 || !acts.some(function (a) { return a.do === 'fill'; })) return null;
@@ -1086,7 +1125,9 @@
       if (!r) return;                                                                // Claude could not be reached: what was filled stands
       var acts = r.kind === 'actions' ? r.actions : [], rc = VAI.reconcile(entry.quick.actions, acts, vidx);
       if (!rc.agree) { vmTakeBack(entry.quick.entries); entry.changed = true; }
-      return vmRun(rc.rest).then(function () { return vmRestOfLine(acts, text, text.split(/\s+/).length); });
+      var put = {}; entry.quick.entries.forEach(function (e) { put[e.id] = 1; (e.extras || []).forEach(function (x) { put[x.id] = 1; }); });
+      var rest = rc.rest.filter(function (a) { return !(a.do === 'confirm' && a.field && put[a.field]); });             // saying a value is not agreeing to it: the client agrees in a later line
+      return vmRun(rest).then(function () { return vmRestOfLine(acts, text, text.split(/\s+/).length); });
     });
   }
   /* Claude is asked to read the unchanging part of its instructions as soon as voice mode is on, so the first line is not slowed by it. */
@@ -1108,6 +1149,7 @@
       return Promise.resolve();
     }
     if (entry && entry.quick) return vmCheckQuick(text, entry);
+    if (vmEditDigits(text)) return Promise.resolve();                    // "add an 8 to the end"
     if (vmClearNamed(text)) return Promise.resolve();                    // "scratch the first name and the surname"
     var pl = vmPlanFor(text);
     var words = text.split(/\s+/).length, onlyCommand = pl.actions.length > 0 && pl.actions.every(function (a) { return a.do === 'cmd'; }) && words <= 8;
