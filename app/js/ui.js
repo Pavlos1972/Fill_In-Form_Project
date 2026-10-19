@@ -622,7 +622,7 @@
       try {
         var req = JSON.parse(init.body), parts = req.messages[0].content;
         rec.model = req.model;
-        rec.sent = req.max_tokens === 0 ? 'warm-up' : JSON.parse(Array.isArray(parts) ? parts[1].text : parts);     // everything but the unchanging instructions and form map
+        rec.sent = req.max_tokens === 0 ? 'warm-up' : JSON.parse(Array.isArray(parts) ? parts[1].text : parts);  // everything but the unchanging instructions and form map
       } catch (e) { rec.sent = String(init && init.body).slice(0, 2000); }
       (entry.ai = entry.ai || []).push(rec);
       return meteredFetch(url, init).then(function (res) {
