@@ -101,7 +101,22 @@
     };
   }
   var loaded = {};                                                         // model + device -> the loading speech model, so it is loaded once
-  /* -> Promise of { pipe, where }. The graphics chip is tried first, then the processor. report(percent) says how far the one-time download is. */
+  var GPU_FLAG = 'wr-fact-find-speech-nogpu';                              // set once the graphics chip has failed on this computer: the processor is used from then on
+  function gpuBlocked() { try { return localStorage.getItem(GPU_FLAG) === '1'; } catch (e) { return false; } }
+  function blockGpu() { try { localStorage.setItem(GPU_FLAG, '1'); } catch (e) { /* storage unavailable */ } }
+  /* Chrome may offer WebGPU and still have no graphics adapter to run it on (this laptop's): ask for the adapter before choosing. */
+  function gpuUsable() {
+    if (typeof navigator === 'undefined' || !navigator.gpu || !navigator.gpu.requestAdapter) return Promise.resolve(false);
+    return navigator.gpu.requestAdapter().then(function (a) { return !!a; }, function () { return false; });
+  }
+  /* A model that fails to start is not tried again in the same page by the library (the first failure is remembered), so the graphics chip must not be tried unless it is sure to work. */
+  function modelError(err) {
+    var m = String(err && err.message || err);
+    if (/graphics chip/.test(m)) return m;
+    if (/fetch|network|offline|404|403|failed to load/i.test(m)) return 'Could not download the speech model (' + m + '). It needs the internet the first time.';
+    return 'Could not start the speech model (' + m + ').';
+  }
+  /* -> Promise of { pipe, where }. The graphics chip is used when there is one, otherwise the processor. report(percent) says how far the one-time download is. */
   function loadWhisper(model, report, noGpu) {
     var key = model + (noGpu ? ':cpu' : '');
     if (loaded[key]) return loaded[key];
@@ -112,16 +127,19 @@
       var l = 0, t = 0; Object.keys(seen).forEach(function (k) { l += seen[k][0]; t += seen[k][1]; });
       report(Math.round(100 * l / t));
     }
-    loaded[key] = import(LIB).then(function (m) {
-      var id = MODELS[model], tries = [];
+    loaded[key] = Promise.all([import(LIB), noGpu || gpuBlocked() ? false : gpuUsable()]).then(function (r) {
+      var m = r[0], id = MODELS[model], tries = [];
       m.env.allowLocalModels = false; m.env.useBrowserCache = false; m.env.useCustomCache = true; m.env.customCache = modelStore();
-      if (!noGpu && typeof navigator !== 'undefined' && navigator.gpu) tries.push({ where: 'graphics chip', opts: { device: 'webgpu', dtype: { encoder_model: 'fp32', decoder_model_merged: 'q4' } } });
+      if (r[1]) tries.push({ where: 'graphics chip', opts: { device: 'webgpu', dtype: { encoder_model: 'fp32', decoder_model_merged: 'q4' } } });
       tries.push({ where: 'processor', opts: { device: 'wasm', dtype: 'q8' } });
       function attempt(i) {
         var opts = { progress_callback: progress }, k;
         for (k in tries[i].opts) opts[k] = tries[i].opts[k];
         return m.pipeline('automatic-speech-recognition', id, opts).then(function (pipe) { return { pipe: pipe, where: tries[i].where }; }, function (err) {
-          if (i + 1 < tries.length) { seen = {}; return attempt(i + 1); }
+          if (tries[i].where === 'graphics chip') {                       // the library cannot start another model in this page after this failure
+            blockGpu();
+            throw new Error('The graphics chip could not run the speech model, so the processor will be used from now on. Press F5 to reload this page, then press Listen again. (' + String(err && err.message || err).slice(0, 160) + ')');
+          }
           throw err;
         });
       }
@@ -152,9 +170,9 @@
     });
   }
 
-  /* Whisper on this computer. h: { text(line, meta), level(0..1), error(message), progress(percent), on(info) } */
+  /* Whisper on this computer. h: { text(line, meta), level(0..1), note(message), error(message), progress(percent), on(info) } */
   function whisperEngine(o, h) {
-    var mic = null, seg = segmenter(), queue = [], busy = false, alive = false, tr = null, noGpu = false, load = o.loader || loadWhisper;
+    var mic = null, seg = segmenter(), queue = [], busy = false, alive = false, tr = null, noGpu = false, load = o.loader || loadWhisper, peak = 0, watch = null;
     function pump() {
       if (busy || !queue.length || !tr) return;
       busy = true;
@@ -163,7 +181,7 @@
         if (alive) h.text(cleanTranscript(out && out.text), { audio: u.length / RATE, took: (Date.now() - t0) / 1000, waiting: queue.length, where: cur.where });
       }, function (err) {
         if (cur.where === 'graphics chip' && !noGpu && alive) {                                  // the graphics chip did not cope: carry on with the processor
-          noGpu = true; queue.unshift(u); h.progress(null);
+          noGpu = true; blockGpu(); queue.unshift(u); h.progress(null);
           return load(o.model, h.progress, true).then(function (t) { tr = t; h.on({ mic: mic && mic.label, where: t.where, model: o.model }); });
         }
         throw err;
@@ -173,17 +191,20 @@
       start: function () {
         alive = true;
         return openMic(function (x) {
+          var lv = rms(x); if (lv > peak) peak = lv;
+          h.level(lv);                                                                           // the meter moves from the first second, even while the model is loading
           if (!tr || !alive) return;                                                             // nothing is kept while the model is still loading
           seg.push(x).forEach(function (u) { queue.push(u); });
-          h.level(seg.level()); pump();
+          pump();
         }).then(function (m) {
           mic = m;
+          watch = setTimeout(function () { if (alive && mic && peak < 0.0008 && h.note) h.note('No sound is reaching Chrome from "' + (m.label || 'the microphone') + '". Check that it is not muted and that it is the microphone you are using (Windows: Settings, System, Sound, Input).'); }, 7000);
           return load(o.model, h.progress, false).then(function (t) { if (!alive) return; tr = t; h.on({ mic: m.label, where: t.where, model: o.model }); }, function (err) {
-            m.close(); mic = null; throw new Error('Could not get the speech model (' + (err && err.message || err) + '). It needs the internet the first time.');
+            m.close(); mic = null; throw new Error(modelError(err));
           });
         });
       },
-      stop: function () { alive = false; queue = []; seg = segmenter(); if (mic) mic.close(); mic = null; },
+      stop: function () { alive = false; clearTimeout(watch); queue = []; seg = segmenter(); peak = 0; if (mic) mic.close(); mic = null; },
       feed: function (x) { if (tr && alive) { seg.push(x).forEach(function (u) { queue.push(u); }); h.level(seg.level()); pump(); } }       // used by the tests
     };
   }
@@ -217,7 +238,7 @@
     };
   }
 
-  /* o: { engine: 'whisper' | 'chrome', model, text(line, meta), interim(text), level(0..1), state(name, detail) } with name off | loading | on | error. */
+  /* o: { engine: 'whisper' | 'chrome', model, text(line, meta), interim(text), level(0..1), note(message), state(name, detail) } with name off | loading | on | error. */
   function create(o) {
     var eng = null, st = 'off';
     function set(s, d) { st = s; if (o.state) o.state(s, d || {}); }
@@ -226,6 +247,7 @@
       text: function (t, meta) { if (t && st === 'on') o.text(t, meta || {}); },
       interim: function (t) { if (o.interim && st === 'on') o.interim(t); },
       level: function (v) { if (o.level) o.level(v); },
+      note: function (msg) { if (o.note) o.note(msg); },
       progress: function (pct) { if (st === 'loading' || st === 'on') set('loading', { percent: pct }); },
       on: function (info) { set('on', info); },
       error: fail

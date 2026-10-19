@@ -963,16 +963,17 @@
       engine: p.engine, model: p.model,
       state: function (st, d) {
         lsnState = st; listenRender();
-        if (st === 'loading') listenShow(p.engine === 'chrome' ? 'Starting Chrome speech recognition…' : 'Getting the speech model ready on this computer' + (d.percent != null ? ' (' + d.percent + '%, only the first time)' : '…'), '');
+        if (st === 'loading') { status = p.engine === 'chrome' ? 'Starting Chrome speech recognition…' : 'Getting the speech model ready on this computer' + (d.percent != null ? ' (' + d.percent + '%, only the first time)' : '…'); listenShow(status, ''); }
         else if (st === 'on') {
           status = p.engine === 'chrome' ? "Listening with Chrome's speech recognition. Google hears this audio: practice talk only, no clients."
             : 'Listening' + (d.mic ? ' on ' + d.mic : '') + ' with Whisper ' + d.model + ' on the ' + d.where + '. The sound stays on this computer.';
           listenShow(status, '', kind);
-        } else if (st === 'error') { lsn = null; lsnState = 'off'; listenRender(); listenShow(d.message, '', 'bad'); }
+        } else if (st === 'error') { lsn = null; lsnState = 'off'; listenRender(); listenShow(d.message, '', 'bad'); var lv0 = $('#lvl'); if (lv0) lv0.style.width = '0'; }
         else listenShow('', '');
       },
       interim: function (t) { if (t) listenShow(status, '… ' + t, kind); },
       text: function (t, m) { listenShow(status, 'Heard: "' + t + '"' + (m.took != null ? '  (' + m.took.toFixed(1) + ' s' + (m.waiting ? ', ' + m.waiting + ' waiting' : '') + ')' : ''), kind); vmHear(t); },
+      note: function (msg) { listenShow(status, msg, 'warn'); },
       level: function (v) { var el = $('#lvl'); if (el) el.style.width = Math.min(100, Math.round(v * 900)) + '%'; }
     });
     lsn.start();
