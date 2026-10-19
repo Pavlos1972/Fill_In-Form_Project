@@ -385,6 +385,10 @@ test('the instructions say a read-back is not agreement, that undo and clear nee
   assert.match(req.system, /Remarks about the form or the software itself/);
   assert.match(req.system, /Start the notes only when someone says they want to take/);
   assert.match(req.system, /never to the client's own boxes/);
+  assert.match(req.system, /confirms only what the line just before it/);
+  assert.match(req.system, /is an echo, not agreement/);
+  assert.match(req.system, /Being addressed by name/);
+  assert.match(req.system, /"I know" is often "no"/);
 });
 test('an empty value for one box means the box is to be emptied, and unknown boxes are ignored', () => {
   const run = actions => AI.normalize({ actions }, idx, 'auto', { _line: '', _sent: '', _held: {} });

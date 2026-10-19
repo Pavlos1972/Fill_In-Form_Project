@@ -566,7 +566,7 @@
      Whatever listens calls FF.app.voiceHear(text, who), who being 'me' (the adviser) or 'client'. Typing works as always when voice is off. */
   var V = FF.voice, VAI = FF.voiceAI, vidx = V.buildIndex(schema);
   try { if (VAI && VAI.setShare) VAI.setShare(localStorage.getItem('wr-fact-find-share') === '1'); } catch (e) { /* storage unavailable: sharing stays off */ }
-  var vm = { on: false, target: null, answered: false, secGlow: false, noteMode: null, rowCur: {}, undo: [], recent: [], flashes: {}, queue: Promise.resolve(), slow: 0, epoch: 0, busy: 0, lastFail: 0, wipe: null, digits: null, run: null, erun: null, paused: false, lastNum: null };
+  var vm = { on: false, target: null, answered: false, secGlow: false, noteMode: null, rowCur: {}, undo: [], recent: [], flashes: {}, queue: Promise.resolve(), slow: 0, epoch: 0, busy: 0, lastFail: 0, wipe: null, digits: null, run: null, erun: null, paused: false, pointed: null, lastNum: null };
   /* ---------- "Live Client Conversation": a text box in the right-hand pane under Checks, kept in view while the page scrolls. The lines heard, oldest at the top and the latest at the bottom, each with what was done on the form because of it. ---------- */
   var vmCur = null;                                              // the line being dealt with now, so what is done on the form is listed under it
   var cv = { rows: [], all: [], live: '' }, convoT = 0;
@@ -726,8 +726,21 @@
     $('#vmLabel').textContent = vm.on ? 'Voice: On' : 'Voice: Off';
     convoRender();
   }
+  /* A row added only because it was pointed at ("any other properties?") that is still empty when the talk moves on is taken away again: otherwise empty rows pile up. */
+  function vmDropPointed(nextId) {
+    var p = vm.pointed; if (!p) return;
+    var nc = nextId ? vmCellRef(nextId) : null;
+    if (nc && nc.list === p.list && nc.i === p.i) return;                    // still on that row
+    vm.pointed = null;
+    var rows = state.l[p.list], r = rows && rows[p.i];
+    if (!r || p.i !== rows.length - 1 || !Object.keys(r.d).every(function (k) { return r.d[k] === '' || r.d[k] == null; })) return;
+    store.delRow(state, p.list, p.i);
+    if (vm.rowCur[p.list] === p.i) vm.rowCur[p.list] = Math.max(p.i - 1, 0);
+    touch(); redraw();
+  }
   /* Move to a field: open its section if needed, glow, scroll to it and put the cursor in it. */
   function vmShow(id) {
+    vmDropPointed(id);
     var cm = /^count:(\w+)$/.exec(id);
     if (cm) {                                                    // waiting to hear how many: the Add button glows
       var L = vidx.lists[cm[1]];
@@ -737,7 +750,7 @@
       return;
     }
     var f = vmField(id), cr = vmCellRef(id);
-    if (cr) while (state.l[cr.list].length <= cr.i) store.addRow(state, cr.list, {}, 'heard');   // the row is there before it is pointed at
+    if (cr) while (state.l[cr.list].length <= cr.i) { store.addRow(state, cr.list, {}, 'heard'); vm.pointed = { list: cr.list, i: state.l[cr.list].length - 1 }; }   // the row is there before it is pointed at
     if (cur !== f.sec) { cur = f.sec; redraw(); vmPulseNav(); }
     if (cr) { vm.rowCur[cr.list] = cr.i; if (!vmEl(id)) redraw(); }
     vm.target = id; vm.answered = false; vm.secGlow = false; vmMarkWait();
@@ -752,6 +765,7 @@
     } else vmMarkWait();
   }
   function vmOpenSection(secId) {
+    vmDropPointed(null);
     vm.undo.push({ kind: 'nav', sec: cur, target: vm.target, answered: vm.answered });
     cur = secId; vm.target = null; vm.answered = false; vm.secGlow = true;
     if (document.activeElement && document.activeElement.blur && document.activeElement !== $('#vdText')) document.activeElement.blur();
@@ -835,7 +849,7 @@
     vm.undo.push({ kind: 'wipe', snap: JSON.parse(JSON.stringify(state)), base: fileBase, handle: fileHandle, dirty: dirty, sec: cur });
     var cost = state.claude; state = store.blank(); state.claude = cost;                                  // what Claude has cost stays, however much of the form is cleared
     fileHandle = null; fileBase = ''; rememberHandle(null); dirty = false; saveDraft();
-    cur = 'info'; vm.target = null; vm.answered = false; vm.noteMode = null; vm.rowCur = {}; vm.recent = []; vm.flashes = {}; vm.secGlow = true; vm.run = null; vm.erun = null; vm.digits = null;
+    cur = 'info'; vm.target = null; vm.answered = false; vm.noteMode = null; vm.rowCur = {}; vm.recent = []; vm.flashes = {}; vm.secGlow = true; vm.run = null; vm.erun = null; vm.pointed = null; vm.digits = null;
     redraw(); vmMarkWait(); window.scrollTo(0, 0);
     toast('The whole form is empty. Say "undo" to bring everything back.');
   }
@@ -1198,7 +1212,7 @@
     var restart = !!run && RUN_CANCEL.test(low), body = restart ? raw.replace(new RegExp(RUN_CANCEL.source, 'ig'), ' ') : raw;
     if (!restart && (/\?/.test(raw) || vmReadBack(raw) || V.looksLikeQuestion(raw) || /\b(?:tell|ask|asking|wondering|whether|if|what|which|how|why|when|where|who)\b/.test(low))) return null;
     var toks = body.split(/\s+/).filter(Boolean), i = 0;
-    while (i < toks.length && (RUN_FILLER[toks[i].toLowerCase().replace(/['‘’`]/g, '')] || EMAIL_LEAD[toks[i].toLowerCase()])) i++;
+    while (i < toks.length && (function (w) { return RUN_FILLER[w] || EMAIL_LEAD[w]; })(toks[i].toLowerCase().replace(/[.,!?;:'‘’`"]/g, ''))) i++;   // "Okay." and "Yes." are filler, however the speech recogniser punctuated them
     var pay = toks.slice(i);
     if (run && !restart && !(toks.length <= 2 || (toks.length <= 6 && EMAIL_PIECE.test(low)))) { vm.erun = null; vm.answered = false; vmMarkWait(); return null; }   // something else was said: the pieces end here
     if (restart) { run = vm.erun = null; vm.answered = false; vmMarkWait(); if (!pay.length) return { hold: true, note: 'dropped the email heard so far: ready for it again' }; }
@@ -1414,7 +1428,7 @@
     return p;
   }
   function vmToggle(on) {
-    vm.on = on; vm.target = null; vm.answered = false; vm.secGlow = on; vm.noteMode = null; vm.rowCur = {}; vm.queue = Promise.resolve(); vm.slow = 0; vm.epoch++; vm.digits = null; vm.run = null; vm.erun = null; vm.paused = false; cv.live = ''; vmCur = null;
+    vm.on = on; vm.target = null; vm.answered = false; vm.secGlow = on; vm.noteMode = null; vm.rowCur = {}; vm.queue = Promise.resolve(); vm.slow = 0; vm.epoch++; vm.digits = null; vm.run = null; vm.erun = null; vm.paused = false; vm.pointed = null; cv.live = ''; vmCur = null;
     if (vm.wipe) { vm.wipe = null; var wd = document.getElementById('wipe'); if (wd && wd.open) wd.close(); }   // switching Voice on or off never leaves the question hanging
     if (!on) listenStop();                                                                                       // no voice mode, nothing to listen for
     if (!on) { document.querySelectorAll('.voice-wait,.voice-ok').forEach(function (e) { e.classList.remove('voice-wait', 'voice-ok'); }); $('#vdText').hidden = true; }
