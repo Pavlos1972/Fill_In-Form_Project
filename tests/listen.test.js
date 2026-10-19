@@ -46,6 +46,21 @@ test('what Whisper writes for noise is dropped, and real words are kept', () => 
   assert.strictEqual(L.cleanTranscript('Yes [BLANK_AUDIO]'), 'Yes');
   assert.strictEqual(L.cleanTranscript('Thank you for the cover'), 'Thank you for the cover');
 });
+test('a spelled-out name is joined into one word, and ordinary speech is left alone', () => {
+  const J = L.joinSpelling;
+  assert.strictEqual(J('K A F E N T Z I S'), 'Kafentzis');
+  assert.strictEqual(J('My surname is K-A-F-E-N-T-Z-I-S.'), 'My surname is Kafentzis.');
+  assert.strictEqual(J("It's K. A. F. E. N. T. Z. I. S."), "It's Kafentzis.");
+  assert.strictEqual(J('k, a, f, e, n, t, z, i, s'), 'Kafentzis');
+  assert.strictEqual(J('Kay, A, F, E, N, T, Zed, I, S'), 'Kafentzis');
+  assert.strictEqual(J('The surname is S for Sierra, N for November, O for Oscar, W for Whiskey, thanks'), 'The surname is Snow, thanks');
+  assert.strictEqual(J('S as in Sam and M as in Mary'), 'S as in Sam and M as in Mary');   // fewer than three letters is not a spelling
+  assert.strictEqual(L.cleanTranscript(' It is K A F E N T Z I S. '), 'It is Kafentzis.');
+  [
+    'I work for Discovery as a nurse', 'We chose plan A or B', 'J. P. van der Merwe', 'A, B and C', 'She is a nurse, a good one', 'I like Ian and a for sale sign',
+    'My ID is 8001015009087', 'Yes', '', null
+  ].forEach(t => assert.strictEqual(J(t), t == null ? '' : t, String(t)));
+});
 test('the listener runs the speech model on each line and passes the words on (stand-in model)', async () => {
   const said = [], states = [];
   const L2 = L.create({

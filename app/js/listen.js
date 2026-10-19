@@ -89,11 +89,25 @@
     w.forEach(function (x) { if (!seen[x]) { seen[x] = 1; n++; } });
     return n / w.length <= 0.4 || /\b(\w+(?:\W+\w+){0,3})(?:\W+\1\b){3,}/i.test(String(t));
   }
+  /* A name spelled out ("K A F E N T Z I S", "K-A-F-E-N-T-Z-I-S", "Kay, A, F, E, N, T, Zed, I, S" or "K for Kilo, A for Alpha") is joined into one word.
+     A speech model gets an unusual surname wrong whenever it is said as a word, but spelled letters come out reliably. At least four letters in a row (three with "for"), so "J. P. van der Merwe" and "plan A or B" are left alone. */
+  var LETTER_NAMES = { kay: 'k', jay: 'j', zed: 'z', zee: 'z', aitch: 'h', ess: 's', eff: 'f', gee: 'g', dee: 'd', bee: 'b', pee: 'p', vee: 'v', cue: 'q' };
+  function joinSpelling(t) {
+    var s = String(t == null ? '' : t), word = function (l) { return l.charAt(0).toUpperCase() + l.slice(1); },
+      pair = '[a-z]\\s+(?:for|as in|like)\\s+[a-z]+', tok = '(?:' + Object.keys(LETTER_NAMES).join('|') + '|[a-z])';
+    s = s.replace(new RegExp('(?<![a-z\'])' + pair + '(?:[\\s.,;-]+(?:and\\s+)?' + pair + '){2,}', 'gi'), function (m) {          // "K for Kilo, A for Alpha": each word must start with its letter
+      var ps = m.match(new RegExp(pair, 'gi')), ok = ps.every(function (p) { return p.charAt(0).toLowerCase() === p.replace(/^[a-z]\s+(?:for|as in|like)\s+/i, '').charAt(0).toLowerCase(); });
+      return ok ? word(ps.map(function (p) { return p.charAt(0); }).join('').toLowerCase()) : m;
+    });
+    return s.replace(new RegExp('(?<![a-z\'])' + tok + '(?:[\\s.,-]+' + tok + '){3,}(?![a-z\'])', 'gi'), function (m) {
+      return word(m.split(/[\s.,-]+/).map(function (x) { var k = x.toLowerCase(); return LETTER_NAMES[k] || k; }).join(''));
+    });
+  }
   /* Whisper writes things like "[BLANK_AUDIO]", "(music)" or "Thank you." when it hears only noise: those are dropped, and so is a line that is only a loop. */
   function cleanTranscript(t) {
     var s = String(t == null ? '' : t).replace(/\[[^\]]*\]|\([^)]*\)|\*[^*]*\*|♪/g, ' ').replace(/\s+/g, ' ').trim();
     if (!s || !/[a-z0-9]/i.test(s) || /^(?:you|thank you|thanks|thanks for watching|bye|bye bye)\W*$/i.test(s) || isLoop(s)) return '';
-    return s;
+    return joinSpelling(s);
   }
 
   /* ---------- the browser parts ---------- */
@@ -331,7 +345,7 @@
       rec = new SR(); rec.lang = 'en-ZA'; rec.continuous = true; rec.interimResults = true; rec.maxAlternatives = 1;
       rec.onresult = function (e) {
         var interim = '', i, r;
-        for (i = e.resultIndex; i < e.results.length; i++) { r = e.results[i]; if (r.isFinal) { fails = 0; h.text(String(r[0].transcript).trim(), {}); } else interim += r[0].transcript; }
+        for (i = e.resultIndex; i < e.results.length; i++) { r = e.results[i]; if (r.isFinal) { fails = 0; h.text(joinSpelling(String(r[0].transcript).trim()), {}); } else interim += r[0].transcript; }
         h.interim(interim);
       };
       rec.onerror = function (e) {
@@ -381,5 +395,5 @@
     };
   }
 
-  return { resample: resample, segmenter: segmenter, cleanTranscript: cleanTranscript, isLoop: isLoop, normalize: normalize, meter: meter, create: create, MODELS: MODELS, DEFAULT_MODEL: DEFAULT_MODEL, RATE: RATE };
+  return { resample: resample, segmenter: segmenter, cleanTranscript: cleanTranscript, joinSpelling: joinSpelling, isLoop: isLoop, normalize: normalize, meter: meter, create: create, MODELS: MODELS, DEFAULT_MODEL: DEFAULT_MODEL, RATE: RATE };
 });
