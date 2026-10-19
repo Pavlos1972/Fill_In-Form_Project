@@ -45,6 +45,12 @@ Two speech sources, chosen in Settings:
 
 The microphone only hears this computer's microphone, so the client's voice on a Teams call is not heard yet (capturing the call's sound is the next piece). Code: `js/listen.js` (the sound cutting and the two sources, tested in `tests/listen.test.js`); the button and the line are in `js/ui.js`.
 
+## What Claude costs (the meter in the top bar)
+
+With an Anthropic key set, the top bar shows **Claude: US$0.0123 this fact find** and, once a credit balance has been typed in Settings, **about US$19.88 left**. Every answer from Claude says how many tokens it used (and how many web searches); `FF.lookup.costOf` in `js/lookup.js` prices them from the published prices (`PRICES`, checked October 2026: update them there when Anthropic changes them; a model that is not listed is priced as the dearest, so the meter never reads low) and the total is kept with the fact find: it is saved in the `.json` file as `claude` (never in the PDF), comes back when the file is reopened, starts at nothing for **New**, and is kept when the form is cleared by voice. Hover for the number of requests and tokens, click to open Settings.
+
+"Left" is the balance typed under **Credit left in the Anthropic Console (US$)** in Settings, less what the page has counted since it was typed. It is an estimate: the page cannot know about anything else paid from the same credit, and Anthropic has no way to read a prepaid balance (its Usage and Cost API needs an organisation's Admin key, and does not exist for an individual account). Typing the Console's figure in again starts the count again; saving Settings without changing the box leaves it running. The top bar turns amber under US$5 and red under US$1, with a message once for each. The usage is billed to the Anthropic Console account that owns the key, not to a Claude subscription.
+
 ## Updating the tax tables
 
 When a new tax year starts (1 March), add its brackets and rebates to `app/js/tax.js`, add that year's TaxTim results to `docs/`, and extend `tests/tax.test.js`. The tests must pass before the new tables are used.

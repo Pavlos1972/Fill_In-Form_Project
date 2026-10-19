@@ -248,7 +248,7 @@
     $('#sFilled').textContent = A; $('#sVerify').textContent = V; $('#sEmpty').textContent = E;
     var dtext = '<span>Version <b>' + schema.version + '</b>, ' + schema.released + '</span>';
     var tax = FF.tax.taxYearFor(calc.meetingDate(ctx()));
-    refreshKey();
+    refreshKey(); refreshCost();
     $('#meta').innerHTML = dtext + '<span>Tax tables <b>' + tax + '</b></span><span>Advisor <b>' + esc(state.f.advisor.v) + '</b></span>';
   }
   /* The top bar counts down to the day the Anthropic key stops working. */
@@ -382,7 +382,7 @@
   /* The description: web search with the key from Settings or, on the practice page with no key, what Claude itself knows (companies only, shown as "verify"). */
   function lookupText(job) {
     var set = FF.lookup.getSettings();
-    if (set.apiKey) return FF.lookup.run({ apiKey: set.apiKey, model: set.model, name: job.name, kind: job.kind, org: job.org, role: job.role }).then(function (t) { return { text: t, st: job.kind === 'person' ? 'verify' : 'heard' }; });
+    if (set.apiKey) return FF.lookup.run({ apiKey: set.apiKey, model: set.model, name: job.name, kind: job.kind, org: job.org, role: job.role, fetchImpl: meteredFetch }).then(function (t) { return { text: t, st: job.kind === 'person' ? 'verify' : 'heard' }; });
     if (job.kind !== 'person' && FF.voiceBackend && FF.voiceBackend.available) return FF.lookup.runAsk({ ask: FF.voiceBackend.ask, name: job.name, kind: job.kind }).then(function (t) { return { text: t, st: 'verify' }; });
     return Promise.reject(new Error(job.kind === 'person' ? 'The LinkedIn search needs the Anthropic key in Settings, because it uses web search.' : 'Add your Anthropic API key in Settings first.'));
   }
@@ -446,6 +446,7 @@
     $('#setModel').innerHTML = FF.lookup.MODELS.map(function (m) { return '<option value="' + m.id + '"' + (m.id === set.model ? ' selected' : '') + '>' + esc(m.label) + '</option>'; }).join('');
     $('#setResult').textContent = '';
     if ($('#setSpeech')) { var sp = speechPrefs(); speechChoices(); $('#setSpeech').value = sp.engine; $('#setWhisper').value = sp.model; }
+    creditSettings(); var left = creditLeft(); $('#setCredit').value = left == null ? '' : left.toFixed(2);
     dlg.showModal();
   }
   $('#btnSettings').addEventListener('click', openSettings);
@@ -455,12 +456,71 @@
   $('#setSave').addEventListener('click', function () {
     FF.lookup.saveSettings({ apiKey: $('#setKey').value, model: $('#setModel').value, voiceModel: $('#setVoiceModel').value, expires: $('#setExpires').value });
     if ($('#setSpeech')) { try { localStorage.setItem(SPEECH_KEY, JSON.stringify({ engine: $('#setSpeech').value, model: $('#setWhisper').value })); } catch (e) { /* storage unavailable */ } }
-    $('#settings').close(); refreshKey(); toast('Settings saved.');
+    saveCreditBox();
+    $('#settings').close(); refreshKey(); refreshCost(); toast('Settings saved.');
   });
   $('#setTest').addEventListener('click', function () {
     var out = $('#setResult'); out.textContent = 'Testing…';
-    FF.lookup.run({ apiKey: $('#setKey').value.trim(), model: $('#setModel').value, name: 'Old Mutual', kind: 'company' }).then(function (t) { out.textContent = 'Working. Example: ' + t; }, function (e) { out.textContent = e.message; });
+    FF.lookup.run({ apiKey: $('#setKey').value.trim(), model: $('#setModel').value, name: 'Old Mutual', kind: 'company', fetchImpl: meteredFetch }).then(function (t) { out.textContent = 'Working. Example: ' + t; }, function (e) { out.textContent = e.message; });
   });
+
+  /* ---------- what Claude costs: the running total for this fact find, and what is left of the credit ---------- */
+  /* Every answer from Claude says how many tokens it used; the page prices them (FF.lookup.costOf, from the published prices) and keeps the total with the fact find.
+     What is left comes from the balance typed in Settings, less what has been used since: an estimate, as the Console alone knows the real figure. */
+  var CREDIT_KEY = 'wr-fact-find-credit', lowWarned = 0;
+  function loadCredit() {
+    try { var c = JSON.parse(localStorage.getItem(CREDIT_KEY) || '{}'); return { balance: c.balance != null && isFinite(+c.balance) ? +c.balance : null, spent: +c.spent > 0 ? +c.spent : 0 }; }
+    catch (e) { return { balance: null, spent: 0 }; }
+  }
+  var credit = loadCredit();
+  function saveCredit() { try { localStorage.setItem(CREDIT_KEY, JSON.stringify(credit)); } catch (e) { /* storage unavailable */ } }
+  function creditLeft() { return credit.balance == null ? null : credit.balance - credit.spent; }
+  function usd(x) { return 'US$' + (x < 0.01 ? x.toFixed(4) : x < 0.1 ? x.toFixed(3) : x.toFixed(2)); }
+  /* fetch that notes what each answer cost. Used for every call to Claude. */
+  function meteredFetch(url, init) {
+    return window.fetch(url, init).then(function (res) {
+      try { var model = JSON.parse(init.body).model; res.clone().json().then(function (b) { if (b && b.usage) spendAdd(model, b.usage); }, function () { /* not JSON: nothing to count */ }); } catch (e) { /* nothing to count */ }
+      return res;
+    });
+  }
+  function spendAdd(model, usage) {
+    if (!state.claude) state.claude = store.blankTally();
+    credit.spent += FF.lookup.addUsage(state.claude, model, usage); saveCredit(); saveDraft(); refreshCost();
+    var left = creditLeft();
+    if (left != null && left < 1 && lowWarned < 2) { lowWarned = 2; toast('Claude credit is nearly finished: about ' + usd(left) + ' left. Top it up in the Anthropic Console.'); }
+    else if (left != null && left < 5 && lowWarned < 1) { lowWarned = 1; toast('Claude credit is getting low: about ' + usd(left) + ' left.'); }
+  }
+  function costChip() {
+    var el = $('#costState');
+    if (el) return el;
+    el = document.createElement('span'); el.id = 'costState'; el.className = 'savestate'; el.setAttribute('role', 'button'); el.tabIndex = 0; el.style.cssText = 'cursor:pointer;margin-left:12px'; el.hidden = true;
+    $('#keyState').parentNode.insertBefore(el, $('#keyState').nextSibling);
+    el.addEventListener('click', openSettings);
+    el.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openSettings(); } });
+    return el;
+  }
+  function refreshCost() {
+    var el = costChip(), t = state.claude || store.blankTally(), left = creditLeft(), tok = function (n) { return Math.round(n).toLocaleString('en-US').replace(/,/g, ' '); };
+    el.hidden = !FF.lookup.getSettings().apiKey && !(t.usd > 0);
+    el.textContent = 'Claude: ' + usd(t.usd) + ' this fact find' + (left != null ? ' · about ' + usd(left) + ' left' : '');
+    el.title = t.calls + ' requests to Claude for this fact find: ' + tok(t.input + t.read + t.write) + ' tokens read (' + tok(t.read) + ' of them from memory, which costs a tenth or less), ' + tok(t.output) + ' written' + (t.searches ? ', ' + t.searches + ' web searches' : '') +
+      '. An estimate from the published prices; the Anthropic Console has the real figure.' + (left == null ? ' Click to type the credit you have left, and it is counted down here.' : ' Click to change the credit.');
+    el.style.color = left == null ? '' : left < 1 ? 'var(--bad)' : left < 5 ? 'var(--warn)' : '';
+  }
+  /* The credit box is added to Settings from here, so index.html does not change. */
+  function creditSettings() {
+    if ($('#setCredit')) return;
+    $('#setExpires').closest('.f').insertAdjacentHTML('beforebegin',
+      '<label class="f"><span class="l"><span>Credit left in the Anthropic Console (US$)</span></span><input id="setCredit" type="text" inputmode="decimal" autocomplete="off" placeholder="for example 25.00"></label>' +
+      '<p class="help">Type the balance shown under Billing in the Console. The top bar then counts it down as Claude is used. It is an estimate (it does not know of anything else paid from the same credit), so type the Console\'s figure in again now and then. Leave it empty to show only the cost of this fact find.</p>');
+  }
+  function saveCreditBox() {
+    var box = $('#setCredit'); if (!box) return;
+    var raw = box.value.replace(',', '.').replace(/[^\d.]/g, ''), left = creditLeft();
+    if (raw === '') credit = { balance: null, spent: 0 };
+    else if (isFinite(+raw) && (left == null || Math.abs(+raw - left) >= 0.005)) credit = { balance: +raw, spent: 0 };      // a new figure from the Console starts the count again; the same figure leaves it running
+    saveCredit(); lowWarned = 0;
+  }
 
   /* ---------- voice mode ---------- */
   /* Voice mode follows the conversation. The form is the only display: the section heading glows red-amber when a topic is
@@ -578,7 +638,7 @@
     if (!e) return;
     if (e.kind === 'nav') { cur = e.sec; vm.target = e.target; vm.answered = e.answered; vm.secGlow = false; redraw(); vmPulseNav(); return; }
     if (e.kind === 'wipe') {
-      state = e.snap; fileBase = e.base; fileHandle = e.handle; rememberHandle(e.handle); dirty = e.dirty; cur = e.sec;
+      e.snap.claude = state.claude; state = e.snap; fileBase = e.base; fileHandle = e.handle; rememberHandle(e.handle); dirty = e.dirty; cur = e.sec;
       vm.target = null; vm.answered = false; vm.secGlow = true; saveDraft(); redraw(); vmMarkWait(); toast('Everything is back as it was.'); return;
     }
     if (e.kind === 'addrow') { store.delRow(state, e.list, e.i); vm.rowCur[e.list] = Math.min(vm.rowCur[e.list] == null ? 0 : vm.rowCur[e.list], state.l[e.list].length - 1); touch(); redraw(); return; }
@@ -639,7 +699,8 @@
   }
   function vmWipe() {
     vm.undo.push({ kind: 'wipe', snap: JSON.parse(JSON.stringify(state)), base: fileBase, handle: fileHandle, dirty: dirty, sec: cur });
-    state = store.blank(); fileHandle = null; fileBase = ''; rememberHandle(null); dirty = false; saveDraft();
+    var cost = state.claude; state = store.blank(); state.claude = cost;                                  // what Claude has cost stays, however much of the form is cleared
+    fileHandle = null; fileBase = ''; rememberHandle(null); dirty = false; saveDraft();
     cur = 'info'; vm.target = null; vm.answered = false; vm.noteMode = null; vm.rowCur = {}; vm.recent = []; vm.flashes = {}; vm.secGlow = true;
     redraw(); vmMarkWait(); window.scrollTo(0, 0);
     toast('The whole form is empty. Say "undo" to bring everything back.');
@@ -687,7 +748,7 @@
     var pts = Promise.resolve(local);
     if (!ready && vmAIReady() && !secret) {
       vm.busy++; vmRender();
-      pts = VAI.points({ apiKey: set.apiKey, ask: !set.apiKey && FF.voiceBackend && FF.voiceBackend.available ? FF.voiceBackend.ask : null, model: set.voiceModel, text: text, topic: vmSecTitle(cur) })
+      pts = VAI.points({ apiKey: set.apiKey, ask: !set.apiKey && FF.voiceBackend && FF.voiceBackend.available ? FF.voiceBackend.ask : null, model: set.voiceModel, text: text, topic: vmSecTitle(cur), fetchImpl: meteredFetch })
         .then(function (r) { vm.busy--; vmRender(); return r.length ? r : local; }, function () { vm.busy--; vmRender(); return local; });
     }
     return pts.then(function (list) {
@@ -803,7 +864,7 @@
     var set = FF.lookup.getSettings(), tcr = vm.target ? vmCellRef(vm.target) : null, tid = !vm.noteMode && vm.target && !/^count:/.test(vm.target) && vmField(vm.target) ? (tcr ? tcr.list + '.' + tcr.k : vm.target) : null, fl = vmFilled(), aw = vmAwaiting();
     vm.busy++; vmRender();
     return VAI.decide({
-      apiKey: set.apiKey, ask: !set.apiKey && FF.voiceBackend && FF.voiceBackend.available ? FF.voiceBackend.ask : null, model: set.voiceModel, idx: vidx, who: who, text: text,
+      apiKey: set.apiKey, ask: !set.apiKey && FF.voiceBackend && FF.voiceBackend.available ? FF.voiceBackend.ask : null, model: set.voiceModel, idx: vidx, who: who, text: text, fetchImpl: meteredFetch,
       ctx: { sectionId: cur, targetId: tid, targetRow: tcr ? tcr.i + 1 : null, targetValue: tid && !vmPrivate(vm.target) ? vmValue(vm.target) : '', targetFilled: !!(tid && vmValue(vm.target) !== ''), filled: fl.filled, filledPrivate: fl.filledPrivate, awaiting: aw.awaiting, privateHeld: aw.held, note: note,
         listRows: function (key) { return state.l[key].map(function (r) { return r.d; }); }, recent: vm.recent.slice(-7, -1) }
     }).then(function (r) { vm.busy--; vmRender(); return r; }, function (err) {

@@ -16,6 +16,32 @@
   ];
   var SETTINGS_KEY = 'wr-fact-find-settings';
 
+  /* What Anthropic charges, in US dollars per million tokens (platform.claude.com/docs/en/about-claude/pricing, checked October 2026), and per web search.
+     Only used for the running cost in the top bar, which is an estimate: the Console has the real figure. A model that is not listed is priced as the dearest one, so the meter never reads low. */
+  var PRICES = {
+    'claude-opus-5-5': { input: 4, output: 20, write: 5, read: 0.2 },
+    'claude-sonnet-5-5': { input: 2, output: 10, write: 2.5, read: 0.1 },
+    'claude-haiku-5-5': { input: 0.1, output: 0.5, write: 0.125, read: 0.01 }
+  };
+  var SEARCH_USD = 0.01;
+  /* The cost in US dollars of one response, from its "usage" block. */
+  function costOf(model, u) {
+    var p = PRICES[model] || PRICES['claude-opus-5-5'], n = function (x) { return +x > 0 && isFinite(+x) ? +x : 0; };
+    u = u || {};
+    return (n(u.input_tokens) * p.input + n(u.output_tokens) * p.output + n(u.cache_creation_input_tokens) * p.write + n(u.cache_read_input_tokens) * p.read) / 1e6 +
+      n(u.server_tool_use && u.server_tool_use.web_search_requests) * SEARCH_USD;
+  }
+  /* Adds one response to a running tally ({ usd, calls, input, output, read, write, searches }) and returns what it cost. */
+  function addUsage(tally, model, u) {
+    var c = costOf(model, u), n = function (x) { return +x > 0 && isFinite(+x) ? +x : 0; };
+    u = u || {};
+    tally.usd = (tally.usd || 0) + c; tally.calls = (tally.calls || 0) + 1;
+    tally.input = (tally.input || 0) + n(u.input_tokens); tally.output = (tally.output || 0) + n(u.output_tokens);
+    tally.read = (tally.read || 0) + n(u.cache_read_input_tokens); tally.write = (tally.write || 0) + n(u.cache_creation_input_tokens);
+    tally.searches = (tally.searches || 0) + n(u.server_tool_use && u.server_tool_use.web_search_requests);
+    return c;
+  }
+
   function getSettings() {
     try { var s = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}'); return { apiKey: s.apiKey || '', model: s.model || DEFAULT_MODEL, voiceModel: s.voiceModel || DEFAULT_VOICE_MODEL, expires: s.expires || '' }; }
     catch (e) { return { apiKey: '', model: DEFAULT_MODEL, voiceModel: DEFAULT_VOICE_MODEL, expires: '' }; }
@@ -121,5 +147,5 @@
       return d || 'Could not identify this company.';
     }, function (e) { throw new Error('Could not reach Claude (' + ((e && (e.message || e.code)) || 'no connection') + ').'); });
   }
-  return { DEFAULT_MODEL: DEFAULT_MODEL, DEFAULT_VOICE_MODEL: DEFAULT_VOICE_MODEL, MODELS: MODELS, getSettings: getSettings, saveSettings: saveSettings, keyStatus: keyStatus, buildRequest: buildRequest, promptFor: promptFor, extractText: extractText, run: run, runAsk: runAsk, ENDPOINT: ENDPOINT };
+  return { DEFAULT_MODEL: DEFAULT_MODEL, DEFAULT_VOICE_MODEL: DEFAULT_VOICE_MODEL, MODELS: MODELS, PRICES: PRICES, costOf: costOf, addUsage: addUsage, getSettings: getSettings, saveSettings: saveSettings, keyStatus: keyStatus, buildRequest: buildRequest, promptFor: promptFor, extractText: extractText, run: run, runAsk: runAsk, ENDPOINT: ENDPOINT };
 });
