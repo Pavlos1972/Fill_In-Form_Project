@@ -327,7 +327,11 @@ test('a clear answer put on the form at once is kept when Claude agrees, and tak
   r = AI.reconcile(local, [{ do: 'fill', field: 'consent', value: 'No' }], idx);
   assert.strictEqual(r.agree, false); assert.strictEqual(r.rest.length, 1);
   r = AI.reconcile(local, [], idx);
-  assert.strictEqual(r.agree, false, 'Claude found nothing to fill: the fill is taken back');
+  assert.strictEqual(r.agree, true, 'Claude has nothing to say about the box: what was heard stays (it is taken back only when Claude disagrees)');
+  assert.deepStrictEqual(AI.reconcile(local, [{ do: 'ask', field: 'consent' }], idx), { agree: true, rest: [{ do: 'ask', field: 'consent' }] });
+  const cellMine = [{ do: 'fill', field: 'cell', res: { kind: 'fill', value: '082 555 0148', status: 'verify' } }];
+  assert.strictEqual(AI.reconcile(cellMine, [{ do: 'fill', field: 'work', value: '0825550148' }], idx).agree, false, 'the same number put in another box is a disagreement');
+  assert.strictEqual(AI.reconcile(cellMine, [{ do: 'fill', field: 'work', value: '011 555 0000' }], idx).agree, true, 'a different number for another box is not');
   const two = [{ do: 'fill', field: 'fname', res: { kind: 'fill', value: 'John', status: 'verify', extra: [{ id: 'sname', value: 'Snow', status: 'verify' }] } }];
   assert.strictEqual(AI.reconcile(two, [{ do: 'fill', field: 'fname', value: 'John' }, { do: 'fill', field: 'sname', value: 'Snow' }], idx).agree, true);
   assert.strictEqual(AI.reconcile(two, [{ do: 'fill', field: 'fname', value: 'John' }, { do: 'fill', field: 'sname', value: 'Snowden' }], idx).agree, false);

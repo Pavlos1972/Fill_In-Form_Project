@@ -325,8 +325,9 @@
     return callModel(opts, r).then(function () { return true; }, function () { return false; });
   }
   /* A clear answer can be put on the form before Claude has read the line, and Claude then checks it. This compares what was put there (local) with what Claude says:
-     agree is true when every box that was filled is filled the same way by Claude, and rest is what Claude says besides (those fills left out, as they are already done).
-     When Claude reads the line differently, agree is false and rest is all of Claude's answer: the page takes its own fills back first. */
+     agree is true unless Claude fills one of those boxes with a different value, or puts the same value in another box (a number said for the work phone, not the cell). Claude saying nothing
+     about a box is not a disagreement: the box keeps what was heard, still amber to be confirmed. (Taking it back made a cell number vanish whenever Claude had nothing to add.)
+     rest is what Claude says besides (those fills left out, as they are already done). When Claude reads the line differently, rest is all of Claude's answer: the page takes its own fills back first. */
   function reconcile(local, claude, idx) {
     var norm = function (v) { return String(v == null ? '' : v).toLowerCase().replace(/\s+/g, ''); };
     var mine = {}, theirs = {};
@@ -340,7 +341,9 @@
       var f = idx.byId[a.field], x = f ? V.interpret(f, a.value) : null;
       theirs[a.field] = norm(x && !x.error ? x.value : a.value);
     });
-    var agree = Object.keys(mine).every(function (id) { return theirs[id] === mine[id]; });
+    var ids = Object.keys(mine);
+    var agree = ids.every(function (id) { return theirs[id] === undefined || theirs[id] === mine[id]; }) &&
+      !Object.keys(theirs).some(function (id) { return mine[id] === undefined && ids.some(function (m) { return mine[m] === theirs[id]; }); });
     return { agree: agree, rest: agree ? claude.filter(function (a) { return !(a.do === 'fill' && mine[a.field] !== undefined && theirs[a.field] === mine[a.field]); }) : claude };
   }
 
