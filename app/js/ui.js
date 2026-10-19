@@ -567,7 +567,7 @@
   var V = FF.voice, VAI = FF.voiceAI, vidx = V.buildIndex(schema);
   try { if (VAI && VAI.setShare) VAI.setShare(localStorage.getItem('wr-fact-find-share') === '1'); } catch (e) { /* storage unavailable: sharing stays off */ }
   var vm = { on: false, target: null, answered: false, secGlow: false, noteMode: null, rowCur: {}, undo: [], recent: [], flashes: {}, queue: Promise.resolve(), slow: 0, epoch: 0, busy: 0, lastFail: 0, wipe: null, digits: null, lastNum: null };
-  /* ---------- "What was heard": a card in the right-hand pane under Checks, kept in view while the page scrolls. Each line heard, newest first, with what was done on the form because of it. ---------- */
+  /* ---------- "Live Client Conversation": a text box in the right-hand pane under Checks, kept in view while the page scrolls. The lines heard, oldest at the top and the latest at the bottom, each with what was done on the form because of it. ---------- */
   var vmCur = null;                                              // the line being dealt with now, so what is done on the form is listed under it
   var cv = { rows: [], live: '' }, convoT = 0;
   function vmLog(s) { if (vmCur) { vmCur.did.push(s); convoSoon(); } }
@@ -576,15 +576,18 @@
     var c = document.getElementById('convo'), side = document.querySelector('.side');
     if (c || !side) return c;
     var st = document.createElement('style');
-    st.textContent = '#convo{border-color:var(--brand);position:sticky;top:12px;z-index:5;max-height:calc(100vh - 24px);overflow-y:auto}#convo .cv-live{font-size:15px;font-style:italic;color:var(--muted);margin-bottom:8px;overflow-wrap:anywhere}' +
-      '.cv-row{padding:9px 0;border-top:1px solid var(--line)}.cv-row:first-child{border-top:0;padding-top:0}' +
+    st.textContent = '#convo{border-color:var(--brand);position:sticky;top:12px;z-index:5;max-height:calc(100vh - 24px);display:flex;flex-direction:column}#convo h3{flex:none}' +
+      '#convo .cv-share{flex:none;font-size:12px;color:var(--muted);margin:-4px 0 6px}' +
+      '#cvBox{flex:1 1 300px;min-height:120px;overflow-y:auto;border:1px solid var(--line);background:var(--surface);border-radius:6px;padding:8px 10px}' +
+      '#cvBox .cv-empty{color:var(--muted);font-size:13px}#cvBox .cv-live{font-size:15px;font-style:italic;color:var(--muted);overflow-wrap:anywhere;padding-top:6px}' +
+      '.cv-row{padding:7px 0;border-top:1px solid var(--line)}.cv-row:first-child{border-top:0;padding-top:0}' +
       '.cv-top{display:flex;gap:8px;font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}.cv-who{font-weight:600}' +
       '.cv-adviser .cv-who{color:var(--brand)}.cv-client .cv-who{color:var(--accent)}' +
-      '.cv-text{font-size:14px;line-height:1.35;color:var(--muted);overflow-wrap:anywhere}.cv-row:first-child .cv-text{font-size:18px;font-weight:500;color:var(--ink)}' +
-      '.cv-did{font-size:12px;color:var(--muted);margin-top:3px}';
+      '.cv-text{font-size:15px;line-height:1.35;color:var(--ink);overflow-wrap:anywhere}' +
+      '.cv-did{font-size:12px;color:var(--muted);margin-top:2px}';
     document.head.appendChild(st);
-    c = document.createElement('div'); c.className = 'card'; c.id = 'convo'; c.hidden = true;
-    c.innerHTML = '<h3>What was heard</h3><div class="cv-live" id="cvLive" hidden></div><div id="cvRows"></div>';
+    c = document.createElement('div'); c.className = 'card'; c.id = 'convo';
+    c.innerHTML = '<h3>Live Client Conversation</h3><div class="cv-share" id="cvShare" hidden>Claude sees ID, tax and phone numbers</div><div id="cvBox" role="log" aria-live="polite" tabindex="0"></div>';
     var chk = document.getElementById('checks'), under = chk && chk.closest('.card');
     if (under) under.insertAdjacentElement('afterend', c); else side.insertBefore(c, side.firstChild);
     return c;
@@ -598,15 +601,18 @@
   }
   function convoRender() {
     var c = convoCard(); if (!c) return;
-    c.hidden = !vm.on;
-    c.querySelector('h3').textContent = 'What was heard' + (vmShareOn() ? ' (Claude sees ID, tax and phone numbers)' : '');
-    var live = document.getElementById('cvLive'); live.textContent = cv.live; live.hidden = !cv.live;
-    document.getElementById('cvRows').innerHTML = cv.rows.slice(-5).reverse().map(function (e) {
+    var sh = document.getElementById('cvShare'); sh.hidden = !vmShareOn();
+    var box = document.getElementById('cvBox'), stick = box.scrollHeight - box.scrollTop - box.clientHeight < 40;   // stays on the latest line unless it has been scrolled back to read
+    var html = cv.rows.map(function (e) {
       var who = e.who === 'adviser' ? 'Planner' : e.who === 'client' ? 'Client' : '', ms = convoMeta(e),
         did = e.did.length ? e.did.map(esc).join(' · ') + (e.done ? '' : ' · Claude is checking') : (e.done ? 'nothing to fill' : 'working on it…');
       return '<div class="cv-row' + (e.who === 'adviser' ? ' cv-adviser' : e.who === 'client' ? ' cv-client' : '') + '"><div class="cv-top"><span class="cv-who">' + who + '</span><span>' + new Date(e.at).toTimeString().slice(0, 8) + '</span></div>' +
         '<div class="cv-text">' + esc(e.shown || e.text) + '</div><div class="cv-did">' + did + (ms ? ' <span>· ' + ms + '</span>' : '') + '</div></div>';
     }).join('');
+    if (cv.live) html += '<div class="cv-live">' + esc(cv.live) + '</div>';
+    if (!html) html = '<div class="cv-empty">' + (vm.on ? 'Listening. What is said appears here, with what was filled in because of it.' : 'Press Voice to start. What is said appears here, with what was filled in because of it.') + '</div>';
+    box.innerHTML = html;
+    if (stick) box.scrollTop = box.scrollHeight;
   }
   /* A box in a list is named list:row:column (kids:0:dob). "count:kids" is the Add button, waiting for how many there are. */
   function vmCellRef(id) { var m = /^(\w+):(\d+):(\w+)$/.exec(String(id)); return m ? { list: m[1], i: +m[2], k: m[3] } : null; }
@@ -1224,7 +1230,7 @@
     text = vmJoinDigits(text);                                                    // a number said in pieces is one line
     var entry = { who: who === 'me' ? 'adviser' : who === 'client' ? 'client' : 'unclear', text: text, shown: shown, at: Date.now(), did: [], done: false, m: meta || null }, t0 = Date.now(), epoch = vm.epoch, quick = null, p;
     vm.recent.push(entry); if (vm.recent.length > 12) vm.recent.shift();
-    cv.rows.push(entry); if (cv.rows.length > 8) cv.rows.shift(); cv.live = '';
+    cv.rows.push(entry); if (cv.rows.length > 200) cv.rows.shift(); cv.live = '';
     try { quick = vmQuickTry(text, entry); } catch (e) { quick = null; }          // a clear answer is on the form already; Claude checks it in its turn below
     if (quick) { entry.quick = quick; entry.quickMs = Date.now() - t0; } else vm.slow++;
     convoSoon();
@@ -1287,7 +1293,7 @@
         else listenShow('', '');
       },
       interim: function (t) { cv.live = t ? '… ' + t : ''; convoSoon(); },
-      text: function (t, m) { cv.live = ''; vmHear(t, undefined, m); },                  // the card in the right-hand pane shows the line and what became of it
+      text: function (t, m) { cv.live = ''; vmHear(t, undefined, m); },                  // the box in the right-hand pane shows the line and what became of it
       reading: function () { cv.live = '… reading what was just said'; convoSoon(); clearTimeout(cv.t); cv.t = setTimeout(function () { cv.live = ''; convoSoon(); }, 10000); },   // a line that came to nothing leaves no note behind
       note: function (msg) { listenShow(status, msg, 'warn'); },
       level: function (v) { var el = $('#lvl'); if (el) el.style.width = Math.round(v * 100) + '%'; }
@@ -1325,7 +1331,7 @@
   if (restored) recallHandle().then(function (h) { if (h && fileBase) { fileHandle = h; } });
   else rememberHandle(null);
   dirty = !!restored;
-  layoutSetup();
+  layoutSetup(); convoRender();
   window.FF.app = { get state() { return state; }, redraw: redraw, setState: function (s) { state = s; redraw(); }, makePdf: makePdf, voiceHear: vmHear, voice: vm };
   redraw();
   if (restored) toast('Restored your unsaved changes for ' + (store.clientName(state) || 'the last client') + '.');
