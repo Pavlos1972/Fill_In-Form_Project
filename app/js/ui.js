@@ -696,7 +696,7 @@
     if (cur !== f.sec) { cur = f.sec; redraw(); vmPulseNav(); }
     if (cr) { vm.rowCur[cr.list] = cr.i; if (!vmEl(id)) redraw(); }
     vm.target = id; vm.answered = false; vm.secGlow = false; vmMarkWait();
-    if (vm.run && vm.run.box !== id) vm.run = null;                                                  // a number being said belongs to its own box
+    if (vm.run && vm.run.box !== id) vm.run = null;  // a number being said belongs to its own box
     if (NUMBER_BOXES.indexOf(id) >= 0) vm.lastNum = id;
     var el = vmEl(id);
     if (el) {
@@ -1079,7 +1079,7 @@
   function vmGroup(box, s) { return box !== 'idno' && box !== 'tax' && !/^27/.test(s) ? s.slice(0, 3) + (s.length > 3 ? ' ' + s.slice(3, 6) : '') + (s.length > 6 ? ' ' + s.slice(6) : '') : s; }
   function vmNumberRun(text) {
     var box = vm.target && NUMBER_BOXES.indexOf(vm.target) >= 0 ? vm.target : null, run = vm.run;
-    if (run && run.box !== box) run = vm.run = null;                                   // the talk has moved on to another box
+    if (run && run.box !== box) run = vm.run = null;  // the talk has moved on to another box
     if (!box || (box === 'idno' && state.f.idtype.v === 'Passport')) return null;
     var raw = String(text == null ? '' : text).toLowerCase().replace(/[\u2018\u2019`]/g, "'").replace(/\bone (?:moment|second|sec|minute)\b/g, 'moment'), named = null;
     raw.split(/[^a-z]+/).forEach(function (w) { if (RUN_NAMES[w]) named = RUN_NAMES[w]; });
@@ -1090,9 +1090,9 @@
     if (!d) return run ? { hold: true, note: 'still holding ' + vmGroup(box, run.d) + ' (' + run.d.length + ' of ' + run.want + ' digits): waiting for the rest' } : null;
     var len = NUM_LEN[box], phone = box !== 'idno' && box !== 'tax', want = function (x) { return phone && /^27/.test(x) ? 11 : len; };
     if (!run && (d.length < 2 || !(!vm.answered || vmValue(box) === '' || d.charAt(0) === '0'))) return null;
-    if (!run && d.length >= want(d)) return null;                                      // the whole number in one line: read as usual
+    if (!run && d.length >= want(d)) return null;  // the whole number in one line: read as usual
     var all = (run ? run.d : '') + d;
-    if (run && all.length > want(all)) all = d;                                        // too long to be the rest of it: the number is being said again from the start
+    if (run && all.length > want(all)) all = d;  // too long to be the rest of it: the number is being said again from the start
     vm.answered = false;
     if (all.length >= want(all)) { vm.run = null; return { text: vmGroup(box, all) }; }
     vm.run = { box: box, d: all, want: want(all) }; vmMarkWait();
@@ -1138,12 +1138,12 @@
       if (cur.slice(-ed.d.length) === ed.d) { vmLog(f.label + ' already ends in ' + ed.d); return true; }
       next = cur.length + ed.d.length <= len ? cur + ed.d : cur.slice(0, Math.max(0, len - ed.d.length)) + ed.d; what = 'set the end to ' + ed.d + ' in';
     }
-    if (held && next.length < len) {                                             // a number still being said: the digits kept are edited, and it goes on waiting
+    if (held && next.length < len) {  // a number still being said: the digits kept are edited, and it goes on waiting
       held.d = next; vmNote(id, next.length + ' of ' + len + ' digits so far: waiting for the rest');
       vmLog(what + ' ' + f.label + ': now holding ' + vmGroup(id, next) + ' (' + next.length + ' of ' + len + ' digits)');
       return true;
     }
-    if (held) { vm.run = null; vm.answered = false; }                             // the edit completed it
+    if (held) { vm.run = null; vm.answered = false; }  // the edit completed it
     var x = V.interpret(f, next);
     if (vmApply(id, { kind: 'fill', value: x && !x.error ? x.value : next, status: 'verify' })) vmLog(what + ' ' + f.label);
     return true;
@@ -1273,8 +1273,8 @@
     text = String(text == null ? '' : text).trim();
     if (!vm.on || !text) return Promise.resolve();
     var shown = text, run = vmNumberRun(text);
-    if (run && run.hold) return vmKeepLine(text, who, meta, run.note);                // part of a number: kept until it is complete
-    text = run ? run.text : vmJoinDigits(text);                                   // a number said in pieces is one line
+    if (run && run.hold) return vmKeepLine(text, who, meta, run.note);  // part of a number: kept until it is complete
+    text = run ? run.text : vmJoinDigits(text);  // a number said in pieces is one line
     var entry = { who: who === 'me' ? 'adviser' : who === 'client' ? 'client' : 'unclear', text: text, shown: shown, at: Date.now(), did: [], done: false, m: meta || null }, t0 = Date.now(), epoch = vm.epoch, quick = null, p;
     vm.recent.push(entry); if (vm.recent.length > 12) vm.recent.shift();
     cv.rows.push(entry); if (cv.rows.length > 200) cv.rows.shift(); cv.live = '';
