@@ -566,7 +566,7 @@
      Whatever listens calls FF.app.voiceHear(text, who), who being 'me' (the adviser) or 'client'. Typing works as always when voice is off. */
   var V = FF.voice, VAI = FF.voiceAI, vidx = V.buildIndex(schema);
   try { if (VAI && VAI.setShare) VAI.setShare(localStorage.getItem('wr-fact-find-share') === '1'); } catch (e) { /* storage unavailable: sharing stays off */ }
-  var vm = { on: false, target: null, answered: false, secGlow: false, noteMode: null, rowCur: {}, undo: [], recent: [], flashes: {}, queue: Promise.resolve(), slow: 0, epoch: 0, busy: 0, lastFail: 0, wipe: null, digits: null, run: null, lastNum: null };
+  var vm = { on: false, target: null, answered: false, secGlow: false, noteMode: null, rowCur: {}, undo: [], recent: [], flashes: {}, queue: Promise.resolve(), slow: 0, epoch: 0, busy: 0, lastFail: 0, wipe: null, digits: null, run: null, erun: null, paused: false, lastNum: null };
   /* ---------- "Live Client Conversation": a text box in the right-hand pane under Checks, kept in view while the page scrolls. The lines heard, oldest at the top and the latest at the bottom, each with what was done on the form because of it. ---------- */
   var vmCur = null;                                              // the line being dealt with now, so what is done on the form is listed under it
   var cv = { rows: [], all: [], live: '' }, convoT = 0;
@@ -581,7 +581,7 @@
     if (c || !side) return c;
     var st = document.createElement('style');
     st.textContent = '#convo{border-color:var(--brand);position:sticky;top:12px;z-index:5;max-height:calc(100vh - 24px);display:flex;flex-direction:column}#convo h3{flex:none}' +
-      '#convo .cv-head{display:flex;align-items:baseline;justify-content:space-between;gap:8px;flex:none;margin-bottom:6px}#convo .cv-head h3{margin-bottom:0}#convo .cv-head button{font-size:12px}' +
+      '#convo .cv-head{display:flex;align-items:baseline;justify-content:space-between;gap:8px;flex:none;margin-bottom:6px}#convo .cv-head h3{margin-bottom:0;min-width:0}#convo .cv-head button{font-size:12px;white-space:nowrap}#convo .cv-btns{display:flex;gap:12px;flex:none}' +
       '#convo .cv-share{flex:none;font-size:12px;color:var(--muted);margin:-4px 0 6px}' +
       '#cvBox{flex:1 1 300px;min-height:120px;overflow-y:auto;border:1px solid var(--line);background:var(--surface);border-radius:6px;padding:8px 10px}' +
       '#cvBox .cv-empty{color:var(--muted);font-size:13px}#cvBox .cv-live{font-size:15px;font-style:italic;color:var(--muted);overflow-wrap:anywhere;padding-top:6px}' +
@@ -592,7 +592,7 @@
       '.cv-did{font-size:12px;color:var(--muted);margin-top:2px}';
     document.head.appendChild(st);
     c = document.createElement('div'); c.className = 'card'; c.id = 'convo';
-    c.innerHTML = '<div class="cv-head"><h3>Live Client Conversation</h3><button type="button" class="link-btn" id="cvSave" title="Saves a file of what was heard, what was sent to Claude, what Claude answered and what the form did, so a problem can be found. Numbers and email addresses are hidden in it unless Claude is allowed to see them.">Save log</button></div><div class="cv-share" id="cvShare" hidden>Claude sees ID, tax and phone numbers</div><div id="cvBox" role="log" aria-live="polite" tabindex="0"></div>';
+    c.innerHTML = '<div class="cv-head"><h3>Live Client Conversation</h3><span class="cv-btns"><button type="button" class="link-btn" id="cvPause" hidden title="Stops reading what is said (a remark to yourself, a side conversation) until Resume. The lines still show here, marked as not read.">Pause</button><button type="button" class="link-btn" id="cvSave" title="Saves a file of what was heard, what was sent to Claude, what Claude answered and what the form did, so a problem can be found. Numbers and email addresses are hidden in it unless Claude is allowed to see them.">Save log</button></span></div><div class="cv-share" id="cvShare" hidden>Claude sees ID, tax and phone numbers</div><div id="cvBox" role="log" aria-live="polite" tabindex="0"></div>';
     var chk = document.getElementById('checks'), under = chk && chk.closest('.card');
     if (under) under.insertAdjacentElement('afterend', c); else side.insertBefore(c, side.firstChild);
     return c;
@@ -607,6 +607,7 @@
   function convoRender() {
     var c = convoCard(); if (!c) return;
     var sh = document.getElementById('cvShare'); sh.hidden = !vmShareOn();
+    var pb = document.getElementById('cvPause'); if (pb) { pb.hidden = !vm.on; pb.textContent = vm.paused ? 'Resume' : 'Pause'; }
     var box = document.getElementById('cvBox'), stick = box.scrollHeight - box.scrollTop - box.clientHeight < 40;   // stays on the latest line unless it has been scrolled back to read
     var html = cv.rows.map(function (e) {
       var who = e.who === 'adviser' ? 'Planner' : e.who === 'client' ? 'Client' : '', ms = convoMeta(e),
@@ -653,6 +654,11 @@
       .then(function () { toast('Voice log saved.'); }).catch(function (e) { if (e && e.name !== 'AbortError') toast('Could not save the log: ' + e.message); });
   }
   document.addEventListener('click', function (e) { if (e.target.closest('#cvSave')) { e.preventDefault(); convoSave(); } });
+  document.addEventListener('click', function (e) {
+    if (!e.target.closest('#cvPause')) return;
+    e.preventDefault(); vm.paused = !vm.paused; convoRender();
+    toast(vm.paused ? 'Paused: nothing said is read until you press Resume.' : 'Reading what is said again.');
+  });
   /* A box in a list is named list:row:column (kids:0:dob). "count:kids" is the Add button, waiting for how many there are. */
   function vmCellRef(id) { var m = /^(\w+):(\d+):(\w+)$/.exec(String(id)); return m ? { list: m[1], i: +m[2], k: m[3] } : null; }
   function vmField(id) { var c = vmCellRef(id); if (c) return vidx.byId[c.list + '.' + c.k]; return vidx.byId[id] || vidx.noteById[id]; }
@@ -736,6 +742,7 @@
     if (cr) { vm.rowCur[cr.list] = cr.i; if (!vmEl(id)) redraw(); }
     vm.target = id; vm.answered = false; vm.secGlow = false; vmMarkWait();
     if (vm.run && vm.run.box !== id) vm.run = null;  // a number being said belongs to its own box
+    if (vm.erun && vm.erun.box !== id) vm.erun = null;
     if (NUMBER_BOXES.indexOf(id) >= 0) vm.lastNum = id;
     var el = vmEl(id);
     if (el) {
@@ -828,7 +835,7 @@
     vm.undo.push({ kind: 'wipe', snap: JSON.parse(JSON.stringify(state)), base: fileBase, handle: fileHandle, dirty: dirty, sec: cur });
     var cost = state.claude; state = store.blank(); state.claude = cost;                                  // what Claude has cost stays, however much of the form is cleared
     fileHandle = null; fileBase = ''; rememberHandle(null); dirty = false; saveDraft();
-    cur = 'info'; vm.target = null; vm.answered = false; vm.noteMode = null; vm.rowCur = {}; vm.recent = []; vm.flashes = {}; vm.secGlow = true; vm.run = null; vm.digits = null;
+    cur = 'info'; vm.target = null; vm.answered = false; vm.noteMode = null; vm.rowCur = {}; vm.recent = []; vm.flashes = {}; vm.secGlow = true; vm.run = null; vm.erun = null; vm.digits = null;
     redraw(); vmMarkWait(); window.scrollTo(0, 0);
     toast('The whole form is empty. Say "undo" to bring everything back.');
   }
@@ -1002,12 +1009,18 @@
     });
   }
   /* Do what a line of conversation says, in order. Actions come from V.plan (on this computer) or from Claude. */
+  var SAID_UNDO = /\b(?:undo|scratch|take (?:that|it|those|them) back|cancel|never ?mind|revert|forget (?:that|it)|ignore (?:that|it))\b/i, SAID_CLEAR = /\b(?:clear|delete|remove|erase|wipe|empty|scratch|get rid of|take out|cancel|forget)\b/i;
   function vmDo(a) {
     var f = a.field ? vmField(a.field) : null;
     if (vm.noteMode && /^(?:section|ask|fill|cell|row|addrow|confirm)$/.test(a.do)) vmStopNotes();       // going to another box or section ends the notes
     switch (a.do) {
-      case 'cmd': vmLog('command: ' + (a.cmd && a.cmd.type)); return vmCommand(a.cmd);
+      case 'cmd':
+        if (a.cmd && vmCur && ((a.cmd.type === 'undo' && !SAID_UNDO.test(vmCur.text)) || (a.cmd.type === 'clear' && !SAID_CLEAR.test(vmCur.text)))) { vmLog('did not ' + a.cmd.type + ': the words were not said'); return; }   // undo and clear destroy work, so the line has to ask for them
+        vmLog('command: ' + (a.cmd && a.cmd.type)); return vmCommand(a.cmd);
       case 'section': return vmOpenSection(a.section);
+      case 'empty':
+        if (vmCur && !SAID_CLEAR.test(vmCur.text)) { vmLog('did not empty a box: the words were not said'); return; }
+        return vmEmpty(a);
       case 'note':
         if (!vm.noteMode) vmStartNotes({});                                     // a note with no "let me take some notes" before it starts them
         return vmAddNote(a.text, a.ready);
@@ -1036,7 +1049,10 @@
         if (!res && a.do === 'confirm') res = { kind: 'confirm' };
         if (!res) { var x = V.interpret(f, a.value); if (x && !x.error) res = { kind: 'fill', value: x.value, status: x.status, extra: x.extra, append: x.append }; }
         if (!res) return;
-        if (res.kind === 'fill' && !res.extra && cell.v !== '' && String(res.value).trim().toLowerCase() === String(cell.v).trim().toLowerCase()) res = { kind: 'confirm' };   // saying the same thing again agrees with it
+        if (res.kind === 'fill' && !res.extra && cell.v !== '' && String(res.value).trim().toLowerCase() === String(cell.v).trim().toLowerCase()) {   // saying the same thing again agrees with it, but only for the box being asked about:
+          if (a.field !== vm.target) return;                                                                                                  // a value repeated anywhere else (going over what is already there) is left alone
+          res = { kind: 'confirm' };
+        }
         if (a.field !== vm.target && a.do !== 'confirm') {                  // agreeing to a box does not move the cursor: it turns green where it is
           if (!a.explicit && res.kind === 'fill' && cell.v !== '' && cell.st === 'confirmed') return;   // Claude's volunteered fact never overwrites a confirmed value
           vmShow(a.field);                                                                              // the screen follows the conversation to that box
@@ -1045,9 +1061,27 @@
         if (vmApply(a.field, res)) vmLog((res.kind === 'confirm' ? 'confirmed ' : 'filled ') + [f.label || a.field].concat((res.extra || []).map(function (x) { var xf = vmField(x.id); return xf ? xf.label : x.id; })).join(', '));
     }
   }
+  /* One named box is emptied ("delete his name"), whatever its status; "scratch that" brings it back. */
+  function vmEmpty(a) {
+    var id = a.list ? a.list + ':' + (a.row === 'last' ? Math.max(state.l[a.list].length - 1, 0) : a.row - 1) + ':' + a.col : a.field, cr = vmCellRef(id), f = vmField(id);
+    if (!f || !vmVisible(f)) return;
+    if (cr) {
+      var r0 = state.l[cr.list][cr.i];
+      if (!r0 || r0.d[cr.k] === '' || r0.d[cr.k] == null) return;
+      vm.undo.push({ kind: 'cell', list: cr.list, i: cr.i, k: cr.k, prev: { v: r0.d[cr.k], st: r0.st } }); r0.d[cr.k] = '';
+    } else {
+      var c0 = state.f[id];
+      if (!c0 || c0.v === '') return;
+      vm.undo.push({ kind: 'fill', id: id, prev: { v: c0.v, st: c0.st }, extras: [] }); store.setField(state, id, '', 'empty');
+    }
+    if (vm.run && vm.run.box === id) vm.run = null;
+    if (vm.erun && vm.erun.box === id) vm.erun = null;
+    touch(); redraw(); vmShow(id); vmLog('emptied ' + (f.label || id));
+  }
   /* One after another, so a note written by Claude lands before the next thing in the line. */
   function vmRun(actions) {
     if (vm.run) actions = actions.filter(function (a) { return !(/^(?:fill|confirm|cell)$/.test(a.do) && a.field === vm.run.box); });   // the number being said owns its box until it is complete
+    if (vm.erun) actions = actions.filter(function (a) { return !(/^(?:fill|confirm|cell)$/.test(a.do) && a.field === vm.erun.box); });   // and so does an email address
     var k = -1;                                                  // "remove everything" ends the line for now: the rest waits for the answer
     actions.forEach(function (a, i) { if (k < 0 && a.do === 'cmd' && a.cmd && a.cmd.type === 'clearAll') k = i; });
     var now = k < 0 ? actions : actions.slice(0, k + 1);
@@ -1073,8 +1107,14 @@
   /* "Your ID number is 7212095268086, is that correct?" and "can you confirm your tax number" ask the client to agree. The number said back by the adviser must not count as the client
      agreeing: a box that already holds the number would turn green at once, before the client has answered. Speech recognition does not always write the question mark, so the words decide. */
   var READBACK_TAG = /\b(?:(?:is|are) (?:that|this|it|those|these) (?:all |still |also )?(?:correct|right|accurate)|(?:am i|have i got (?:it|that|this)|do i have (?:it|that|this)) (?:right|correct)|isn'?t (?:that|it) (?:right|correct|so)|is (?:that|this) your [a-z ]{0,25}|(?:correct|right)\s*\?)\s*[?.!]*\s*$/i;
-  var READBACK_ASK = /\b(?:(?:can|could|would|will) you (?:please |just |also )?(?:confirm|verify|check)|(?:please|just to|do you|can i|let me) confirm)\b/i;
-  function vmReadBack(text) { var t = String(text == null ? '' : text); return READBACK_TAG.test(t) || READBACK_ASK.test(t); }
+  var READBACK_ASK = /\b(?:(?:can|could|would|will) you (?:please |just |also )?(?:confirm|verify|check)|(?:please|just to|do you|can i|let me) confirm|to (?:just )?(?:confirm|verify|double.?check)|you (?:said|told me|mentioned|gave me|just said))\b/i;
+  /* A line of five words or more that ends in "correct" or "right" and does not open with an agreement is the adviser asking ("so your wife's cell number is ... correct"): the client's own "yes that's correct" opens with one. */
+  var READBACK_END = /\b(?:correct|right)\s*[?.!]*\s*$/i;
+  var AGREE_OPEN = /^(?:(?:and|so|well|okay|ok|oh)\s+)?(?:yes|yeah|yep|yup|ya|sure|perfect|exactly|absolutely|definitely|indeed|great|fine|good|right|correct|that'?s|thats|that is|it'?s|its|it is|i think|i believe|i agree|i guess|i reckon|i'?m sure|im sure|i am sure|we agree|thank)\b/i;
+  function vmReadBack(text) {
+    var t = String(text == null ? '' : text).replace(/[‘’]/g, "'").trim();
+    return READBACK_TAG.test(t) || READBACK_ASK.test(t) || (t.split(/\s+/).length >= 5 && READBACK_END.test(t) && !AGREE_OPEN.test(t));
+  }
   function vmSame(a, b) { var n = function (v) { return String(v == null ? '' : v).toLowerCase().replace(/[\s,]+/g, ''); }; return n(a) !== '' && n(a) === n(b); }
   /* On a read-back line nothing is confirmed, and a box that already holds the value said is only pointed at (it stays amber until the client says yes). */
   function vmGuardReadBack(actions, text) {
@@ -1143,6 +1183,40 @@
     var note = all.length + ' of ' + want(all) + ' digits so far';
     vmNote(box, note + ': waiting for the rest');
     return { hold: true, note: 'holding ' + vmGroup(box, all) + ' (' + note + '): waiting for the rest' };
+  }
+  /* An email address said in pieces ("it's pool one", "dot kafentzis", "@gmail.com") is kept here, the way a number is, and never sent to Claude: the email boxes take only a finished address,
+     and what Claude is shown of an address is a marker. While an email box is waiting, or one is named ("my work email address is Paul k"), short lines are joined until the address ends in a domain
+     (.com, .co.za ...) and is then read as one line. A restart ("let's try that again") drops what was kept; a line that is not a piece of it ends it. */
+  var EMAIL_BOXES = ['pemail', 'wemail'], EMAIL_LEAD = {};
+  'email emails mail address personal private office business e-mail'.split(' ').forEach(function (w) { EMAIL_LEAD[w] = 1; });
+  var EMAIL_END = /^[a-z0-9][^@\s]*@[^@\s]+\.(?:com|org|net|edu|gov|biz|info|io|me|app|dev|africa|za|uk|us)$/i;
+  var EMAIL_PIECE = /(?:^|\s)(?:dot|period|full ?stop|at|underscore|dash|hyphen|gmail|yahoo|outlook|hotmail|icloud|live|zero|one|two|three|four|five|six|seven|eight|nine)(?=\s|$)|[@.\d]/i;
+  function vmEmailRun(text) {
+    var raw = String(text == null ? '' : text), low = raw.toLowerCase().replace(/[‘’`]/g, "'"), run = vm.erun, hasWord = /\be-?mail\b/.test(low), named = null;
+    if (hasWord) named = /\b(?:work|office|business)\b/.test(low) ? 'wemail' : 'pemail';
+    var tgt = vm.target && EMAIL_BOXES.indexOf(vm.target) >= 0 ? vm.target : null;
+    if (run && (run.box !== tgt || (hasWord && named !== run.box))) run = vm.erun = null;  // the talk has moved on to another box
+    var box = run ? run.box : (named || tgt), fd = box && vmField(box);
+    if (!box || !fd || !vmVisible(fd) || vmValue(box) === 'None') return null;
+    var restart = !!run && RUN_CANCEL.test(low), body = restart ? raw.replace(new RegExp(RUN_CANCEL.source, 'ig'), ' ') : raw;
+    if (!restart && (/\?/.test(raw) || vmReadBack(raw) || V.looksLikeQuestion(raw) || /\b(?:tell|ask|asking|wondering|whether|if|what|which|how|why|when|where|who)\b/.test(low))) return null;
+    var toks = body.split(/\s+/).filter(Boolean), i = 0;
+    while (i < toks.length && (RUN_FILLER[toks[i].toLowerCase().replace(/['‘’`]/g, '')] || EMAIL_LEAD[toks[i].toLowerCase()])) i++;
+    var pay = toks.slice(i);
+    if (run && !restart && !(toks.length <= 2 || (toks.length <= 6 && EMAIL_PIECE.test(low)))) { vm.erun = null; vm.answered = false; vmMarkWait(); return null; }   // something else was said: the pieces end here
+    if (restart) { run = vm.erun = null; vm.answered = false; vmMarkWait(); if (!pay.length) return { hold: true, note: 'dropped the email heard so far: ready for it again' }; }
+    if (!run) {
+      if (!pay.length || pay.length > (named ? 4 : 3) || /\b(?:no|not|none|nothing|dont|don't|do not|havent|haven't|neither|never|nope|nah|without)\b/.test(low) || !(named || !vm.answered || vmValue(box) === '')) return null;
+      if (!named && pay.length > 1 && !EMAIL_PIECE.test(pay.join(' '))) return null;   // a lone name, or words with a sign of an address in them, may start one: other chatter may not
+      var whole = V.interpret(fd, pay.join(' '));
+      if (whole && whole.value && EMAIL_END.test(whole.value)) return null;  // the whole address in one line: read as usual
+    }
+    var all = (run ? run.t + ' ' : '') + (pay.length ? pay.join(' ') : ''), x = V.interpret(fd, all);
+    if (x && x.value && EMAIL_END.test(x.value)) { vm.erun = null; vm.answered = false; if (box !== vm.target) vmShow(box); return { text: x.value }; }
+    if (box !== vm.target) vmShow(box);
+    vm.answered = false; vm.erun = { box: box, t: all.trim() }; vmMarkWait();
+    vmNote(box, 'email so far: waiting for the rest');
+    return { hold: true, note: 'holding the email address heard so far: waiting for the rest' };
   }
   /* An answer for an ID, tax or phone box with too few digits (however it got here: this computer's reading, the quick fill or Claude) is kept, not filled: the rest of the number is waited for. */
   function vmHoldPartial(box, value) {
@@ -1221,7 +1295,7 @@
       vm.undo.push({ kind: 'fill', id: id, prev: { v: cell.v, st: cell.st }, extras: [] });
       store.setField(state, id, '', 'empty'); gone.push(vmField(id).label);
     });
-    vm.digits = null; vm.run = null; touch(); redraw();
+    vm.digits = null; vm.run = null; vm.erun = null; touch(); redraw();
     vmShow(ids[0]);                                                              // the first box glows, waiting for the new answer
     vmLog(gone.length ? 'cleared ' + gone.join(', ') : 'nothing to clear in ' + ids.map(function (id) { return vmField(id).label; }).join(', '));
     if (gone.length) toast('Cleared: ' + gone.join(', ') + '. Say "scratch that" to bring ' + (gone.length > 1 ? 'them' : 'it') + ' back.');
@@ -1238,7 +1312,7 @@
   var QUICK_KEY = 'wr-fact-find-quick-2';
   function vmQuickOn() { try { return localStorage.getItem(QUICK_KEY) === '1'; } catch (e) { return false; } }
   function vmQuickTry(text, entry) {
-    if (vmEditParse(text) || vm.run) return null;
+    if (vmEditParse(text) || vm.run || vm.erun) return null;
     if (!vmQuickOn() || !vmAIReady() || vm.wipe || vm.noteMode || vm.slow > 0 || text.split(/\s+/).length > 16) return null;
     var acts = vmPlanFor(text).actions;
     if (!acts.length || acts.length > 4 || !acts.some(function (a) { return a.do === 'fill'; })) return null;
@@ -1294,10 +1368,11 @@
     if (vmEditDigits(text)) return Promise.resolve();                    // "add an 8 to the end"
     if (vmClearNamed(text)) return Promise.resolve();                    // "scratch the first name and the surname"
     var pl = vmPlanFor(text);
-    var words = text.split(/\s+/).length, onlyCommand = pl.actions.length > 0 && pl.actions.every(function (a) { return a.do === 'cmd'; }) && words <= 8;
+    var startsNotes = pl.actions.some(function (a) { return a.do === 'cmd' && a.cmd && a.cmd.type === 'notes'; });   // this computer's guess that the notes begin is not trusted: "in the notes", "scratch all notes" and "deleting so stop notes" all looked like it, and the notes then took the next ten lines
+    var words = text.split(/\s+/).length, onlyCommand = pl.actions.length > 0 && pl.actions.every(function (a) { return a.do === 'cmd'; }) && words <= 8 && !startsNotes;
     /* A bare "yes" or "correct" may agree to several boxes that were just read back: Claude decides which, from the lines before it. */
     var agree = words <= 2 && V.isConfirm(text, true) && !pl.actions.some(function (a) { return a.do === 'fill'; }) && vmAwaiting().awaiting.length > 0;
-    if (vm.noteMode && vmAIReady() && pl.actions.every(function (a) { return a.do === 'note'; }) && vmMayLeaveNotes(text)) return vmAskInNotes(text, pl);
+    if (vm.noteMode && vmAIReady() && (startsNotes || (pl.actions.every(function (a) { return a.do === 'note'; }) && vmMayLeaveNotes(text)))) return vmAskInNotes(text, pl);
     if (vm.noteMode || onlyCommand || !vmAIReady()) return vmRun(pl.actions);  // every other line, however short, is read by Claude with the lines before it
     return vmAsk('auto', text, null, entry).then(function (r) {
       if (r && r.kind === 'actions') return vmRun(vmGuardReadBack(r.actions, text)).then(function () { return vmRestOfLine(r.actions, text, words); });
@@ -1327,8 +1402,9 @@
   function vmHear(text, who, meta) {
     text = String(text == null ? '' : text).trim();
     if (!vm.on || !text) return Promise.resolve();
-    var shown = text, run = vmNumberRun(text);
-    if (run && run.hold) return vmKeepLine(text, who, meta, run.note);  // part of a number: kept until it is complete
+    if (vm.paused) return vmKeepLine(text, who, meta, 'paused: not read');
+    var shown = text, run = vmEmailRun(text) || vmNumberRun(text);
+    if (run && run.hold) return vmKeepLine(text, who, meta, run.note);  // part of a number or an email address: kept until it is complete
     text = run ? run.text : vmJoinDigits(text);  // a number said in pieces is one line
     var entry = { who: who === 'me' ? 'adviser' : who === 'client' ? 'client' : 'unclear', text: text, shown: shown, at: Date.now(), did: [], done: false, m: meta || null }, t0 = Date.now(), epoch = vm.epoch, quick = null, p;
     vm.recent.push(entry); if (vm.recent.length > 12) vm.recent.shift();
@@ -1341,7 +1417,7 @@
     return p;
   }
   function vmToggle(on) {
-    vm.on = on; vm.target = null; vm.answered = false; vm.secGlow = on; vm.noteMode = null; vm.rowCur = {}; vm.queue = Promise.resolve(); vm.slow = 0; vm.epoch++; vm.digits = null; vm.run = null; cv.live = ''; vmCur = null;
+    vm.on = on; vm.target = null; vm.answered = false; vm.secGlow = on; vm.noteMode = null; vm.rowCur = {}; vm.queue = Promise.resolve(); vm.slow = 0; vm.epoch++; vm.digits = null; vm.run = null; vm.erun = null; vm.paused = false; cv.live = ''; vmCur = null;
     if (vm.wipe) { vm.wipe = null; var wd = document.getElementById('wipe'); if (wd && wd.open) wd.close(); }   // switching Voice on or off never leaves the question hanging
     if (!on) listenStop();                                                                                       // no voice mode, nothing to listen for
     if (!on) { document.querySelectorAll('.voice-wait,.voice-ok').forEach(function (e) { e.classList.remove('voice-wait', 'voice-ok'); }); $('#vdText').hidden = true; }
@@ -1388,7 +1464,7 @@
         lsnState = st; listenRender();
         if (st === 'loading') { status = p.engine === 'chrome' ? 'Starting Chrome speech recognition…' : 'Getting the speech model ready on this computer' + (d.percent != null ? ' (' + d.percent + '%, only the first time)' : '…'); listenShow(status, ''); }
         else if (st === 'on') {
-          status = p.engine === 'chrome' ? "Listening with Chrome's speech recognition. Google hears this audio: practice talk only, no clients."
+          status = p.engine === 'chrome' ? "Listening with Chrome's speech recognition. Google hears this audio: practice talk only, no clients. On a page opened from a file Chrome may ask for the microphone each time it restarts listening; \"On this computer\" in Settings asks only once."
             : 'Listening' + (d.mic ? ' on ' + d.mic : '') + ' with ' + d.model + ' on the ' + d.where + (d.why ? ' (' + d.why + ')' : '') + '. The sound stays on this computer.';
           listenShow(status, '', kind);
         } else if (st === 'error') { lsn = null; lsnState = 'off'; listenRender(); listenShow(d.message, '', 'bad'); var lv0 = $('#lvl'); if (lv0) lv0.style.width = '0'; }
