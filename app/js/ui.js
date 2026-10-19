@@ -1002,6 +1002,7 @@
           if (!a.explicit && res.kind === 'fill' && cell.v !== '' && cell.st === 'confirmed') return;   // Claude's volunteered fact never overwrites a confirmed value
           vmShow(a.field);                                                                              // the screen follows the conversation to that box
         }
+        if (res.kind === 'fill' && NUMBER_BOXES.indexOf(a.field) >= 0 && vmHoldPartial(a.field, res.value)) return;
         if (vmApply(a.field, res)) vmLog((res.kind === 'confirm' ? 'confirmed ' : 'filled ') + [f.label || a.field].concat((res.extra || []).map(function (x) { var xf = vmField(x.id); return xf ? xf.label : x.id; })).join(', '));
     }
   }
@@ -1077,28 +1078,43 @@
   ('yes yeah yep yup ok okay alright right so um uh er erm ah hm hmm well let lets me see is it its the that thats this a an of in number numbers my mine your cell work home phone mobile telephone tax id sorry hold on moment second sec minute just give you again please then and next hang think check checking looking look sure i im ill am was do does did have has got can could will we us to for at from digits digit about like starts start begins begin with thank thanks wait').split(' ').forEach(function (w) { RUN_FILLER[w] = 1; });
   var RUN_CANCEL = /\b(?:wrong|incorrect|not (?:right|correct)|from the (?:top|start|beginning)|(?:scratch|clear|forget|ignore|cancel|delete|discard) (?:that|it|those|these|all that|what i (?:said|gave))|(?:give|say|read|do|redo|try|start|begin|go|repeat)\b[^.?!]{0,25}\b(?:again|over|afresh))\b/;
   function vmGroup(box, s) { return box !== 'idno' && box !== 'tax' && !/^27/.test(s) ? s.slice(0, 3) + (s.length > 3 ? ' ' + s.slice(3, 6) : '') + (s.length > 6 ? ' ' + s.slice(6) : '') : s; }
+  var RUN_UNITS = /\b(?:rands?|percent|per|months?|years?|days?|weeks?|kids?|children|aged?|old|thousand|million|hundred|k)\b/;
   function vmNumberRun(text) {
-    var box = vm.target && NUMBER_BOXES.indexOf(vm.target) >= 0 ? vm.target : null, run = vm.run;
-    if (run && run.box !== box) run = vm.run = null;  // the talk has moved on to another box
-    if (!box || (box === 'idno' && state.f.idtype.v === 'Passport')) return null;
     var raw = String(text == null ? '' : text).toLowerCase().replace(/[‘’`]/g, "'").replace(/\bone (?:moment|second|sec|minute)\b/g, 'moment'), named = null;
-    raw.split(/[^a-z]+/).forEach(function (w) { if (RUN_NAMES[w]) named = RUN_NAMES[w]; });
-    if ((named && named !== box) || /\?/.test(raw) || vmReadBack(text) || vmEditParse(text)) return null;
+    raw.split(/[^a-z]+/).forEach(function (w) { if (RUN_NAMES[w]) named = RUN_NAMES[w]; });  // "my work number is 011" names its box
+    var tgt = vm.target && NUMBER_BOXES.indexOf(vm.target) >= 0 ? vm.target : null, run = vm.run;
+    if (run && (run.box !== tgt || (named && named !== run.box))) run = vm.run = null;  // the talk has moved on to another box
+    var box = run ? run.box : (named || tgt), fd = box && vmField(box);
+    if (!box || !fd || !vmVisible(fd) || (box === 'idno' && state.f.idtype.v === 'Passport')) return null;
+    if (/\?/.test(raw) || vmReadBack(text) || vmEditParse(text)) return null;
     if (run && RUN_CANCEL.test(raw)) { var gone = run.d; vm.run = null; vm.answered = false; vmMarkWait(); return { hold: true, note: 'dropped ' + vmGroup(box, gone) + ': ready for the number again' }; }
     var tk = V.norm(raw).split(' ').filter(Boolean), dt = tk.filter(function (w) { return DIGIT_WORD.test(w); }), d = V.spokenDigits(dt.join(' '));
-    if (!tk.every(function (w) { return DIGIT_WORD.test(w) || RUN_FILLER[w]; })) return null;
+    /* Starting a number: only filler words may come with the digits, so nothing else said in the line is lost. Once one is held, any short line with three or more digits goes into it. */
+    var strict = tk.every(function (w) { return DIGIT_WORD.test(w) || RUN_FILLER[w]; });
+    if (!strict && !(run && tk.length <= 14 && d.length >= 3 && !RUN_UNITS.test(raw))) return null;
     if (!d) return run ? { hold: true, note: 'still holding ' + vmGroup(box, run.d) + ' (' + run.d.length + ' of ' + run.want + ' digits): waiting for the rest' } : null;
     var len = NUM_LEN[box], phone = box !== 'idno' && box !== 'tax', want = function (x) { return phone && /^27/.test(x) ? 11 : len; };
-    if (!run && (d.length < 2 || !(!vm.answered || vmValue(box) === '' || d.charAt(0) === '0'))) return null;
+    if (!run && (d.length < 2 || !(named || !vm.answered || vmValue(box) === '' || d.charAt(0) === '0'))) return null;
     if (!run && d.length >= want(d)) return null;  // the whole number in one line: read as usual
     var all = (run ? run.d : '') + d;
     if (run && all.length > want(all)) all = d;  // too long to be the rest of it: the number is being said again from the start
-    vm.answered = false;
-    if (all.length >= want(all)) { vm.run = null; return { text: vmGroup(box, all) }; }
-    vm.run = { box: box, d: all, want: want(all) }; vmMarkWait();
+    if (all.length >= want(all)) { vm.run = null; vm.answered = false; if (box !== vm.target) vmShow(box); return { text: vmGroup(box, all) }; }
+    if (box !== vm.target) vmShow(box);  // the number was named while another box was being asked about: the screen goes to it
+    vm.answered = false; vm.run = { box: box, d: all, want: want(all) }; vmMarkWait();
     var note = all.length + ' of ' + want(all) + ' digits so far';
     vmNote(box, note + ': waiting for the rest');
     return { hold: true, note: 'holding ' + vmGroup(box, all) + ' (' + note + '): waiting for the rest' };
+  }
+  /* An answer for an ID, tax or phone box with too few digits (however it got here: this computer's reading, the quick fill or Claude) is kept, not filled: the rest of the number is waited for. */
+  function vmHoldPartial(box, value) {
+    var v = String(value == null ? '' : value), d = v.replace(/\D/g, '');
+    if (/[a-z]/i.test(v) || d.length < 2 || (box === 'idno' && state.f.idtype.v === 'Passport')) return false;
+    var want = box !== 'idno' && box !== 'tax' && /^27/.test(d) ? 11 : NUM_LEN[box];
+    if (d.length >= want) return false;
+    vm.run = { box: box, d: d, want: want }; vm.answered = false; vmMarkWait();
+    vmNote(box, d.length + ' of ' + want + ' digits so far: waiting for the rest');
+    vmLog('holding ' + vmGroup(box, d) + ' (' + d.length + ' of ' + want + ' digits): waiting for the rest');
+    return true;
   }
   /* A line kept for a number still being said: shown in the conversation box, not sent to Claude, nothing filled. */
   function vmKeepLine(text, who, meta, note) {
