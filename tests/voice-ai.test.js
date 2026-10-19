@@ -337,3 +337,24 @@ test('a clear answer put on the form at once is kept when Claude agrees, and tak
   assert.strictEqual(AI.reconcile(two, [{ do: 'fill', field: 'fname', value: 'John' }, { do: 'fill', field: 'sname', value: 'Snowden' }], idx).agree, false);
   assert.strictEqual(AI.reconcile([{ do: 'fill', field: 'cell', res: { kind: 'fill', value: '082 555 0148', status: 'verify' } }], [{ do: 'fill', field: 'cell', value: '0825550148' }], idx).agree, true, 'spaces do not matter');
 });
+test('sharing on: private numbers go out as they are and Claude fills them itself (off by default)', () => {
+  assert.strictEqual(AI.sharing(), false, 'off by default');
+  const line = 'my cell number is 082 454 1751 and my ID is 7212095268086';
+  const base = { sectionId: 'info', recent: [{ who: 'adviser', text: 'is your cell 082 454 1751?' }], listRows: () => [], filled: { fname: 'Paul' }, awaiting: [] };
+  const off = AI.prepare(idx, base, 'auto', line, 'claude-haiku-5-5');
+  assert.ok(!/082 454 1751|7212095268086/.test(JSON.stringify(off.req)), 'off: the digits do not go out');
+  assert.ok(/\[N1\]/.test(off.parts[1]) && !/SHARING IS ON/.test(off.req.system));
+  AI.setShare(true);
+  try {
+    assert.strictEqual(AI.sharing(), true);
+    const on = AI.prepare(idx, base, 'auto', line, 'claude-haiku-5-5');
+    assert.ok(on.parts[1].indexOf('082 454 1751') > 0 && on.parts[1].indexOf('7212095268086') > 0, 'on: the digits go out in the line');
+    assert.ok(!/\[N1\]/.test(on.parts[1]) && /SHARING IS ON/.test(on.req.system), 'no markers, and the instructions say so');
+    assert.ok(!/"private":true/.test(JSON.stringify(on.req)), 'no box is marked private');
+    assert.ok(on.parts[1].indexOf('is your cell 082 454 1751?') > 0, 'the earlier lines are not scrubbed');
+    const r = AI.normalize({ actions: [{ do: 'fill', field: 'cell', value: '082 454 1751' }, { do: 'fill', field: 'idno', value: '7212095268086', correction: true }, { do: 'fill', field: 'wemail', value: 'paul@example.co.za' }, { do: 'confirm', field: 'tax' }] }, idx, 'auto', on.vault);
+    assert.deepStrictEqual(r.actions.map(a => a.do + ':' + a.field + (a.value ? '=' + a.value : '')), ['fill:cell=082 454 1751', 'fill:idno=7212095268086', 'fill:wemail=paul@example.co.za', 'confirm:tax']);
+    assert.strictEqual(AI.scrub('call 082 454 1751'), 'call 082 454 1751', 'nothing is scrubbed while sharing');
+  } finally { AI.setShare(false); }
+  assert.strictEqual(AI.normalize({ actions: [{ do: 'fill', field: 'cell', value: '082 454 1751' }] }, idx, 'auto', { _sent: 'hello', _line: 'hello' }).kind, 'none', 'off again: digits Claude was never shown are refused');
+});

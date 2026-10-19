@@ -448,6 +448,7 @@
     if ($('#setSpeech')) { var sp = speechPrefs(); speechChoices(); $('#setSpeech').value = sp.engine; $('#setWhisper').value = sp.model; }
     creditSettings(); var left = creditLeft(); $('#setCredit').value = left == null ? '' : left.toFixed(2);
     quickSettings(); $('#setQuick').value = vmQuickOn() ? '1' : '0';
+    shareSettings(); $('#setShare').value = vmShareOn() ? '1' : '0';
     dlg.showModal();
   }
   $('#btnSettings').addEventListener('click', openSettings);
@@ -459,6 +460,7 @@
     if ($('#setSpeech')) { try { localStorage.setItem(SPEECH_KEY, JSON.stringify({ engine: $('#setSpeech').value, model: $('#setWhisper').value })); } catch (e) { /* storage unavailable */ } }
     saveCreditBox();
     if ($('#setQuick')) { try { localStorage.setItem(QUICK_KEY, $('#setQuick').value); } catch (e) { /* storage unavailable */ } }
+    if ($('#setShare')) { try { localStorage.setItem(SHARE_KEY, $('#setShare').value); } catch (e) { /* storage unavailable */ } vmShareApply(); convoRender(); }
     $('#settings').close(); refreshKey(); refreshCost(); toast('Settings saved.');
   });
   $('#setTest').addEventListener('click', function () {
@@ -516,6 +518,18 @@
       '<label class="f"><span class="l"><span>Fill clear answers at once</span></span><select id="setQuick"><option value="1">On: the form fills at once, then Claude checks it</option><option value="0">Off: wait for Claude before filling</option></select></label>' +
       '<p class="help">With this on, an answer the page itself understands with confidence (a name, a yes, a number) goes into the form straight away and Claude then reads the line too: if Claude reads it differently, the box is changed to what Claude says. Anything the page is not sure of waits for Claude.</p>');
   }
+  /* The choice to let Claude see private numbers is added to Settings from here too. */
+  function shareSettings() {
+    var helps = Array.prototype.slice.call(document.querySelectorAll('#settings p.help'));      // two older notes in index.html no longer say what is true
+    helps.forEach(function (h) {
+      if (/never sent/.test(h.textContent) && /marker/.test(h.textContent)) h.textContent = 'Voice mode asks this model what was said and which box each fact belongs in. Only the last few sentences are sent, as text. ID numbers, phone numbers and email addresses stay on this computer (the model sees a marker such as [N1], and the real number is put back here) unless "Let Claude see ID, tax and phone numbers and email addresses" below is switched on.';
+      if (/Chrome's own recognition is instant/.test(h.textContent)) h.textContent = 'The Listen button in the top bar uses the microphone. "On this computer" keeps the sound here: the speech model is downloaded once (Moonshine Tiny roughly 50 to 100 MB, the others more) and kept in this browser. Chrome\'s own recognition is instant and accurate, but Google hears the audio, so use it for practice talk only, never with a client. A change here applies the next time Listen is pressed.';
+    });
+    if ($('#setShare') || !$('#setSpeech')) return;
+    $('#setSpeech').closest('.f').insertAdjacentHTML('beforebegin',
+      '<label class="f"><span class="l"><span>Let Claude see ID, tax and phone numbers and email addresses</span></span><select id="setShare"><option value="0">Off: they are replaced by markers before anything is sent</option><option value="1">On: they are sent to Claude with the line</option></select></label>' +
+      '<p class="help">Off keeps those details on this computer: Claude only sees a marker such as [N1], and the page fills the box itself. On sends them to Anthropic along with the line, so Claude can fill, check and correct them itself. Turn it on only when the Anthropic account behind the key in Settings is covered by the agreement your firm needs for client details (for example a business plan with a data processing addendum). Names, dates and amounts are always sent.</p>');
+  }
   /* The credit box is added to Settings from here, so index.html does not change. */
   function creditSettings() {
     if ($('#setCredit')) return;
@@ -537,6 +551,7 @@
      client's answer is in or confirmed. Simple wording is understood on this computer; looser wording goes to Claude (voice-ai.js).
      Whatever listens calls FF.app.voiceHear(text, who), who being 'me' (the adviser) or 'client'. Typing works as always when voice is off. */
   var V = FF.voice, VAI = FF.voiceAI, vidx = V.buildIndex(schema);
+  try { if (VAI && VAI.setShare) VAI.setShare(localStorage.getItem('wr-fact-find-share') === '1'); } catch (e) { /* storage unavailable: sharing stays off */ }
   var vm = { on: false, target: null, answered: false, secGlow: false, noteMode: null, rowCur: {}, undo: [], recent: [], flashes: {}, queue: Promise.resolve(), slow: 0, epoch: 0, busy: 0, lastFail: 0, wipe: null, digits: null, lastNum: null };
   /* ---------- "What was heard": a card at the top of the right-hand pane. Each line heard, newest first, with what was done on the form because of it. ---------- */
   var vmCur = null;                                              // the line being dealt with now, so what is done on the form is listed under it
@@ -569,6 +584,7 @@
   function convoRender() {
     var c = convoCard(); if (!c) return;
     c.hidden = !vm.on;
+    c.querySelector('h3').textContent = 'What was heard' + (vmShareOn() ? ' (Claude sees ID, tax and phone numbers)' : '');
     var live = document.getElementById('cvLive'); live.textContent = cv.live; live.hidden = !cv.live;
     document.getElementById('cvRows').innerHTML = cv.rows.slice(-5).reverse().map(function (e) {
       var who = e.who === 'adviser' ? 'Planner' : e.who === 'client' ? 'Client' : '', ms = convoMeta(e),
@@ -887,7 +903,7 @@
       if (f.list || !vmVisible(f)) return;
       var c = state.f[f.id];
       if (!c || c.v === '') return;
-      if (V.PRIVATE_IDS.indexOf(f.id) >= 0) priv.push(f.id); else filled[f.id] = String(c.v);
+      if (V.PRIVATE_IDS.indexOf(f.id) >= 0 && !vmShareOn()) priv.push(f.id); else filled[f.id] = String(c.v);
     });
     return { filled: filled, filledPrivate: priv };
   }
@@ -898,7 +914,7 @@
       if (f.list || f.sec !== cur || !vmVisible(f)) return;
       var c = state.f[f.id];
       if (!c || c.v === '' || (c.st !== 'heard' && c.st !== 'verify')) return;
-      var priv = V.PRIVATE_IDS.indexOf(f.id) >= 0;
+      var priv = V.PRIVATE_IDS.indexOf(f.id) >= 0 && !vmShareOn();
       out.push({ id: f.id, label: f.label, private: priv, value: priv ? null : String(c.v) });
       if (priv) held[f.id] = String(c.v);
     });
@@ -916,7 +932,7 @@
     vm.busy++; vmRender();
     return VAI.decide({
       apiKey: set.apiKey, ask: !set.apiKey && FF.voiceBackend && FF.voiceBackend.available ? FF.voiceBackend.ask : null, model: set.voiceModel, idx: vidx, who: who, text: text, fetchImpl: meteredFetch,
-      ctx: { sectionId: cur, targetId: tid, targetRow: tcr ? tcr.i + 1 : null, targetValue: tid && !vmPrivate(vm.target) ? vmValue(vm.target) : '', targetFilled: !!(tid && vmValue(vm.target) !== ''), filled: fl.filled, filledPrivate: fl.filledPrivate, awaiting: aw.awaiting, privateHeld: aw.held, note: note,
+      ctx: { sectionId: cur, targetId: tid, targetRow: tcr ? tcr.i + 1 : null, targetValue: tid && (!vmPrivate(vm.target) || vmShareOn()) ? vmValue(vm.target) : '', targetFilled: !!(tid && vmValue(vm.target) !== ''), filled: fl.filled, filledPrivate: fl.filledPrivate, awaiting: aw.awaiting, privateHeld: aw.held, note: note,
         listRows: function (key) { return state.l[key].map(function (r) { return r.d; }); }, recent: vm.recent.slice(-7, -1) }
     }).then(function (r) { vm.busy--; vmRender(); if (entry) entry.claudeMs = Date.now() - t0; return r; }, function (err) {
       vm.busy--; vmRender();
@@ -1093,6 +1109,10 @@
   /* Waiting for Claude takes seconds, so a clear answer (a name, a yes, a number: what the page itself understands with confidence) goes into the form straight away, and Claude then reads
      the line as well. If Claude reads it the same way nothing changes, and anything more it heard is added; if it reads it differently the box is put back (unless it has been changed
      since) and Claude's reading is used. A line the page is not sure of, or any line while an earlier one is still waiting for Claude, waits for Claude as before. */
+  /* Whether Claude may see ID, tax and phone numbers and email addresses (Settings). Off unless switched on; see voice-ai.js. */
+  var SHARE_KEY = 'wr-fact-find-share';
+  function vmShareOn() { try { return localStorage.getItem(SHARE_KEY) === '1'; } catch (e) { return false; } }
+  function vmShareApply() { if (VAI && VAI.setShare) VAI.setShare(vmShareOn()); }
   var QUICK_KEY = 'wr-fact-find-quick';
   function vmQuickOn() { try { return localStorage.getItem(QUICK_KEY) !== '0'; } catch (e) { return true; } }
   function vmQuickTry(text, entry) {
@@ -1134,8 +1154,8 @@
   var warmedAt = 0, warmedModel = '';
   function vmWarm() {
     var set = FF.lookup.getSettings();
-    if (!set.apiKey || !VAI || !VAI.warm || (warmedModel === set.voiceModel && Date.now() - warmedAt < 50 * 60000)) return;
-    warmedModel = set.voiceModel; warmedAt = Date.now();
+    if (!set.apiKey || !VAI || !VAI.warm || (warmedModel === set.voiceModel + vmShareOn() && Date.now() - warmedAt < 50 * 60000)) return;
+    warmedModel = set.voiceModel + vmShareOn(); warmedAt = Date.now();
     VAI.warm({ apiKey: set.apiKey, model: set.voiceModel, idx: vidx, fetchImpl: meteredFetch });
   }
   /* A line whose speaker is not known. It may hold the adviser and the client together, in any order, with corrections and things they do not have.
