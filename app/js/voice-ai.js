@@ -9,6 +9,12 @@
 })(typeof self !== 'undefined' ? self : this, function (V) {
   var ENDPOINT = 'https://api.anthropic.com/v1/messages', API_VERSION = '2023-06-01';
 
+  /* Private values (ID, tax and phone numbers, email addresses) are swapped for markers before a line leaves this computer. When sharing is switched on in Settings (the Anthropic account behind
+     the key is covered by the agreement the firm needs for client details), they are sent as they are and Claude fills, checks and edits those boxes itself. Off unless switched on. */
+  var share = false;
+  function setShare(on) { share = !!on; }
+  function sharing() { return share; }
+
   var SYSTEM = [
     'You are the listening brain of a Fact Find form. A financial adviser is on a call with a client and the form fills in live while they talk.',
     'You receive JSON: "position" (where the adviser is on the form now), "sections", "fields" (every box of the whole form, with its section), "filled" (what is already in the boxes of the form),',
@@ -78,6 +84,14 @@
     'Two children said in one breath are two "row" actions. Never add a row that is already in "lists" (the same child, the same loan): use "cell" for anything new about it. For a column with "options", the value must be one of them.',
     '"cell" and "ask" only work on rows that are in "lists". If the row is not there yet, add it with a "row" action and put everything said about it in its values.'
   ].join('\n');
+  /* Added to the instructions while sharing is on: it replaces what is said above about markers and private boxes. */
+  var SHARE_NOTE = [
+    '',
+    'SHARING IS ON for this session. ID numbers, phone numbers, tax numbers and email addresses are NOT hidden from you: they appear in the line, in "filled" and in "awaiting_confirmation" exactly as they are, and there are no [N1] or [E1] markers and no "private" boxes.',
+    'Ignore everything above about markers. Give the real value in "value": digits for a number (a cell number written like 082 454 1751, an ID number as 13 plain digits, a tax number as 10 plain digits) and the address for an email. Spoken digits ("zero eight two four five four ...") are written as digits.',
+    'A spoken edit of a number that is already in a box ("add an 8 to the end", "put a zero in front", "the last digit is 8", "it ends in 98", "remove the last digit") is ONE fill with the complete new number and "correction":true.',
+    'When the adviser reads a number back and asks the client to confirm it ("is that correct?", "can you confirm your ID number?") that is only an "ask": never confirm it until the client agrees in a later line. A number the client simply states is a fill, never a confirm.'
+  ].join('\n');
 
   /* Anything private in a line (an email address, a phone / ID / account number, written or spoken) is swapped for a marker.
      generic: [number] and [email], for lines that only give context. Otherwise [N1], [E1] ... with the real values kept in the vault, and a
@@ -93,6 +107,7 @@
     return d.length + ' digits';
   }
   function shield(text, generic) {
+    if (share) return { text: String(text == null ? '' : text), vault: {}, list: [] };                    // sharing is on: nothing is hidden
     var t = String(text == null ? '' : text), vault = {}, list = [], nN = 0, nE = 0;
     function hold(kind, raw, desc) {
       if (generic) return kind === 'E' ? '[email]' : '[number]';
@@ -131,7 +146,7 @@
       var cols = L.cols.map(function (id) {
         var c = idx.byId[id], o = { id: c.k, label: c.label };
         if (c.options) o.options = c.options;
-        if (V.PRIVATE_IDS.indexOf(id) >= 0) o.private = true;
+        if (!share && V.PRIVATE_IDS.indexOf(id) >= 0) o.private = true;
         return o;
       });
       var open = cols.filter(function (c) { return !c.private; });
@@ -150,7 +165,7 @@
   /* ctx: { sectionId, targetId, targetRow, targetValue, filled: {id: value}, filledPrivate: [ids], listRows(key), recent: [{who, text}] }; text/who are the newest line.
      -> { req, vault }: the request, and the real values behind the markers in the newest line (kept here, never sent). */
   function prepare(idx, ctx, who, text, model) {
-    var sh = shield(text), priv = function (id) { return V.PRIVATE_IDS.indexOf(id) >= 0; };
+    var sh = shield(text), priv = function (id) { return !share && V.PRIVATE_IDS.indexOf(id) >= 0; };
     var fields = idx.fields.filter(function (f) { return !f.list; }).map(function (f) {
       var o = { id: f.id, label: f.label, section: f.sec };
       if (priv(f.id)) o.private = true;
@@ -183,7 +198,7 @@
     var vault = { _line: String(text == null ? '' : text), _sent: sh.text, _held: ctx.privateHeld || {} };                                      // the line itself (to check the words in front of an email marker), what was sent (to recover a number that was sent unshielded) and the values already in the private boxes waiting to be confirmed (to check a read-back against; never sent)
     Object.keys(sh.vault).forEach(function (k) { vault[k] = sh.vault[k]; });
     var rest = {}; Object.keys(body).forEach(function (k) { if (k !== 'sections' && k !== 'fields') rest[k] = body[k]; });
-    return { req: withThinking({ model: model, max_tokens: 900, output_config: { effort: 'low' }, system: SYSTEM, messages: [{ role: 'user', content: JSON.stringify(body) }] }), vault: vault,        // low effort and no thinking: the models think before answering unless told otherwise (Sonnet 5.5 at high), which is slow and billed as output
+    return { req: withThinking({ model: model, max_tokens: 900, output_config: { effort: 'low' }, system: share ? SYSTEM + '\n' + SHARE_NOTE : SYSTEM, messages: [{ role: 'user', content: JSON.stringify(body) }] }), vault: vault,        // low effort and no thinking: the models think before answering unless told otherwise (Sonnet 5.5 at high), which is slow and billed as output
       parts: [JSON.stringify({ sections: body.sections, fields: body.fields }), JSON.stringify(rest)] };        // the same JSON in two pieces: what never changes during a conversation, and what does
   }
   /* The request as sent with a key. The instructions and the form's boxes never change during a conversation, so Anthropic is asked to remember them
@@ -208,7 +223,7 @@
      -> { kind: 'actions', actions } | { kind: 'point', field, section } | { kind: 'answers', answers, waiting } | { kind: 'none' } */
   function normalize(raw, idx, who, vault) {
     if (!raw || typeof raw !== 'object') return { kind: 'none' };
-    var isPriv = function (id) { return V.PRIVATE_IDS.indexOf(id) >= 0; };
+    var isPriv = function (id) { return !share && V.PRIVATE_IDS.indexOf(id) >= 0; };
     var okField = function (id) { return typeof id === 'string' && idx.byId[id] && !idx.byId[id].list && !isPriv(id); };
     if (who === 'auto' || Array.isArray(raw.actions)) {
       var okAny = function (id) { return typeof id === 'string' && idx.byId[id] && !idx.byId[id].list; };
@@ -368,5 +383,5 @@
     });
   }
 
-  return { decide: decide, points: points, warm: warm, reconcile: reconcile, thinkingFor: thinkingFor, prepare: prepare, buildRequest: buildRequest, cachedRequest: cachedRequest, normalize: normalize, extractJson: extractJson, scrub: scrub, shield: shield, SYSTEM: SYSTEM };
+  return { decide: decide, points: points, warm: warm, reconcile: reconcile, setShare: setShare, sharing: sharing, thinkingFor: thinkingFor, prepare: prepare, buildRequest: buildRequest, cachedRequest: cachedRequest, normalize: normalize, extractJson: extractJson, scrub: scrub, shield: shield, SYSTEM: SYSTEM };
 });
