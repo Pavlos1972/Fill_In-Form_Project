@@ -1081,7 +1081,7 @@
     var box = vm.target && NUMBER_BOXES.indexOf(vm.target) >= 0 ? vm.target : null, run = vm.run;
     if (run && run.box !== box) run = vm.run = null;  // the talk has moved on to another box
     if (!box || (box === 'idno' && state.f.idtype.v === 'Passport')) return null;
-    var raw = String(text == null ? '' : text).toLowerCase().replace(/[\u2018\u2019`]/g, "'").replace(/\bone (?:moment|second|sec|minute)\b/g, 'moment'), named = null;
+    var raw = String(text == null ? '' : text).toLowerCase().replace(/[‘’`]/g, "'").replace(/\bone (?:moment|second|sec|minute)\b/g, 'moment'), named = null;
     raw.split(/[^a-z]+/).forEach(function (w) { if (RUN_NAMES[w]) named = RUN_NAMES[w]; });
     if ((named && named !== box) || /\?/.test(raw) || vmReadBack(text) || vmEditParse(text)) return null;
     if (run && RUN_CANCEL.test(raw)) { var gone = run.d; vm.run = null; vm.answered = false; vmMarkWait(); return { hold: true, note: 'dropped ' + vmGroup(box, gone) + ': ready for the number again' }; }
