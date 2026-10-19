@@ -218,10 +218,14 @@
   var GPU_FLAG = 'wr-fact-find-speech-nogpu';                              // set once the graphics chip has failed on this computer for a kind of model: the processor is used from then on
   function gpuBlocked(kind) { try { return localStorage.getItem(GPU_FLAG + '-' + kind) === '1'; } catch (e) { return false; } }
   function blockGpu(kind) { try { localStorage.setItem(GPU_FLAG + '-' + kind, '1'); } catch (e) { /* storage unavailable */ } }
-  /* Chrome may offer WebGPU and still have no graphics adapter to run it on (this laptop's): ask for the adapter before choosing. */
+  /* Chrome may offer WebGPU and still have no graphics adapter to run it on (this laptop's): ask for the adapter before choosing.
+     -> Promise of { ok, note }: note says what was found, so the page can show why the processor is used. */
   function gpuUsable() {
-    if (typeof navigator === 'undefined' || !navigator.gpu || !navigator.gpu.requestAdapter) return Promise.resolve(false);
-    return navigator.gpu.requestAdapter().then(function (a) { return !!a; }, function () { return false; });
+    if (typeof navigator === 'undefined' || !navigator.gpu || !navigator.gpu.requestAdapter) return Promise.resolve({ ok: false, note: 'Chrome has no WebGPU on this page' + (typeof isSecureContext !== 'undefined' && !isSecureContext ? ' (it is not a secure page)' : '') });
+    return navigator.gpu.requestAdapter().then(function (a) {
+      var i = a && a.info || {};
+      return a ? { ok: true, note: [i.vendor, i.architecture, i.description].filter(Boolean).join(' ') } : { ok: false, note: 'Chrome has WebGPU but found no graphics adapter for it' };
+    }, function (e) { return { ok: false, note: 'WebGPU failed: ' + String(e && e.message || e).slice(0, 80) }; });
   }
   function isNetwork(err) { return /fetch|network|offline|ERR_|internet/i.test(String(err && err.message || err)); }
   function modelError(err) {
@@ -261,8 +265,8 @@
       if (!gpu) return processor(mm, kk);
       return start(mm.repo, { device: 'webgpu', dtype: kk.gpu }).then(function (e) { return { pipe: e.pipe, where: 'graphics chip' }; }, function () { blockGpu(mm.kind); return processor(mm, kk); });
     }
-    loaded[key] = (noGpu || gpuBlocked(m.kind) ? Promise.resolve(false) : gpuUsable()).then(function (gpu) {
-      var why = gpu ? '' : noGpu || gpuBlocked(m.kind) ? 'the graphics chip did not work earlier' : 'Chrome offers no graphics chip here, so this is slower';
+    loaded[key] = (noGpu || gpuBlocked(m.kind) ? Promise.resolve({ ok: false, note: 'the graphics chip did not work earlier' }) : gpuUsable()).then(function (g) {
+      var gpu = g.ok, why = gpu ? '' : g.note + ', so this is slower';
       return chosen(m, kind, gpu).then(function (t) { t.model = m.label; t.why = t.where === 'processor' ? why : ''; return t; }, function (err) {
         if (m.kind === 'whisper' || isNetwork(err)) throw err;
         var w = MODELS['tiny.en'];                                                  // the model could not start: Whisper Tiny instead, and the page says so
