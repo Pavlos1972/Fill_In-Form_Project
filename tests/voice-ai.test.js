@@ -400,3 +400,6 @@ test('an empty value for one box means the box is to be emptied, and unknown box
   assert.strictEqual(run([{ do: 'fill', field: 'shares', value: '' }]).kind, 'none');
   assert.strictEqual(run([{ do: 'fill', field: 'shares.name', value: '' }]).kind, 'none');
 });
+test('an amount in the past tense is not taken as the current figure', () => {
+  assert.match(AI.SYSTEM, /"I used to put about 2000 a month" is the old figure/);
+});
