@@ -344,7 +344,7 @@
 
   /* Chrome's recognition sometimes freezes without an error and without ending: the microphone hears speech and nothing comes back, and the page waits for ever.
      This counts the seconds of sound since the last result; when there are too many, it says the recognition should be started again. tick(level, seconds) -> true when it should. */
-  var STALL_LEVEL = 0.02, STALL_SECS = 12;
+  var STALL_LEVEL = 0.01, STALL_SECS = 10;
   function stallWatch(level, secs) {
     var loud = 0, lv = level == null ? STALL_LEVEL : level, need = secs == null ? STALL_SECS : secs;
     return {
@@ -357,14 +357,16 @@
      Chrome ends its recognition after every long silence and this starts a new one, and on a file Chrome may ask for the microphone again each time one starts.
      So the microphone is opened once, when Listen is switched on, and kept open until it is switched off: the one question is asked at the start. */
   function chromeEngine(o, h) {
-    var SR = typeof window !== 'undefined' && (window.SpeechRecognition || window.webkitSpeechRecognition), rec = null, wanted = false, fails = 0, held = null, dog = stallWatch(o.stallLevel, o.stallSecs), sense = null;
-    function release() { if (sense) sense.close(); sense = null; if (held) { held.getTracks().forEach(function (t) { t.stop(); }); held = null; } }
+    var SR = typeof window !== 'undefined' && (window.SpeechRecognition || window.webkitSpeechRecognition), rec = null, wanted = false, fails = 0, held = null, dog = stallWatch(o.stallLevel, o.stallSecs), sense = null, started = false, t0 = 0, startWatch = null;
+    function ev(name, detail, show) { if (h.event) h.event(name, detail || '', !!show); }          // what the microphone side did, for the saved log (and, when it matters, for the conversation box)
+    function release() { clearTimeout(startWatch); if (sense) sense.close(); sense = null; if (held) { held.getTracks().forEach(function (t) { t.stop(); }); held = null; } }
     /* Frozen: the old recognition is let go (it may never say it has ended) and a new one is started. */
-    function refresh() {
-      var old = rec; rec = null;
-      if (old) { old.onresult = old.onerror = old.onend = null; try { old.abort(); } catch (e) { /* not running */ } }
-      if (h.note) h.note('Chrome stopped sending text while there was sound, so listening was started again. If it happens often, say so.');
-      setTimeout(function () { if (wanted && !rec) { try { begin(); } catch (e) { /* already running */ } } }, 300);
+    function refresh(why) {
+      var old = rec; rec = null; clearTimeout(startWatch);
+      if (old) { old.onresult = old.onerror = old.onend = old.onstart = old.onspeechstart = old.onspeechend = null; try { old.abort(); } catch (e) { /* not running */ } }
+      ev('listening restarted', why || 'no text came back while there was sound', true);
+      if (h.note) h.note('Chrome stopped sending text, so listening was started again.');
+      setTimeout(function () { if (wanted && !rec) { try { begin(); } catch (e) { ev('could not restart', String(e && e.message || e), true); } } }, 300);
     }
     /* The microphone level, for the meter and for noticing a frozen recognition. Not needed to listen, so any failure here is ignored. */
     function watchLevel(stream) {
@@ -377,13 +379,18 @@
         timer = setInterval(function () {
           an.getFloatTimeDomainData(buf);
           var lv = rms(buf); h.level(meter(lv));
-          if (wanted && rec && dog.tick(lv, 0.25)) refresh();
+          if (wanted && rec && dog.tick(lv, 0.25)) refresh('sound for ' + (o.stallSecs == null ? STALL_SECS : o.stallSecs) + ' seconds and no text came back');
         }, 250);
         sense = { close: function () { clearInterval(timer); try { src.disconnect(); } catch (e) { /* already closed */ } if (ctx.close) ctx.close(); } };
       } catch (e) { sense = null; }
     }
     function begin() {
-      rec = new SR(); rec.lang = 'en-ZA'; rec.continuous = true; rec.interimResults = true; rec.maxAlternatives = 1;
+      var me = rec = new SR(); started = false; t0 = Date.now(); clearTimeout(startWatch);
+      rec.lang = 'en-ZA'; rec.continuous = true; rec.interimResults = true; rec.maxAlternatives = 1;
+      rec.onstart = function () { started = true; clearTimeout(startWatch); ev('recognition started'); };
+      rec.onspeechstart = function () { ev('speech heard'); };
+      rec.onspeechend = function () { ev('speech ended'); };
+      startWatch = setTimeout(function () { if (wanted && me === rec && !started) refresh('Chrome did not start listening'); }, (o.startSecs == null ? 5 : o.startSecs) * 1000);   // a start that never happens would leave the page deaf
       rec.onresult = function (e) {
         var interim = '', i, r;
         dog.result();
@@ -391,12 +398,17 @@
         h.interim(interim);
       };
       rec.onerror = function (e) {
+        ev('error', String(e.error), e.error !== 'no-speech' && e.error !== 'aborted');
         if (e.error === 'no-speech' || e.error === 'aborted') return;
         if (e.error === 'not-allowed' || e.error === 'service-not-allowed') { wanted = false; h.error(micError({ name: 'NotAllowedError' })); }
         else if (e.error === 'audio-capture') { wanted = false; h.error(micError({ name: 'NotFoundError' })); }
         else if (e.error === 'network' && ++fails >= 3) { wanted = false; h.error("Chrome's speech service could not be reached. Check the internet connection."); }
       };
-      rec.onend = function () { if (wanted) setTimeout(function () { if (wanted) { try { begin(); } catch (e) { /* already running */ } } }, 300); };   // Chrome ends it after a long silence: start again
+      rec.onend = function () {                                                                  // Chrome ends it after a long silence: start again (after a pause when it ended at once, so it never loops)
+        if (me !== rec) return;
+        var ran = Date.now() - t0; ev('recognition ended', 'after ' + Math.round(ran / 100) / 10 + ' s');
+        if (wanted) setTimeout(function () { if (wanted && me === rec) { try { begin(); } catch (e) { ev('could not restart', String(e && e.message || e), true); } } }, ran < (o.quickEndMs == null ? 1500 : o.quickEndMs) ? 1500 : 300);
+      };
       rec.start();
     }
     return {
@@ -405,7 +417,7 @@
         var md = typeof navigator !== 'undefined' && navigator.mediaDevices;
         wanted = true; fails = 0;
         return (md && md.getUserMedia ? md.getUserMedia({ audio: true }).then(function (stream) { if (wanted) held = stream; else stream.getTracks().forEach(function (t) { t.stop(); }); }) : Promise.resolve())
-          .then(function () { if (!wanted) return; if (held) watchLevel(held); begin(); h.on({ mic: '', where: 'Chrome', model: '' }); });
+          .then(function () { if (!wanted) return; if (held) watchLevel(held); ev('listening on', held ? 'microphone opened' : 'microphone not held'); begin(); h.on({ mic: '', where: 'Chrome', model: '' }); });
       },
       stop: function () { wanted = false; try { if (rec) rec.abort(); } catch (e) { /* not running */ } rec = null; release(); }
     };
@@ -421,6 +433,7 @@
       interim: function (t) { if (o.interim && st === 'on') o.interim(t); },
       level: function (v) { if (o.level) o.level(v); },
       note: function (msg) { if (o.note) o.note(msg); },
+      event: function (name, detail, show) { if (o.event) o.event(name, detail, show); },
       reading: function (secs) { if (o.reading && st === 'on') o.reading(secs); },
       progress: function (pct) { if (st === 'loading' || st === 'on') set('loading', { percent: pct }); },
       on: function (info) { set('on', info); },
