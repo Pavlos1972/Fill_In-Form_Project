@@ -1186,7 +1186,7 @@
   var RUN_NAMES = { cell: 'cell', mobile: 'cell', work: 'work', office: 'work', business: 'work', home: 'home', tax: 'tax', id: 'idno', identity: 'idno' };
   var RUN_FILLER = {};
   ('yes yeah yep yup ok okay alright right so um uh er erm ah hm hmm well let lets me see is it its the that thats this a an of in number numbers my mine your cell work home phone mobile telephone tax id sorry hold on moment second sec minute just give you again please then and next hang think check checking looking look sure i im ill am was do does did have has got can could will we us to for at from digits digit about like starts start begins begin with thank thanks wait').split(' ').forEach(function (w) { RUN_FILLER[w] = 1; });
-  var RUN_CANCEL = /\b(?:wrong|incorrect|not (?:right|correct)|from the (?:top|start|beginning)|(?:scratch|clear|forget|ignore|cancel|delete|discard) (?:that|it|those|these|all that|what i (?:said|gave))|(?:give|say|read|do|redo|try|start|begin|go|repeat)\b[^.?!]{0,25}\b(?:again|over|afresh))\b/;
+  var RUN_CANCEL = /\b(?:wrong|incorrect|not (?:right|correct)|(?:correct|fix|redo|change) (?:that|it|this)|from the (?:top|start|beginning)|(?:scratch|clear|forget|ignore|cancel|delete|discard) (?:that|it|those|these|all that|what i (?:said|gave))|(?:give|say|read|do|redo|try|start|begin|go|repeat)\b[^.?!]{0,25}\b(?:again|over|afresh))\b/;
   function vmGroup(box, s) { return box !== 'idno' && box !== 'tax' && !/^27/.test(s) ? s.slice(0, 3) + (s.length > 3 ? ' ' + s.slice(3, 6) : '') + (s.length > 6 ? ' ' + s.slice(6) : '') : s; }
   var RUN_UNITS = /\b(?:rands?|percent|per|months?|years?|days?|weeks?|kids?|children|aged?|old|thousand|million|hundred|k)\b/;
   function vmNumberRun(text) {
@@ -1221,7 +1221,7 @@
      address, never filler. A restart ("let's try that again") drops what was kept; a line that is not a piece of it ends it, and what was heard is put in the box, amber, so nothing said is lost. */
   var EMAIL_BOXES = ['pemail', 'wemail'], EMAIL_LEAD = {}, EMAIL_SKIP = {};
   'email emails mail address addresses personal private office business e-mail'.split(' ').forEach(function (w) { EMAIL_LEAD[w] = 1; });
-  ('yes yeah yep yup ok okay alright right so um uh er erm ah hm hmm well let lets me see is it its the that thats this sorry hold on moment second sec minute just give you again please then and next sure my mine your i im ill a am was do does did have has got can could will we us to for from thank thanks wait like with about check checking looking look think hang work perfect great lovely fantastic excellent good fine nice cool awesome wonderful brilliant').split(' ').forEach(function (w) { EMAIL_SKIP[w] = 1; });
+  ('yes yeah yep yup ok okay alright right so um uh er erm ah hm hmm well let lets me see is it its the that thats this sorry hold on moment second sec minute just give you again please then and next sure my mine your i im ill a am was do does did have has got can could will we us to for from thank thanks wait like with about check checking looking look think hang work perfect great lovely fantastic excellent good fine nice cool awesome wonderful brilliant need needs needed want wanted should must going gonna').split(' ').forEach(function (w) { EMAIL_SKIP[w] = 1; });
   var EMAIL_END = /^[a-z0-9][^@\s]*@[^@\s]+\.(?:com|org|net|edu|gov|biz|info|io|me|app|dev|africa|za|uk|us)$/i;
   var EMAIL_PIECE = /(?:^|\s)(?:dot|period|full ?stop|at|underscore|dash|hyphen|gmail|yahoo|outlook|hotmail|icloud|live|zero|one|two|three|four|five|six|seven|eight|nine)(?=\s|$)|[@.\d]/i;
   var EMAIL_CHATTER = /\b(?:correct|right|problem|problems|error|errors|wrong|there|theres|not|nothing|enter|entering|entered|why|because|program|software|computer|page|form|system|test|testing|try|again|actually|already|really|maybe|definite|different|issue|bug|fix)\b/;
@@ -1287,6 +1287,8 @@
     if (/^[^@\s]+@[^@\s]+$/.test(part) && vmApply(r.box, { kind: 'fill', value: vmEmailNames(part).value, status: 'verify' })) { vmLog('the email address was not finished: put in the box as heard, check it'); toast('The email address was not finished. Check it, or say it again.'); }
     else vmLog('the email address was not finished: nothing was filled');
   }
+  /* The address in what was said, or '' when it is not yet one. Not V.interpret: for an email box that reads "no" or "not" anywhere in the words as "I have no email address" ("full one, not defenses, at gmail.com" came out as None). */
+  function vmEmailParse(t) { var em = V.spokenEmail(vmEmailText(t)); return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(em) ? em : ''; }
   function vmEmailRun(text) {
     var raw = String(text == null ? '' : text), low = raw.toLowerCase().replace(/[‘’`]/g, "'"), run = vm.erun, hasWord = /\be-?mail\b/.test(low), named = null;
     if (hasWord) named = /\b(?:work|office|business)\b/.test(low) ? 'wemail' : 'pemail';
@@ -1328,14 +1330,14 @@
       var denied = /\b(?:no|not|none|nothing|dont|don't|do not|havent|haven't|neither|never|nope|nah|without)\b/.test(low);
       if (SAID_UNDO.test(low)) return null;                                                      // "scratch that" is a request, not a piece of an address, even right after the address was asked for
       if (denied || !(cue || !vm.answered || vmValue(box) === '')) return null;
-      var whole = V.interpret(fd, vmEmailText(payText));
-      if (whole && whole.value && EMAIL_END.test(whole.value)) return done(box, whole.value);   // the whole address in one line, however it was dictated or spelled: written plainly, so that only a marker goes to Claude
+      var whole = vmEmailParse(payText);
+      if (whole && EMAIL_END.test(whole)) return done(box, whole);   // the whole address in one line, however it was dictated or spelled: written plainly, so that only a marker goes to Claude
       if (pay.length > (cue ? 4 : /\bat\s+\S/i.test(payText) ? 5 : 3) && !spelled) return null;
       if (!cue && EMAIL_CHATTER.test(low.replace(/'/g, ''))) return null;                        // other chatter may not start one
       if (!cue && pay.length > 1 && !EMAIL_PIECE.test(payText) && !(vm.target === box && !vm.answered)) return null;   // a lone name, or words with a sign of an address in them, may start one
     }
-    var all = (run ? run.t + ' ' : '') + payText, x = V.interpret(fd, vmEmailText(all));
-    if (x && x.value && EMAIL_END.test(x.value)) return done(box, x.value);
+    var all = (run ? run.t + ' ' : '') + payText, x = vmEmailParse(all);
+    if (x && EMAIL_END.test(x)) return done(box, x);
     if (box !== vm.target) vmShow(box);
     vm.answered = false; vm.erun = { box: box, t: all.trim() }; vmMarkWait();
     vmNote(box, 'email so far: ' + all.trim() + ' (waiting for the rest)');

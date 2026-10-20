@@ -223,3 +223,21 @@ test('Chrome speech: a recognition that never starts is started again, and one t
   await new Promise(r => setTimeout(r, 600));
   assert.strictEqual(recs.length, n, 'it kept starting after stop');
 });
+
+test('Chrome speech: what else it heard and how sure it was goes with the line, for the saved log', async () => {
+  const recs = [], said = [];
+  function FakeRec() { recs.push(this); } FakeRec.prototype.start = function () { const me = this; setTimeout(() => { if (me.onstart) me.onstart(); }, 5); }; FakeRec.prototype.abort = function () {};
+  global.window = { webkitSpeechRecognition: FakeRec };
+  Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { mediaDevices: { getUserMedia: () => Promise.resolve({ getTracks: () => [{ stop() {} }] }) } } });
+  const lsn = L.create({ engine: 'chrome', startSecs: 60, quickEndMs: 0, text: (t, m) => said.push([t, m]), state: () => {} });
+  try {
+    await lsn.start();
+    assert.strictEqual(recs[0].maxAlternatives, 3);
+    const res = Object.assign([{ transcript: 'defenses', confidence: 0.81234 }, { transcript: 'Kafentzis', confidence: 0.4 }, { transcript: 'defenses' }, { transcript: 'Kafensis' }], { isFinal: true });
+    recs[0].onresult({ resultIndex: 0, results: [res] });
+    assert.strictEqual(said.length, 1);
+    assert.strictEqual(said[0][0], 'defenses');
+    assert.strictEqual(said[0][1].sure, 0.81);
+    assert.deepStrictEqual(said[0][1].also, ['Kafentzis']);
+  } finally { lsn.stop(); delete global.window; delete globalThis.navigator; }
+});
