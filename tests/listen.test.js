@@ -129,13 +129,13 @@ test('the listener reads each line, drops a stuck repeat with a note, and bounds
 test('Chrome speech: the microphone is asked for once and held while Chrome restarts its recognition', async () => {
   const recs = []; let opened = 0, stopped = 0;
   function FakeRec() { recs.push(this); this.started = 0; }
-  FakeRec.prototype.start = function () { this.started++; };
+  FakeRec.prototype.start = function () { this.started++; const me = this; setTimeout(() => { if (me.onstart) me.onstart(); }, 5); };
   FakeRec.prototype.abort = function () {};
   global.window = { webkitSpeechRecognition: FakeRec };
   Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { mediaDevices: { getUserMedia: () => { opened++; return Promise.resolve({ getTracks: () => [{ stop: () => { stopped++; } }] }); } } } });
   try {
     const states = [];
-    const lsn = L.create({ engine: 'chrome', text: () => {}, state: (s) => states.push(s) });
+    const lsn = L.create({ engine: 'chrome', quickEndMs: 0, startSecs: 60, text: () => {}, state: (s) => states.push(s) });
     await lsn.start();
     assert.strictEqual(opened, 1);
     assert.strictEqual(recs.length, 1);
@@ -167,7 +167,7 @@ test('Chrome speech: a refused microphone is reported, and recognition is not st
 test('Chrome speech: a recognition that freezes while there is sound is started again, one that keeps answering is left alone', async () => {
   const recs = [], notes = [], levels = []; let aborted = 0, level = 0.1;
   function FakeRec() { recs.push(this); }
-  FakeRec.prototype.start = function () {}; FakeRec.prototype.abort = function () { aborted++; };
+  FakeRec.prototype.start = function () { const me = this; setTimeout(() => { if (me.onstart) me.onstart(); }, 5); }; FakeRec.prototype.abort = function () { aborted++; };
   function FakeAudio() {}
   FakeAudio.prototype.createMediaStreamSource = () => ({ connect() {}, disconnect() {} });
   FakeAudio.prototype.createAnalyser = () => ({ connect() {}, fftSize: 0, getFloatTimeDomainData(b) { b.fill(level); } });
@@ -176,7 +176,7 @@ test('Chrome speech: a recognition that freezes while there is sound is started 
   const stream = { getTracks: () => [{ stop() {} }], getAudioTracks: () => [{}] };
   Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { mediaDevices: { getUserMedia: () => Promise.resolve(stream) } } });
   try {
-    const lsn = L.create({ engine: 'chrome', stallSecs: 0.6, text: () => {}, note: n => notes.push(n), level: v => levels.push(v), state: () => {} });
+    const events = [], lsn = L.create({ engine: 'chrome', stallSecs: 0.6, startSecs: 60, text: () => {}, note: n => notes.push(n), event: (n, d, show) => events.push([n, d, show]), level: v => levels.push(v), state: () => {} });
     await lsn.start();
     assert.strictEqual(recs.length, 1);
     for (let i = 0; i < 6; i++) { await new Promise(r => setTimeout(r, 250)); recs[recs.length - 1].onresult({ resultIndex: 0, results: [Object.assign([{ transcript: 'hello' }], { isFinal: false })] }); }
@@ -187,6 +187,8 @@ test('Chrome speech: a recognition that freezes while there is sound is started 
     assert.strictEqual(aborted, 1);
     assert.strictEqual(recs.length, 2, 'the frozen recognition was not replaced');
     assert.match(notes[0], /started again/);
+    assert.ok(events.some(e => e[0] === 'listening restarted' && e[2] === true), 'the restart was not recorded for the log');
+    assert.ok(events.some(e => e[0] === 'recognition started'));
     level = 0;                                                                                    // silence is not a freeze
     await new Promise(r => setTimeout(r, 1200));
     assert.strictEqual(recs.length, 2);
@@ -201,4 +203,41 @@ test('stallWatch counts only sound without a result', () => {
   assert.strictEqual(w.tick(0.1, 0.5), false);
   assert.strictEqual(w.tick(0.1, 0.5), true);
   assert.strictEqual(w.tick(0.1, 0.5), false);
+});
+
+test('Chrome speech: a recognition that never starts is started again, and one that ends at once waits before the next', async () => {
+  const recs = [], events = []; let starts = 0;
+  function FakeRec() { recs.push(this); }
+  FakeRec.prototype.start = function () { starts++; };            // never says it started
+  FakeRec.prototype.abort = function () {};
+  global.window = { webkitSpeechRecognition: FakeRec };
+  Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { mediaDevices: { getUserMedia: () => Promise.resolve({ getTracks: () => [{ stop() {} }] }) } } });
+  const lsn = L.create({ engine: 'chrome', startSecs: 0.2, text: () => {}, note: () => {}, event: (n, d, show) => events.push(n), state: () => {} });
+  try {
+    await lsn.start();
+    await new Promise(r => setTimeout(r, 1000));
+    assert.ok(recs.length >= 2, 'a recognition that never started was not replaced');
+    assert.ok(events.includes('listening restarted'));
+  } finally { lsn.stop(); delete global.window; delete globalThis.navigator; }
+  const n = recs.length;
+  await new Promise(r => setTimeout(r, 600));
+  assert.strictEqual(recs.length, n, 'it kept starting after stop');
+});
+
+test('Chrome speech: what else it heard and how sure it was goes with the line, for the saved log', async () => {
+  const recs = [], said = [];
+  function FakeRec() { recs.push(this); } FakeRec.prototype.start = function () { const me = this; setTimeout(() => { if (me.onstart) me.onstart(); }, 5); }; FakeRec.prototype.abort = function () {};
+  global.window = { webkitSpeechRecognition: FakeRec };
+  Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { mediaDevices: { getUserMedia: () => Promise.resolve({ getTracks: () => [{ stop() {} }] }) } } });
+  const lsn = L.create({ engine: 'chrome', startSecs: 60, quickEndMs: 0, text: (t, m) => said.push([t, m]), state: () => {} });
+  try {
+    await lsn.start();
+    assert.strictEqual(recs[0].maxAlternatives, 3);
+    const res = Object.assign([{ transcript: 'defenses', confidence: 0.81234 }, { transcript: 'Kafentzis', confidence: 0.4 }, { transcript: 'defenses' }, { transcript: 'Kafensis' }], { isFinal: true });
+    recs[0].onresult({ resultIndex: 0, results: [res] });
+    assert.strictEqual(said.length, 1);
+    assert.strictEqual(said[0][0], 'defenses');
+    assert.strictEqual(said[0][1].sure, 0.81);
+    assert.deepStrictEqual(said[0][1].also, ['Kafentzis']);
+  } finally { lsn.stop(); delete global.window; delete globalThis.navigator; }
 });
