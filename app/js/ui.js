@@ -1214,11 +1214,13 @@
      ("my personal email address is"), short lines are joined until the address ends in a domain (.com, .co.za ...) and is then read as one line. "At", "dot" and spelled letters are part of the
      address, never filler. A restart ("let's try that again") drops what was kept; a line that is not a piece of it ends it, and what was heard is put in the box, amber, so nothing said is lost. */
   var EMAIL_BOXES = ['pemail', 'wemail'], EMAIL_LEAD = {}, EMAIL_SKIP = {};
-  'email emails mail address personal private office business e-mail'.split(' ').forEach(function (w) { EMAIL_LEAD[w] = 1; });
+  'email emails mail address addresses personal private office business e-mail'.split(' ').forEach(function (w) { EMAIL_LEAD[w] = 1; });
   ('yes yeah yep yup ok okay alright right so um uh er erm ah hm hmm well let lets me see is it its the that thats this sorry hold on moment second sec minute just give you again please then and next sure my mine your i im ill a am was do does did have has got can could will we us to for from thank thanks wait like with about check checking looking look think hang work perfect great lovely fantastic excellent good fine nice cool awesome wonderful brilliant').split(' ').forEach(function (w) { EMAIL_SKIP[w] = 1; });
   var EMAIL_END = /^[a-z0-9][^@\s]*@[^@\s]+\.(?:com|org|net|edu|gov|biz|info|io|me|app|dev|africa|za|uk|us)$/i;
   var EMAIL_PIECE = /(?:^|\s)(?:dot|period|full ?stop|at|underscore|dash|hyphen|gmail|yahoo|outlook|hotmail|icloud|live|zero|one|two|three|four|five|six|seven|eight|nine)(?=\s|$)|[@.\d]/i;
   var EMAIL_CHATTER = /\b(?:correct|right|problem|problems|error|errors|wrong|there|theres|not|nothing|enter|entering|entered|why|because|program|software|computer|page|form|system|test|testing|try|again|actually|already|really|maybe|definite|different|issue|bug|fix)\b/;
+  /* "Delete that", "the personal email address is incorrect": the address is turned down, so the pieces kept are dropped and an address already in the box is emptied. ("Scratch that" stays an undo.) */
+  var EMAIL_WIPE = /\b(?:delete|deleted|deleting|remove|removed|clear|cleared|erase|erased|wipe|wiped|get rid of|take out)\b/, EMAIL_BAD = /\b(?:incorrect|wrong|mistake|not (?:right|correct))\b/;
   /* What a word sounds like: its first letter and its consonants, with c, tz, z and so on written alike, so that "cafences" and "Kafentzis" come out the same. */
   function vmNameKey(w) {
     w = String(w).toLowerCase().replace(/[^a-z]/g, '').replace(/ph/g, 'f').replace(/ck/g, 'k').replace(/tz/g, 's').replace(/c(?=[eiy])/g, 's').replace(/c/g, 'k').replace(/z/g, 's').replace(/x/g, 'ks').replace(/q/g, 'k').replace(/w/g, 'v');
@@ -1232,7 +1234,10 @@
     var said = [], local = addr.slice(0, at).replace(/[a-z]{4,}/gi, function (w) {
       var lw = w.toLowerCase(), k = vmNameKey(lw);
       if (names.indexOf(lw) >= 0 || k.length < 3) return w;
-      for (var j = 0; j < names.length; j++) if (k === vmNameKey(names[j])) { said.push('"' + lw + '" to "' + names[j] + '"'); return names[j]; }
+      for (var j = 0; j < names.length; j++) {
+        var nk = vmNameKey(names[j]);
+        if (k === nk || (/^[aeiou]/.test(lw) && k.length >= 4 && k.slice(1) === nk.slice(1) && nk.length >= 4)) { said.push('"' + lw + '" to "' + names[j] + '"'); return names[j]; }   // a vowel added in front ("offenses" for Kafentzis) does not change how it sounds
+      }
       return w;
     });
     return { value: local + addr.slice(at), said: said.length ? 'changed ' + said.join(', ') + ' in the email address to match the name on the form' : '' };
@@ -1264,18 +1269,32 @@
     if (run && (run.box !== tgt || (hasWord && named !== run.box))) { giveUp(); run = null; }  // the talk has moved on to another box
     var box = run ? run.box : (named || tgt), fd = box && vmField(box);
     if (!box || !fd || !vmVisible(fd) || vmValue(box) === 'None') return null;
-    var restart = !!run && RUN_CANCEL.test(low), body = restart ? raw.replace(new RegExp(RUN_CANCEL.source, 'ig'), ' ') : raw;
+    var armedNow = !!vm.eann && vm.eann.box === box && Date.now() - vm.eann.at < 20000;
+    var voided = !/\?/.test(raw) && raw.split(/\s+/).length <= 14 && ((EMAIL_WIPE.test(low) && (hasWord || /\b(?:that|it|this|those|them)\b/.test(low))) || (hasWord && EMAIL_BAD.test(low)));
+    if (voided) {                                                                                     // only when little else is said: "I will remove it from my mailing list later" is not a request
+      var left = low.replace(new RegExp(RUN_CANCEL.source + '|' + EMAIL_WIPE.source + '|' + EMAIL_BAD.source, 'ig'), ' ').split(/\s+/).map(function (w) { return w.replace(/[^a-z0-9@.]/g, ''); }).filter(function (w) { return w && !EMAIL_SKIP[w] && !EMAIL_LEAD[w]; });
+      voided = left.length <= 2 || (left.length <= 8 && EMAIL_PIECE.test(left.join(' ')));
+    }
+    if (voided && !run && vmValue(box) === '') return armedNow ? { hold: true, note: 'the email box is already empty: ready for the address again' } : null;   // nothing here to delete: the line is for Claude
+    var restart = voided || (!!run && RUN_CANCEL.test(low)), body = restart ? raw.replace(new RegExp(RUN_CANCEL.source + '|' + EMAIL_WIPE.source + '|' + EMAIL_BAD.source, 'ig'), ' ') : raw;
     if (!restart && (/\?/.test(raw) || vmReadBack(raw) || vmAgreeStmt(raw) || V.looksLikeQuestion(raw) || /\b(?:tell|ask|asking|wondering|whether|if|what|which|how|why|when|where|who)\b/.test(low))) return null;
     var clean = function (w) { return w.toLowerCase().replace(/[.,!?;:'‘’`"]/g, ''); }, single = function (w) { return /^[a-z0-9][.,]?$/i.test(w); };
     var toks = body.split(/\s+/).filter(Boolean), i = 0;
     while (i < toks.length && (EMAIL_SKIP[clean(toks[i])] || EMAIL_LEAD[clean(toks[i])]) && !(single(toks[i]) && i + 1 < toks.length && single(toks[i + 1]))) i++;   // "Okay." and "Yes." are filler, however the speech recogniser punctuated them; a run of single letters is a spelled word, never filler
     var pay = toks.slice(i), payText = pay.join(' '), spelled = pay.length >= 3 && pay.filter(single).length >= pay.length * 0.7;
     if (run && !restart && !(pay.length <= 2 || spelled || (pay.length <= 7 && EMAIL_PIECE.test(low)))) { giveUp(); return null; }   // something else was said: the pieces end here
-    if (restart) { run = vm.erun = null; vm.answered = false; vm.eann = { box: box, at: Date.now() }; vmMarkWait(); if (!pay.length) return { hold: true, note: 'dropped the email heard so far: ready for it again' }; }
+    if (restart) {
+      run = vm.erun = null; vm.answered = false; vm.eann = { box: box, at: Date.now() };
+      var gone = voided && vmEmptyBox(box);
+      if (gone) { touch(); redraw(); vmLog('cleared ' + fd.label); toast('Cleared: ' + fd.label + '. Say "scratch that" to bring it back.'); }
+      if (voided) vmShow(box); else vmMarkWait();
+      if (!pay.length || (voided && !spelled && !EMAIL_PIECE.test(payText))) return { hold: true, note: gone ? 'cleared the email address: ready for it again' : 'dropped the email heard so far: ready for it again' };
+    }
     var armed = !!vm.eann && vm.eann.box === box && Date.now() - vm.eann.at < 20000, cue = !!named || armed;   // "my personal email address is" says the next line is the address
     if (!run) {
       if (!pay.length) { if (hasWord) vm.eann = { box: box, at: Date.now() }; return null; }
       var denied = /\b(?:no|not|none|nothing|dont|don't|do not|havent|haven't|neither|never|nope|nah|without)\b/.test(low);
+      if (SAID_UNDO.test(low)) return null;                                                      // "scratch that" is a request, not a piece of an address, even right after the address was asked for
       if (denied || !(cue || !vm.answered || vmValue(box) === '')) return null;
       var whole = V.interpret(fd, vmEmailText(payText));
       if (whole && whole.value && EMAIL_END.test(whole.value)) return done(box, whole.value);   // the whole address in one line, however it was dictated or spelled: written plainly, so that only a marker goes to Claude
@@ -1350,6 +1369,12 @@
     return true;
   }
   /* "Scratch the first name and the surname", "clear his cell number": the boxes named are emptied. (The page's own "scratch that" only undoes the last change.) */
+  /* Empties one box, keeping what was in it so that "scratch that" brings it back. False when it was empty already. */
+  function vmEmptyBox(id) {
+    var cell = state.f[id]; if (!cell || cell.v === '') return false;
+    vm.undo.push({ kind: 'fill', id: id, prev: { v: cell.v, st: cell.st }, extras: [] });
+    store.setField(state, id, '', 'empty'); return true;
+  }
   var CLEAR_NAMED = /\b(?:scratch|clear|delete|remove|erase|wipe|forget|empty)(?:ed|ing)?\s+(?:out\s+)?(?:(?:the|my|his|her|their|our)\s+)?(.+)$/i;
   function vmClearNamed(text) {
     var m = text.split(/\s+/).length <= 16 && CLEAR_NAMED.exec(text.replace(/[.!?]+$/, '')), cmd = m && V.parseCommand(text, vidx);
@@ -1363,9 +1388,7 @@
     if (!ok || !ids.length) return false;
     var gone = [];
     ids.forEach(function (id) {
-      var cell = state.f[id]; if (!cell || cell.v === '') return;
-      vm.undo.push({ kind: 'fill', id: id, prev: { v: cell.v, st: cell.st }, extras: [] });
-      store.setField(state, id, '', 'empty'); gone.push(vmField(id).label);
+      if (vmEmptyBox(id)) gone.push(vmField(id).label);
     });
     vm.digits = null; vm.run = null; vm.erun = null; touch(); redraw();
     vmShow(ids[0]);                                                              // the first box glows, waiting for the new answer
