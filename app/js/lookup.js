@@ -7,11 +7,12 @@
 })(typeof self !== 'undefined' ? self : this, function () {
   var ENDPOINT = 'https://api.anthropic.com/v1/messages';
   var API_VERSION = '2023-06-01';
-  var DEFAULT_MODEL = 'claude-opus-5-5';
+  /* The look-up (company description, LinkedIn search) uses web search, which reads many pages: it is the dearest thing the form does, so Sonnet is the default (Opus costs twice as much per token, and was the default until it used up a month's credit in testing). */
+  var DEFAULT_MODEL = 'claude-sonnet-5-5';
   var DEFAULT_VOICE_MODEL = 'claude-sonnet-5-5';
   var MODELS = [
-    { id: 'claude-opus-5-5', label: 'Claude Opus 5.5 (recommended)' },
-    { id: 'claude-sonnet-5-5', label: 'Claude Sonnet 5.5 (lower cost)' },
+    { id: 'claude-sonnet-5-5', label: 'Claude Sonnet 5.5 (recommended)' },
+    { id: 'claude-opus-5-5', label: 'Claude Opus 5.5 (most capable, twice the cost)' },
     { id: 'claude-haiku-5-5', label: 'Claude Haiku 5.5 (fastest, lowest cost)' }
   ];
   /* What the voice model list shows: the choice for reading a conversation is Sonnet (it follows the instructions about read-backs, undo and fragments; Haiku invented answers and let its own thinking leak into
@@ -21,6 +22,7 @@
     { id: 'claude-opus-5-5', label: 'Claude Opus 5.5 (most capable, highest cost)' },
     { id: 'claude-haiku-5-5', label: 'Claude Haiku 5.5 (fastest, lowest cost)' }
   ];
+  var LOOKUP_SETTING = 2;  // a look-up model saved before this version is replaced once by the default: Opus was the default then
   var VOICE_SETTING = 2;   // a voice model saved before this version is replaced once by the default: it was picked when Haiku was on offer without a recommendation
   var SETTINGS_KEY = 'wr-fact-find-settings';
 
@@ -51,10 +53,10 @@
   }
 
   function getSettings() {
-    try { var s = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}'); return { apiKey: s.apiKey || '', model: s.model || DEFAULT_MODEL, voiceModel: s.voiceSet === VOICE_SETTING && s.voiceModel ? s.voiceModel : DEFAULT_VOICE_MODEL, expires: s.expires || '' }; }
+    try { var s = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}'); return { apiKey: s.apiKey || '', model: s.modelSet === LOOKUP_SETTING && s.model ? s.model : DEFAULT_MODEL, voiceModel: s.voiceSet === VOICE_SETTING && s.voiceModel ? s.voiceModel : DEFAULT_VOICE_MODEL, expires: s.expires || '' }; }
     catch (e) { return { apiKey: '', model: DEFAULT_MODEL, voiceModel: DEFAULT_VOICE_MODEL, expires: '' }; }
   }
-  function saveSettings(s) { try { localStorage.setItem(SETTINGS_KEY, JSON.stringify({ apiKey: String(s.apiKey || '').trim(), model: s.model || DEFAULT_MODEL, voiceModel: s.voiceModel || DEFAULT_VOICE_MODEL, voiceSet: VOICE_SETTING, expires: String(s.expires || '').trim() })); return true; } catch (e) { return false; } }
+  function saveSettings(s) { try { localStorage.setItem(SETTINGS_KEY, JSON.stringify({ apiKey: String(s.apiKey || '').trim(), model: s.model || DEFAULT_MODEL, modelSet: LOOKUP_SETTING, voiceModel: s.voiceModel || DEFAULT_VOICE_MODEL, voiceSet: VOICE_SETTING, expires: String(s.expires || '').trim() })); return true; } catch (e) { return false; } }
 
   /* How the top bar describes the key: nothing without a key, then days left until the date typed in Settings. */
   function keyStatus(set, now) {

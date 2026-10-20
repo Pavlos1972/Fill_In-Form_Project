@@ -114,3 +114,16 @@ test('the voice model defaults to Sonnet, which is the one marked recommended; a
     assert.strictEqual(L.getSettings().voiceModel, 'claude-haiku-5-5');
   } finally { delete global.localStorage; }
 });
+
+test('the look-up model defaults to Sonnet (Opus used up a month of credit); an Opus saved by the earlier version is replaced once, a choice made now is kept', () => {
+  const store = {};
+  global.localStorage = { getItem: k => (k in store ? store[k] : null), setItem: (k, v) => { store[k] = String(v); } };
+  try {
+    assert.strictEqual(L.DEFAULT_MODEL, 'claude-sonnet-5-5');
+    assert.deepStrictEqual(L.MODELS.filter(m => /recommended/.test(m.label)).map(m => m.id), ['claude-sonnet-5-5']);
+    store['wr-fact-find-settings'] = JSON.stringify({ apiKey: 'k', model: 'claude-opus-5-5', voiceSet: 2, voiceModel: 'claude-sonnet-5-5' });   // saved by the earlier version
+    assert.strictEqual(L.getSettings().model, 'claude-sonnet-5-5');
+    L.saveSettings({ apiKey: 'k', model: 'claude-opus-5-5', voiceModel: 'claude-sonnet-5-5', expires: '' });                                   // a choice made now is kept
+    assert.strictEqual(L.getSettings().model, 'claude-opus-5-5');
+  } finally { delete global.localStorage; }
+});

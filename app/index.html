@@ -79,7 +79,8 @@
   <h2>Settings</h2>
   <p class="help">The company look-up (done by itself when an employer or business name is entered) and the LinkedIn search ask Claude to search the web. They need an Anthropic API key. The key is kept only in this browser on this computer. Only the company name is sent, and for the LinkedIn search the client's name, employer and occupation.</p>
   <label class="f"><span class="l"><span>Anthropic API key</span></span><input id="setKey" type="password" autocomplete="off" placeholder="sk-ant-..."></label>
-  <label class="f"><span class="l"><span>Model</span></span><select id="setModel"></select></label>
+  <label class="f"><span class="l"><span>Look-up model (web search)</span></span><select id="setModel"></select></label>
+  <p class="help">Used only for the company look-up and the LinkedIn search. Each one reads several web pages, so this is the dearest thing the form does: Sonnet costs half of Opus, and Haiku a small fraction. The company look-up runs by itself when an employer or business name is entered; the LinkedIn search runs only when you tap its button. The running cost is in the top bar.</p>
   <label class="f"><span class="l"><span>Voice model</span></span><select id="setVoiceModel"></select></label>
   <p class="help">Voice mode asks this model what was said and which box each fact belongs in. Only the last few sentences are sent, as text. ID numbers, phone numbers and email addresses are never sent: the model sees a marker such as [N1] and says which box it belongs in, and the real number stays on this computer.</p>
   <label class="f"><span class="l"><span>Speech source</span></span><select id="setSpeech"><option value="whisper">Whisper on this computer (private)</option><option value="chrome">Chrome speech recognition (audio goes to Google)</option></select></label>
