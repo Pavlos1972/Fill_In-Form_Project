@@ -163,3 +163,42 @@ test('Chrome speech: a refused microphone is reported, and recognition is not st
     assert.match(states[states.length - 1][1].message, /microphone/i);
   } finally { delete global.window; delete globalThis.navigator; }
 });
+
+test('Chrome speech: a recognition that freezes while there is sound is started again, one that keeps answering is left alone', async () => {
+  const recs = [], notes = [], levels = []; let aborted = 0, level = 0.1;
+  function FakeRec() { recs.push(this); }
+  FakeRec.prototype.start = function () {}; FakeRec.prototype.abort = function () { aborted++; };
+  function FakeAudio() {}
+  FakeAudio.prototype.createMediaStreamSource = () => ({ connect() {}, disconnect() {} });
+  FakeAudio.prototype.createAnalyser = () => ({ connect() {}, fftSize: 0, getFloatTimeDomainData(b) { b.fill(level); } });
+  FakeAudio.prototype.resume = function () {}; FakeAudio.prototype.close = function () {};
+  global.window = { webkitSpeechRecognition: FakeRec, AudioContext: FakeAudio };
+  const stream = { getTracks: () => [{ stop() {} }], getAudioTracks: () => [{}] };
+  Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { mediaDevices: { getUserMedia: () => Promise.resolve(stream) } } });
+  try {
+    const lsn = L.create({ engine: 'chrome', stallSecs: 0.6, text: () => {}, note: n => notes.push(n), level: v => levels.push(v), state: () => {} });
+    await lsn.start();
+    assert.strictEqual(recs.length, 1);
+    for (let i = 0; i < 6; i++) { await new Promise(r => setTimeout(r, 250)); recs[recs.length - 1].onresult({ resultIndex: 0, results: [Object.assign([{ transcript: 'hello' }], { isFinal: false })] }); }
+    assert.strictEqual(recs.length, 1, 'restarted although Chrome kept answering');
+    assert.strictEqual(notes.length, 0);
+    assert.ok(levels.length >= 4 && levels[0] > 0, 'the meter did not move');
+    await new Promise(r => setTimeout(r, 1100));                                                  // sound, and nothing back
+    assert.strictEqual(aborted, 1);
+    assert.strictEqual(recs.length, 2, 'the frozen recognition was not replaced');
+    assert.match(notes[0], /started again/);
+    level = 0;                                                                                    // silence is not a freeze
+    await new Promise(r => setTimeout(r, 1200));
+    assert.strictEqual(recs.length, 2);
+    lsn.stop();
+  } finally { delete global.window; delete globalThis.navigator; }
+});
+test('stallWatch counts only sound without a result', () => {
+  const w = L.stallWatch(0.02, 1);
+  assert.strictEqual(w.tick(0.001, 0.5), false);
+  assert.strictEqual(w.tick(0.1, 0.5), false);
+  w.result();
+  assert.strictEqual(w.tick(0.1, 0.5), false);
+  assert.strictEqual(w.tick(0.1, 0.5), true);
+  assert.strictEqual(w.tick(0.1, 0.5), false);
+});

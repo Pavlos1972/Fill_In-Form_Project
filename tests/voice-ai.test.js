@@ -407,3 +407,7 @@ test('the client saying in a statement that a box is correct is agreement', () =
   assert.match(AI.SYSTEM, /my personal email address is also correct/);
   assert.match(AI.SYSTEM, /IS agreement: confirm the box it names/);
 });
+test('"delete that" and "we need to delete that" are clear requests for the box being talked about', () => {
+  assert.match(AI.SYSTEM, /"delete that", "remove it" and "we need to delete that" are clear/);
+  assert.match(AI.SYSTEM, /"clear that", "delete that", "delete the \.\.\."/);
+});
