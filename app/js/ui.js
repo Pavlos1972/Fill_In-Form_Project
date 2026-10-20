@@ -575,6 +575,12 @@
     cv.rows.push(entry); if (cv.rows.length > 200) cv.rows.shift();
     cv.all.push(entry); if (cv.all.length > 5000) cv.all.shift();
   }
+  /* What the microphone side did (listening on, speech heard, recognition ended or restarted, an error): always in the saved log, and in the box too when it matters, so a gap in the conversation can be explained. */
+  function vmEngineLog(name, detail, show) {
+    var t = '(listening) ' + name + (detail ? ': ' + detail : ''), entry = { who: 'engine', text: t, shown: t, at: Date.now(), did: [], done: true, m: null, engine: true };
+    cv.all.push(entry); if (cv.all.length > 5000) cv.all.shift();
+    if (show) { cv.rows.push(entry); if (cv.rows.length > 200) cv.rows.shift(); convoSoon(); }
+  }
   function convoSoon() { if (!convoT) convoT = setTimeout(function () { convoT = 0; convoRender(); }, 30); }
   function convoCard() {
     var c = document.getElementById('convo'), side = document.querySelector('.side');
@@ -611,7 +617,7 @@
     var box = document.getElementById('cvBox'), stick = box.scrollHeight - box.scrollTop - box.clientHeight < 40;   // stays on the latest line unless it has been scrolled back to read
     var html = cv.rows.map(function (e) {
       var who = e.who === 'adviser' ? 'Planner' : e.who === 'client' ? 'Client' : '', ms = convoMeta(e),
-        did = e.did.length ? e.did.map(esc).join(' · ') + (e.done ? '' : ' · Claude is checking') : (e.done ? 'nothing to fill' : 'working on it…');
+        did = e.engine ? '' : e.did.length ? e.did.map(esc).join(' · ') + (e.done ? '' : ' · Claude is checking') : (e.done ? 'nothing to fill' : 'working on it…');
       return '<div class="cv-row' + (e.who === 'adviser' ? ' cv-adviser' : e.who === 'client' ? ' cv-client' : '') + '"><div class="cv-top"><span class="cv-who">' + who + '</span><span>' + new Date(e.at).toTimeString().slice(0, 8) + '</span></div>' +
         '<div class="cv-text">' + esc(e.shown || e.text) + '</div><div class="cv-did">' + did + (ms ? ' <span>· ' + ms + '</span>' : '') + '</div></div>';
     }).join('');
@@ -1180,7 +1186,7 @@
   var RUN_NAMES = { cell: 'cell', mobile: 'cell', work: 'work', office: 'work', business: 'work', home: 'home', tax: 'tax', id: 'idno', identity: 'idno' };
   var RUN_FILLER = {};
   ('yes yeah yep yup ok okay alright right so um uh er erm ah hm hmm well let lets me see is it its the that thats this a an of in number numbers my mine your cell work home phone mobile telephone tax id sorry hold on moment second sec minute just give you again please then and next hang think check checking looking look sure i im ill am was do does did have has got can could will we us to for at from digits digit about like starts start begins begin with thank thanks wait').split(' ').forEach(function (w) { RUN_FILLER[w] = 1; });
-  var RUN_CANCEL = /\b(?:wrong|incorrect|not (?:right|correct)|from the (?:top|start|beginning)|(?:scratch|clear|forget|ignore|cancel|delete|discard) (?:that|it|those|these|all that|what i (?:said|gave))|(?:give|say|read|do|redo|try|start|begin|go|repeat)\b[^.?!]{0,25}\b(?:again|over|afresh))\b/;
+  var RUN_CANCEL = /\b(?:wrong|incorrect|not (?:right|correct)|(?:correct|fix|redo|change) (?:that|it|this)|from the (?:top|start|beginning)|(?:scratch|clear|forget|ignore|cancel|delete|discard) (?:that|it|those|these|all that|what i (?:said|gave))|(?:give|say|read|do|redo|try|start|begin|go|repeat)\b[^.?!]{0,25}\b(?:again|over|afresh))\b/;
   function vmGroup(box, s) { return box !== 'idno' && box !== 'tax' && !/^27/.test(s) ? s.slice(0, 3) + (s.length > 3 ? ' ' + s.slice(3, 6) : '') + (s.length > 6 ? ' ' + s.slice(6) : '') : s; }
   var RUN_UNITS = /\b(?:rands?|percent|per|months?|years?|days?|weeks?|kids?|children|aged?|old|thousand|million|hundred|k)\b/;
   function vmNumberRun(text) {
@@ -1215,7 +1221,7 @@
      address, never filler. A restart ("let's try that again") drops what was kept; a line that is not a piece of it ends it, and what was heard is put in the box, amber, so nothing said is lost. */
   var EMAIL_BOXES = ['pemail', 'wemail'], EMAIL_LEAD = {}, EMAIL_SKIP = {};
   'email emails mail address addresses personal private office business e-mail'.split(' ').forEach(function (w) { EMAIL_LEAD[w] = 1; });
-  ('yes yeah yep yup ok okay alright right so um uh er erm ah hm hmm well let lets me see is it its the that thats this sorry hold on moment second sec minute just give you again please then and next sure my mine your i im ill a am was do does did have has got can could will we us to for from thank thanks wait like with about check checking looking look think hang work perfect great lovely fantastic excellent good fine nice cool awesome wonderful brilliant').split(' ').forEach(function (w) { EMAIL_SKIP[w] = 1; });
+  ('yes yeah yep yup ok okay alright right so um uh er erm ah hm hmm well let lets me see is it its the that thats this sorry hold on moment second sec minute just give you again please then and next sure my mine your i im ill a am was do does did have has got can could will we us to for from thank thanks wait like with about check checking looking look think hang work perfect great lovely fantastic excellent good fine nice cool awesome wonderful brilliant need needs needed want wanted should must going gonna').split(' ').forEach(function (w) { EMAIL_SKIP[w] = 1; });
   var EMAIL_END = /^[a-z0-9][^@\s]*@[^@\s]+\.(?:com|org|net|edu|gov|biz|info|io|me|app|dev|africa|za|uk|us)$/i;
   var EMAIL_PIECE = /(?:^|\s)(?:dot|period|full ?stop|at|underscore|dash|hyphen|gmail|yahoo|outlook|hotmail|icloud|live|zero|one|two|three|four|five|six|seven|eight|nine)(?=\s|$)|[@.\d]/i;
   var EMAIL_CHATTER = /\b(?:correct|right|problem|problems|error|errors|wrong|there|theres|not|nothing|enter|entering|entered|why|because|program|software|computer|page|form|system|test|testing|try|again|actually|already|really|maybe|definite|different|issue|bug|fix)\b/;
@@ -1226,25 +1232,51 @@
     w = String(w).toLowerCase().replace(/[^a-z]/g, '').replace(/ph/g, 'f').replace(/ck/g, 'k').replace(/tz/g, 's').replace(/c(?=[eiy])/g, 's').replace(/c/g, 'k').replace(/z/g, 's').replace(/x/g, 'ks').replace(/q/g, 'k').replace(/w/g, 'v');
     return w ? w.charAt(0) + w.slice(1).replace(/[aeiouyh]/g, '').replace(/(.)\1+/g, '$1') : '';
   }
-  /* Speech recognition writes a name the way it sounds ("cafences" for Kafentzis). A word of the address that sounds like the first name or the surname already on the form is written as the form has it. */
+  /* How many letters differ between two words (insert, delete, change). */
+  function vmEdit(a, b) {
+    var d = [], i, j;
+    for (i = 0; i <= a.length; i++) { d[i] = [i]; }
+    for (j = 1; j <= b.length; j++) d[0][j] = j;
+    for (i = 1; i <= a.length; i++) for (j = 1; j <= b.length; j++) d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a.charAt(i - 1) === b.charAt(j - 1) ? 0 : 1));
+    return d[a.length][b.length];
+  }
+  /* Domains that are common, and the firm's own: a heard domain that is a letter or two off one of them ("liferest.co.za") is written as it. */
+  var EMAIL_DOMAINS = ['gmail.com', 'yahoo.com', 'outlook.com', 'hotmail.com', 'icloud.com', 'live.com', 'mail.com', 'webmail.co.za', 'mweb.co.za', 'telkomsa.net', 'vodamail.co.za', 'absamail.co.za', 'liferisk.co.za', 'discovery.co.za', 'sanlam.co.za', 'oldmutual.co.za', 'momentum.co.za', 'liberty.co.za', 'absa.co.za', 'fnb.co.za', 'nedbank.co.za', 'standardbank.co.za', 'capitecbank.co.za'];
+  /* Speech recognition writes a name the way it sounds ("cafences" for Kafentzis, "heaul" for Paul). A word of the address that sounds like, or is a letter or two off, the first name or the surname already on the form is written as the form has it,
+     and a domain that is a letter or two off a common one is written as that one. Whatever is changed is said, and the box stays amber. */
   function vmEmailNames(addr) {
     var at = addr.lastIndexOf('@');
     if (at < 1) return { value: addr, said: '' };
     var names = [String(state.f.fname.v), String(state.f.sname.v)].join(' ').split(/[\s-]+/).concat(String(state.f.sname.v).replace(/[^a-z]/gi, '')).map(function (n) { return n.replace(/[^a-z]/gi, '').toLowerCase(); }).filter(function (n) { return n.length >= 4 && vmNameKey(n).length >= 3; });
+    var close = [String(state.f.fname.v), String(state.f.sname.v)].join(' ').split(/[\s-]+/).concat(String(state.f.sname.v).replace(/[^a-z]/gi, '')).map(function (n) { return n.replace(/[^a-z]/gi, '').toLowerCase(); }).filter(function (n, i, all) { return n.length >= 4 && all.indexOf(n) === i; });   // short names such as Paul count here: only the sound-alike test above needs three consonants
     var said = [], local = addr.slice(0, at).replace(/[a-z]{4,}/gi, function (w) {
-      var lw = w.toLowerCase(), k = vmNameKey(lw);
-      if (names.indexOf(lw) >= 0 || k.length < 3) return w;
-      for (var j = 0; j < names.length; j++) {
+      var lw = w.toLowerCase(), k = vmNameKey(lw), j, best = null, bd = 99, tie = false;
+      if (close.indexOf(lw) >= 0) return w;
+      for (j = 0; j < names.length; j++) {
         var nk = vmNameKey(names[j]);
-        if (k === nk || (/^[aeiou]/.test(lw) && k.length >= 4 && k.slice(1) === nk.slice(1) && nk.length >= 4)) { said.push('"' + lw + '" to "' + names[j] + '"'); return names[j]; }   // a vowel added in front ("offenses" for Kafentzis) does not change how it sounds
+        if (k.length >= 3 && (k === nk || (/^[aeiou]/.test(lw) && k.length >= 4 && k.slice(1) === nk.slice(1) && nk.length >= 4))) { said.push('"' + lw + '" to "' + names[j] + '"'); return names[j]; }   // a vowel added in front ("offenses" for Kafentzis) does not change how it sounds
       }
+      if (close.some(function (n) { return lw.indexOf(n) >= 0; })) return w;                    // "paulk", "pkafentzis": a name with something added is how an address is made
+      close.forEach(function (n) {
+        var d = Math.min(vmEdit(lw, n), vmEdit(lw, n.slice(0, lw.length)), vmEdit(lw, n.slice(0, lw.length + 1)));   // the whole name, or its beginning ("aafem" for "kafen" of Kafentzis)
+        if (d < bd) { bd = d; best = n; tie = false; } else if (d === bd && best !== n) tie = true;
+      });
+      if (best && !tie && bd <= 2 && bd < lw.length / 2) { said.push('"' + lw + '" to "' + best + '"'); return best; }
       return w;
     });
-    return { value: local + addr.slice(at), said: said.length ? 'changed ' + said.join(', ') + ' in the email address to match the name on the form' : '' };
+    var dom = addr.slice(at + 1).toLowerCase(), fixed = dom;
+    if (EMAIL_DOMAINS.indexOf(dom) < 0) {
+      var bestD = null, bdd = 99, tied = false;
+      EMAIL_DOMAINS.forEach(function (d) { var e = vmEdit(dom, d); if (e < bdd) { bdd = e; bestD = d; tied = false; } else if (e === bdd) tied = true; });
+      if (bestD && !tied && bdd <= Math.max(1, Math.floor(dom.length * 0.2)) && bdd <= 2) { fixed = bestD; said.push('"' + dom + '" to "' + bestD + '"'); }
+    }
+    return { value: local + '@' + fixed, said: said.length ? 'changed ' + said.join(', ') + ' in the email address (matched to the name on the form, or to a common domain)' : '' };
   }
   /* Spoken digits in the name part of an address are digits ("paul k one" is paulk1): only that part, up to the "at". */
   function vmEmailText(t) {
-    var m = /^(.*?)(\s+at\s+.*|@.*)?$/i.exec(String(t)), DIG = { zero: 0, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9 };
+    t = String(t);
+    if (!/\bat\b|@/i.test(t)) t = t.replace(/\b(?:with|add|and|app)\b(?=(?:(?!\b(?:with|add|and|app)\b).)*(?:\.|\bdot\b|gmail|yahoo|outlook|hotmail|icloud)\S*)(?!(?:(?!\b(?:with|add|and|app)\b).)*\b(?:with|add|and|app)\b)/i, 'at');   // "with" heard for "at": the last such word, when a domain follows it
+    var m = /^(.*?)(\s+at\s+.*|@.*)?$/i.exec(t), DIG = { zero: 0, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9 };
     return m[1].replace(/\b(zero|one|two|three|four|five|six|seven|eight|nine)\b/gi, function (w) { return DIG[w.toLowerCase()]; }) + (m[2] || '');
   }
   /* The pieces end here: what was heard is put in the box (amber) when it already looks like an address, so nothing said is lost. */
@@ -1255,6 +1287,8 @@
     if (/^[^@\s]+@[^@\s]+$/.test(part) && vmApply(r.box, { kind: 'fill', value: vmEmailNames(part).value, status: 'verify' })) { vmLog('the email address was not finished: put in the box as heard, check it'); toast('The email address was not finished. Check it, or say it again.'); }
     else vmLog('the email address was not finished: nothing was filled');
   }
+  /* The address in what was said, or '' when it is not yet one. Not V.interpret: for an email box that reads "no" or "not" anywhere in the words as "I have no email address" ("full one, not defenses, at gmail.com" came out as None). */
+  function vmEmailParse(t) { var em = V.spokenEmail(vmEmailText(t)); return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(em) ? em : ''; }
   function vmEmailRun(text) {
     var raw = String(text == null ? '' : text), low = raw.toLowerCase().replace(/[‘’`]/g, "'"), run = vm.erun, hasWord = /\be-?mail\b/.test(low), named = null;
     if (hasWord) named = /\b(?:work|office|business)\b/.test(low) ? 'wemail' : 'pemail';
@@ -1280,7 +1314,7 @@
     if (!restart && (/\?/.test(raw) || vmReadBack(raw) || vmAgreeStmt(raw) || V.looksLikeQuestion(raw) || /\b(?:tell|ask|asking|wondering|whether|if|what|which|how|why|when|where|who)\b/.test(low))) return null;
     var clean = function (w) { return w.toLowerCase().replace(/[.,!?;:'‘’`"]/g, ''); }, single = function (w) { return /^[a-z0-9][.,]?$/i.test(w); };
     var toks = body.split(/\s+/).filter(Boolean), i = 0;
-    while (i < toks.length && (EMAIL_SKIP[clean(toks[i])] || EMAIL_LEAD[clean(toks[i])]) && !(single(toks[i]) && i + 1 < toks.length && single(toks[i + 1]))) i++;   // "Okay." and "Yes." are filler, however the speech recogniser punctuated them; a run of single letters is a spelled word, never filler
+    while (i < toks.length && (EMAIL_SKIP[clean(toks[i])] || EMAIL_LEAD[clean(toks[i])]) && !(single(toks[i]) && i + 1 < toks.length && single(toks[i + 1])) && !(/^(?:with|and)$/.test(clean(toks[i])) && /\.|\bdot\b|gmail|yahoo|outlook|hotmail|icloud/i.test(toks.slice(i + 1).join(' ')))) i++;   // "Okay." and "Yes." are filler, however the speech recogniser punctuated them; a run of single letters is a spelled word, never filler
     var pay = toks.slice(i), payText = pay.join(' '), spelled = pay.length >= 3 && pay.filter(single).length >= pay.length * 0.7;
     if (run && !restart && !(pay.length <= 2 || spelled || (pay.length <= 7 && EMAIL_PIECE.test(low)))) { giveUp(); return null; }   // something else was said: the pieces end here
     if (restart) {
@@ -1296,14 +1330,14 @@
       var denied = /\b(?:no|not|none|nothing|dont|don't|do not|havent|haven't|neither|never|nope|nah|without)\b/.test(low);
       if (SAID_UNDO.test(low)) return null;                                                      // "scratch that" is a request, not a piece of an address, even right after the address was asked for
       if (denied || !(cue || !vm.answered || vmValue(box) === '')) return null;
-      var whole = V.interpret(fd, vmEmailText(payText));
-      if (whole && whole.value && EMAIL_END.test(whole.value)) return done(box, whole.value);   // the whole address in one line, however it was dictated or spelled: written plainly, so that only a marker goes to Claude
+      var whole = vmEmailParse(payText);
+      if (whole && EMAIL_END.test(whole)) return done(box, whole);   // the whole address in one line, however it was dictated or spelled: written plainly, so that only a marker goes to Claude
       if (pay.length > (cue ? 4 : /\bat\s+\S/i.test(payText) ? 5 : 3) && !spelled) return null;
       if (!cue && EMAIL_CHATTER.test(low.replace(/'/g, ''))) return null;                        // other chatter may not start one
       if (!cue && pay.length > 1 && !EMAIL_PIECE.test(payText) && !(vm.target === box && !vm.answered)) return null;   // a lone name, or words with a sign of an address in them, may start one
     }
-    var all = (run ? run.t + ' ' : '') + payText, x = V.interpret(fd, vmEmailText(all));
-    if (x && x.value && EMAIL_END.test(x.value)) return done(box, x.value);
+    var all = (run ? run.t + ' ' : '') + payText, x = vmEmailParse(all);
+    if (x && EMAIL_END.test(x)) return done(box, x);
     if (box !== vm.target) vmShow(box);
     vm.answered = false; vm.erun = { box: box, t: all.trim() }; vmMarkWait();
     vmNote(box, 'email so far: ' + all.trim() + ' (waiting for the rest)');
@@ -1570,6 +1604,7 @@
       text: function (t, m) { cv.live = ''; vmHear(t, undefined, m); },                  // the box in the right-hand pane shows the line and what became of it
       reading: function () { cv.live = '… reading what was just said'; convoSoon(); clearTimeout(cv.t); cv.t = setTimeout(function () { cv.live = ''; convoSoon(); }, 10000); },   // a line that came to nothing leaves no note behind
       note: function (msg) { listenShow(status, msg, 'warn'); },
+      event: vmEngineLog,
       level: function (v) { var el = $('#lvl'); if (el) el.style.width = Math.round(v * 100) + '%'; }
     });
     lsn.start();
