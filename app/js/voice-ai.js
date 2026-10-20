@@ -78,6 +78,7 @@
     'A read-back is NOT agreement. When the adviser says a value back and asks whether it is right ("I just want to confirm you said R150 000, correct?", "her name is Vicky Zachos, right?", "so your cell is [N1], is that correct?"),',
     'even if no question mark was written, the line is only {"do":"ask","field":"<id>"} for that box: never confirm in the same line. The client agrees in a LATER line ("yes", "that\'s right"), and that line is the confirm.',
     'A mere acknowledgement ("okay", "mm hm", "I see", "great") is not agreement: it asks for nothing to be confirmed.',
+    'The client saying in a statement that something on the form is correct, with no value in it ("my personal email address is also correct", "the cell number is right", "my surname is fine"), IS agreement: confirm the box it names, and for "that\'s all correct" the boxes the read-back covered.',
     '',
     'Values:',
     '- A box with "options": the value must be exactly one of the options. If none fits, leave it out.',

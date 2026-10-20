@@ -1122,8 +1122,12 @@
   /* A line of five words or more that ends in "correct" or "right" and does not open with an agreement is the adviser asking ("so your wife's cell number is ... correct"): the client's own "yes that's correct" opens with one. */
   var READBACK_END = /\b(?:correct|right)\s*[?.!]*\s*$/i;
   var AGREE_OPEN = /^(?:(?:and|so|well|okay|ok|oh)\s+)?(?:yes|yeah|yep|yup|ya|sure|perfect|exactly|absolutely|definitely|indeed|great|fine|good|right|correct|that'?s|thats|that is|it'?s|its|it is|i think|i believe|i agree|i guess|i reckon|i'?m sure|im sure|i am sure|we agree|thank)\b/i;
+  /* "My personal email address is also correct", "the cell number is right": the client agreeing, in a statement with no value in it. An adviser reading back says the value (and asks). */
+  var AGREE_STMT = /^(?:(?:and|so|well|okay|ok|oh|yes|yeah|yep|ja)[,\s]+)*(?:i|we|my|our|the|that|this|it|these|those|everything|all)\b[^?]{0,70}\b(?:is|are|was|were|looks|look|seems)\s+(?:also\s+|all\s+|both\s+|still\s+|totally\s+|absolutely\s+|quite\s+)?(?:correct|right|accurate|fine|good)\s*[.!]*$/i;
+  function vmAgreeStmt(text) { var t = String(text == null ? '' : text).replace(/[‘’]/g, "'").trim(); return t.split(/\s+/).length <= 14 && AGREE_STMT.test(t) && !/\d{3,}|@/.test(t); }
   function vmReadBack(text) {
     var t = String(text == null ? '' : text).replace(/[‘’]/g, "'").trim();
+    if (vmAgreeStmt(t)) return false;
     return READBACK_TAG.test(t) || READBACK_ASK.test(t) || ((t.split(/\s+/).length >= 5 || t.replace(/\D/g, '').length >= 7) && READBACK_END.test(t) && !AGREE_OPEN.test(t));
   }
   function vmSame(a, b) { var n = function (v) { return String(v == null ? '' : v).toLowerCase().replace(/[\s,]+/g, ''); }; return n(a) !== '' && n(a) === n(b); }
@@ -1138,6 +1142,16 @@
       }
       return a;
     }).filter(Boolean);
+  }
+  /* "My personal email address is also correct": the box it names, when it holds a value that still waits for the client to agree. */
+  function vmAgreedBox(text) {
+    if (!vmAgreeStmt(text)) return null;
+    var hit = V.matchQuestion(text, vidx, { cur: cur }), f = hit && hit.score >= 3 ? vmField(hit.id) : null, c = f && !f.list ? state.f[hit.id] : null;
+    return c && vmVisible(f) && c.v !== '' && (c.st === 'heard' || c.st === 'verify') ? hit.id : null;
+  }
+  function vmAgreeActions(actions, text) {
+    var id = vmAgreedBox(text);
+    return id ? actions.filter(function (a) { return !(a.field === id && (a.do === 'ask' || a.do === 'confirm')); }).concat([{ do: 'confirm', field: id }]) : actions;
   }
   /* What the page itself makes of a line, in the state the form is in now. */
   function vmPlanFor(text) {
@@ -1204,7 +1218,7 @@
   ('yes yeah yep yup ok okay alright right so um uh er erm ah hm hmm well let lets me see is it its the that thats this sorry hold on moment second sec minute just give you again please then and next sure my mine your i im ill a am was do does did have has got can could will we us to for from thank thanks wait like with about check checking looking look think hang work perfect great lovely fantastic excellent good fine nice cool awesome wonderful brilliant').split(' ').forEach(function (w) { EMAIL_SKIP[w] = 1; });
   var EMAIL_END = /^[a-z0-9][^@\s]*@[^@\s]+\.(?:com|org|net|edu|gov|biz|info|io|me|app|dev|africa|za|uk|us)$/i;
   var EMAIL_PIECE = /(?:^|\s)(?:dot|period|full ?stop|at|underscore|dash|hyphen|gmail|yahoo|outlook|hotmail|icloud|live|zero|one|two|three|four|five|six|seven|eight|nine)(?=\s|$)|[@.\d]/i;
-  var EMAIL_CHATTER = /\b(?:problem|problems|error|errors|wrong|there|theres|not|nothing|enter|entering|entered|why|because|program|software|computer|page|form|system|test|testing|try|again|actually|already|really|maybe|definite|different|issue|bug|fix)\b/;
+  var EMAIL_CHATTER = /\b(?:correct|right|problem|problems|error|errors|wrong|there|theres|not|nothing|enter|entering|entered|why|because|program|software|computer|page|form|system|test|testing|try|again|actually|already|really|maybe|definite|different|issue|bug|fix)\b/;
   /* What a word sounds like: its first letter and its consonants, with c, tz, z and so on written alike, so that "cafences" and "Kafentzis" come out the same. */
   function vmNameKey(w) {
     w = String(w).toLowerCase().replace(/[^a-z]/g, '').replace(/ph/g, 'f').replace(/ck/g, 'k').replace(/tz/g, 's').replace(/c(?=[eiy])/g, 's').replace(/c/g, 'k').replace(/z/g, 's').replace(/x/g, 'ks').replace(/q/g, 'k').replace(/w/g, 'v');
@@ -1251,7 +1265,7 @@
     var box = run ? run.box : (named || tgt), fd = box && vmField(box);
     if (!box || !fd || !vmVisible(fd) || vmValue(box) === 'None') return null;
     var restart = !!run && RUN_CANCEL.test(low), body = restart ? raw.replace(new RegExp(RUN_CANCEL.source, 'ig'), ' ') : raw;
-    if (!restart && (/\?/.test(raw) || vmReadBack(raw) || V.looksLikeQuestion(raw) || /\b(?:tell|ask|asking|wondering|whether|if|what|which|how|why|when|where|who)\b/.test(low))) return null;
+    if (!restart && (/\?/.test(raw) || vmReadBack(raw) || vmAgreeStmt(raw) || V.looksLikeQuestion(raw) || /\b(?:tell|ask|asking|wondering|whether|if|what|which|how|why|when|where|who)\b/.test(low))) return null;
     var clean = function (w) { return w.toLowerCase().replace(/[.,!?;:'‘’`"]/g, ''); }, single = function (w) { return /^[a-z0-9][.,]?$/i.test(w); };
     var toks = body.split(/\s+/).filter(Boolean), i = 0;
     while (i < toks.length && (EMAIL_SKIP[clean(toks[i])] || EMAIL_LEAD[clean(toks[i])]) && !(single(toks[i]) && i + 1 < toks.length && single(toks[i + 1]))) i++;   // "Okay." and "Yes." are filler, however the speech recogniser punctuated them; a run of single letters is a spelled word, never filler
@@ -1433,7 +1447,8 @@
     if (vm.noteMode && vmAIReady() && (startsNotes || (pl.actions.every(function (a) { return a.do === 'note'; }) && vmMayLeaveNotes(text)))) return vmAskInNotes(text, pl);
     if (vm.noteMode || onlyCommand || !vmAIReady()) return vmRun(pl.actions);  // every other line, however short, is read by Claude with the lines before it
     return vmAsk('auto', text, null, entry).then(function (r) {
-      if (r && r.kind === 'actions') return vmRun(vmGuardReadBack(r.actions, text)).then(function () { return vmRestOfLine(r.actions, text, words); });
+      if (r && r.kind === 'actions') return vmRun(vmAgreeActions(vmGuardReadBack(r.actions, text), text)).then(function () { return vmRestOfLine(r.actions, text, words); });
+      if (vmAgreedBox(text)) return vmRun(vmAgreeActions([], text));                  // Claude had nothing to say about a plain statement that a box is correct
       if (!r || agree) return vmRun(pl.actions);                         // Claude could not be reached, or had nothing to add to a plain yes: this computer's best reading
     });
   }

@@ -403,3 +403,7 @@ test('an empty value for one box means the box is to be emptied, and unknown box
 test('an amount in the past tense is not taken as the current figure', () => {
   assert.match(AI.SYSTEM, /"I used to put about 2000 a month" is the old figure/);
 });
+test('the client saying in a statement that a box is correct is agreement', () => {
+  assert.match(AI.SYSTEM, /my personal email address is also correct/);
+  assert.match(AI.SYSTEM, /IS agreement: confirm the box it names/);
+});
