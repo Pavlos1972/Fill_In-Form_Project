@@ -1368,13 +1368,13 @@
     if (vmApply(id, { kind: 'fill', value: x && !x.error ? x.value : next, status: 'verify' })) vmLog(what + ' ' + f.label);
     return true;
   }
-  /* "Scratch the first name and the surname", "clear his cell number": the boxes named are emptied. (The page's own "scratch that" only undoes the last change.) */
   /* Empties one box, keeping what was in it so that "scratch that" brings it back. False when it was empty already. */
   function vmEmptyBox(id) {
     var cell = state.f[id]; if (!cell || cell.v === '') return false;
     vm.undo.push({ kind: 'fill', id: id, prev: { v: cell.v, st: cell.st }, extras: [] });
     store.setField(state, id, '', 'empty'); return true;
   }
+  /* "Scratch the first name and the surname", "clear his cell number": the boxes named are emptied. (The page's own "scratch that" only undoes the last change.) */
   var CLEAR_NAMED = /\b(?:scratch|clear|delete|remove|erase|wipe|forget|empty)(?:ed|ing)?\s+(?:out\s+)?(?:(?:the|my|his|her|their|our)\s+)?(.+)$/i;
   function vmClearNamed(text) {
     var m = text.split(/\s+/).length <= 16 && CLEAR_NAMED.exec(text.replace(/[.!?]+$/, '')), cmd = m && V.parseCommand(text, vidx);
