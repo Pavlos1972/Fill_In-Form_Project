@@ -434,6 +434,7 @@
      (so a name, an employer and an occupation said one after the other are one search). Only with the Anthropic key: it needs web search. */
   var profileTimer = null, PROFILE_SRC = ['fname', 'sname', 'employer', 'biz_name', 'bizowner', 'occ'];
   function autoProfileLookup() {
+    if (!FF.autoProfile) return;                                       // off: every change of a name, employer or occupation started a web search of its own, and the searches add up (tap the LinkedIn search button when one is wanted)
     clearTimeout(profileTimer);
     if (!FF.lookup.getSettings().apiKey) return;
     profileTimer = setTimeout(function () {
