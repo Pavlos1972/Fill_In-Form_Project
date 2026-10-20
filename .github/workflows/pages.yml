@@ -1,0 +1,38 @@
+# Puts the Fact Find (the app folder) online at https://pavlos1972.github.io/Fill_In-Form_Project/ every time main changes.
+# The page has no server part: client details and the API key stay in the browser of whoever uses it, and in the files they save.
+name: Publish the Fact Find
+
+on:
+  push:
+    branches: [main]
+    paths: ['app/**', '.github/workflows/pages.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v5
+      - name: Make the browser fetch the new scripts after an update
+        run: |
+          v="${GITHUB_SHA::10}"
+          sed -i -E "s/(\.(js|css))\?v=[0-9a-z]+\"/\1?v=${v}\"/g" app/index.html
+          grep -c "?v=${v}" app/index.html
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: app
+      - id: deployment
+        uses: actions/deploy-pages@v4
