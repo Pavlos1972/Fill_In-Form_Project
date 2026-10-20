@@ -1535,9 +1535,9 @@
       engine: p.engine, model: p.model,
       state: function (st, d) {
         lsnState = st; listenRender();
-        if (st === 'loading') { status = p.engine === 'chrome' ? 'Starting Chrome speech recognition…' : 'Getting the speech model ready on this computer' + (d.percent != null ? ' (' + d.percent + '%, only the first time)' : '…'); listenShow(status, ''); }
+        if (st === 'loading') { status = p.engine === 'chrome' ? '' : 'Getting the speech model ready on this computer' + (d.percent != null ? ' (' + d.percent + '%, only the first time)' : '…'); listenShow(status, ''); }
         else if (st === 'on') {
-          status = p.engine === 'chrome' ? "Listening with Chrome's speech recognition. Google hears this audio: practice talk only, no clients. On a page opened from a file Chrome may ask for the microphone each time it restarts listening; \"On this computer\" in Settings asks only once."
+          status = p.engine === 'chrome' ? ''                                                       // Chrome's own recognition: no banner (the Listen button says it is on); only a problem is shown
             : 'Listening' + (d.mic ? ' on ' + d.mic : '') + ' with ' + d.model + ' on the ' + d.where + (d.why ? ' (' + d.why + ')' : '') + '. The sound stays on this computer.';
           listenShow(status, '', kind);
         } else if (st === 'error') { lsn = null; lsnState = 'off'; listenRender(); listenShow(d.message, '', 'bad'); var lv0 = $('#lvl'); if (lv0) lv0.style.width = '0'; }
