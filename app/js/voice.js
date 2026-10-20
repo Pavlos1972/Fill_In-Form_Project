@@ -182,7 +182,7 @@
 
   /* What you might say when asking about each field. Fields without an entry are matched on their on-screen label. */
   var ALIASES = {
-    consent: ['consent', 'okay to record', 'record this', 'record the call', 'recording', 'transcribe'],
+    consent: ['consent', 'okay to record', 'record this', 'record that', 'record it', 'record the call', 'record our', 'record the conversation', 'recording', 'recorded', 'transcribe', 'go ahead and record', 'happy for us to record', 'happy for me to record', 'happy to be recorded', 'permission to record', 'mind if we record'],
     ref: ['referred', 'referral', 'who referred', 'how did you hear', 'where did you hear'],
     fname: ['first name', 'full name', 'your name', 'my name', 'christian name', 'given name', 'name and surname'],
     sname: ['surname', 'last name', 'family name', 'second name'],
