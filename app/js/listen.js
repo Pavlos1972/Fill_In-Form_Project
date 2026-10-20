@@ -353,6 +353,17 @@
     };
   }
 
+  /* What else Chrome thought it heard, and how sure it was, for the saved log: a misheard name or address is much easier to understand with it. */
+  function heardMeta(r) {
+    var m = {}, i, alts = [];
+    try {
+      if (r[0] && typeof r[0].confidence === 'number') m.sure = Math.round(r[0].confidence * 100) / 100;
+      for (i = 1; i < r.length && i < 3; i++) if (r[i] && r[i].transcript && String(r[i].transcript).trim() !== String(r[0].transcript).trim()) alts.push(String(r[i].transcript).trim());
+    } catch (e) { /* no alternatives */ }
+    if (alts.length) m.also = alts;
+    return m;
+  }
+
   /* Chrome's own speech recognition: instant, but Google hears the audio.
      Chrome ends its recognition after every long silence and this starts a new one, and on a file Chrome may ask for the microphone again each time one starts.
      So the microphone is opened once, when Listen is switched on, and kept open until it is switched off: the one question is asked at the start. */
@@ -386,7 +397,7 @@
     }
     function begin() {
       var me = rec = new SR(); started = false; t0 = Date.now(); clearTimeout(startWatch);
-      rec.lang = 'en-ZA'; rec.continuous = true; rec.interimResults = true; rec.maxAlternatives = 1;
+      rec.lang = 'en-ZA'; rec.continuous = true; rec.interimResults = true; rec.maxAlternatives = 3;
       rec.onstart = function () { started = true; clearTimeout(startWatch); ev('recognition started'); };
       rec.onspeechstart = function () { ev('speech heard'); };
       rec.onspeechend = function () { ev('speech ended'); };
@@ -394,7 +405,7 @@
       rec.onresult = function (e) {
         var interim = '', i, r;
         dog.result();
-        for (i = e.resultIndex; i < e.results.length; i++) { r = e.results[i]; if (r.isFinal) { fails = 0; h.text(joinSpelling(String(r[0].transcript).trim()), {}); } else interim += r[0].transcript; }
+        for (i = e.resultIndex; i < e.results.length; i++) { r = e.results[i]; if (r.isFinal) { fails = 0; h.text(joinSpelling(String(r[0].transcript).trim()), heardMeta(r)); } else interim += r[0].transcript; }
         h.interim(interim);
       };
       rec.onerror = function (e) {
