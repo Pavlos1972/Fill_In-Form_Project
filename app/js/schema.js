@@ -69,23 +69,6 @@
       { fields: [N('n_info')] }
     ] },
 
-    { id: 'income', roomy: 1, title: 'Income & household', blocks: [
-      { fields: [
-        { id: 'gross', money: 1, l: 'Gross monthly income (R)', t: 'txt', risky: 1 },
-        { id: 'dnet', l: 'Direct Net Income (R p.m.)', t: 'txt', calc: 'dnet', link: ['Check on TaxTim', 'https://www.taxtim.com/za/calculators/income-tax'] },
-        { id: 'net', money: 1, l: 'Take-home net income (R p.m.)', t: 'txt', risky: 1 },
-        { id: 'exp', money: 1, l: 'Monthly expenses / budget (R)', t: 'txt', risky: 1 },
-        { id: 'disp', l: 'Disposable income (R)', t: 'txt', calc: 'disp' },
-        { id: 'marital', l: 'Marital status', t: 'sel', o: ['Single', 'Married in community of property', 'Married out of community (with accrual)', 'Married out of community (no accrual)', 'Customary marriage', 'Civil union', 'Life partner', 'Divorced', 'Widowed'] }
-      ], help: 'Direct Net Income is gross income less PAYE and UIF, calculated from the SARS tables. It matches TaxTim\'s "Take-home pay" for a client under 65 with no pension contribution and no medical aid credits. Take-home net income is what the employer actually pays after all deductions.' },
-      { title: 'Spouse / partner', cond: { f: 'marital', nin: ['Single', 'Divorced', 'Widowed'] }, condMsg: 'Spouse details are not needed for this marital status.', fields: [
-        { id: 'sp_name', l: 'Spouse / partner name', t: 'txt', risky: 1 },
-        { id: 'sp_tel', l: 'Spouse telephone number', t: 'txt', risky: 1 },
-        { id: 'sp_occ', l: 'Spouse occupation', t: 'txt' }
-      ] },
-      { fields: [N('n_income')] }
-    ] },
-
     { id: 'occ', title: 'Occupation', blocks: [
       { title: 'Work', fields: [
         { id: 'employed', l: 'Employed', t: 'sel', o: YN },
@@ -118,6 +101,23 @@
         { id: 'd_desc', l: 'Brief description of duties', t: 'area', wide: 1 }
       ] },
       { fields: [N('n_occ')] }
+    ] },
+
+    { id: 'income', roomy: 1, title: 'Income & household', blocks: [
+      { fields: [
+        { id: 'gross', money: 1, l: 'Gross monthly income (R)', t: 'txt', risky: 1 },
+        { id: 'dnet', l: 'Direct Net Income (R p.m.)', t: 'txt', calc: 'dnet', link: ['Check on TaxTim', 'https://www.taxtim.com/za/calculators/income-tax'] },
+        { id: 'net', money: 1, l: 'Take-home net income (R p.m.)', t: 'txt', risky: 1 },
+        { id: 'exp', money: 1, l: 'Monthly expenses / budget (R)', t: 'txt', risky: 1 },
+        { id: 'disp', l: 'Disposable income (R)', t: 'txt', calc: 'disp' },
+        { id: 'marital', l: 'Marital status', t: 'sel', o: ['Single', 'Married in community of property', 'Married out of community (with accrual)', 'Married out of community (no accrual)', 'Customary marriage', 'Civil union', 'Life partner', 'Divorced', 'Widowed'] }
+      ], help: 'Direct Net Income is gross income less PAYE and UIF, calculated from the SARS tables. It matches TaxTim\'s "Take-home pay" for a client under 65 with no pension contribution and no medical aid credits. Take-home net income is what the employer actually pays after all deductions.' },
+      { title: 'Spouse / partner', cond: { f: 'marital', nin: ['Single', 'Divorced', 'Widowed'] }, condMsg: 'Spouse details are not needed for this marital status.', fields: [
+        { id: 'sp_name', l: 'Spouse / partner name', t: 'txt', risky: 1 },
+        { id: 'sp_tel', l: 'Spouse telephone number', t: 'txt', risky: 1 },
+        { id: 'sp_occ', l: 'Spouse occupation', t: 'txt' }
+      ] },
+      { fields: [N('n_income')] }
     ] },
 
     { id: 'cover', title: 'Existing cover & retirement', blocks: [
