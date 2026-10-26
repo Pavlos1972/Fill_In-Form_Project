@@ -265,3 +265,71 @@ test('Chrome speech: an "aborted" error that is never followed by an end is star
     assert.ok(events.includes('listening stopped'));
   } finally { lsn.stop(); delete global.window; delete globalThis.navigator; }
 });
+
+/* ---- OpenAI transcription ---- */
+function openaiRig(extra) {
+  const said = [], notes = [], errors = [], calls = []; let chunk = null;
+  const reply = (status, body, delay) => new Promise(r => setTimeout(() => r({ ok: status === 200, status, json: () => Promise.resolve(body) }), delay || 0));
+  const lsn = L.create(Object.assign({
+    engine: 'openai', openaiKey: 'sk-test', openaiModel: 'gpt-4o-transcribe', prompt: last => 'Names: Paul Kafentzis, Vicky Zachos.' + (last ? ' Before: ' + last : ''),
+    mic: onChunk => { chunk = onChunk; return Promise.resolve({ label: 'Test mic', close() {} }); },
+    fetchImpl: (url, init) => { calls.push({ url, init }); return (extra && extra.reply ? extra.reply(calls.length, reply) : reply(200, { text: ' My surname is Kafentzis. ' })); },
+    text: (t, m) => said.push([t, m]), note: n => notes.push(n), state: (s, d) => { if (s === 'error') errors.push(d.message); }
+  }, extra && extra.opts));
+  const talk = parts => parts.forEach(s => { for (let i = 0; i < s.length; i += 4096) chunk(s.subarray(i, Math.min(s.length, i + 4096))); });
+  return { lsn, said, notes, errors, calls, talk };
+}
+test('OpenAI transcription: a spoken line is sent as a WAV with the names to listen for, and the words come back as a line', async () => {
+  const r = openaiRig();
+  await r.lsn.start();
+  r.talk([noise(0.5), speech(1.5), noise(1.2)]);
+  await new Promise(x => setTimeout(x, 50));
+  assert.strictEqual(r.calls.length, 1);
+  const { url, init } = r.calls[0], form = init.body;
+  assert.strictEqual(url, 'https://api.openai.com/v1/audio/transcriptions');
+  assert.strictEqual(init.method, 'POST');
+  assert.strictEqual(init.headers.Authorization, 'Bearer sk-test');
+  assert.strictEqual(form.get('model'), 'gpt-4o-transcribe');
+  assert.strictEqual(form.get('language'), 'en');
+  assert.match(form.get('prompt'), /Paul Kafentzis, Vicky Zachos/);
+  const wav = Buffer.from(await form.get('file').arrayBuffer());
+  assert.strictEqual(wav.toString('latin1', 0, 4), 'RIFF');
+  assert.strictEqual(wav.toString('latin1', 8, 12), 'WAVE');
+  assert.strictEqual(wav.readUInt32LE(24), RATE);                                                // 16 000 samples a second
+  assert.ok(wav.length > 44 + 1.5 * RATE * 2 * 0.9, 'the recording is too short: ' + wav.length);
+  assert.deepStrictEqual(r.said.map(s => s[0]), ['My surname is Kafentzis.']);
+  assert.strictEqual(r.said[0][1].where, 'OpenAI');
+  r.talk([speech(1.2), noise(1.2)]);                                                              // the next line carries the one before it as context
+  await new Promise(x => setTimeout(x, 50));
+  assert.match(r.calls[1].init.body.get('prompt'), /Before: My surname is Kafentzis\./);
+  r.lsn.stop();
+});
+test('OpenAI transcription: lines come out in the order they were said, even when an earlier one is slower', async () => {
+  const r = openaiRig({ reply: (n, reply) => n === 1 ? reply(200, { text: 'first line' }, 120) : reply(200, { text: 'second line' }, 5) });
+  await r.lsn.start();
+  r.talk([noise(0.5), speech(1), noise(1), speech(1), noise(1.2)]);
+  await new Promise(x => setTimeout(x, 300));
+  assert.deepStrictEqual(r.said.map(s => s[0]), ['first line', 'second line']);
+  r.lsn.stop();
+});
+test('OpenAI transcription: noise-only answers are dropped, a bad key stops listening with a clear message, a missing key is refused', async () => {
+  const noiseOnly = openaiRig({ reply: (n, reply) => reply(200, { text: 'Thank you.' }) });
+  await noiseOnly.lsn.start(); noiseOnly.talk([noise(0.5), speech(1), noise(1.2)]); await new Promise(x => setTimeout(x, 50));
+  assert.deepStrictEqual(noiseOnly.said, []);
+  noiseOnly.lsn.stop();
+  const bad = openaiRig({ reply: (n, reply) => reply(401, { error: { message: 'Incorrect API key' } }) });
+  await bad.lsn.start(); bad.talk([noise(0.5), speech(1), noise(1.2)]); await new Promise(x => setTimeout(x, 50));
+  assert.strictEqual(bad.errors.length, 1);
+  assert.match(bad.errors[0], /did not accept the key/);
+  const none = openaiRig({ opts: { openaiKey: '' } });
+  await none.lsn.start();
+  assert.match(none.errors[0], /Add your OpenAI key in Settings/);
+});
+test('OpenAI transcription: one failed line is a note, three in a row stop the listening', async () => {
+  const r = openaiRig({ reply: () => Promise.reject(new Error('offline')) });
+  await r.lsn.start();
+  for (let i = 0; i < 3; i++) { r.talk([noise(0.5), speech(1), noise(1.2)]); await new Promise(x => setTimeout(x, 30)); }
+  assert.ok(r.notes.some(n => /Could not reach OpenAI/.test(n) && /lost/.test(n)));
+  assert.strictEqual(r.errors.length, 1);
+  assert.match(r.errors[0], /Could not reach OpenAI/);
+});
