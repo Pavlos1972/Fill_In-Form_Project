@@ -457,6 +457,8 @@
   function openSettings() {
     var set = FF.lookup.getSettings(), dlg = $('#settings');
     $('#setKey').value = set.apiKey; $('#setExpires').value = set.expires;
+    $('#setOpenaiKey').value = set.openaiKey;
+    $('#setOpenaiModel').innerHTML = FF.lookup.TRANSCRIBE_MODELS.map(function (m) { return '<option value="' + m.id + '"' + (m.id === set.openaiModel ? ' selected' : '') + '>' + esc(m.label) + '</option>'; }).join('');
     $('#setVoiceModel').innerHTML = FF.lookup.VOICE_MODELS.map(function (m) { return '<option value="' + m.id + '"' + (m.id === set.voiceModel ? ' selected' : '') + '>' + esc(m.label) + '</option>'; }).join('');
     $('#setModel').innerHTML = FF.lookup.MODELS.map(function (m) { return '<option value="' + m.id + '"' + (m.id === set.model ? ' selected' : '') + '>' + esc(m.label) + '</option>'; }).join('');
     $('#setResult').textContent = '';
@@ -471,7 +473,7 @@
   $('#keyState').addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openSettings(); } });
   $('#setCancel').addEventListener('click', function () { $('#settings').close(); });
   $('#setSave').addEventListener('click', function () {
-    FF.lookup.saveSettings({ apiKey: $('#setKey').value, model: $('#setModel').value, voiceModel: $('#setVoiceModel').value, expires: $('#setExpires').value });
+    FF.lookup.saveSettings({ apiKey: $('#setKey').value, model: $('#setModel').value, voiceModel: $('#setVoiceModel').value, expires: $('#setExpires').value, openaiKey: $('#setOpenaiKey').value, openaiModel: $('#setOpenaiModel').value });
     if ($('#setSpeech')) { try { localStorage.setItem(SPEECH_KEY, JSON.stringify({ engine: $('#setSpeech').value, model: $('#setWhisper').value })); } catch (e) { /* storage unavailable */ } }
     saveCreditBox();
     if ($('#setQuick')) { try { localStorage.setItem(QUICK_KEY, $('#setQuick').value); } catch (e) { /* storage unavailable */ } }
@@ -1585,17 +1587,27 @@
     b.classList.toggle('on', lsnState === 'on'); b.classList.toggle('busy', lsnState === 'loading'); b.setAttribute('aria-pressed', lsnState === 'on' ? 'true' : 'false');
     $('#lnLabel').textContent = lsnState === 'on' ? 'Listen: On' : lsnState === 'loading' ? 'Listen: Starting…' : 'Listen: Off';
   }
+  /* What the OpenAI speech service is told to listen for: the names on the form (never an ID, phone number or address), the firm and the terms of the trade, so that "Kafentzis" is not heard as "offensive". */
+  var SPEECH_TERMS = 'Wealth Revolution, Sanlam, Discovery, Momentum, Old Mutual, Liberty, Absa, Nedbank, FNB, Standard Bank, Capitec, BrightRock, Allan Gray, Coronation, Investec, Outsurance, Hollard, Santam, (Pty) Ltd, close corporation, retirement annuity, living annuity, tax-free savings account, endowment, broker on record, shareholding, married in community of property, accrual, gap cover, rand, SARS';
+  function vmSpeechHints(last) {
+    var seen = {}, names = [];
+    function add(v) { v = String(v == null ? '' : v).replace(/\s+/g, ' ').trim(); if (v && v.length <= 40 && !/\d{3,}|@/.test(v) && !seen[v.toLowerCase()]) { seen[v.toLowerCase()] = 1; names.push(v); } }
+    ['advisor', 'fname', 'sname', 'sp_name', 'employer', 'biz_name'].forEach(function (id) { if (state.f[id]) add(state.f[id].v); });
+    ['shares', 'kids'].forEach(function (key) { (state.l[key] || []).forEach(function (r) { add(r.d.name); }); });
+    return 'A South African financial adviser and a client are filling in a Fact Find. Names and terms that may be said: ' + names.slice(0, 20).join(', ') + (names.length ? ', ' : '') + SPEECH_TERMS + '.' + (last ? ' The line before: ' + last : '');
+  }
   function listenStart() {
     if (!FF.listen || lsn) return;
     if (!vm.on) vmToggle(true);
-    var p = speechPrefs(), status = '', kind = p.engine === 'chrome' ? 'warn' : '';
+    var p = speechPrefs(), set = FF.lookup.getSettings(), status = '', kind = p.engine === 'chrome' ? 'warn' : '';
     lsn = FF.listen.create({
-      engine: p.engine, model: p.model,
+      engine: p.engine, model: p.model, openaiKey: set.openaiKey, openaiModel: set.openaiModel, prompt: vmSpeechHints,
       state: function (st, d) {
         lsnState = st; listenRender();
-        if (st === 'loading') { status = p.engine === 'chrome' ? '' : 'Getting the speech model ready on this computer' + (d.percent != null ? ' (' + d.percent + '%, only the first time)' : '…'); listenShow(status, ''); }
+        if (st === 'loading') { status = p.engine === 'chrome' || p.engine === 'openai' ? '' : 'Getting the speech model ready on this computer' + (d.percent != null ? ' (' + d.percent + '%, only the first time)' : '…'); listenShow(status, ''); }
         else if (st === 'on') {
           status = p.engine === 'chrome' ? ''                                                       // Chrome's own recognition: no banner (the Listen button says it is on); only a problem is shown
+            : p.engine === 'openai' ? 'Listening with OpenAI (' + d.model + '). The sound is sent to OpenAI.'
             : 'Listening' + (d.mic ? ' on ' + d.mic : '') + ' with ' + d.model + ' on the ' + d.where + (d.why ? ' (' + d.why + ')' : '') + '. The sound stays on this computer.';
           listenShow(status, '', kind);
         } else if (st === 'error') { lsn = null; lsnState = 'off'; listenRender(); listenShow(d.message, '', 'bad'); var lv0 = $('#lvl'); if (lv0) lv0.style.width = '0'; }

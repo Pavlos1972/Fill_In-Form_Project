@@ -10,6 +10,12 @@
   /* The look-up (company description, LinkedIn search) uses web search, which reads many pages: it is the dearest thing the form does, so Sonnet is the default (Opus costs twice as much per token, and was the default until it used up a month's credit in testing). */
   var DEFAULT_MODEL = 'claude-sonnet-5-5';
   var DEFAULT_VOICE_MODEL = 'claude-sonnet-5-5';
+  var DEFAULT_TRANSCRIBE = 'gpt-4o-transcribe';                                    // OpenAI's speech-to-text, used only when Settings > Speech source is OpenAI
+  var TRANSCRIBE_MODELS = [
+    { id: 'gpt-4o-transcribe', label: 'gpt-4o-transcribe (most accurate, recommended)' },
+    { id: 'gpt-4o-mini-transcribe', label: 'gpt-4o-mini-transcribe (cheaper, a little less accurate)' },
+    { id: 'whisper-1', label: 'whisper-1 (older)' }
+  ];
   var MODELS = [
     { id: 'claude-sonnet-5-5', label: 'Claude Sonnet 5.5 (recommended)' },
     { id: 'claude-opus-5-5', label: 'Claude Opus 5.5 (most capable, twice the cost)' },
@@ -53,10 +59,10 @@
   }
 
   function getSettings() {
-    try { var s = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}'); return { apiKey: s.apiKey || '', model: s.modelSet === LOOKUP_SETTING && s.model ? s.model : DEFAULT_MODEL, voiceModel: s.voiceSet === VOICE_SETTING && s.voiceModel ? s.voiceModel : DEFAULT_VOICE_MODEL, expires: s.expires || '' }; }
-    catch (e) { return { apiKey: '', model: DEFAULT_MODEL, voiceModel: DEFAULT_VOICE_MODEL, expires: '' }; }
+    try { var s = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}'); return { openaiKey: s.openaiKey || '', openaiModel: s.openaiModel || DEFAULT_TRANSCRIBE, apiKey: s.apiKey || '', model: s.modelSet === LOOKUP_SETTING && s.model ? s.model : DEFAULT_MODEL, voiceModel: s.voiceSet === VOICE_SETTING && s.voiceModel ? s.voiceModel : DEFAULT_VOICE_MODEL, expires: s.expires || '' }; }
+    catch (e) { return { openaiKey: '', openaiModel: DEFAULT_TRANSCRIBE, apiKey: '', model: DEFAULT_MODEL, voiceModel: DEFAULT_VOICE_MODEL, expires: '' }; }
   }
-  function saveSettings(s) { try { localStorage.setItem(SETTINGS_KEY, JSON.stringify({ apiKey: String(s.apiKey || '').trim(), model: s.model || DEFAULT_MODEL, modelSet: LOOKUP_SETTING, voiceModel: s.voiceModel || DEFAULT_VOICE_MODEL, voiceSet: VOICE_SETTING, expires: String(s.expires || '').trim() })); return true; } catch (e) { return false; } }
+  function saveSettings(s) { try { localStorage.setItem(SETTINGS_KEY, JSON.stringify({ openaiKey: String(s.openaiKey || '').trim(), openaiModel: s.openaiModel || DEFAULT_TRANSCRIBE, apiKey: String(s.apiKey || '').trim(), model: s.model || DEFAULT_MODEL, modelSet: LOOKUP_SETTING, voiceModel: s.voiceModel || DEFAULT_VOICE_MODEL, voiceSet: VOICE_SETTING, expires: String(s.expires || '').trim() })); return true; } catch (e) { return false; } }
 
   /* How the top bar describes the key: nothing without a key, then days left until the date typed in Settings. */
   function keyStatus(set, now) {
@@ -157,5 +163,5 @@
       return d || 'Could not identify this company.';
     }, function (e) { throw new Error('Could not reach Claude (' + ((e && (e.message || e.code)) || 'no connection') + ').'); });
   }
-  return { DEFAULT_MODEL: DEFAULT_MODEL, DEFAULT_VOICE_MODEL: DEFAULT_VOICE_MODEL, MODELS: MODELS, VOICE_MODELS: VOICE_MODELS, PRICES: PRICES, costOf: costOf, addUsage: addUsage, getSettings: getSettings, saveSettings: saveSettings, keyStatus: keyStatus, buildRequest: buildRequest, promptFor: promptFor, extractText: extractText, run: run, runAsk: runAsk, ENDPOINT: ENDPOINT };
+  return { DEFAULT_MODEL: DEFAULT_MODEL, DEFAULT_VOICE_MODEL: DEFAULT_VOICE_MODEL, MODELS: MODELS, VOICE_MODELS: VOICE_MODELS, TRANSCRIBE_MODELS: TRANSCRIBE_MODELS, DEFAULT_TRANSCRIBE: DEFAULT_TRANSCRIBE, PRICES: PRICES, costOf: costOf, addUsage: addUsage, getSettings: getSettings, saveSettings: saveSettings, keyStatus: keyStatus, buildRequest: buildRequest, promptFor: promptFor, extractText: extractText, run: run, runAsk: runAsk, ENDPOINT: ENDPOINT };
 });
