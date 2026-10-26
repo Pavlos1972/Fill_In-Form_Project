@@ -368,9 +368,22 @@
      Chrome ends its recognition after every long silence and this starts a new one, and on a file Chrome may ask for the microphone again each time one starts.
      So the microphone is opened once, when Listen is switched on, and kept open until it is switched off: the one question is asked at the start. */
   function chromeEngine(o, h) {
-    var SR = typeof window !== 'undefined' && (window.SpeechRecognition || window.webkitSpeechRecognition), rec = null, wanted = false, fails = 0, held = null, dog = stallWatch(o.stallLevel, o.stallSecs), sense = null, started = false, t0 = 0, startWatch = null;
+    var SR = typeof window !== 'undefined' && (window.SpeechRecognition || window.webkitSpeechRecognition), rec = null, wanted = false, fails = 0, held = null, dog = stallWatch(o.stallLevel, o.stallSecs), sense = null, started = false, t0 = 0, startWatch = null, renewTimer = null, active = 0, speaking = false, renewing = false;
     function ev(name, detail, show) { if (h.event) h.event(name, detail || '', !!show); }          // what the microphone side did, for the saved log (and, when it matters, for the conversation box)
-    function release() { clearTimeout(startWatch); if (sense) sense.close(); sense = null; if (held) { held.getTracks().forEach(function (t) { t.stop(); }); held = null; } }
+    /* Chrome's speech service ends every listening after about five minutes with a "network" error, and whatever is being said at that moment is lost. So the listening is renewed on purpose a little
+       earlier (o.renewSecs, 240 s), at the first pause in the talk (nothing heard for o.renewQuietMs, 1.5 s): stop() makes Chrome hand back what it already has, and the normal restart follows. */
+    function renewWatch() {
+      renewTimer = setInterval(function () {
+        var me = rec, now = Date.now();
+        if (!wanted || !me || !started || renewing || speaking) return;
+        if (now - t0 < (o.renewSecs == null ? 240 : o.renewSecs) * 1000 || now - active < (o.renewQuietMs == null ? 1500 : o.renewQuietMs)) return;
+        renewing = true;
+        ev('listening renewed', 'planned, at a pause, after ' + Math.round((now - t0) / 1000) + ' s, so Chrome does not cut in mid-sentence');
+        try { me.stop(); } catch (e) { /* not running */ }
+        setTimeout(function () { if (wanted && me === rec) refresh('the planned renewal did not finish'); }, o.renewWaitMs == null ? 3000 : o.renewWaitMs);        // stop() that never ends: let it go and start again
+      }, o.renewTick || 500);
+    }
+    function release() { clearTimeout(startWatch); clearInterval(renewTimer); renewTimer = null; if (sense) sense.close(); sense = null; if (held) { held.getTracks().forEach(function (t) { t.stop(); }); held = null; } }
     /* Frozen: the old recognition is let go (it may never say it has ended) and a new one is started. */
     function refresh(why) {
       var old = rec; rec = null; clearTimeout(startWatch);
@@ -396,15 +409,15 @@
       } catch (e) { sense = null; }
     }
     function begin() {
-      var me = rec = new SR(), ended = false; started = false; t0 = Date.now(); clearTimeout(startWatch);
+      var me = rec = new SR(), ended = false; started = false; t0 = active = Date.now(); speaking = renewing = false; clearTimeout(startWatch);
       rec.lang = 'en-ZA'; rec.continuous = true; rec.interimResults = true; rec.maxAlternatives = 3;
       rec.onstart = function () { started = true; clearTimeout(startWatch); ev('recognition started'); };
-      rec.onspeechstart = function () { ev('speech heard'); };
-      rec.onspeechend = function () { ev('speech ended'); };
+      rec.onspeechstart = function () { speaking = true; active = Date.now(); ev('speech heard'); };
+      rec.onspeechend = function () { speaking = false; active = Date.now(); ev('speech ended'); };
       startWatch = setTimeout(function () { if (wanted && me === rec && !started) refresh('Chrome did not start listening'); }, (o.startSecs == null ? 5 : o.startSecs) * 1000);   // a start that never happens would leave the page deaf
       rec.onresult = function (e) {
         var interim = '', i, r;
-        dog.result();
+        dog.result(); active = Date.now();
         for (i = e.resultIndex; i < e.results.length; i++) { r = e.results[i]; if (r.isFinal) { fails = 0; h.text(joinSpelling(String(r[0].transcript).trim()), heardMeta(r)); } else interim += r[0].transcript; }
         h.interim(interim);
       };
@@ -433,7 +446,7 @@
         var md = typeof navigator !== 'undefined' && navigator.mediaDevices;
         wanted = true; fails = 0;
         return (md && md.getUserMedia ? md.getUserMedia({ audio: true }).then(function (stream) { if (wanted) held = stream; else stream.getTracks().forEach(function (t) { t.stop(); }); }) : Promise.resolve())
-          .then(function () { if (!wanted) return; if (held) watchLevel(held); ev('listening on', held ? 'microphone opened' : 'microphone not held'); begin(); h.on({ mic: '', where: 'Chrome', model: '' }); });
+          .then(function () { if (!wanted) return; if (held) watchLevel(held); ev('listening on', held ? 'microphone opened' : 'microphone not held'); begin(); clearInterval(renewTimer); renewWatch(); h.on({ mic: '', where: 'Chrome', model: '' }); });
       },
       stop: function () { ev('listening stopped', 'by the page or by you'); wanted = false; try { if (rec) rec.abort(); } catch (e) { /* not running */ } rec = null; release(); }
     };

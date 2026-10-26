@@ -129,7 +129,9 @@
       .catch(function (e) { if (e && e.name !== 'AbortError') toast('Could not open: ' + e.message); });
   }
   function newClient() {
-    if (dirty && !window.confirm('Start a new Fact Find? Changes you have not saved will be lost.')) return;
+    var timed = meeting.ms() >= 60000;                                                              // a meeting that has run for a minute is not thrown away by a stray click
+    if ((dirty || timed) && !window.confirm('Start a new Fact Find?' + (dirty ? ' Changes you have not saved will be lost.' : '') + (timed ? ' The meeting timer goes back to zero.' : ''))) return;
+    meeting.reset(); meetingRender();
     state = store.blank(); fileHandle = null; fileBase = ''; rememberHandle(null); dirty = false; lastSaved = null; cur = 'info'; saveDraft(); redraw();
   }
 
@@ -650,6 +652,7 @@
     var set = FF.lookup.getSettings(), hide = function (t) { return vmShareOn() || !VAI ? t : VAI.scrub(t); };
     return {
       saved: new Date().toISOString(), app: { version: schema.version, released: schema.released },
+      meeting: meeting.snapshot(),
       settings: { claude_model: set.voiceModel, fill_at_once: vmQuickOn(), claude_sees_numbers: vmShareOn(), speech: speechPrefs() },
       lines: cv.all.map(function (e) {
         return { at: new Date(e.at).toISOString(), who: e.who, heard: hide(e.shown || e.text), read_as: e.text !== e.shown ? hide(e.text) : undefined, page_did: e.did.map(hide), filled_at_once: e.quick ? true : undefined, taken_back: e.changed || undefined, claude_ms: e.claudeMs, speech: e.m || undefined, claude: e.ai };
@@ -1598,6 +1601,7 @@
   }
   function listenStart() {
     if (!FF.listen || lsn) return;
+    if (meeting.fresh()) { meeting.start(); meetingRender(); }                                        // the meeting starts when Listen is first pressed
     if (!vm.on) vmToggle(true);
     var p = speechPrefs(), set = FF.lookup.getSettings(), status = '', kind = p.engine === 'chrome' ? 'warn' : '';
     lsn = FF.listen.create({
@@ -1628,6 +1632,28 @@
     var lv = $('#lvl'); if (lv) lv.style.width = '0';
   }
   if ($('#btnListen')) $('#btnListen').addEventListener('click', function () { if (lsn) listenStop(); else listenStart(); });
+
+  /* The meeting timer in the top bar: click to start or pause (it also starts by itself the first time Listen is pressed), Reset when it is paused. It is kept in the browser, so a reload does not lose it,
+     and the time is written into the saved voice log. A new Fact Find starts it again from zero. */
+  var MEETING_KEY = 'wr-fact-find-meeting';
+  var meeting = FF.timer.create({
+    load: function () { try { return JSON.parse(localStorage.getItem(MEETING_KEY)); } catch (e) { return null; } },
+    save: function (o) { try { localStorage.setItem(MEETING_KEY, JSON.stringify(o)); } catch (e) { /* storage unavailable: the timer still runs on this page */ } }
+  });
+  function meetingRender() {
+    var b = $('#btnTimer'), r = $('#btnTimerReset'); if (!b) return;
+    var run = meeting.running(), ms = meeting.ms();
+    $('#tmText').textContent = meeting.text() + (!run && ms > 0 ? ' (paused)' : '');
+    b.classList.toggle('on', run); b.classList.toggle('paused', !run && ms > 0); b.setAttribute('aria-pressed', run ? 'true' : 'false');
+    b.title = run ? 'Meeting timer, running. Click to pause.' : ms > 0 ? 'Meeting timer, paused. Click to carry on.' : 'Meeting timer. Click to start; it also starts by itself when you press Listen.';
+    if (r) r.hidden = run || ms === 0;
+  }
+  if ($('#btnTimer')) {
+    $('#btnTimer').addEventListener('click', function () { meeting.toggle(); meetingRender(); });
+    $('#btnTimerReset').addEventListener('click', function () { if (window.confirm('Set the meeting timer back to zero? It is at ' + meeting.text() + '.')) { meeting.reset(); meetingRender(); } });
+    setInterval(function () { meeting.tick(); meetingRender(); }, 250);                  // often enough that the seconds never lag behind the clock
+    meetingRender();
+  }
 
   /* Press and hold the Voice button to show a hidden test line. Just type or dictate; the words decide who is speaking ("client: ..." or "me: ..." force it). For testing only. */
   var vmHold = null, vmHeld = false;

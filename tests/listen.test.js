@@ -266,6 +266,42 @@ test('Chrome speech: an "aborted" error that is never followed by an end is star
   } finally { lsn.stop(); delete global.window; delete globalThis.navigator; }
 });
 
+test('Chrome speech: the listening is renewed at a pause before Chrome ends it, never in the middle of talk, and not after a stop', async () => {
+  const recs = [], events = []; let stops = 0;
+  function FakeRec() { recs.push(this); } FakeRec.prototype.start = function () { const me = this; setTimeout(() => { if (me.onstart) me.onstart(); }, 5); }; FakeRec.prototype.abort = function () {};
+  FakeRec.prototype.stop = function () { stops++; };
+  global.window = { webkitSpeechRecognition: FakeRec };
+  Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { mediaDevices: { getUserMedia: () => Promise.resolve({ getTracks: () => [{ stop() {} }] }) } } });
+  const wait = ms => new Promise(r => setTimeout(r, ms));
+  const lsn = L.create({ engine: 'chrome', startSecs: 60, quickEndMs: 0, renewSecs: 0.4, renewQuietMs: 150, renewTick: 30, renewWaitMs: 900, text: () => {}, note: () => {}, event: (n, d, show) => events.push([n, show]), state: () => {} });
+  try {
+    await lsn.start();
+    recs[0].onspeechstart();                                                                    // someone is talking: past the renewal time, nothing is cut
+    await wait(700);
+    assert.strictEqual(stops, 0, 'renewed in the middle of talk');
+    recs[0].onspeechend();
+    await wait(60);
+    assert.strictEqual(stops, 0, 'renewed before the pause was long enough');
+    await wait(250);
+    assert.strictEqual(stops, 1, 'not renewed at the pause');
+    assert.ok(events.some(e => e[0] === 'listening renewed' && e[1] === false), 'the renewal is not logged, or is shown as a problem');
+    recs[0].onend();                                                                            // Chrome hands back what it has and ends: the usual restart follows
+    await wait(400);
+    assert.strictEqual(recs.length, 2, 'no new listening after the renewal');
+    await wait(120);
+    assert.strictEqual(stops, 1, 'renewed again straight away');                                // a new listening is not old enough yet
+    await wait(500);
+    assert.strictEqual(stops, 2, 'the second listening was never renewed');
+    await wait(1100);                                                                           // this stop() never ended: it is let go and started again
+    assert.ok(recs.length >= 3, 'it stayed deaf when the renewal did not finish');
+    assert.ok(events.some(e => e[0] === 'listening restarted'));
+    lsn.stop();
+    const n = stops;
+    await wait(700);
+    assert.strictEqual(stops, n, 'renewed after being stopped on purpose');
+  } finally { lsn.stop(); delete global.window; delete globalThis.navigator; }
+});
+
 /* ---- OpenAI transcription ---- */
 function openaiRig(extra) {
   const said = [], notes = [], errors = [], calls = []; let chunk = null;
