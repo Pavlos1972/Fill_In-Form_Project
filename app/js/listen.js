@@ -439,7 +439,70 @@
     };
   }
 
-  /* o: { engine: 'whisper' | 'chrome', model, text(line, meta), interim(text), reading(seconds of speech), level(0..1), note(message), state(name, detail) } with name off | loading | on | error. */
+  /* A short mono recording as a WAV file (16-bit), which every transcription service reads. */
+  function wavBlob(x, rate) {
+    var n = x.length, buf = new ArrayBuffer(44 + n * 2), v = new DataView(buf), i, c;
+    function str(at, t) { for (var k = 0; k < t.length; k++) v.setUint8(at + k, t.charCodeAt(k)); }
+    str(0, 'RIFF'); v.setUint32(4, 36 + n * 2, true); str(8, 'WAVE'); str(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+    v.setUint32(24, rate, true); v.setUint32(28, rate * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true); str(36, 'data'); v.setUint32(40, n * 2, true);
+    for (i = 0; i < n; i++) { c = Math.max(-1, Math.min(1, x[i])); v.setInt16(44 + i * 2, c < 0 ? c * 32768 : c * 32767, true); }
+    return new Blob([buf], { type: 'audio/wav' });
+  }
+  function openaiError(status, body) {
+    var msg = body && body.error && body.error.message ? body.error.message : '';
+    if (status === 401) return 'OpenAI did not accept the key. Check it in Settings.';
+    if (status === 429) return 'OpenAI says too many requests just now, or there is no credit left on that account.';
+    return 'OpenAI said: ' + (msg || 'error ' + status);
+  }
+  /* OpenAI's transcription service (the best at names, because it can be given the names to listen for). Each spoken line is cut out on this computer, the same way as for the models that run here,
+     sent as a short WAV with a hint list (o.prompt(): the names on the form and the terms of the trade), and the words that come back go through the same clean-up. Lines are shown in the order they were
+     said even when one takes longer to come back. The sound leaves this computer for OpenAI (never for Anthropic). h: as for the other engines. */
+  function openaiEngine(o, h) {
+    var mic = null, seg = segmenter(), alive = false, chain = Promise.resolve(), fails = 0, peak = 0, watch = null, last = '', f = o.fetchImpl || (typeof fetch !== 'undefined' ? fetch.bind(typeof window !== 'undefined' ? window : globalThis) : null);
+    function send(u) {
+      var secs = u.length / RATE, t0 = Date.now(), pk = peakOf(u), form = new FormData(), hint = '', req;
+      try { hint = o.prompt ? String(o.prompt(last) || '') : ''; } catch (e) { hint = ''; }
+      form.append('file', wavBlob(normalize(u), RATE), 'speech.wav');
+      form.append('model', o.openaiModel || 'gpt-4o-transcribe'); form.append('language', 'en'); form.append('response_format', 'json'); form.append('temperature', '0');
+      if (hint) form.append('prompt', hint.slice(0, 1200));
+      if (h.reading) h.reading(secs);
+      req = f('https://api.openai.com/v1/audio/transcriptions', { method: 'POST', headers: { Authorization: 'Bearer ' + o.openaiKey }, body: form }).then(function (res) {
+        return res.json().catch(function () { return {}; }).then(function (b) { return res.ok ? { text: String(b.text || '') } : { status: res.status, error: openaiError(res.status, b) }; });
+      }, function () { return { error: 'Could not reach OpenAI. Check the internet connection.' }; });
+      chain = chain.then(function () { return req; }).then(function (r) {
+        if (!alive) return;
+        if (r.error) {
+          fails++;
+          if (r.status === 401 || r.status === 403 || r.status === 404 || fails >= 3) h.error(r.error); else if (h.note) h.note(r.error + ' That line was lost.');
+          return;
+        }
+        fails = 0;
+        var text = cleanTranscript(r.text);
+        if (text) { last = text; h.text(text, { audio: secs, took: (Date.now() - t0) / 1000, where: 'OpenAI', peak: pk }); }
+      });
+    }
+    return {
+      start: function () {
+        if (!o.openaiKey) return Promise.reject(new Error('Add your OpenAI key in Settings first (Speech source: OpenAI).'));
+        if (!f) return Promise.reject(new Error('This browser cannot reach OpenAI.'));
+        alive = true;
+        return (o.mic || openMic)(function (x) {
+          var lv = rms(x); if (lv > peak) peak = lv;
+          h.level(meter(lv));
+          if (!alive) return;
+          seg.push(x).forEach(send);
+        }).then(function (m) {
+          mic = m;
+          watch = setTimeout(function () { if (alive && mic && peak < 0.0008 && h.note) h.note('No sound is reaching Chrome from "' + (m.label || 'the microphone') + '". Check that it is not muted and that it is the microphone you are using (Windows: Settings, System, Sound, Input).'); }, 7000);
+          h.on({ mic: m.label, where: 'OpenAI', model: o.openaiModel || 'gpt-4o-transcribe' });
+        });
+      },
+      stop: function () { alive = false; clearTimeout(watch); seg = segmenter(); peak = 0; if (mic) mic.close(); mic = null; },
+      feed: function (x) { if (alive) { seg.push(x).forEach(send); h.level(meter(seg.level())); } }       // used by the tests
+    };
+  }
+
+  /* o: { engine: 'whisper' | 'chrome' | 'openai', model, text(line, meta), interim(text), reading(seconds of speech), level(0..1), note(message), state(name, detail) } with name off | loading | on | error. */
   function create(o) {
     var eng = null, st = 'off';
     function set(s, d) { st = s; if (o.state) o.state(s, d || {}); }
@@ -459,7 +522,7 @@
       get state() { return st; },
       start: function () {
         if (eng) return Promise.resolve();
-        eng = o.engine === 'chrome' ? chromeEngine(o, h) : whisperEngine(o, h);
+        eng = o.engine === 'chrome' ? chromeEngine(o, h) : o.engine === 'openai' ? openaiEngine(o, h) : whisperEngine(o, h);
         set('loading', { percent: null });
         return eng.start().catch(function (e) { fail(e && e.name && e.name !== 'Error' ? micError(e) : (e && e.message) || String(e)); });
       },
@@ -468,5 +531,5 @@
     };
   }
 
-  return { resample: resample, stallWatch: stallWatch, segmenter: segmenter, cleanTranscript: cleanTranscript, joinSpelling: joinSpelling, isLoop: isLoop, normalize: normalize, meter: meter, create: create, MODELS: MODELS, DEFAULT_MODEL: DEFAULT_MODEL, RATE: RATE };
+  return { resample: resample, wavBlob: wavBlob, stallWatch: stallWatch, segmenter: segmenter, cleanTranscript: cleanTranscript, joinSpelling: joinSpelling, isLoop: isLoop, normalize: normalize, meter: meter, create: create, MODELS: MODELS, DEFAULT_MODEL: DEFAULT_MODEL, RATE: RATE };
 });
