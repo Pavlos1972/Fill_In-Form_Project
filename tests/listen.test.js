@@ -241,3 +241,27 @@ test('Chrome speech: what else it heard and how sure it was goes with the line, 
     assert.deepStrictEqual(said[0][1].also, ['Kafentzis']);
   } finally { lsn.stop(); delete global.window; delete globalThis.navigator; }
 });
+
+test('Chrome speech: an "aborted" error that is never followed by an end is started again, and our own stop is not', async () => {
+  const recs = [], events = []; let aborts = 0;
+  function FakeRec() { recs.push(this); } FakeRec.prototype.start = function () { const me = this; setTimeout(() => { if (me.onstart) me.onstart(); }, 5); }; FakeRec.prototype.abort = function () { aborts++; };
+  global.window = { webkitSpeechRecognition: FakeRec };
+  Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { mediaDevices: { getUserMedia: () => Promise.resolve({ getTracks: () => [{ stop() {} }] }) } } });
+  const lsn = L.create({ engine: 'chrome', startSecs: 60, quickEndMs: 0, text: () => {}, note: () => {}, event: (n, d, show) => events.push(n), state: () => {} });
+  try {
+    await lsn.start();
+    recs[0].onerror({ error: 'aborted' });                                                      // Chrome aborted it and never said it ended
+    await new Promise(r => setTimeout(r, 2200));
+    assert.ok(recs.length >= 2, 'it stayed deaf after Chrome aborted the listening');
+    const n = recs.length;
+    recs[n - 1].onerror({ error: 'aborted' }); recs[n - 1].onend();                              // an abort followed by its end: the normal restart handles it, not a second one
+    await new Promise(r => setTimeout(r, 2200));
+    assert.strictEqual(recs.length, n + 1, 'two restarts for one abort');
+    lsn.stop();
+    const m = recs.length;
+    recs[m - 1].onerror({ error: 'aborted' });                                                   // the abort our own stop causes
+    await new Promise(r => setTimeout(r, 2000));
+    assert.strictEqual(recs.length, m, 'it restarted after being stopped on purpose');
+    assert.ok(events.includes('listening stopped'));
+  } finally { lsn.stop(); delete global.window; delete globalThis.navigator; }
+});
