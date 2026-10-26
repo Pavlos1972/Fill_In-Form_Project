@@ -411,3 +411,15 @@ test('"delete that" and "we need to delete that" are clear requests for the box 
   assert.match(AI.SYSTEM, /"delete that", "remove it" and "we need to delete that" are clear/);
   assert.match(AI.SYSTEM, /"clear that", "delete that", "delete the \.\.\."/);
 });
+
+test('what else the speech recogniser thought it heard goes to Claude as text, with numbers and addresses hidden, and the instructions explain it', () => {
+  const ctx = { sectionId: 'info', targetId: 'sname', targetValue: '', recent: [], alternatives: ['my surname is offenses', 'my surname is 082 454 1751 or paul at gmail dot com', 'a third one'] };
+  const body = JSON.parse(AI.buildRequest(idx, ctx, 'auto', 'my surname is offensive', 'm').messages[0].content);
+  assert.deepStrictEqual(body.heard_alternatives, ['my surname is offenses', 'my surname is [number] or [email]']);          // two at most, nothing private
+  assert.strictEqual(body.newest.text, 'my surname is offensive');
+  assert.ok(!JSON.stringify(body).includes('082 454'));
+  const none = JSON.parse(AI.buildRequest(idx, { sectionId: 'info', recent: [] }, 'auto', 'hello', 'm').messages[0].content);
+  assert.strictEqual(none.heard_alternatives, undefined);
+  assert.match(AI.SYSTEM, /"heard_alternatives"/);
+  assert.match(AI.SYSTEM, /"confesses" or "offenses" for Kafentzis/);
+});

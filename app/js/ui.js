@@ -1021,7 +1021,7 @@
     vm.busy++; vmRender();
     return VAI.decide({
       apiKey: set.apiKey, ask: !set.apiKey && FF.voiceBackend && FF.voiceBackend.available ? FF.voiceBackend.ask : null, model: set.voiceModel, idx: vidx, who: who, text: text, fetchImpl: entry || vmCur ? loggedFetch(entry || vmCur) : meteredFetch,
-      ctx: { sectionId: cur, targetId: tid, targetRow: tcr ? tcr.i + 1 : null, targetValue: tid && (!vmPrivate(vm.target) || vmShareOn()) ? vmValue(vm.target) : '', targetFilled: !!(tid && vmValue(vm.target) !== ''), filled: fl.filled, filledPrivate: fl.filledPrivate, awaiting: aw.awaiting, privateHeld: aw.held, note: note,
+      ctx: { sectionId: cur, targetId: tid, targetRow: tcr ? tcr.i + 1 : null, targetValue: tid && (!vmPrivate(vm.target) || vmShareOn()) ? vmValue(vm.target) : '', targetFilled: !!(tid && vmValue(vm.target) !== ''), alternatives: entry && entry.m && entry.shown === entry.text ? entry.m.also : null, filled: fl.filled, filledPrivate: fl.filledPrivate, awaiting: aw.awaiting, privateHeld: aw.held, note: note,
         listRows: function (key) { return state.l[key].map(function (r) { return r.d; }); }, recent: vm.recent.slice(-7, -1) }
     }).then(function (r) { vm.busy--; vmRender(); if (entry) entry.claudeMs = Date.now() - t0; return r; }, function (err) {
       vm.busy--; vmRender();
