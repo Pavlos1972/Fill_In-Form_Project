@@ -28,6 +28,11 @@
   #btnVoice.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
   #btnVoice.on .vm-dot { background: #ff4d3d; box-shadow: 0 0 0 2px rgba(255,255,255,.55); animation: vdot 1.3s ease-in-out infinite; }
   #btnVoice.on.busy .vm-dot { background: #ffb020; }
+  #btnTimer .vm-dot { background: #b0aea5; }
+  #btnTimer.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  #btnTimer.on .vm-dot { background: #ff4d3d; box-shadow: 0 0 0 2px rgba(255,255,255,.55); animation: vdot 1.3s ease-in-out infinite; }
+  #btnTimer.paused .vm-dot { background: #ffb020; }
+  #tmText { font-variant-numeric: tabular-nums; }
   #btnListen.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
   #btnListen.on .vm-dot { background: #ff4d3d; box-shadow: 0 0 0 2px rgba(255,255,255,.55); animation: vdot 1.3s ease-in-out infinite; }
   #btnListen.busy .vm-dot { background: #ffb020; animation: vdot 1.3s ease-in-out infinite; }
@@ -46,6 +51,8 @@
   <span class="savestate" id="keyState" role="button" tabindex="0" title="Anthropic key. Click to open Settings." style="cursor:pointer;margin-left:12px" hidden></span>
   <span class="grow"></span>
   <div class="actions">
+    <button class="btn ghost small" id="btnTimer" type="button" aria-pressed="false" title="Meeting timer. Click to start; it also starts by itself when you press Listen."><span class="vm-dot"></span>Meeting <span id="tmText">0:00:00</span></button>
+    <button class="btn ghost small" id="btnTimerReset" type="button" title="Set the meeting timer back to zero" hidden>Reset</button>
     <button class="btn ghost small" id="btnVoice" type="button" aria-pressed="false" title="Voice mode: the Fact Find follows what you and the client say"><span class="vm-dot"></span><span id="vmLabel">Voice: Off</span></button>
     <button class="btn ghost small" id="btnListen" type="button" aria-pressed="false" title="Listen: the microphone is the source of the words for voice mode"><span class="vm-dot"></span><span id="lnLabel">Listen: Off</span></button>
     <button class="btn ghost small" id="btnSettings" type="button">Settings</button>
@@ -111,6 +118,7 @@
 <script src="js/voice.js?v=20261018r"></script>
 <script src="js/voice-ai.js?v=20261018p"></script>
 <script src="js/listen.js?v=20261019a"></script>
+<script src="js/timer.js?v=20261026a"></script>
 <script src="js/ui.js?v=20261019a"></script>
 </body>
 </html>
