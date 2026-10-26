@@ -396,7 +396,7 @@
       } catch (e) { sense = null; }
     }
     function begin() {
-      var me = rec = new SR(); started = false; t0 = Date.now(); clearTimeout(startWatch);
+      var me = rec = new SR(), ended = false; started = false; t0 = Date.now(); clearTimeout(startWatch);
       rec.lang = 'en-ZA'; rec.continuous = true; rec.interimResults = true; rec.maxAlternatives = 3;
       rec.onstart = function () { started = true; clearTimeout(startWatch); ev('recognition started'); };
       rec.onspeechstart = function () { ev('speech heard'); };
@@ -410,13 +410,18 @@
       };
       rec.onerror = function (e) {
         ev('error', String(e.error), e.error !== 'no-speech' && e.error !== 'aborted');
-        if (e.error === 'no-speech' || e.error === 'aborted') return;
+        if (e.error === 'aborted') {                                                               // Chrome gave up (not us: our own stop clears rec first) and may never say it has ended: if no end comes, start again
+          setTimeout(function () { if (wanted && me === rec && !ended) refresh('Chrome stopped listening on its own'); }, 1500);
+          return;
+        }
+        if (e.error === 'no-speech') return;
         if (e.error === 'not-allowed' || e.error === 'service-not-allowed') { wanted = false; h.error(micError({ name: 'NotAllowedError' })); }
         else if (e.error === 'audio-capture') { wanted = false; h.error(micError({ name: 'NotFoundError' })); }
         else if (e.error === 'network' && ++fails >= 3) { wanted = false; h.error("Chrome's speech service could not be reached. Check the internet connection."); }
       };
       rec.onend = function () {                                                                  // Chrome ends it after a long silence: start again (after a pause when it ended at once, so it never loops)
         if (me !== rec) return;
+        ended = true;
         var ran = Date.now() - t0; ev('recognition ended', 'after ' + Math.round(ran / 100) / 10 + ' s');
         if (wanted) setTimeout(function () { if (wanted && me === rec) { try { begin(); } catch (e) { ev('could not restart', String(e && e.message || e), true); } } }, ran < (o.quickEndMs == null ? 1500 : o.quickEndMs) ? 1500 : 300);
       };
@@ -430,7 +435,7 @@
         return (md && md.getUserMedia ? md.getUserMedia({ audio: true }).then(function (stream) { if (wanted) held = stream; else stream.getTracks().forEach(function (t) { t.stop(); }); }) : Promise.resolve())
           .then(function () { if (!wanted) return; if (held) watchLevel(held); ev('listening on', held ? 'microphone opened' : 'microphone not held'); begin(); h.on({ mic: '', where: 'Chrome', model: '' }); });
       },
-      stop: function () { wanted = false; try { if (rec) rec.abort(); } catch (e) { /* not running */ } rec = null; release(); }
+      stop: function () { ev('listening stopped', 'by the page or by you'); wanted = false; try { if (rec) rec.abort(); } catch (e) { /* not running */ } rec = null; release(); }
     };
   }
 

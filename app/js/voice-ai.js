@@ -51,6 +51,8 @@
     '- Being addressed by name ("And Vanessa, are you a smoker?", "Paul, can I ask...") does not state a first name: fill the name boxes only when a name is given as the answer to a name question, or in "my name is ..." / "your name is ...".',
     '- Speech recognition garbles South African speech: "I know" is often "no" (read it from the question just asked); "$", "random" or "ren" mean rand; a figure split by a pause ("9000. 600") is one figure (9600); bank and company names come out wrong ("absent", "apps", "absolute" for Absa; "tax fee" for tax free): use the conversation to decide.',
     '- An amount in the past tense is not what the box holds now: "I used to put about 2000 a month" is the old figure, so fill nothing for the current monthly amount until the client says what it is now (0 if he says he has stopped).',
+    '- "heard_alternatives" (when present) are other wordings the speech recogniser considered for the newest line; "newest" is its best guess and the right words are often in one of them ("broken record" or "Brokers on record"). Use them to work out what was really said, but fill nothing that only an alternative says unless it fits the question being asked.',
+    '- Speech recognition garbles names and South African terms: "pt1 limited" is (Pty) Ltd, "chair holding" is shareholding, "University" is annuity, "text number" is tax number, "cold well" is wealth. When the line holds a word that sounds like a name already in "filled" (for example "confesses" or "offenses" for Kafentzis), use the spelling in "filled".',
     '- Remarks about the form or the software itself ("that\'s a definite error", "the program ...", "it did not look up the company", "testing") are not facts, answers or questions: give {"actions": []}.',
     '- One line can move to another part of the form and carry on there: "let\'s talk about your investments. Do you have a tax free? Yes, an Old Mutual one, R3400 a month" is [section, row]. Everything said after the move',
     '  belongs to the boxes and lists of THAT section, which are all described in "fields" and "lists" whichever section is open now. Give every action of the line in one reply. Never stop after the "section" action.',
@@ -205,6 +207,8 @@
       recent: (ctx.recent || []).map(function (l) { return { who: l.who, text: scrub(l.text) }; }),
       newest: { who: who === 'client' ? 'client' : who === 'auto' ? 'unclear' : 'adviser', text: sh.text }
     };
+    var alts = (ctx.alternatives || []).slice(0, 2).map(function (x) { return scrub(String(x)).slice(0, 300); }).filter(function (x) { return x && x !== sh.text; });
+    if (alts.length) body.heard_alternatives = alts;                  // what else the speech recogniser thought it heard for the newest line (numbers and addresses hidden the same way)
     var awaiting = (ctx.awaiting || []).slice(0, 16).map(function (a) {
       var o = a.list ? { list: a.list, row: a.row } : { id: a.id };
       if (a.label) o.label = a.label;
