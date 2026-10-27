@@ -10,6 +10,7 @@
   else { root.FF = root.FF || {}; root.FF.schema = factory(); }
 })(typeof self !== 'undefined' ? self : this, function () {
   var YN = ['Yes', 'No'], BROKER = ['Paul K', 'Other broker', 'Through company', 'None'];
+  var QTYPE = ['New Business', 'Servicing', 'N/A'];                         // what kind of quote it is
   var INS = ['Old Mutual', 'Momentum', 'Liberty', 'Sanlam', 'Discovery', 'BrightRock', 'Hollard', 'Assupol', 'Clientele', 'Other'];
   var BANKS = ['Nedbank', 'FNB', 'Investec', 'Standard Bank', 'ABSA', 'Discovery Bank', 'Capitec', 'Wesbank', 'Other'];
   var WHO = ['Client', 'Spouse', 'Joint', 'Business'];
@@ -190,10 +191,12 @@
     { id: 'q_risk', adv: 1, title: 'Personal risk quotes', blocks: [
       { title: 'FNA quote', fields: [
         { id: 'fna_req', l: 'FNA quote', t: 'sel', o: ['Request a quote', 'Not required', 'No FNA done'] },
+        { id: 'fna_type', l: 'Type of quote', t: 'sel', o: QTYPE },
         { id: 'fna_ins', l: 'Insurer', t: 'sel', free: 1, o: INS }
       ] },
       { title: 'Shortfall quote', fields: [
         { id: 'sf_req', l: 'Shortfall quote', t: 'sel', o: REQ },
+        { id: 'sf_type', l: 'Type of quote', t: 'sel', o: QTYPE },
         { id: 'sf_ins', l: 'Insurer', t: 'sel', free: 1, o: INS }
       ] },
       { title: 'Reduced quotes', list: 'redq' },
@@ -324,7 +327,7 @@
       { k: 'stage', l: 'Education stage', o: STAGES }, { k: 'cost', money: 1, l: 'Monthly cost (R)', num: 1 }
     ], sum: { cost: 'Total childcare' } },
     redq: { cards: 'Reduced quote', title: 'Reduced quotes', add: 'Add reduced quote', cols: [
-      { k: 'req', l: 'Request', o: REQ }, { k: 'ins', l: 'Insurer', o: INS, free: 1 }, { k: 'amt', money: 1, l: 'Monthly amount (R p.m.)', num: 1 }
+      { k: 'req', l: 'Request', o: REQ }, { k: 'type', l: 'Type of quote', o: QTYPE }, { k: 'ins', l: 'Insurer', o: INS, free: 1 }, { k: 'amt', money: 1, l: 'Monthly amount (R p.m.)', num: 1 }
     ], sum: {} },
     raq: { cards: 'RA quote', title: 'Retirement annuity quotes', add: 'Add RA quote', cols: [
       { k: 'req', l: 'Request', o: ['Request a quote', 'Not required', 'Cannot afford now', 'Not interested'] }, { k: 'ins', l: 'Insurer', o: INS, free: 1 },

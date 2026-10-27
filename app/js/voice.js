@@ -181,9 +181,15 @@
   };
 
   /* What you might say when asking about each field. Fields without an entry are matched on their on-screen label. */
+  /* "What type of quote is the shortfall?": the Type of quote box of the FNA, shortfall or reduced quote. The plain "type of quote" fits all three and the first one still empty is taken. */
+  function TYPE_Q(w) {
+    return ['type of ' + w, w + ' type', w + ' quote type', 'type of ' + w + ' quote', 'type of quote for the ' + w, 'type of quote for ' + w, 'type of quote is the ' + w, 'type of quote is ' + w,
+      'type of quote', 'kind of quote', 'new business or servicing', 'servicing or new business', 'new business or a servicing', 'new or servicing'];
+  }
   var ALIASES = {
     consent: ['consent', 'okay to record', 'record this', 'record that', 'record it', 'record the call', 'record our', 'record the conversation', 'recording', 'recorded', 'transcribe', 'go ahead and record', 'happy for us to record', 'happy for me to record', 'happy to be recorded', 'permission to record', 'mind if we record'],
     ref: ['referred', 'referral', 'who referred', 'how did you hear', 'where did you hear'],
+    fna_type: TYPE_Q('fna'), sf_type: TYPE_Q('shortfall'), 'redq.type': TYPE_Q('reduced'),
     fname: ['first name', 'full name', 'your name', 'my name', 'christian name', 'given name', 'name and surname'],
     sname: ['surname', 'last name', 'family name', 'second name'],
     dob: ['date of birth', 'birthday', 'birth date', 'when were you born', 'born'],
@@ -663,6 +669,16 @@
       if (/ no broker /.test(s)) return 'Privately paid, no broker';
       if (/ (paul|paul k) /.test(s)) return 'Paul K';
       return null;
+    };
+  });
+
+  /* Type of quote: "it's new business", "servicing", "not applicable" / "N/A". */
+  ['fna_type', 'sf_type', 'redq.type'].forEach(function (id) {
+    SPECIAL[id] = function (t, raw) {
+      var s = ' ' + t + ' ', r = ' ' + String(raw || '').toLowerCase() + ' ';
+      var nb = / (new business|new policy|new quote|new) /.test(s), sv = / (servicing|serviced|service) /.test(s), na = / (n a|na|not applicable|none) /.test(s) || /\bn\s*\/\s*a\b/.test(r);
+      if (nb + sv + na > 1) return { error: 'ambiguous', note: 'new business, servicing or N/A?' };
+      return nb ? 'New Business' : sv ? 'Servicing' : na ? 'N/A' : null;
     };
   });
 
