@@ -51,17 +51,23 @@
   <span class="savestate" id="keyState" role="button" tabindex="0" title="Anthropic key. Click to open Settings." style="cursor:pointer;margin-left:12px" hidden></span>
   <span class="grow"></span>
   <div class="actions">
-    <button class="btn ghost small" id="btnTimer" type="button" aria-pressed="false" title="Meeting timer. Click to start; it also starts by itself when you press Listen."><span class="vm-dot"></span>Meeting <span id="tmText">0:00:00</span></button>
-    <button class="btn ghost small" id="btnTimerReset" type="button" title="Set the meeting timer back to zero" hidden>Reset</button>
-    <button class="btn ghost small" id="btnVoice" type="button" aria-pressed="false" title="Voice mode: the Fact Find follows what you and the client say"><span class="vm-dot"></span><span id="vmLabel">Voice: Off</span></button>
-    <button class="btn ghost small" id="btnListen" type="button" aria-pressed="false" title="Listen: the microphone is the source of the words for voice mode"><span class="vm-dot"></span><span id="lnLabel">Listen: Off</span></button>
-    <button class="btn ghost small" id="btnSettings" type="button">Settings</button>
-    <button class="btn ghost small" id="btnNew" type="button">New</button>
-    <button class="btn ghost small" id="btnOpen" type="button">Open…</button>
-    <button class="btn small" id="btnSave" type="button">Save</button>
-    <button class="btn ghost small" id="btnSaveAs" type="button">Save as…</button>
-    <button class="btn ghost small" id="btnPreview" type="button">Preview PDF</button>
-    <button class="btn small" id="btnPdf" type="button">Save PDF</button>
+    <div class="grp left">
+      <button class="btn ghost small" id="btnSettings" type="button">Settings</button>
+      <button class="btn ghost small" id="btnNew" type="button">New</button>
+      <button class="btn ghost small" id="btnOpen" type="button">Open…</button>
+    </div>
+    <div class="grp mid">
+      <button class="btn ghost small" id="btnTimer" type="button" aria-pressed="false" title="Meeting timer. Click to start; it also starts by itself when you press Listen."><span class="vm-dot"></span>Meeting <span id="tmText">0:00:00</span></button>
+      <button class="btn ghost small" id="btnTimerReset" type="button" title="Set the meeting timer back to zero" hidden>Reset</button>
+      <button class="btn ghost small" id="btnVoice" type="button" aria-pressed="false" title="Voice mode: the Fact Find follows what you and the client say"><span class="vm-dot"></span><span id="vmLabel">Voice: Off</span></button>
+      <button class="btn ghost small" id="btnListen" type="button" aria-pressed="false" title="Listen: the microphone is the source of the words for voice mode"><span class="vm-dot"></span><span id="lnLabel">Listen: Off</span></button>
+    </div>
+    <div class="grp right">
+      <button class="btn small" id="btnSave" type="button">Save</button>
+      <button class="btn ghost small" id="btnSaveAs" type="button">Save as…</button>
+      <button class="btn ghost small" id="btnPreview" type="button">Preview PDF</button>
+      <button class="btn small" id="btnPdf" type="button">Save PDF</button>
+    </div>
   </div>
   <div class="heard" id="heard" hidden><span class="lvl"><i id="lvl"></i></span><span id="heardStatus"></span><b id="heardText"></b></div>
   <input type="file" id="fileIn" accept=".json,application/json" hidden>
