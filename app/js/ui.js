@@ -1582,7 +1582,7 @@
   /* The line under the top bar: status says what is going on, heard is the last thing the microphone picked up. kind: '' | 'warn' | 'bad'. */
   function listenShow(status, heard, kind) {
     var el = $('#heard'); if (!el) return;
-    el.hidden = !status && !heard; el.className = 'heard' + (kind ? ' heard-' + kind : '');
+    el.hidden = !status && !heard && lsnState !== 'on' && lsnState !== 'loading'; el.className = 'heard' + (kind ? ' heard-' + kind : '');
     $('#heardStatus').textContent = status || ''; $('#heardText').textContent = heard || '';
   }
   function listenRender() {
@@ -1610,8 +1610,7 @@
         lsnState = st; listenRender();
         if (st === 'loading') { status = p.engine === 'chrome' || p.engine === 'openai' ? '' : 'Getting the speech model ready on this computer' + (d.percent != null ? ' (' + d.percent + '%, only the first time)' : '…'); listenShow(status, ''); }
         else if (st === 'on') {
-          status = p.engine === 'chrome' ? ''                                                       // Chrome's own recognition: no banner (the Listen button says it is on); only a problem is shown
-            : p.engine === 'openai' ? 'Listening with OpenAI (' + d.model + ')' + (d.call ? '. You: the microphone. The client: the call\'s sound' : '') + '. The sound is sent to OpenAI.'
+          status = p.engine === 'chrome' || p.engine === 'openai' ? ''                              // Chrome's recognition and OpenAI: no banner (the Listen button and the sound bars say it is on); only a problem is shown
             : 'Listening' + (d.mic ? ' on ' + d.mic : '') + ' with ' + d.model + ' on the ' + d.where + (d.why ? ' (' + d.why + ')' : '') + '. The sound stays on this computer.';
           listenShow(status + (p.call && p.engine !== 'openai' ? ' The client on a call is heard only with the OpenAI speech source (Settings).' : ''), '', kind);
         } else if (st === 'error') { lsn = null; lsnState = 'off'; listenRender(); listenShow(d.message, '', 'bad'); var lv0 = $('#lvl'); if (lv0) lv0.style.width = '0'; }
