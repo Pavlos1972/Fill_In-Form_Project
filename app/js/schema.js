@@ -264,7 +264,7 @@
       ] },
       { title: 'Income protection / sickness benefit', fields: [
         { id: 'ip_age', l: 'Income protection age', t: 'sel', o: ['65', '70'], opt: 1 },
-        { id: 'ip_amt', money: 1, l: 'Insured amount (R p.m.)', t: 'txt', opt: 1 },
+        { id: 'ip_amt', l: 'Insured amount (R p.m.)', t: 'txt', calc: 'ip_amt' },
         { id: 'ip_wait', l: 'Waiting period', t: 'sel', o: ['7 days', '14 days', '1 month', '3 months', 'Other'], opt: 1 },
         { id: 'ip_aci', l: 'ACI', t: 'sel', o: ['Fixed', 'Age-rated', 'Other'], opt: 1, preset: 'Fixed' },
         { id: 'ip_aciv', l: 'ACI value', t: 'txt', opt: 1, preset: '?' },
