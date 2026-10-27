@@ -98,7 +98,7 @@
       if (sec.adv && firstAdvisor) { firstAdvisor = false; doc.addPage(); y = 22; doc.setFont('helvetica', 'bold'); doc.setFontSize(14); doc.setTextColor.apply(doc, INK); doc.text('ADVISOR ACTIONS', M, y + 3); y += 10; }
       sectionHeading(sec.title);
       sec.blocks.forEach(function (b) {
-        if (!calc.showIf(b.cond, ctx)) return;
+        if (!calc.showIf(b.cond, ctx)) { if (b.pdfMsg && b.condMsg) { if (b.title) blockTitle(b.title); table({ body: [[{ content: t(b.condMsg), styles: { fontStyle: 'italic', textColor: MUTED } }]] }); } return; }    // a block that does not apply says so when it asks to
         if (b.fields && b.fields.length && b.fields.every(function (f) { return f.nopdf; })) return;     // a block of boxes that are left off the PDF has no heading either
         if (b.title) blockTitle(b.title);
         if (b.fields) fieldsTable(b.fields);

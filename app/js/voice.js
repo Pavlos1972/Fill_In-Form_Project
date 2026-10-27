@@ -194,6 +194,8 @@
     sname: ['surname', 'last name', 'family name', 'second name'],
     dob: ['date of birth', 'birthday', 'birth date', 'when were you born', 'born'],
     'kids.name': ['child name', 'name of the child', 'kid name', 'name of the kid', 'son name', 'daughter name'],
+    'kids.sname': ['child surname', 'surname of the child', 'kid surname', 'son surname', 'daughter surname', 'last name of the child', 'child last name'],
+    gender: ['gender', 'male or female', 'are you male', 'are you female', 'are you a man', 'are you a woman'],
     'kids.gender': ['boy or girl', 'gender', 'is it a boy', 'is it a girl', 'is he a boy', 'is she a girl'],
     'kids.dob': ['born', 'birthday', 'birth date', 'when was he born', 'when was she born', 'how old is', 'date of birth'],
     'kids.stage': ['which grade', 'what grade', 'education stage', 'what stage', 'at school', 'in school'],
@@ -318,7 +320,7 @@
     return content(m.join(' ')).filter(function (w) { return !BRACKET_SKIP[w]; });
   }
   /* A box in a list behaves like the same kind of box elsewhere: a child's name is a name, a partner's cell is a phone number. */
-  var LIST_VID = { 'kids.name': 'sp_name', 'shares.name': 'sp_name', 'kids.dob': 'dob', 'shares.cell': 'cell', 'shares.id': 'idno', 'shares.pct': 'biz_pct' };
+  var LIST_VID = { 'kids.name': 'sp_name', 'kids.sname': 'sname', 'shares.name': 'sp_name', 'kids.dob': 'dob', 'shares.cell': 'cell', 'shares.id': 'idno', 'shares.pct': 'biz_pct' };
   function vid(f) { return f.vid || f.id; }
   /* The words that say which list is meant ("the child's date of birth", "the loan balance", "the second policy"). */
   var LIST_NOUNS = {
@@ -624,6 +626,12 @@
       if (/ (boy|son|male|he|him|his) /.test(s)) return 'Male';
       return null;
     },
+    gender: function (t) {                                                                  // the client's own gender
+      var s = ' ' + t + ' ';
+      if (/ (female|woman|lady) /.test(s)) return 'Female';
+      if (/ (male|man|gentleman) /.test(s)) return 'Male';
+      return null;
+    },
     sti: function (t) {
       return / (spouse|wife|husband|partner|handled by|handles|handle) /.test(' ' + t + ' ') ? 'Handled by spouse' : null;
     },
@@ -811,7 +819,7 @@
   /* What a sentence that introduces a row says about it: "a home loan with ABSA bank" -> type Home loan, provider ABSA; "a daughter called Thandi, born
      22 August 2019" -> name, gender, date of birth. Only what is clear is taken; leftover says how many words were not understood, so Claude can read the rest. */
   var INTERVIEW = { debts: ['type', 'prov', 'desc', 'inst', 'bal'], risk: ['prov', 'spend', 'broker'], ret: ['type', 'prov', 'val', 'contrib'], inv: ['type', 'prov', 'val', 'prem'],
-    kids: ['name', 'gender', 'dob', 'cost'], shares: ['name', 'pct'], redq: ['req', 'ins', 'amt'], raq: ['req', 'ins', 'monthly', 'lump'], invq: ['purpose', 'product', 'ins', 'monthly', 'lump'] };
+    kids: ['name', 'sname', 'gender', 'dob', 'cost'], shares: ['name', 'pct'], redq: ['req', 'ins', 'amt'], raq: ['req', 'ins', 'monthly', 'lump'], invq: ['purpose', 'product', 'ins', 'monthly', 'lump'] };
   var ROW_COLS = { debts: ['type', 'prov'], risk: ['prov'], ret: ['type', 'prov'], inv: ['type', 'prov'] };
   var ROW_SYN = {
     'debts.type': { 'Home loan': ['bond', 'mortgage', 'house loan', 'home bond', 'property loan'], 'Vehicle finance': ['car finance', 'vehicle loan', 'car loan', 'car payment', 'vehicle'], 'Credit card': ['card'], 'Revolving credit': ['overdraft', 'revolving'] },
@@ -853,7 +861,7 @@
       var g = SPECIAL['kids.gender'](tn);
       if (g) { vals.gender = { value: g, status: 'heard' }; ['son', 'daughter', 'boy', 'girl'].forEach(use); }
       var nm = /\b(?:called|named|name is)\s+([A-Za-z][A-Za-z'-]+(?:\s+[A-Z][A-Za-z'-]+)?)/.exec(core) || /\b(?:son|daughter|child|kid|boy|girl)\s*,?\s+([A-Z][a-z'-]+)/.exec(core);
-      if (nm) { vals.name = { value: titleCase(nm[1]), status: 'verify' }; use(nm[1]); }
+      if (nm) { var sp = util.splitFullName(nm[1]); vals.name = { value: titleCase(sp.first), status: 'verify' }; if (sp.last) vals.sname = { value: titleCase(sp.last), status: 'verify' }; use(nm[1]); }       // "called Anna Kuiper": Anna, and Kuiper in Surname
       if (/\b(?:born|birthday)\b/.test(tn)) { var d = spokenDate(core); if (d) { vals.dob = { value: d, status: 'verify' }; toks.forEach(function (w) { if (/^\d/.test(w) || monthOf(w) || /^(?:st|nd|rd|th|of)$/.test(w)) used[w] = 1; }); } }
     }
     var amts = core.match(/\bR\s?\d[\d\s,]*(?:\.\d+)?/g) || [];            // one amount with a clear cue ("R4 200 a month") is taken; more than one is left to Claude
