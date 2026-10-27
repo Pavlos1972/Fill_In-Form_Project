@@ -45,7 +45,9 @@ test('disposable income and the risk calculation use take-home, childcare and de
 test('education stage comes from the date of birth', () => {
   const s = fresh(); const c = store.ctxFor(s);
   assert.strictEqual(calc.rowCalc('stage', { d: { dob: '2019-08-22' } }, c), 'Primary');
-  assert.strictEqual(calc.rowCalc('stage', { d: { dob: '2025-01-01' } }, c), 'Not yet in school');
+  assert.strictEqual(calc.rowCalc('stage', { d: { dob: '2025-01-01' } }, c), 'Not Yet in School');
+  assert.strictEqual(calc.rowCalc('stage', { d: { dob: '2009-01-03' } }, c), 'High School');
+  schema.lists.kids.cols.find(x => x.k === 'stage').o.forEach(o => assert.ok(['2025-01-01', '2022-01-01', '2019-08-22', '2009-01-03', '2000-01-01'].some(d => calc.rowCalc('stage', { d: { dob: d } }, c) === o), o + ' is never worked out'));   // every calculated stage is one of the choices
   assert.strictEqual(calc.rowCalc('stage', { d: { dob: '' } }, c), '');
 });
 test('duties total adds the seven percentages', () => {
@@ -174,4 +176,39 @@ test('what Claude has cost travels with the saved file, starts at nothing, and s
   assert.strictEqual(store.fromJSON(JSON.stringify(old)).claude.usd, 0, 'a file from before the meter opens at nothing');
   const odd = JSON.parse(store.toJSON(store.blank())); odd.claude = { usd: 'lots', calls: -3, input: null };
   assert.deepStrictEqual(store.fromJSON(JSON.stringify(odd)).claude, store.blankTally());
+});
+
+test('a child\'s age is worked out from the date of birth on the date of the form', () => {
+  const c = store.ctxFor(fresh());                                                    // the form is dated 15 October 2026
+  const age = dob => calc.rowCalc('age', { d: { dob } }, c);
+  assert.strictEqual(age('03/01/2009'), '17 years');
+  assert.strictEqual(age('2009-01-03'), '17 years');
+  assert.strictEqual(age('15/10/2009'), '17 years');                                    // the birthday is the day of the form
+  assert.strictEqual(age('16/10/2009'), '16 years');                                    // the day before the birthday
+  assert.strictEqual(age('2025-10-15'), '1 year');
+  assert.strictEqual(age('2026-05-01'), '5 months');
+  assert.strictEqual(age('2026-09-16'), '0 months');
+  assert.strictEqual(age('2026-09-15'), '1 month');
+  assert.strictEqual(age(''), '');
+  assert.strictEqual(age('2030-01-01'), '');                                            // not born yet: nothing is shown
+  assert.strictEqual(age('rubbish'), '');
+  const kids = schema.lists.kids.cols.map(x => x.k);
+  assert.deepStrictEqual(kids.slice(0, 4), ['name', 'gender', 'dob', 'age']);           // next to the date of birth
+  assert.ok(schema.lists.kids.cols.find(x => x.k === 'age').calc);
+});
+
+test('the risk calculation boxes start with the agreed defaults', () => {
+  const s = store.blank(), want = {
+    lc_f_aci: 'Fixed', lc_f_aciv: '?', lc_wol: '3%', lc_ccabi: '5%',
+    pd_f_aci: 'Fixed', pd_f_aciv: '?', pd_ccabi: '5%',
+    dd_aci: 'Fixed', dd_aciv: '?', dd_abiv: '3%',
+    ip_aci: 'Fixed', ip_aciv: '?', ip_abiv: '5%'
+  };
+  Object.keys(want).forEach(id => { assert.strictEqual(s.f[id].v, want[id], id); assert.strictEqual(s.f[id].st, 'preset', id); });
+  Object.keys(want).filter(id => schema.fieldsById[id].t === 'sel').forEach(id => assert.ok(schema.fieldsById[id].o.includes(want[id]), id + ' is not one of its choices'));
+  ['pd_wol', 'lc_aci', 'pd_aci', 'lc_abiv', 'pd_abiv'].forEach(id => assert.ok(!schema.fieldsById[id] || !schema.fieldsById[id].preset, id + ' should have no default'));   // the standard cover boxes are left alone
+  const o = store.blank(); store.setField(o, 'lc_wol', '4%');
+  assert.strictEqual(o.f.lc_wol.v, '4%');                                                // a default can be changed
+  const back = store.fromJSON(store.toJSON(o));
+  assert.strictEqual(back.f.lc_wol.v, '4%'); assert.strictEqual(back.f.lc_ccabi.v, '5%');   // and a saved file keeps both
 });
