@@ -464,7 +464,7 @@
     $('#setVoiceModel').innerHTML = FF.lookup.VOICE_MODELS.map(function (m) { return '<option value="' + m.id + '"' + (m.id === set.voiceModel ? ' selected' : '') + '>' + esc(m.label) + '</option>'; }).join('');
     $('#setModel').innerHTML = FF.lookup.MODELS.map(function (m) { return '<option value="' + m.id + '"' + (m.id === set.model ? ' selected' : '') + '>' + esc(m.label) + '</option>'; }).join('');
     $('#setResult').textContent = '';
-    if ($('#setSpeech')) { var sp = speechPrefs(); speechChoices(); $('#setSpeech').value = sp.engine; $('#setWhisper').value = sp.model; }
+    if ($('#setSpeech')) { var sp = speechPrefs(); speechChoices(); $('#setSpeech').value = sp.engine; $('#setWhisper').value = sp.model; if ($('#setCall')) $('#setCall').value = sp.call ? '1' : '0'; }
     creditSettings(); var left = creditLeft(); $('#setCredit').value = left == null ? '' : left.toFixed(2);
     quickSettings(); $('#setQuick').value = vmQuickOn() ? '1' : '0';
     shareSettings(); $('#setShare').value = vmShareOn() ? '1' : '0';
@@ -476,7 +476,7 @@
   $('#setCancel').addEventListener('click', function () { $('#settings').close(); });
   $('#setSave').addEventListener('click', function () {
     FF.lookup.saveSettings({ apiKey: $('#setKey').value, model: $('#setModel').value, voiceModel: $('#setVoiceModel').value, expires: $('#setExpires').value, openaiKey: $('#setOpenaiKey').value, openaiModel: $('#setOpenaiModel').value });
-    if ($('#setSpeech')) { try { localStorage.setItem(SPEECH_KEY, JSON.stringify({ engine: $('#setSpeech').value, model: $('#setWhisper').value })); } catch (e) { /* storage unavailable */ } }
+    if ($('#setSpeech')) { try { localStorage.setItem(SPEECH_KEY, JSON.stringify({ engine: $('#setSpeech').value, model: $('#setWhisper').value, call: !!$('#setCall') && $('#setCall').value === '1' })); } catch (e) { /* storage unavailable */ } }
     saveCreditBox();
     if ($('#setQuick')) { try { localStorage.setItem(QUICK_KEY, $('#setQuick').value); } catch (e) { /* storage unavailable */ } }
     if ($('#setShare')) { try { localStorage.setItem(SHARE_KEY, $('#setShare').value); } catch (e) { /* storage unavailable */ } vmShareApply(); convoRender(); }
@@ -1567,8 +1567,8 @@
   /* ---------- listening: the microphone as the source of the words (js/listen.js) ---------- */
   var SPEECH_KEY = 'wr-fact-find-speech-2', lsn = null, lsnState = 'off';
   function speechPrefs() {
-    var p = { engine: 'whisper', model: FF.listen ? FF.listen.DEFAULT_MODEL : 'moonshine-tiny' };
-    try { var sv = JSON.parse(localStorage.getItem(SPEECH_KEY) || '{}'); if (sv.engine) p.engine = sv.engine; if (sv.model) p.model = sv.model; } catch (e) { /* the defaults */ }
+    var p = { engine: 'whisper', model: FF.listen ? FF.listen.DEFAULT_MODEL : 'moonshine-tiny', call: false };
+    try { var sv = JSON.parse(localStorage.getItem(SPEECH_KEY) || '{}'); if (sv.engine) p.engine = sv.engine; if (sv.model) p.model = sv.model; p.call = sv.call === true; } catch (e) { /* the defaults */ }
     return p;
   }
   /* The speech models on offer come from js/listen.js, so a new one needs no change to index.html. */
@@ -1605,24 +1605,25 @@
     if (!vm.on) vmToggle(true);
     var p = speechPrefs(), set = FF.lookup.getSettings(), status = '', kind = p.engine === 'chrome' ? 'warn' : '';
     lsn = FF.listen.create({
-      engine: p.engine, model: p.model, openaiKey: set.openaiKey, openaiModel: set.openaiModel, prompt: vmSpeechHints,
+      engine: p.engine, model: p.model, openaiKey: set.openaiKey, openaiModel: set.openaiModel, prompt: vmSpeechHints, call: p.call && p.engine === 'openai',
       state: function (st, d) {
         lsnState = st; listenRender();
         if (st === 'loading') { status = p.engine === 'chrome' || p.engine === 'openai' ? '' : 'Getting the speech model ready on this computer' + (d.percent != null ? ' (' + d.percent + '%, only the first time)' : '…'); listenShow(status, ''); }
         else if (st === 'on') {
           status = p.engine === 'chrome' ? ''                                                       // Chrome's own recognition: no banner (the Listen button says it is on); only a problem is shown
-            : p.engine === 'openai' ? 'Listening with OpenAI (' + d.model + '). The sound is sent to OpenAI.'
+            : p.engine === 'openai' ? 'Listening with OpenAI (' + d.model + ')' + (d.call ? '. You: the microphone. The client: the call\'s sound' : '') + '. The sound is sent to OpenAI.'
             : 'Listening' + (d.mic ? ' on ' + d.mic : '') + ' with ' + d.model + ' on the ' + d.where + (d.why ? ' (' + d.why + ')' : '') + '. The sound stays on this computer.';
-          listenShow(status, '', kind);
+          listenShow(status + (p.call && p.engine !== 'openai' ? ' The client on a call is heard only with the OpenAI speech source (Settings).' : ''), '', kind);
         } else if (st === 'error') { lsn = null; lsnState = 'off'; listenRender(); listenShow(d.message, '', 'bad'); var lv0 = $('#lvl'); if (lv0) lv0.style.width = '0'; }
         else listenShow('', '');
       },
       interim: function (t) { cv.live = t ? '… ' + t : ''; convoSoon(); },
-      text: function (t, m) { cv.live = ''; vmHear(t, undefined, m); },                  // the box in the right-hand pane shows the line and what became of it
+      text: function (t, m) { cv.live = ''; vmHear(t, m && m.who, m); },                  // the box in the right-hand pane shows the line and what became of it
       reading: function () { cv.live = '… reading what was just said'; convoSoon(); clearTimeout(cv.t); cv.t = setTimeout(function () { cv.live = ''; convoSoon(); }, 10000); },   // a line that came to nothing leaves no note behind
       note: function (msg) { listenShow(status, msg, 'warn'); },
       event: vmEngineLog,
-      level: function (v) { var el = $('#lvl'); if (el) el.style.width = Math.round(v * 100) + '%'; }
+      level: function (v) { var el = $('#lvl'); if (el) el.style.width = Math.round(v * 100) + '%'; },
+      callLevel: function (v) { var el = $('#lvlc'), w = $('#lvlcWrap'); if (w) w.hidden = false; if (el) el.style.width = Math.round(v * 100) + '%'; }
     });
     lsn.start();
   }
@@ -1630,6 +1631,7 @@
     if (lsn) { var l = lsn; lsn = null; l.stop(); }
     lsnState = 'off'; listenRender(); listenShow('', '');
     var lv = $('#lvl'); if (lv) lv.style.width = '0';
+    var lc = $('#lvlc'), lw = $('#lvlcWrap'); if (lc) lc.style.width = '0'; if (lw) lw.hidden = true;
   }
   if ($('#btnListen')) $('#btnListen').addEventListener('click', function () { if (lsn) listenStop(); else listenStart(); });
 

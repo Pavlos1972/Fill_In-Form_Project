@@ -369,3 +369,116 @@ test('OpenAI transcription: one failed line is a note, three in a row stop the l
   assert.strictEqual(r.errors.length, 1);
   assert.match(r.errors[0], /Could not reach OpenAI/);
 });
+
+/* ---- the other side of a call ---- */
+function callRig(texts, extra) {
+  const said = [], notes = [], events = [], calls = []; let micChunk = null, callChunk = null, ended = null, closed = 0, n = 0;
+  const lsn = L.create(Object.assign({
+    engine: 'openai', openaiKey: 'sk-test', openaiModel: 'gpt-4o-transcribe', call: true,
+    mic: onChunk => { micChunk = onChunk; return Promise.resolve({ label: 'Headset', close() { closed++; } }); },
+    callCapture: onChunk => { callChunk = onChunk; return Promise.resolve({ label: 'Teams', onEnded: cb => { ended = cb; }, close() { closed++; } }); },
+    fetchImpl: (url, init) => { calls.push(init); const t = texts[Math.min(n++, texts.length - 1)]; return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ text: t }) }); },
+    text: (t, m) => said.push([t, m]), note: m => notes.push(m), event: (nm, d, show) => events.push([nm, d, show]), state: () => {}
+  }, extra));
+  const push = (fn, parts) => parts.forEach(x => { for (let i = 0; i < x.length; i += 4096) fn(x.subarray(i, Math.min(x.length, i + 4096))); });
+  return { lsn, said, notes, events, calls, mic: parts => push(micChunk, parts), call: parts => push(callChunk, parts), end: () => ended && ended(), closed: () => closed };
+}
+const wait = ms => new Promise(r => setTimeout(r, ms));
+
+test('Call sound: the microphone is "me" and the call is "client", each in its own line', async () => {
+  const r = callRig(['Can you tell me your ID number?', 'My ID number is seven two one.']);
+  await r.lsn.start();
+  r.mic([noise(0.5), speech(1.5), noise(1.2)]);
+  await wait(40);
+  r.call([noise(0.5), speech(1.5), noise(1.2)]);
+  await wait(40);
+  assert.deepStrictEqual(r.said.map(s => [s[1].who, s[0]]), [['me', 'Can you tell me your ID number?'], ['client', 'My ID number is seven two one.']]);
+  assert.ok(r.events.some(e => e[0] === 'call sound shared'), 'the call being shared is not in the log');
+  r.lsn.stop();
+  assert.strictEqual(r.closed(), 2, 'the microphone or the call was not let go');
+});
+
+test('Call sound: with the setting off nothing is shared and lines carry no speaker', async () => {
+  let asked = 0;
+  const r = callRig(['Yes it is.'], { call: false, callCapture: () => { asked++; return Promise.reject(new Error('should not be asked')); } });
+  await r.lsn.start();
+  r.mic([noise(0.5), speech(1.5), noise(1.2)]);
+  await wait(40);
+  assert.strictEqual(asked, 0);
+  assert.strictEqual(r.said.length, 1);
+  assert.strictEqual(r.said[0][1].who, undefined);
+  r.lsn.stop();
+});
+
+test('Call sound: a share window that is closed or has no sound says so in words and the microphone carries on, unlabelled', async () => {
+  const refused = callRig(['Hello there.'], { callCapture: () => Promise.reject(Object.assign(new Error('Permission denied'), { name: 'NotAllowedError' })) });
+  await refused.lsn.start();
+  refused.mic([noise(0.5), speech(1.5), noise(1.2)]);
+  await wait(40);
+  assert.match(refused.notes[0], /not shared.*only the microphone/i);
+  assert.strictEqual(refused.said.length, 1);
+  assert.strictEqual(refused.said[0][1].who, undefined, 'labelled "me" although the call is not being heard');
+  assert.ok(refused.events.some(e => e[0] === 'call sound not shared' && e[2] === true));
+  refused.lsn.stop();
+  const silent = callRig(['Hello there.'], { callCapture: () => Promise.reject(Object.assign(new Error('The share had no sound.'), { name: 'NoCallSound' })) });
+  await silent.lsn.start();
+  assert.match(silent.notes[0], /Also share system audio.*Also share tab audio/);
+  silent.lsn.stop();
+});
+
+test('Call sound: when sharing is stopped in Chrome the client is no longer heard and the microphone goes back to unlabelled', async () => {
+  const r = callRig(['One.', 'Two.', 'Three.']);
+  await r.lsn.start();
+  r.mic([noise(0.5), speech(1.5), noise(1.2)]);
+  await wait(40);
+  assert.strictEqual(r.said[0][1].who, 'me');
+  r.end();                                                                                      // "Stop sharing"
+  assert.match(r.notes[r.notes.length - 1], /sound stopped/);
+  r.mic([speech(1.5), noise(1.2)]);
+  await wait(40);
+  assert.strictEqual(r.said[1][1].who, undefined);
+  r.call([speech(1.5), noise(1.2)]);                                                            // nothing more is taken from the call
+  await wait(40);
+  assert.strictEqual(r.said.length, 2);
+  r.lsn.stop();
+});
+
+test('Call sound: a microphone that hears the loudspeakers does not write the client\'s line a second time', async () => {
+  const r = callRig(['Yes my income tax number is five five four seven', 'Yes, my income tax number is 5547', 'And what do you do for work?']);
+  await r.lsn.start();
+  r.call([noise(0.5), speech(1.5), noise(1.2)]);
+  await wait(40);
+  r.mic([noise(0.5), speech(1.5), noise(1.2)]);                                                 // the same words again, through the room
+  await wait(40);
+  r.mic([speech(1.5), noise(1.2)]);                                                             // a different line from the adviser is kept
+  await wait(40);
+  assert.deepStrictEqual(r.said.map(s => [s[1].who, s[0]]), [['client', 'Yes my income tax number is five five four seven'], ['me', 'And what do you do for work?']]);
+  assert.ok(r.events.some(e => e[0] === 'echo dropped'));
+  r.lsn.stop();
+});
+
+test('Call sound: no sound from the call after a while is reported, and a call that is talking is not', async () => {
+  const quietCall = callRig(['x'], { callWatchMs: 60 });
+  await quietCall.lsn.start();
+  quietCall.call([new Float32Array(8192)]);                                                      // digital silence
+  await wait(120);
+  assert.ok(quietCall.notes.some(m => /No sound has come from the call/.test(m)), 'a silent call was not reported');
+  quietCall.lsn.stop();
+  const talking = callRig(['Hello.'], { callWatchMs: 60 });
+  await talking.lsn.start();
+  talking.call([speech(1.5), noise(1.2)]);
+  await wait(120);
+  assert.ok(!talking.notes.some(m => /No sound has come from the call/.test(m)), 'a talking call was reported as silent');
+  talking.lsn.stop();
+});
+
+test('OpenAI transcription: starting, a lost line and stopping are written to the log', async () => {
+  const events = [];
+  const r = openaiRig({ reply: (n, reply) => reply(500, { error: { message: 'busy' } }), opts: { event: (nm, d, show) => events.push([nm, d, show]) } });
+  await r.lsn.start();
+  r.talk([noise(0.5), speech(1.5), noise(1.2)]);
+  await new Promise(x => setTimeout(x, 50));
+  r.lsn.stop();
+  assert.deepStrictEqual(events.map(e => e[0]), ['listening on', 'line lost', 'listening stopped']);
+  assert.strictEqual(events[1][2], true, 'a lost line is not shown');
+});
