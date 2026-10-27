@@ -300,3 +300,18 @@ test('the client\'s gender is a box of Client info with the two choices', () => 
   assert.deepStrictEqual(schema.fieldsById.gender.o, ['Female', 'Male']);
   assert.strictEqual(schema.sections.find(x => x.id === 'info').blocks.some(b => (b.fields || []).some(f => f.id === 'gender')), true);
 });
+
+test('the income protection insured amount is always the take-home net income', () => {
+  const f = schema.fieldsById.ip_amt;
+  assert.strictEqual(f.calc, 'ip_amt');                                                  // worked out, so it cannot be typed over
+  const s = fresh(), c = () => store.ctxFor(s);
+  assert.strictEqual(calc.field('ip_amt', c()), '');                                     // no take-home income yet
+  set(s, 'net', 'R 61 449.00');
+  assert.strictEqual(calc.field('ip_amt', c()), 'R 61 449.00');
+  assert.strictEqual(calc.field('ip_amt', c()), util.formatMoney(s.f.net.v));            // the same text as the box it follows
+  set(s, 'net', '45000');                                                                // typed as a plain number: shown as an amount
+  assert.strictEqual(calc.field('ip_amt', c()), 'R 45 000.00');
+  assert.strictEqual(calc.field('ip_amt', c()), calc.field('hh', c()));                  // and equal to the household net income of the risk calculation
+  set(s, 'ip_amt', 'R 1.00');                                                            // an old file may hold a typed amount: it is ignored
+  assert.strictEqual(calc.field('ip_amt', c()), 'R 45 000.00');
+});
