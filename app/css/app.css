@@ -142,7 +142,12 @@ tfoot td { background: var(--surface-2); font-weight: 600; font-variant-numeric:
 .top .grow { flex: 1 1 auto; }
 .top .who { color: var(--muted); }
 .top .who b { color: var(--ink); font-weight: 500; }
-.top .actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.top .actions { flex: 1 1 100%; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 8px 24px; }     /* a row of its own: settings on the left, the meeting in the middle, saving on the right */
+.top .actions .grp { display: flex; flex-wrap: wrap; gap: 8px; }
+.top .actions .left { justify-self: start; }
+.top .actions .mid { justify-self: center; justify-content: center; }
+.top .actions .right { justify-self: end; justify-content: flex-end; }
+@media (max-width: 900px) { .top .actions { grid-template-columns: minmax(0, 1fr); } .top .actions .grp { justify-self: start; justify-content: flex-start; } }
 .btn.small { padding: 5px 10px; font-size: 13px; }
 .savestate { font-size: 12px; color: var(--muted); }
 .warn { color: var(--warn); font-size: 12px; margin-top: 2px; }
