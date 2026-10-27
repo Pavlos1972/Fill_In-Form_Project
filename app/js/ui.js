@@ -694,11 +694,61 @@
   function vmMarkWait() {
     document.querySelectorAll('.voice-wait').forEach(function (e) { e.classList.remove('voice-wait'); });
     vmNotesButton();
+    vmSyncPick(vm.on && vm.target && !vm.answered && !vm.noteMode ? vmEl(vm.target) : null);
     if (!vm.on) return;
     var el = vm.target && !vm.answered ? vmEl(vm.target) : (vm.secGlow ? document.querySelector('.main header h2') : null);
     if (el) el.classList.add('voice-wait');
     vmShowFlashes();
   }
+  /* A dropdown (or a box with a list of choices, like Insurer) that the form is waiting on opens by itself, so the choices are in front of you while the question is being asked and answered, and closes
+     when the box is filled or the form moves on. A page cannot open the browser's own list without a click, so this is a list of its own, under the box: it scrolls when it is long, a click on a choice fills
+     the box like any change by hand, and a click anywhere else sends it away (until the form moves to another box). It is drawn from the same moment as the red-amber glow, so it is open exactly while the glow is on. */
+  var vmPick = null, vmPickCtl = null, vmPickGone = null;
+  function vmPickClose() { if (vmPick && vmPick.parentNode) vmPick.parentNode.removeChild(vmPick); vmPick = null; vmPickCtl = null; }
+  function vmPickPlace() {
+    if (!vmPick || !vmPickCtl) return;
+    if (!document.body.contains(vmPickCtl)) { vmPickClose(); return; }
+    var r = vmPickCtl.getBoundingClientRect(), vh = window.innerHeight, below = vh - r.bottom - 12, above = r.top - 12, want = Math.min(vmPick.scrollHeight, 240), up = below < Math.min(want, 150) && above > below;
+    vmPick.style.display = r.bottom < 0 || r.top > vh ? 'none' : '';                                    // the box has scrolled out of view
+    vmPick.style.left = Math.max(8, Math.min(r.left, window.innerWidth - 200)) + 'px'; vmPick.style.minWidth = Math.max(r.width, 180) + 'px';
+    vmPick.style.maxHeight = Math.max(90, Math.min(240, up ? above : below)) + 'px';
+    if (up) { vmPick.style.top = ''; vmPick.style.bottom = (vh - r.top + 3) + 'px'; } else { vmPick.style.bottom = ''; vmPick.style.top = (r.bottom + 3) + 'px'; }
+  }
+  function vmPickChoices(ctl) {
+    if (ctl.tagName === 'SELECT') return [].map.call(ctl.options, function (o) { return o.value; }).filter(function (v) { return String(v).trim() !== ''; });
+    var dl = ctl.getAttribute('list') && document.getElementById(ctl.getAttribute('list'));
+    return dl ? [].map.call(dl.options, function (o) { return o.value; }) : [];
+  }
+  function vmSyncPick(el) {
+    var ctl = el && el.querySelector ? el.querySelector('select, input[list]') : null, key = vm.target;
+    if (vmPickGone && vmPickGone !== key) vmPickGone = null;
+    if (!ctl || ctl.disabled || ctl.readOnly || vmPickGone === key) { vmPickClose(); return; }
+    var choices = vmPickChoices(ctl);
+    if (!choices.length) { vmPickClose(); return; }
+    if (vmPick && vmPickCtl === ctl && document.body.contains(ctl)) { vmPickMark(); vmPickPlace(); return; }     // already open for this box
+    vmPickClose();
+    vmPickCtl = ctl; vmPick = document.createElement('div'); vmPick.className = 'vm-pick'; vmPick.setAttribute('role', 'listbox'); vmPick.setAttribute('aria-label', 'Choices');
+    vmPick.innerHTML = choices.map(function (c) { return '<button type="button" role="option" data-v="' + esc(c) + '">' + esc(c) + '</button>'; }).join('');
+    document.body.appendChild(vmPick); vmPickMark(); vmPickPlace();
+    var on = vmPick.querySelector('.on'); if (on) vmPick.scrollTop = Math.max(0, on.offsetTop - 40);
+  }
+  function vmPickMark() { if (!vmPick || !vmPickCtl) return; [].forEach.call(vmPick.querySelectorAll('button'), function (b) { b.classList.toggle('on', b.getAttribute('data-v') === vmPickCtl.value); }); }
+  document.addEventListener('mousedown', function (e) {                                                  // a click on a choice keeps the focus where it is; a click anywhere else sends the list away
+    if (!vmPick) return;
+    if (vmPick.contains(e.target)) { e.preventDefault(); return; }
+    vmPickGone = vm.target; vmPickClose();
+  });
+  document.addEventListener('click', function (e) {
+    var b = vmPick && e.target.closest ? e.target.closest('.vm-pick button') : null;
+    if (!b || !vmPickCtl) return;
+    var ctl = vmPickCtl; ctl.value = b.getAttribute('data-v');
+    ctl.dispatchEvent(new Event('input', { bubbles: true })); ctl.dispatchEvent(new Event('change', { bubbles: true }));   // the same path as a change by hand
+  });
+  document.addEventListener('change', function (e) {                                                      // a box filled by hand counts as answered: the glow and the list go
+    var t = e.target, key = t && t.dataset ? (t.dataset.f || (t.dataset.l ? t.dataset.l + ':' + t.dataset.i + ':' + t.dataset.k : '')) : '';
+    if (vm.on && key && key === vm.target && !vm.answered) { vm.answered = true; vmMarkWait(); } else if (vmPick && t === vmPickCtl) { vmPickMark(); }
+  });
+  window.addEventListener('scroll', vmPickPlace, true); window.addEventListener('resize', vmPickPlace);
   /* The green flash lasts 1.5 seconds and survives a redraw (the company look-up redraws the screen when it finishes). */
   function vmFlash(id) { vm.flashes[id] = Date.now(); vmShowFlashes(); setTimeout(vmShowFlashes, 1600); }
   function vmShowFlashes() {
@@ -1556,7 +1606,7 @@
     vm.on = on; vm.target = null; vm.answered = false; vm.secGlow = on; vm.noteMode = null; vm.rowCur = {}; vm.queue = Promise.resolve(); vm.slow = 0; vm.epoch++; vm.digits = null; vm.run = null; vm.erun = null; vm.eann = null; vm.paused = false; vm.pointed = null; cv.live = ''; vmCur = null;
     if (vm.wipe) { vm.wipe = null; var wd = document.getElementById('wipe'); if (wd && wd.open) wd.close(); }   // switching Voice on or off never leaves the question hanging
     if (!on) listenStop();                                                                                       // no voice mode, nothing to listen for
-    if (!on) { document.querySelectorAll('.voice-wait,.voice-ok').forEach(function (e) { e.classList.remove('voice-wait', 'voice-ok'); }); $('#vdText').hidden = true; }
+    if (!on) { document.querySelectorAll('.voice-wait,.voice-ok').forEach(function (e) { e.classList.remove('voice-wait', 'voice-ok'); }); $('#vdText').hidden = true; vmPickClose(); }
     vmRender(); vmMarkWait();
     if (on) vmWarm();
     if (on && FF.voiceBackend && FF.voiceBackend.warm) {   // ask permission now, so it never interrupts a conversation later

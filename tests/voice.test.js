@@ -683,3 +683,37 @@ test('more ways of asking to make notes are understood, and what follows in the 
   assert.ok(/son's education/.test(pl.actions[1].text));
   assert.ok(!pl.actions.some(a => a.do === 'fill' || a.do === 'addrow'));
 });
+
+test('Type of quote: the FNA, shortfall and reduced quote each have one, with three choices', () => {
+  ['fna_type', 'sf_type', 'redq.type'].forEach(id => assert.deepStrictEqual(f(id).options, ['New Business', 'Servicing', 'N/A'], id));
+  const order = schema.sections.find(s => s.id === 'q_risk').blocks.map(b => (b.fields || []).map(x => x.id).join());
+  assert.strictEqual(order[0], 'fna_req,fna_type,fna_ins');
+  assert.strictEqual(order[1], 'sf_req,sf_type,sf_ins');
+  assert.deepStrictEqual(schema.lists.redq.cols.map(c => c.k), ['req', 'type', 'ins', 'amt']);
+});
+
+test('Type of quote: answers in the words people use', () => {
+  const v = (id, t) => { const r = V.interpret(f(id), t); return r && (r.error ? 'ERR:' + r.error : r.value); };
+  ['fna_type', 'sf_type', 'redq.type'].forEach(id => {
+    assert.strictEqual(v(id, 'new business'), 'New Business', id);
+    assert.strictEqual(v(id, "it's a new business quote"), 'New Business', id);
+    assert.strictEqual(v(id, 'Servicing'), 'Servicing', id);
+    assert.strictEqual(v(id, 'it is a servicing one'), 'Servicing', id);
+    assert.strictEqual(v(id, 'N/A'), 'N/A', id);
+    assert.strictEqual(v(id, 'not applicable'), 'N/A', id);
+    assert.strictEqual(v(id, 'n a'), 'N/A', id);
+    assert.strictEqual(v(id, 'new business or servicing'), 'ERR:ambiguous', id);   // a question, not an answer
+    assert.strictEqual(v(id, 'no'), 'ERR:no-match', id);                           // "no" is not N/A
+  });
+});
+
+test('Type of quote: a question names the quote it is about, and a plain one takes the first still empty', () => {
+  const ask = (t, empty) => { const r = V.matchQuestion(t, idx, { cur: 'q_risk', isEmpty: empty || (() => true) }); return r && r.id; };
+  assert.strictEqual(ask('What type of quote is the FNA quote?'), 'fna_type');
+  assert.strictEqual(ask('What type of quote is the shortfall?'), 'sf_type');
+  assert.strictEqual(ask('And the shortfall quote type?'), 'sf_type');
+  assert.strictEqual(ask('What type of reduced quote is it?'), 'redq.type');
+  assert.strictEqual(ask('Is it new business or servicing?'), 'fna_type');
+  assert.strictEqual(ask('Is it new business or servicing?', id => id !== 'fna_type'), 'sf_type');
+  assert.strictEqual(ask('What is the FNA quote?'), 'fna_req');                      // the request box keeps its own name
+});

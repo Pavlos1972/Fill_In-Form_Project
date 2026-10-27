@@ -268,3 +268,9 @@ dialog .f input, dialog .f select { padding-right: 9px; background: var(--surfac
 .lvlt { font-size: 12px; color: var(--muted); white-space: nowrap; }
 .lvl { flex: none; width: 70px; height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; }
 .lvl i { display: block; height: 100%; width: 0; background: var(--brand); transition: width .08s linear; }
+
+/* the list of choices that opens by itself under a dropdown the voice mode is waiting on */
+.vm-pick { position: fixed; z-index: 45; box-sizing: border-box; overflow-y: auto; overscroll-behavior: contain; padding: 4px; background: var(--surface); border: 2px solid var(--brand); border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,.28); }
+.vm-pick button { display: block; width: 100%; box-sizing: border-box; padding: 8px 12px; border: 0; border-radius: 6px; background: transparent; color: var(--ink); font: inherit; font-size: 14px; text-align: left; white-space: nowrap; cursor: pointer; }
+.vm-pick button:hover { background: var(--accent-soft); }
+.vm-pick button.on { background: var(--accent); color: var(--accent-ink); font-weight: 600; }
