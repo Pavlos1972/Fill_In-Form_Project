@@ -51,6 +51,16 @@
     }
     if (v('biz_pct') !== '' && (ctx.n('biz_pct') < 0 || ctx.n('biz_pct') > 100)) warn('biz_pct', 'A shareholding must be between 0 and 100.');
 
+    /* An ID number can be on the form once. Every box that repeats one says where the other is. */
+    var idKey = function (x) { return String(x == null ? '' : x).replace(/[^A-Za-z0-9]/g, '').toUpperCase(); }, owners = [];
+    if (idKey(ctx.v('idno')).length >= 6) owners.push({ k: idKey(ctx.v('idno')), who: 'the client', at: { id: 'idno' } });
+    ctx.rows('shares').forEach(function (r, i) { if (idKey(r.d.id).length >= 6) owners.push({ k: idKey(r.d.id), who: 'partner / shareholder ' + (i + 1) + (r.d.name ? ' (' + r.d.name + ')' : ''), at: { list: 'shares', i: i } }); });
+    owners.forEach(function (o, n) {
+      var first = owners.filter(function (p, m) { return m < n && p.k === o.k; })[0];
+      if (!first) return;
+      var msg = 'This ID number is already used for ' + first.who + '. An ID number can only be on the Fact Find once.';
+      if (o.at.id) warn(o.at.id, msg); else out.push({ list: o.at.list, i: o.at.i, msg: msg });
+    });
     ctx.rows('shares').forEach(function (r, i) {
       if (r.d.id && !util.saIdValid(r.d.id)) out.push({ list: 'shares', i: i, msg: 'ID number looks wrong. Check each digit.' });
       if (r.d.cell && !phoneOk(r.d.cell)) out.push({ list: 'shares', i: i, msg: 'Cell number should have 10 digits.' });

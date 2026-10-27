@@ -73,6 +73,22 @@
     return mk(yy > t ? 1900 + yy : 2000 + yy, +s.slice(2, 4), +s.slice(4, 6));
   }
   /* Luhn check used by South African ID numbers. */
+  /* The four digits after the date of birth in a South African ID number say the sex: 5000 and over is male, below that female. */
+  function sexFromSaId(id) {
+    var s = String(id || '').replace(/\s/g, '');
+    if (!/^\d{13}$/.test(s)) return null;
+    return +s.slice(6, 10) >= 5000 ? 'Male' : 'Female';
+  }
+  /* "Anna Maria Kuiper" -> { first: 'Anna Maria', last: 'Kuiper' }; "Jan van der Merwe" -> { first: 'Jan', last: 'van der Merwe' }. A surname given as hint (the father's) is split off when the name ends with it. */
+  var NAME_PARTICLES = ['van', 'der', 'den', 'de', 'du', 'le', 'la', 'von', 'bin', 'al', 'da', 'di', 'ten', 'ter', 'te'];
+  function splitFullName(full, hint) {
+    var w = String(full == null ? '' : full).trim().split(/\s+/).filter(Boolean), h = String(hint == null ? '' : hint).trim().toLowerCase().split(/\s+/).filter(Boolean), i;
+    if (w.length < 2) return { first: w[0] || '', last: '' };
+    if (h.length && w.length > h.length && w.slice(-h.length).join(' ').toLowerCase() === h.join(' ')) return { first: w.slice(0, w.length - h.length).join(' '), last: w.slice(-h.length).join(' ') };
+    i = w.length - 1;
+    while (i > 1 && NAME_PARTICLES.indexOf(w[i - 1].toLowerCase()) >= 0) i--;
+    return { first: w.slice(0, i).join(' '), last: w.slice(i).join(' ') };
+  }
   function saIdValid(id) {
     var s = String(id || '').replace(/\s/g, '');
     if (!/^\d{13}$/.test(s) || !dobFromSaId(s)) return false;
@@ -80,5 +96,5 @@
     for (var i = 12; i >= 0; i--) { var n = +s[i]; if (alt) { n *= 2; if (n > 9) n -= 9; } sum += n; alt = !alt; }
     return sum % 10 === 0;
   }
-  return { num: num, money: money, money2: money2, formatMoney: formatMoney, parseDate: parseDate, ageAt: ageAt, isoToday: isoToday, formatDate: formatDate, todayDMY: todayDMY, longDate: longDate, dobFromSaId: dobFromSaId, saIdValid: saIdValid };
+  return { sexFromSaId: sexFromSaId, splitFullName: splitFullName, num: num, money: money, money2: money2, formatMoney: formatMoney, parseDate: parseDate, ageAt: ageAt, isoToday: isoToday, formatDate: formatDate, todayDMY: todayDMY, longDate: longDate, dobFromSaId: dobFromSaId, saIdValid: saIdValid };
 });
