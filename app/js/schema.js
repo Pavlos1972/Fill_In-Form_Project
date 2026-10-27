@@ -172,6 +172,9 @@
       ] }
     ] },
 
+    { id: 'debts', title: 'Debts', blocks: [{ list: 'debts' }, { fields: [N('n_debts')] }] },
+    { id: 'kids', title: 'Children', blocks: [{ list: 'kids' }, { fields: [N('n_kids')] }] },
+
     { id: 'health', roomy: 1, title: 'Health', blocks: [
       { fields: [
         { id: 'h_gen', l: 'General health good', t: 'sel', o: YN },
@@ -183,9 +186,6 @@
         N('h_notes', 'Health notes')
       ] }
     ] },
-
-    { id: 'debts', title: 'Debts', blocks: [{ list: 'debts' }, { fields: [N('n_debts')] }] },
-    { id: 'kids', title: 'Children', blocks: [{ list: 'kids' }, { fields: [N('n_kids')] }] },
 
     { id: 'q_risk', adv: 1, title: 'Personal risk quotes', blocks: [
       { title: 'FNA quote', fields: [
