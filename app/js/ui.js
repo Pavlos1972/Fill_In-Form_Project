@@ -195,7 +195,7 @@
     if (L.cards) {
       if (!rows.length) h += '<div class="empty-list">None recorded yet.</div>';
       rows.forEach(function (r, i) {
-        h += '<div class="rowcard s-' + r.st + '"><div class="rowhead"><b>' + esc(L.cards) + ' ' + (i + 1) + '</b>' +
+        h += '<div class="rowcard rc-' + key + ' s-' + r.st + '"><div class="rowhead"><b>' + esc(L.cards) + ' ' + (i + 1) + '</b>' +
           ((r.st === 'heard' || r.st === 'verify') ? badge(r.st, 'r:' + key + ':' + i) : '') +
           '<span class="grow"></span><button type="button" class="x" data-del="' + key + ':' + i + '">✕ Remove</button></div><div class="grid">' +
           L.cols.map(function (c) { return cellHTML(key, i, c, r, true); }).join('') + '</div></div>';

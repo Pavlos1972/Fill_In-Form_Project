@@ -224,10 +224,10 @@
     ] },
     { id: 'q_calc', adv: 1, title: 'Risk calculation', blocks: [
       { title: 'Life cover: fractured cover', fields: riskCalc('lc').concat([
-        { id: 'lc_f_aci', l: 'ACI', t: 'sel', o: ACI, opt: 1 },
-        { id: 'lc_f_aciv', l: 'ACI value', t: 'txt', opt: 1 },
-        { id: 'lc_wol', l: 'Life cover (WOL) ABI', t: 'txt', opt: 1 },
-        { id: 'lc_ccabi', l: 'Childcare ABI', t: 'txt', opt: 1 }
+        { id: 'lc_f_aci', l: 'ACI', t: 'sel', o: ACI, opt: 1, preset: 'Fixed' },
+        { id: 'lc_f_aciv', l: 'ACI value', t: 'txt', opt: 1, preset: '?' },
+        { id: 'lc_wol', l: 'Life cover (WOL) ABI', t: 'txt', opt: 1, preset: '3%' },
+        { id: 'lc_ccabi', l: 'Childcare ABI', t: 'txt', opt: 1, preset: '5%' }
       ]) },
       { title: 'Life cover: standard', fields: [
         { id: 'lc_sa', money: 1, l: 'Sum assured (R)', t: 'txt', opt: 1 },
@@ -239,9 +239,9 @@
         N('lc_cmt', 'Comments')
       ] },
       { title: 'Permanent disability: fractured cover', fields: riskCalc('pd').concat([
-        { id: 'pd_f_aci', l: 'ACI', t: 'sel', o: ACI, opt: 1 },
-        { id: 'pd_f_aciv', l: 'ACI value', t: 'txt', opt: 1 },
-        { id: 'pd_ccabi', l: 'Childcare ABI', t: 'txt', opt: 1 }
+        { id: 'pd_f_aci', l: 'ACI', t: 'sel', o: ACI, opt: 1, preset: 'Fixed' },
+        { id: 'pd_f_aciv', l: 'ACI value', t: 'txt', opt: 1, preset: '?' },
+        { id: 'pd_ccabi', l: 'Childcare ABI', t: 'txt', opt: 1, preset: '5%' }
       ]) },
       { title: 'Permanent disability: standard', fields: [
         { id: 'pd_sa', money: 1, l: 'Sum assured (R)', t: 'txt', opt: 1 },
@@ -256,18 +256,18 @@
         { id: 'dd_cover', money: 1, l: 'Dread disease cover (R)', t: 'txt', opt: 1 },
         { id: 'dd_term', l: 'Term', t: 'sel', o: ['WOL', 'Specified Age', 'Other'], opt: 1 },
         { id: 'dd_termv', l: 'Term value', t: 'txt', opt: 1 },
-        { id: 'dd_aci', l: 'ACI', t: 'sel', o: ['Fixed', 'Age-rated', 'Other'], opt: 1 },
-        { id: 'dd_aciv', l: 'ACI value', t: 'txt', opt: 1 },
-        { id: 'dd_abiv', l: 'ABI', t: 'txt', opt: 1 },
+        { id: 'dd_aci', l: 'ACI', t: 'sel', o: ['Fixed', 'Age-rated', 'Other'], opt: 1, preset: 'Fixed' },
+        { id: 'dd_aciv', l: 'ACI value', t: 'txt', opt: 1, preset: '?' },
+        { id: 'dd_abiv', l: 'ABI', t: 'txt', opt: 1, preset: '3%' },
         N('dd_cmt', 'Comments')
       ] },
       { title: 'Income protection / sickness benefit', fields: [
         { id: 'ip_age', l: 'Income protection age', t: 'sel', o: ['65', '70'], opt: 1 },
         { id: 'ip_amt', money: 1, l: 'Insured amount (R p.m.)', t: 'txt', opt: 1 },
         { id: 'ip_wait', l: 'Waiting period', t: 'sel', o: ['7 days', '14 days', '1 month', '3 months', 'Other'], opt: 1 },
-        { id: 'ip_aci', l: 'ACI', t: 'sel', o: ['Fixed', 'Age-rated', 'Other'], opt: 1 },
-        { id: 'ip_aciv', l: 'ACI value', t: 'txt', opt: 1 },
-        { id: 'ip_abiv', l: 'ABI', t: 'txt', opt: 1 },
+        { id: 'ip_aci', l: 'ACI', t: 'sel', o: ['Fixed', 'Age-rated', 'Other'], opt: 1, preset: 'Fixed' },
+        { id: 'ip_aciv', l: 'ACI value', t: 'txt', opt: 1, preset: '?' },
+        { id: 'ip_abiv', l: 'ABI', t: 'txt', opt: 1, preset: '5%' },
         N('ip_cmt', 'Comments')
       ] },
       { fields: [N('n_calc')] }
@@ -323,7 +323,7 @@
       { k: 'notes', l: 'Notes', t: 'area', wide: 1 }
     ], sum: { inst: 'Total monthly', bal: 'Total liabilities', asset: 'Total assets' } },
     kids: { cards: 'Child', title: 'Children', add: 'Add child', cols: [
-      { k: 'name', l: 'Name & surname' }, { k: 'gender', l: 'Gender', o: ['Female', 'Male'] }, { k: 'dob', l: 'Date of birth', date: 1 },
+      { k: 'name', l: 'Name & surname' }, { k: 'gender', l: 'Gender', o: ['Female', 'Male'] }, { k: 'dob', l: 'Date of birth', date: 1 }, { k: 'age', l: 'Age', calc: 'age' },
       { k: 'stage', l: 'Education stage', o: STAGES }, { k: 'cost', money: 1, l: 'Monthly cost (R)', num: 1 }
     ], sum: { cost: 'Total childcare' } },
     redq: { cards: 'Reduced quote', title: 'Reduced quotes', add: 'Add reduced quote', cols: [

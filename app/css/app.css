@@ -126,6 +126,7 @@ tfoot td { background: var(--surface-2); font-weight: 600; font-variant-numeric:
 .rowhead { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
 .rowhead b { font-weight: 600; }
 .rowcard .grid { grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 14px 22px; }
+.rowcard.rc-kids .grid { grid-template-columns: repeat(auto-fill, minmax(max(150px, calc((100% - 110px) / 6)), 1fr)); }      /* name, gender, date of birth, age, stage and cost on one row when the card is wide enough, wrapping when it is not */
 .rowcard .f input, .rowcard .f select { padding-right: 9px; background: var(--surface); }
 .rowcard .f input[readonly] { background: var(--calc-soft); color: var(--calc); }
 .sumstrip { display: flex; flex-wrap: wrap; gap: 6px 22px; padding: 10px 14px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 6px; font-variant-numeric: tabular-nums; margin-bottom: 10px; }
