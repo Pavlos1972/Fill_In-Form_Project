@@ -30,10 +30,23 @@
       rows: function (k) { return state.l[k] || []; }
     };
   }
-  function setField(state, id, v, st) { state.f[id] = { v: v, st: st || (v === '' ? 'empty' : 'confirmed') }; }
+  /* The children of a male client carry his surname: it is put in a child's Surname box when it is empty, or when it still holds his old surname (the client's surname or gender was
+     changed since). A surname the adviser typed for a child is never touched. */
+  function fatherSurname(state) { return state.f.gender && state.f.gender.v === 'Male' && state.f.sname ? String(state.f.sname.v || '').trim() : ''; }
+  function followFather(state, was) {
+    var now = fatherSurname(state);
+    if (!now) return;
+    (state.l.kids || []).forEach(function (r) { if (!r.d.sname || (was && r.d.sname === was)) r.d.sname = now; });
+  }
+  function setField(state, id, v, st) {
+    var was = id === 'sname' || id === 'gender' ? fatherSurname(state) : null;
+    state.f[id] = { v: v, st: st || (v === '' ? 'empty' : 'confirmed') };
+    if (id === 'sname' || id === 'gender') followFather(state, was);
+  }
   function addRow(state, key, data, st) {
     var d = {};
     schema.lists[key].cols.forEach(function (c) { d[c.k] = (data && data[c.k]) || ''; });
+    if (key === 'kids' && !d.sname) d.sname = fatherSurname(state);
     var r = { d: d, st: st || 'confirmed' };
     state.l[key].push(r);
     return r;
@@ -45,6 +58,19 @@
     else if (state.f[target.id]) state.f[target.id].st = 'confirmed';
   }
 
+  /* An ID or passport number can be on the form once: for the client, or for one partner or shareholder. 721209 5268086 and 7212095268086 are the same number. */
+  function idKey(v) { return String(v == null ? '' : v).replace(/[^A-Za-z0-9]/g, '').toUpperCase(); }
+  /* Who already has this number? where is the box being written: { id: 'idno' } or { list: 'shares', i } (that box is not counted). -> { who: 'the client' } or null. */
+  function idClash(state, value, where) {
+    var k = idKey(value), hit = null;
+    if (k.length < 6) return null;                                                       // a few digits are not an ID number yet
+    if (!(where && where.id === 'idno') && state.f.idno && idKey(state.f.idno.v) === k) return { who: 'the client' };
+    (state.l.shares || []).forEach(function (r, i) {
+      if (hit || (where && where.list === 'shares' && where.i === i)) return;
+      if (idKey(r.d.id) === k) hit = { who: 'partner / shareholder ' + (i + 1) + (r.d.name ? ' (' + r.d.name + ')' : '') };
+    });
+    return hit;
+  }
   function clientName(state) {
     return [state.f.fname.v, state.f.sname.v].map(function (x) { return String(x || '').trim(); }).filter(Boolean).join(' ');
   }
@@ -65,6 +91,10 @@
       if (!schema.lists[k]) return;
       s.l[k] = (j.l[k] || []).map(function (r) {
         var d = {}; schema.lists[k].cols.forEach(function (c) { d[c.k] = (r.d && r.d[c.k]) || ''; });
+        if (k === 'kids' && r.d && r.d.sname === undefined && d.name) {                         // saved when a child had one "Name & surname" box: split it
+          var sp = util.splitFullName(d.name, j.f && j.f.sname && j.f.sname.v);
+          d.name = sp.first; d.sname = sp.last;
+        }
         return { d: d, st: r.st || 'confirmed' };
       });
     });
@@ -110,5 +140,5 @@
     return { tot: tot, fill: fill, ver: ver };
   }
 
-  return { blank: blank, blankTally: blankTally, ctxFor: ctxFor, setField: setField, addRow: addRow, delRow: delRow, setCell: setCell, accept: accept, clientName: clientName, baseFileName: baseFileName, fromJSON: fromJSON, toJSON: toJSON, counts: counts };
+  return { blank: blank, blankTally: blankTally, ctxFor: ctxFor, setField: setField, addRow: addRow, delRow: delRow, setCell: setCell, accept: accept, clientName: clientName, idClash: idClash, idKey: idKey, fatherSurname: fatherSurname, baseFileName: baseFileName, fromJSON: fromJSON, toJSON: toJSON, counts: counts };
 });

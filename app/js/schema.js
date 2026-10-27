@@ -48,6 +48,7 @@
         { id: 'age', l: 'Age at date of form', t: 'txt', calc: 'age', s: 3 },
         { id: 'idtype', l: 'ID or passport', t: 'sel', o: ['ID', 'Passport'], preset: 'ID', voice: 1, s: 3 },
         { id: 'idno', l: 'ID / passport number', t: 'txt', risky: 1, len: 1, s: 4 },
+        { id: 'gender', l: 'Gender', t: 'sel', o: ['Female', 'Male'], s: 2 },
         { id: 'nat', l: 'Nationality', t: 'sel', o: ['South African', 'Other'], preset: 'South African', voice: 1, s: 3 },
         { id: 'nat_other', l: 'Other', t: 'txt', s: 3 },
         { id: 'tax', l: 'Income tax number', t: 'txt', risky: 1, len: 1, s: 4 }
@@ -194,7 +195,7 @@
         { id: 'fna_type', l: 'Type of quote', t: 'sel', o: QTYPE },
         { id: 'fna_ins', l: 'Insurer', t: 'sel', free: 1, o: INS }
       ] },
-      { title: 'Shortfall quote', fields: [
+      { title: 'Shortfall quote', cond: { f: 'has_group', nin: ['No', 'Not sure'] }, condMsg: 'No Group exists for a Shortfall Quote to be compiled. (Group risk through employer, on the Existing cover & retirement page, is No or Not sure.)', pdfMsg: 1, fields: [
         { id: 'sf_req', l: 'Shortfall quote', t: 'sel', o: REQ },
         { id: 'sf_type', l: 'Type of quote', t: 'sel', o: QTYPE },
         { id: 'sf_ins', l: 'Insurer', t: 'sel', free: 1, o: INS }
@@ -323,7 +324,7 @@
       { k: 'notes', l: 'Notes', t: 'area', wide: 1 }
     ], sum: { inst: 'Total monthly', bal: 'Total liabilities', asset: 'Total assets' } },
     kids: { cards: 'Child', title: 'Children', add: 'Add child', cols: [
-      { k: 'name', l: 'Name & surname' }, { k: 'gender', l: 'Gender', o: ['Female', 'Male'] }, { k: 'dob', l: 'Date of birth', date: 1 }, { k: 'age', l: 'Age', calc: 'age' },
+      { k: 'name', l: 'Name' }, { k: 'sname', l: 'Surname' }, { k: 'gender', l: 'Gender', o: ['Female', 'Male'] }, { k: 'dob', l: 'Date of birth', date: 1 }, { k: 'age', l: 'Age', calc: 'age' },
       { k: 'stage', l: 'Education stage', o: STAGES }, { k: 'cost', money: 1, l: 'Monthly cost (R)', num: 1 }
     ], sum: { cost: 'Total childcare' } },
     redq: { cards: 'Reduced quote', title: 'Reduced quotes', add: 'Add reduced quote', cols: [

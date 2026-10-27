@@ -30,6 +30,33 @@
      A date typed or said after the ID is left as it is (the Checks panel warns when it does not match). The date takes the status of the ID number:
      amber "verify" while the ID is, confirmed once the ID is (typed, clicked or agreed to by the client). Returns what the box held before (so it can be
      undone), or null when nothing changed. This happens on this computer: the ID number is never sent anywhere. */
+  /* The gender follows a valid South African ID number, only while the gender box is empty (a gender that is there is left alone). */
+  function autoGender() {
+    var id = String(state.f.idno.v || '').replace(/\s/g, ''), g = state.f.gender;
+    if (!g || state.f.idtype.v === 'Passport' || !util.saIdValid(id) || g.v !== '') return null;
+    var was = { v: g.v, st: g.st };
+    store.setField(state, 'gender', util.sexFromSaId(id), state.f.idno.st === 'confirmed' ? 'confirmed' : 'verify');
+    return was;
+  }
+  /* An ID number can be on the form once. Says where it already is, or returns null. where: { id: 'idno' } or { list: 'shares', i }. */
+  function idClashMsg(value, where) {
+    var c = store.idClash(state, value, where);
+    return c ? 'That ID number is already used for ' + c.who + '. An ID number can only be on the Fact Find once.' : null;
+  }
+  /* A child's name given as "Anna Kuiper" in the Name box: the surname goes to the Surname box. If the Surname box already holds that surname (the father's, put there by itself) it is just taken off the name.
+     Said aloud, a two-word name is first name and surname. Typed (strict), only a surname that is the one already there, or the father's, is split off, so "Anna Maria" stays a first name. */
+  function kidsNameFix(row, strict) {
+    if (!row || !row.d.name) return;
+    var name = String(row.d.name).trim(), have = String(row.d.sname || '').trim(), dad = store.fatherSurname(state), sp;
+    if (have) {
+      if (name.length > have.length + 1 && name.toLowerCase().slice(-(have.length + 1)) === (' ' + have).toLowerCase()) row.d.name = name.slice(0, name.length - have.length).trim();
+      return;
+    }
+    sp = util.splitFullName(name, dad);
+    if (!sp.last) return;
+    if ((strict || dad) && sp.last.toLowerCase() !== dad.toLowerCase()) return;           // not the father's surname: more likely two first names
+    row.d.name = sp.first; row.d.sname = sp.last;
+  }
   function autoDob() {
     var id = String(state.f.idno.v || '').replace(/\s/g, ''), d = state.f.dob;
     if (state.f.idtype.v === 'Passport' || !/^\d{13}$/.test(id)) return null;
@@ -344,24 +371,32 @@
     }
     if (t.dataset.f) {
       var def = schema.fieldsById[t.dataset.f], val = t.value.trim() === '' ? '' : t.value;
+      if (t.dataset.f === 'idno' && val) { var clashMsg = idClashMsg(val, { id: 'idno' }); if (clashMsg) { t.value = state.f.idno.v; toast(clashMsg); return; } }     // the box goes back to what it held
       if (def && def.money) { val = util.formatMoney(val); t.value = val; }
       if (def && def.date) { var pd = util.parseDate(val); if (pd) { val = util.formatDate(pd); t.value = val; } }
       store.setField(state, t.dataset.f, val);
       var dobSet = (t.dataset.f === 'idno' || t.dataset.f === 'idtype') && autoDob();        // the date of birth follows the ID number (and the ID type going back to ID)
+      var sexSet = (t.dataset.f === 'idno' || t.dataset.f === 'idtype') && autoGender();      // and so does an empty gender box
       var wrap = t.closest('.f'); if (wrap) { wrap.className = wrap.className.replace(/\bs-\w+/, 's-' + state.f[t.dataset.f].st); var b = wrap.querySelector('.st'); if (b) b.innerHTML = badge(state.f[t.dataset.f].st, 'f:' + t.dataset.f); }
       touch();
       if (t.dataset.f === 'employer' || t.dataset.f === 'biz_name') autoCompanyLookup(t.dataset.f);
       if (PROFILE_SRC.indexOf(t.dataset.f) >= 0) autoProfileLookup();
       if (dobSet) paintField('dob');
+      if (sexSet) paintField('gender');
       if (condIds[t.dataset.f]) { redraw(); var again = document.querySelector('[data-f="' + t.dataset.f + '"]'); if (again) again.focus(); } else refreshLive();
     } else if (t.dataset.l) {
       var key = t.dataset.l, i = +t.dataset.i, k = t.dataset.k, col = schema.lists[key].cols.filter(function (c) { return c.k === k; })[0], row0 = state.l[key][i];
       var v2 = t.value;
+      if (key === 'shares' && k === 'id' && v2.trim()) { var clashMsg2 = idClashMsg(v2, { list: 'shares', i: i }); if (clashMsg2) { t.value = row0.d.id; toast(clashMsg2); return; } }
       if (col && col.money) { v2 = util.formatMoney(v2); t.value = v2; }
       if (col && col.date) { var pd2 = util.parseDate(v2); if (pd2) { v2 = util.formatDate(pd2); t.value = v2; } }
       /* A child's education stage follows the date of birth until it is set by hand. */
       var autoStage = key === 'kids' && k === 'dob' && (row0.d.stage === '' || row0.d.stage === FF.calc.rowCalc('stage', row0, ctx()));
       store.setCell(state, key, i, k, v2);
+      if (key === 'kids' && k === 'name' && /\s/.test(v2.trim())) {                          // "Anna Kuiper" typed in the Name box: the surname goes to its own box
+        kidsNameFix(row0, true);
+        var sn = document.querySelector('[data-l="kids"][data-i="' + i + '"][data-k="sname"]'); if (sn) sn.value = row0.d.sname || ''; t.value = row0.d.name;
+      }
       if (autoStage) {
         row0.d.stage = FF.calc.rowCalc('stage', row0, ctx());
         var sel = document.querySelector('[data-l="kids"][data-i="' + i + '"][data-k="stage"]'); if (sel) sel.value = row0.d.stage;
@@ -977,6 +1012,7 @@
     var rows = state.l[c.list];
     while (rows.length <= c.i) store.addRow(state, c.list, {}, 'heard');
     var row = rows[c.i], prev = row.d[c.k] == null ? '' : String(row.d[c.k]);
+    if (res.kind === 'fill' && vmIdClash(id, res.value)) return false;
     if (res.kind === 'confirm') {
       if (prev === '') return false;
       vm.undo.push({ kind: 'cell', list: c.list, i: c.i, k: c.k, prev: { v: prev, st: row.st } });
@@ -987,6 +1023,7 @@
       var auto = c.list === 'kids' && c.k === 'dob' && (row.d.stage === '' || row.d.stage === FF.calc.rowCalc('stage', row, ctx()));   // a child's stage follows the date of birth until set by hand
       vm.undo.push({ kind: 'cell', list: c.list, i: c.i, k: c.k, prev: { v: prev, st: row.st } });
       store.setCell(state, c.list, c.i, c.k, value, res.status === 'verify' ? 'verify' : 'heard');
+      if (c.list === 'kids' && c.k === 'name') kidsNameFix(row);                  // "Anna Kuiper" heard in the Name box: Anna, and Kuiper in Surname
       if (auto) row.d.stage = FF.calc.rowCalc('stage', row, ctx());
     }
     vm.rowCur[c.list] = c.i;
@@ -1011,15 +1048,23 @@
       row.d[k] = x.value; row.st = x.status === 'verify' ? 'verify' : (row.st === 'verify' ? 'verify' : 'heard');
       flashed.push(list + ':' + i + ':' + k); last = k;
     });
-    if (list === 'kids' && row.d.dob && row.d.stage === '') row.d.stage = FF.calc.rowCalc('stage', row, ctx());
+    if (list === 'kids') { kidsNameFix(row); if (row.d.dob && row.d.stage === '') row.d.stage = FF.calc.rowCalc('stage', row, ctx()); }
     touch(); redraw(); vmPulseNav();
     if (last) { vm.target = list + ':' + i + ':' + last; vm.answered = true; }
     flashed.forEach(vmFlash); vmMarkWait();
     return i;
   }
+  /* The voice fill of an ID number that is already on the form is declined, with a word under the box. */
+  function vmIdClash(id, value) {
+    var cr = vmCellRef(id), where = cr ? (cr.list === 'shares' && cr.k === 'id' ? { list: 'shares', i: cr.i } : null) : (id === 'idno' ? { id: 'idno' } : null);
+    var msg = where ? idClashMsg(value, where) : null;
+    if (msg) { vmNote(id, msg); vmLog('did not fill the ID number: ' + msg); }
+    return !!msg;
+  }
   function vmApply(id, res) {
     var cr = vmCellRef(id);
     if (cr) return vmApplyCell(cr, id, res);
+    if (res.kind === 'fill' && vmIdClash(id, res.value)) return false;
     var cell = state.f[id], entry = { kind: 'fill', id: id, prev: { v: cell.v, st: cell.st }, extras: [] }, extraIds = [];
     if (res.kind === 'confirm') {
       if (cell.v === '') return false;
@@ -1030,7 +1075,7 @@
       if (res.append && cell.v && (cell.st === 'heard' || cell.st === 'verify')) value = cell.v + ' ' + value;
       store.setField(state, id, value, res.status);
       (res.extra || []).forEach(function (x) { var c2 = state.f[x.id]; entry.extras.push({ id: x.id, prev: { v: c2.v, st: c2.st } }); store.setField(state, x.id, x.value, x.status); extraIds.push(x.id); });
-      if (id === 'idno') { var dobWas = autoDob(); if (dobWas) { entry.extras.push({ id: 'dob', prev: dobWas }); extraIds.push('dob'); } }   // the date of birth comes from the ID number
+      if (id === 'idno') { var dobWas = autoDob(); if (dobWas) { entry.extras.push({ id: 'dob', prev: dobWas }); extraIds.push('dob'); } var sexWas = autoGender(); if (sexWas) { entry.extras.push({ id: 'gender', prev: sexWas }); extraIds.push('gender'); } }   // the date of birth and an empty gender come from the ID number
     }
     vm.undo.push(entry);
     if (NUMBER_BOXES.indexOf(id) >= 0) vm.lastNum = id;
@@ -1646,7 +1691,7 @@
     var seen = {}, names = [];
     function add(v) { v = String(v == null ? '' : v).replace(/\s+/g, ' ').trim(); if (v && v.length <= 40 && !/\d{3,}|@/.test(v) && !seen[v.toLowerCase()]) { seen[v.toLowerCase()] = 1; names.push(v); } }
     ['advisor', 'fname', 'sname', 'sp_name', 'employer', 'biz_name'].forEach(function (id) { if (state.f[id]) add(state.f[id].v); });
-    ['shares', 'kids'].forEach(function (key) { (state.l[key] || []).forEach(function (r) { add(r.d.name); }); });
+    ['shares', 'kids'].forEach(function (key) { (state.l[key] || []).forEach(function (r) { add(r.d.name); add(r.d.sname); }); });
     return 'A South African financial adviser and a client are filling in a Fact Find. Names and terms that may be said: ' + names.slice(0, 20).join(', ') + (names.length ? ', ' : '') + SPEECH_TERMS + '.' + (last ? ' The line before: ' + last : '');
   }
   function listenStart() {
