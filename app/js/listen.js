@@ -283,20 +283,50 @@
     return 'Could not start listening: ' + (e && e.message || e);
   }
   /* Opens the microphone and calls onChunk(Float32Array at 16 000 a second) as sound arrives. */
+  /* The sound of a stream as chunks at the speech rate, handed to onChunk. Returns the function that lets go of it. */
+  function tap(stream, onChunk) {
+    var AC = typeof window !== 'undefined' && (window.AudioContext || window.webkitAudioContext), ctx;
+    try { ctx = new AC({ sampleRate: RATE }); } catch (e) { ctx = new AC(); }
+    var src = ctx.createMediaStreamSource(stream), node = ctx.createScriptProcessor(4096, 1, 1), mute = ctx.createGain();
+    mute.gain.value = 0;
+    node.onaudioprocess = function (e) { onChunk(resample(new Float32Array(e.inputBuffer.getChannelData(0)), ctx.sampleRate, RATE)); };
+    src.connect(node); node.connect(mute); mute.connect(ctx.destination);
+    if (ctx.resume) ctx.resume();
+    return function () { try { node.disconnect(); src.disconnect(); } catch (e) { /* already closed */ } if (ctx.close) ctx.close(); };
+  }
   function openMic(onChunk) {
     var md = typeof navigator !== 'undefined' && navigator.mediaDevices, AC = typeof window !== 'undefined' && (window.AudioContext || window.webkitAudioContext);
     if (!md || !md.getUserMedia || !AC) return Promise.reject(new Error('This browser cannot use the microphone.'));
     return md.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true } }).then(function (stream) {
-      var ctx;
-      try { ctx = new AC({ sampleRate: RATE }); } catch (e) { ctx = new AC(); }
-      var src = ctx.createMediaStreamSource(stream), node = ctx.createScriptProcessor(4096, 1, 1), mute = ctx.createGain(), track = stream.getAudioTracks()[0];
-      mute.gain.value = 0;
-      node.onaudioprocess = function (e) { onChunk(resample(new Float32Array(e.inputBuffer.getChannelData(0)), ctx.sampleRate, RATE)); };
-      src.connect(node); node.connect(mute); mute.connect(ctx.destination);
-      if (ctx.resume) ctx.resume();
-      return { label: track && track.label || '', close: function () { try { node.disconnect(); src.disconnect(); } catch (e) { /* already closed */ } stream.getTracks().forEach(function (t) { t.stop(); }); if (ctx.close) ctx.close(); } };
+      var release = tap(stream, onChunk), track = stream.getAudioTracks()[0];
+      return { label: track && track.label || '', close: function () { release(); stream.getTracks().forEach(function (t) { t.stop(); }); } };
     });
   }
+  /* The sound of the other side of a call. Chrome's share window can hand over the sound of a tab (Teams in Chrome) or of the whole computer (the Teams app; Windows: "Also share system audio"), which is
+     where the client's voice comes out, and the microphone never hears it when a headset is worn. Only the sound is used: the picture is thrown away. Rejects with NoCallSound when the share had no sound. */
+  function openCall(onChunk) {
+    var md = typeof navigator !== 'undefined' && navigator.mediaDevices, AC = typeof window !== 'undefined' && (window.AudioContext || window.webkitAudioContext);
+    if (!md || !md.getDisplayMedia || !AC) return Promise.reject(new Error('This browser cannot share the sound of a call.'));
+    return md.getDisplayMedia({ video: { frameRate: 1 }, audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }, systemAudio: 'include', selfBrowserSurface: 'exclude' }).then(function (stream) {
+      var track = stream.getAudioTracks()[0];
+      if (!track) { stream.getTracks().forEach(function (t) { t.stop(); }); var e = new Error('The share had no sound.'); e.name = 'NoCallSound'; throw e; }
+      var release = tap(stream, onChunk);
+      return {
+        label: track.label || '',
+        onEnded: function (cb) { stream.getTracks().forEach(function (t) { t.addEventListener('ended', cb); }); },                    // "Stop sharing" in Chrome ends the tracks
+        close: function () { release(); stream.getTracks().forEach(function (t) { t.stop(); }); }
+      };
+    });
+  }
+  function callError(e) {
+    var n = e && e.name;
+    if (n === 'NoCallSound') return 'The share had no sound, so the client is not heard. In Chrome\'s share window choose "Entire screen" and tick "Also share system audio" (the Teams app), or choose the Teams tab and tick "Also share tab audio". Only the microphone is heard for now.';
+    if (n === 'NotAllowedError' || n === 'AbortError' || n === 'SecurityError') return 'The call\'s sound was not shared (the share window was closed or refused), so the client is not heard. Only the microphone is heard.';
+    return 'The call\'s sound could not be shared' + (e && e.message ? ' (' + e.message + ')' : '') + ', so the client is not heard. Only the microphone is heard.';
+  }
+  /* Words of a line without the punctuation, and how much of one line is in another: a microphone that hears the loudspeakers writes the client's line a second time. */
+  function wordsOf(t) { return String(t || '').toLowerCase().replace(/[^a-z0-9' ]+/g, ' ').split(/\s+/).filter(Boolean); }
+  function overlap(a, b) { var A = wordsOf(a), B = wordsOf(b), i, n = 0, pool = B.slice(), k; if (A.length < 3) return 0; for (i = 0; i < A.length; i++) { k = pool.indexOf(A[i]); if (k >= 0) { n++; pool.splice(k, 1); } } return n / A.length; }
 
   function label(id) { return (MODELS[id] || MODELS[DEFAULT_MODEL]).label; }
   /* The speech model on this computer. h: { text(line, meta), level(0..1), note(message), error(message), progress(percent), on(info) } */
@@ -471,8 +501,8 @@
      sent as a short WAV with a hint list (o.prompt(): the names on the form and the terms of the trade), and the words that come back go through the same clean-up. Lines are shown in the order they were
      said even when one takes longer to come back. The sound leaves this computer for OpenAI (never for Anthropic). h: as for the other engines. */
   function openaiEngine(o, h) {
-    var mic = null, seg = segmenter(), alive = false, chain = Promise.resolve(), fails = 0, peak = 0, watch = null, last = '', f = o.fetchImpl || (typeof fetch !== 'undefined' ? fetch.bind(typeof window !== 'undefined' ? window : globalThis) : null);
-    function send(u) {
+    var mic = null, seg = segmenter(), call = null, callNote = '', segC = segmenter(), callOn = false, peakC = 0, watchC = null, said = [], alive = false, chain = Promise.resolve(), fails = 0, peak = 0, watch = null, last = '', f = o.fetchImpl || (typeof fetch !== 'undefined' ? fetch.bind(typeof window !== 'undefined' ? window : globalThis) : null);
+    function send(u, who) {
       var secs = u.length / RATE, t0 = Date.now(), pk = peakOf(u), form = new FormData(), hint = '', req;
       try { hint = o.prompt ? String(o.prompt(last) || '') : ''; } catch (e) { hint = ''; }
       form.append('file', wavBlob(normalize(u), RATE), 'speech.wav');
@@ -485,13 +515,21 @@
       chain = chain.then(function () { return req; }).then(function (r) {
         if (!alive) return;
         if (r.error) {
-          fails++;
+          fails++; if (h.event) h.event('line lost', r.error, true);
           if (r.status === 401 || r.status === 403 || r.status === 404 || fails >= 3) h.error(r.error); else if (h.note) h.note(r.error + ' That line was lost.');
           return;
         }
         fails = 0;
-        var text = cleanTranscript(r.text);
-        if (text) { last = text; h.text(text, { audio: secs, took: (Date.now() - t0) / 1000, where: 'OpenAI', peak: pk }); }
+        var text = cleanTranscript(r.text), now = Date.now();
+        if ((now - t0) / 1000 > 8 && h.event) h.event('slow answer from OpenAI', Math.round((now - t0) / 1000) + ' s for ' + Math.round(secs * 10) / 10 + ' s of sound', false);
+        if (!text) return;
+        said = said.filter(function (x) { return now - x.t < 10000; });
+        if (who === 'me' && said.some(function (x) { return x.who === 'client' && overlap(text, x.text) >= 0.7; })) {      // the microphone heard the loudspeakers: the client's line is already in
+          if (h.event) h.event('echo dropped', 'the microphone heard the call: ' + text, false);
+          return;
+        }
+        if (who === 'client') said.push({ who: who, text: text, t: now });
+        last = text; h.text(text, { audio: secs, took: (now - t0) / 1000, where: 'OpenAI', peak: pk, who: who });
       });
     }
     return {
@@ -499,19 +537,34 @@
         if (!o.openaiKey) return Promise.reject(new Error('Add your OpenAI key in Settings first (Speech source: OpenAI).'));
         if (!f) return Promise.reject(new Error('This browser cannot reach OpenAI.'));
         alive = true;
-        return (o.mic || openMic)(function (x) {
-          var lv = rms(x); if (lv > peak) peak = lv;
-          h.level(meter(lv));
-          if (!alive) return;
-          seg.push(x).forEach(send);
+        /* The call's sound is asked for first, while the click that pressed Listen still counts (Chrome only opens the share window for a click). A refusal leaves the microphone on its own. */
+        var callP = o.call ? (o.callCapture || openCall)(function (x) {
+          var lv = rms(x); if (lv > peakC) peakC = lv;
+          if (h.callLevel) h.callLevel(meter(lv));
+          if (alive && callOn) segC.push(x).forEach(function (u) { send(u, 'client'); });
+        }).then(function (c) {
+          call = c; callOn = true;
+          if (c.onEnded) c.onEnded(function () { if (alive && callOn) { callOn = false; if (h.note) h.note('The call\'s sound stopped (sharing was stopped in Chrome), so the client is no longer heard. Press Listen to stop and again to share it.'); if (h.event) h.event('call sound stopped', '', true); } });
+          watchC = setTimeout(function () { if (alive && callOn && peakC < 0.0008 && h.note) h.note('No sound has come from the call yet. If the client has spoken, stop Listen and start it again, and in the share window tick "Also share system audio" (whole screen) or "Also share tab audio" (a Chrome tab).'); }, o.callWatchMs || 30000);
+          if (h.event) h.event('call sound shared', c.label || '', false);
+        }, function (e) { callNote = callError(e); if (h.event) h.event('call sound not shared', (e && (e.name || e.message)) || '', true); }) : Promise.resolve();
+        return callP.then(function () {
+          return (o.mic || openMic)(function (x) {
+            var lv = rms(x); if (lv > peak) peak = lv;
+            h.level(meter(lv));
+            if (!alive) return;
+            seg.push(x).forEach(function (u) { send(u, callOn ? 'me' : undefined); });
+          });
         }).then(function (m) {
           mic = m;
           watch = setTimeout(function () { if (alive && mic && peak < 0.0008 && h.note) h.note('No sound is reaching Chrome from "' + (m.label || 'the microphone') + '". Check that it is not muted and that it is the microphone you are using (Windows: Settings, System, Sound, Input).'); }, 7000);
-          h.on({ mic: m.label, where: 'OpenAI', model: o.openaiModel || 'gpt-4o-transcribe' });
+          if (h.event) h.event('listening on', 'OpenAI, microphone' + (callOn ? ' and the call' : ''), false);
+          h.on({ mic: m.label, where: 'OpenAI', model: o.openaiModel || 'gpt-4o-transcribe', call: callOn ? (call && call.label || 'the call') : '' });
+          if (callNote && h.note) h.note(callNote);                                                // after the status line, which would otherwise replace it
         });
       },
-      stop: function () { alive = false; clearTimeout(watch); seg = segmenter(); peak = 0; if (mic) mic.close(); mic = null; },
-      feed: function (x) { if (alive) { seg.push(x).forEach(send); h.level(meter(seg.level())); } }       // used by the tests
+      stop: function () { if (alive && h.event) h.event('listening stopped', 'by the page or by you', false); alive = false; clearTimeout(watch); clearTimeout(watchC); seg = segmenter(); segC = segmenter(); peak = peakC = 0; said = []; callOn = false; if (mic) mic.close(); mic = null; if (call) call.close(); call = null; },
+      feed: function (x) { if (alive) { seg.push(x).forEach(function (u) { send(u, callOn ? 'me' : undefined); }); h.level(meter(seg.level())); } }       // used by the tests
     };
   }
 
@@ -524,6 +577,7 @@
       text: function (t, meta) { if (t && st === 'on') o.text(t, meta || {}); },
       interim: function (t) { if (o.interim && st === 'on') o.interim(t); },
       level: function (v) { if (o.level) o.level(v); },
+      callLevel: function (v) { if (o.callLevel) o.callLevel(v); },
       note: function (msg) { if (o.note) o.note(msg); },
       event: function (name, detail, show) { if (o.event) o.event(name, detail, show); },
       reading: function (secs) { if (o.reading && st === 'on') o.reading(secs); },
