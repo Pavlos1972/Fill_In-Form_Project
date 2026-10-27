@@ -9,7 +9,9 @@
 
   /* Standard PDF fonts cannot show every character. Keep to what they can. */
   function t(s) {
-    return String(s == null ? '' : s).replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/[–—]/g, '-').replace(/\xa0/g, ' ').replace(/[^\x09\x0a\x0d\x20-\x7e\xa1-\xff]/g, '?');
+    return String(s == null ? '' : s).replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/[–—‐‑‒−]/g, '-').replace(/[\xa0\u2002\u2003\u2009\u200a\u202f]/g, ' ').replace(/[\u200b\u200c\u200d\ufeff]/g, '')
+      .replace(/…/g, '...').replace(/[•‣◦⁃▪●]/g, '-').replace(/→/g, '->').replace(/←/g, '<-').replace(/↔/g, '<->').replace(/≥/g, '>=').replace(/≤/g, '<=').replace(/≈/g, '~')   // symbols the PDF's font has no shape for, as the plain text they stand for
+      .replace(/[^\x09\x0a\x0d\x20-\x7e\xa1-\xff]/g, '?');
   }
   function fieldValue(f, state, ctx) { return f.calc ? calc.field(f.calc, ctx) : (f.money ? util.formatMoney(state.f[f.id].v) : state.f[f.id].v); }
 
