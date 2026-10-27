@@ -41,11 +41,21 @@
   };
 
   var rowCalcs = {
+    /* A child's age on the date of the form (Date completed), from the date of birth: whole years, or months under a year. */
+    age: function (row, ctx) {
+      var dob = util.parseDate(row.d.dob), at = meetingDate(ctx);
+      if (!dob || !at) return '';
+      var y = util.ageAt(dob, at);
+      if (y == null || y < 0 || y > 130) return '';
+      if (y >= 1) return y + (y === 1 ? ' year' : ' years');
+      var m = (at.y - dob.y) * 12 + (at.m - dob.m) - (at.d < dob.d ? 1 : 0);
+      return m + (m === 1 ? ' month' : ' months');
+    },
     stage: function (row, ctx) {
       var dob = util.parseDate(row.d.dob);
       if (!dob) return '';
       var age = util.ageAt(dob, meetingDate(ctx));
-      return age < 3 ? 'Not yet in school' : age < 6 ? 'Pre-school' : age < 13 ? 'Primary' : age < 19 ? 'High school' : 'Tertiary';
+      return age < 3 ? 'Not Yet in School' : age < 6 ? 'Pre-school' : age < 13 ? 'Primary' : age < 19 ? 'High School' : 'Tertiary';      // spelled as the choices in the dropdown, or the box stays blank
     }
   };
 
