@@ -35,6 +35,8 @@
     },
     /* Household net income for the risk calculation is the client's own take-home income. */
     hh: function (ctx) { return ctx.v('net') ? util.money(ctx.n('net')) : ''; },
+    /* The income protection insured amount is always the take-home net income (Income & household), worked out and never typed. */
+    ip_amt: function (ctx) { return ctx.v('net') ? util.money(ctx.n('net')) : ''; },
     cc: function (ctx) { return ctx.rows('kids').length ? util.money(sumRows(ctx, 'kids', 'cost')) : ''; },
     dr: function (ctx) { return ctx.rows('debts').length ? util.money(sumRows(ctx, 'debts', 'inst')) : ''; },
     need: function (ctx) { return ctx.v('net') ? util.money(ctx.n('net') - sumRows(ctx, 'kids', 'cost') - sumRows(ctx, 'debts', 'inst')) : ''; }
