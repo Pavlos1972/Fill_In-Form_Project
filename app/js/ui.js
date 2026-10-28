@@ -267,8 +267,6 @@
     if (b.list) { if (!b.title && schema.lists[b.list].title !== sec.title) inner += '<div class="block-title">' + esc(schema.lists[b.list].title) + '</div>'; inner += listHTML(b.list); }
     return h + (ok ? inner : '<div class="off" inert>' + inner + '</div>');
   }
-  /* The risk-calculation blocks of the Life area are folded away until opened (or until the voice needs a box in them). */
-  var calcOpen = {};
   /* One area of the Client priorities page: its decision and comments boxes on the left with its quotes and referrals, and a short summary of what the client has on the right.
      The whole area takes a green haze when it is a priority and a red haze when it is not (its quotes are then greyed out; the comments box stays). */
   function panelHTML(sec, id) {
@@ -281,10 +279,12 @@
     if (!applies) h += '<div class="note warn">' + esc(P.condMsg) + ' <button type="button" class="btn ghost" data-sec="occ">Go to Occupation</button></div>';
     if (cls === ' p2') h += '<div class="note warn">The client said this is not a priority. The quote boxes are switched off. Use the comments box for the reason or your instructions.</div>';
     h += '<div class="area">';
-    var run = '';
-    function flush() { if (run) { h += '<details class="calcbox" data-calc="' + id + '"' + (calcOpen[id] ? ' open' : '') + '><summary>Risk calculation (life, disability, dread disease, income protection)</summary>' + run + '</details>'; run = ''; } }
-    blocks.forEach(function (b) { if (b.head) return; if (b.calc) { run += blockHTML(b, sec, c); return; } flush(); h += blockHTML(b, sec, c); });
-    flush();
+    var calcHead = false;
+    blocks.forEach(function (b) {
+      if (b.head) return;
+      if (b.calc && !calcHead) { calcHead = true; h += '<div class="block-title calc-title">Risk calculation: life, disability, dread disease, income protection</div>'; }      // always open with the area, whether or not the client has cover now
+      h += blockHTML(b, sec, c);
+    });
     return h + '</div></div>' + (P.sum ? '<div class="sum" data-sum="' + id + '">' + sumInner(id) + '</div>' : '') + '</div></section>';
   }
   function sectionHTML(sec) {
@@ -325,7 +325,6 @@
     }, function (e) { ids.forEach(function (id) { delete sumBusy[id]; }); sumPaint(ids); if (manual) toast('Claude could not write the summary (' + ((e && e.message) || 'no answer') + ').'); });
   }
   function sumSoon() { clearTimeout(sumTimer); sumTimer = setTimeout(function () { if (cur === 'prio') sumRefresh(null, false); }, 700); }
-  document.addEventListener('toggle', function (e) { var d = e.target; if (d && d.classList && d.classList.contains('calcbox')) calcOpen[d.dataset.calc] = d.open; }, true);
 
   /* Redrawing the section replaces its boxes, so the box the cursor is in (and anything typed there but not yet kept) is found again afterwards: an answer filled in the background does not take the cursor away. */
   function boxSelector(el) {
@@ -339,7 +338,6 @@
     var ae = document.activeElement, sel = ae && ae !== document.body ? boxSelector(ae) : '', field = sel && /^(?:INPUT|TEXTAREA|SELECT)$/.test(ae.tagName) && ae.type !== 'checkbox';
     var text = field && ae.tagName !== 'SELECT', keep = field ? { sel: sel, was: ae.defaultValue, typed: text && ae.value !== ae.defaultValue ? ae.value : null, a: text ? ae.selectionStart : null, b: text ? ae.selectionEnd : null } : null;
     main.className = 'main' + (sec.roomy ? ' roomy' : '') + (sec.fit ? ' fit' : '') + (sec.adv ? ' priorities' : '');
-    document.querySelectorAll('details.calcbox').forEach(function (d) { calcOpen[d.dataset.calc] = d.open; });          // a folded section opened a moment ago stays open
     main.innerHTML = sectionHTML(sec);
     if (cur === 'prio' && drawn !== 'prio') sumSoon();                                       // Claude writes the summaries when the page is opened
     drawn = cur;
@@ -972,8 +970,7 @@
     if (vm.run && vm.run.box !== id) vm.run = null;  // a number being said belongs to its own box
     if (vm.erun && vm.erun.box !== id) vmEmailGiveUp();
     if (isNumBox(id)) vm.lastNum = id;
-    var el = vmEl(id), fold = el && el.closest && el.closest('details.calcbox');
-    if (fold && !fold.open) { fold.open = true; calcOpen[fold.dataset.calc] = true; }
+    var el = vmEl(id);
     if (el) {
       el.scrollIntoView({ block: 'center', behavior: 'smooth' });
       var inp = el.querySelector('input:not([type=checkbox]),select,textarea');
