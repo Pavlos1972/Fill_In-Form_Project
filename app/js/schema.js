@@ -14,7 +14,7 @@
   var QTYPE = ['New Business', 'Servicing', 'N/A'];                         // what kind of quote it is
   var INS = ['Old Mutual', 'Momentum', 'Liberty', 'Sanlam', 'Discovery', 'BrightRock', 'Hollard', 'Assupol', 'Clientele', 'Other'];
   var BANKS = ['Nedbank', 'FNB', 'Investec', 'Standard Bank', 'ABSA', 'Discovery Bank', 'Capitec', 'Wesbank', 'Other'];
-  var WHO = ['Client', 'Spouse', 'Joint', 'Business'];
+  var WHO = ['Client', 'Spouse', 'Joint', 'Business', 'Ex-Spouse/Partner'];
   var ACI = ['Fixed', 'CPI', 'None'], REQ = ['Request a quote', 'Not required'];
   var MA_BROKER = ['Through company', 'Privately paid, no broker', 'Privately paid, other broker', 'Paul K'];
   var N = function (id, l) { return { id: id, l: l || 'Notes', t: 'area', wide: 1, opt: 1 }; };

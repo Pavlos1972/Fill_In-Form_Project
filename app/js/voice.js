@@ -576,6 +576,7 @@
   var ok = function (v) { return { value: v, status: 'heard' }; };
 
   /* Per-field rules where plain option matching is not enough. Return an option, an object, or null to fall through. */
+  var EX_PARTNER = / (?:ex|former|previous|late ex) (?:spouse|wife|husband|partner|girlfriend|boyfriend|fiance|fiancee|man|woman)s? | (?:ex spouse|ex wife|ex husband|ex partner|exwife|exhusband|expartner)s? | ex spouse partner /;
   var SPECIAL = {
     smoker: function (t) {
       var s = ' ' + t + ' ';
@@ -633,6 +634,8 @@
       if (/ (male|man|gentleman) /.test(s)) return 'Male';
       return null;
     },
+    'debts.owner': function (t) { return EX_PARTNER.test(' ' + t + ' ') ? 'Ex-Spouse/Partner' : null; },        // "my ex-wife", "his former husband": a plain "spouse" still means the current one
+    'debts.payer': function (t) { return EX_PARTNER.test(' ' + t + ' ') ? 'Ex-Spouse/Partner' : null; },
     sti: function (t) {
       return / (spouse|wife|husband|partner|handled by|handles|handle) /.test(' ' + t + ' ') ? 'Handled by spouse' : null;
     },

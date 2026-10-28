@@ -383,3 +383,11 @@ test('facts that were heard but not placed are kept once, saved with the file, a
   assert.deepStrictEqual(store.fromJSON(JSON.stringify(old)).unplaced, [], 'an older file opens with an empty list');
   assert.deepStrictEqual(store.fromJSON(JSON.stringify(Object.assign(old, { unplaced: [{ text: 'ok fact here', field: 'nonsense', value: 'x', sec: 'nope' }, 7, null] }))).unplaced.map(x => [x.text, x.field, x.sec]), [['ok fact here', undefined, undefined]]);
 });
+
+test('Debts: Owner and Payer both offer Ex-Spouse/Partner, and an older file with the other choices still opens', () => {
+  ['owner', 'payer'].forEach(k => assert.deepStrictEqual(schema.lists.debts.cols.find(c => c.k === k).o, ['Client', 'Spouse', 'Joint', 'Business', 'Ex-Spouse/Partner']));
+  const s = fresh(); store.addRow(s, 'debts', { type: 'Home loan', owner: 'Ex-Spouse/Partner', payer: 'Ex-Spouse/Partner' });
+  const back = store.fromJSON(store.toJSON(s));
+  assert.strictEqual(back.l.debts[0].d.owner, 'Ex-Spouse/Partner');
+  assert.strictEqual(back.l.debts[0].d.payer, 'Ex-Spouse/Partner');
+});
