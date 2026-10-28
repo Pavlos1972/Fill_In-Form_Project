@@ -315,3 +315,49 @@ test('the income protection insured amount is always the take-home net income', 
   set(s, 'ip_amt', 'R 1.00');                                                            // an old file may hold a typed amount: it is ignored
   assert.strictEqual(calc.field('ip_amt', c()), 'R 45 000.00');
 });
+
+/* ---- Date of marriage ---- */
+const MARRIED_NOW = ['Married in community of property', 'Married out of community (with accrual)', 'Married out of community (no accrual)', 'Customary marriage', 'Civil union'];
+const incomeSec = schema.sections.find(x => x.id === 'income');
+test('Date of marriage sits right after Marital status and shows only for the marriage types', () => {
+  const ids = incomeSec.blocks[0].fields.map(x => x.id);
+  assert.strictEqual(ids[ids.indexOf('marital') + 1], 'marr_date');
+  const def = schema.fieldsById.marr_date;
+  assert.ok(def.date && def.cal && def.cond);
+  const s = fresh();
+  schema.fieldsById.marital.o.forEach(o => {
+    set(s, 'marital', o);
+    assert.strictEqual(calc.showIf(def.cond, store.ctxFor(s)), MARRIED_NOW.includes(o), o);
+  });
+  assert.deepStrictEqual(schema.fieldsById.marital.o.filter(o => !MARRIED_NOW.includes(o)), ['Single', 'Life partner', 'Divorced', 'Widowed']);
+});
+test('a hidden Date of marriage is not counted in the progress', () => {
+  const s = fresh(); set(s, 'marital', 'Single');
+  const single = store.counts(s, incomeSec).tot;
+  set(s, 'marital', 'Customary marriage');
+  assert.strictEqual(store.counts(s, incomeSec).tot, single + 1 + 3);                        // the box itself and the three spouse boxes
+  const before = store.counts(s, incomeSec).fill;
+  set(s, 'marr_date', '14/03/2010');
+  assert.strictEqual(store.counts(s, incomeSec).fill, before + 1);
+  set(s, 'marital', 'Single');
+  assert.strictEqual(store.counts(s, incomeSec).fill, before, 'a date left behind is not counted once the box is hidden');
+});
+test('the date of marriage is tidied to day/month/year when a saved file is opened, and an old file without it opens fine', () => {
+  const s = fresh(); set(s, 'marital', 'Married in community of property'); set(s, 'marr_date', '14 March 2010');
+  const back = store.fromJSON(store.toJSON(s));
+  assert.strictEqual(back.f.marr_date.v, '14/03/2010');
+  const old = JSON.parse(store.toJSON(fresh())); delete old.f.marr_date;
+  const open = store.fromJSON(JSON.stringify(old));
+  assert.strictEqual(open.f.marr_date.v, '');
+});
+test('checks on the date of marriage: unreadable, after the form date, or before the client was 16', () => {
+  const msgs = (marital, d, dob) => { const s = fresh(); set(s, 'marital', marital); set(s, 'marr_date', d); if (dob) set(s, 'dob', dob); return validate.check(store.ctxFor(s)).filter(w => w.id === 'marr_date').map(w => w.msg); };
+  assert.deepStrictEqual(msgs('Customary marriage', '14/03/2010'), []);
+  assert.match(msgs('Customary marriage', 'sometime in spring')[0], /not recognised/);
+  assert.match(msgs('Customary marriage', '15/11/2026')[0], /after the date of the form/);
+  assert.deepStrictEqual(msgs('Customary marriage', '15/10/2026'), []);                                // the day of the form is fine
+  assert.match(msgs('Civil union', '01/01/2005', '14/03/1992')[0], /under 16/);
+  assert.deepStrictEqual(msgs('Civil union', '01/01/2010', '14/03/1992'), []);
+  assert.deepStrictEqual(msgs('Single', '15/11/2026'), [], 'a hidden date is not checked');
+  assert.deepStrictEqual(msgs('Life partner', 'rubbish'), []);
+});

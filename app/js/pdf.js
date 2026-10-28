@@ -64,7 +64,7 @@
       y += 5;
     }
     function fieldsTable(fields, head) {
-      var items = fields.filter(function (f) { return !f.nopdf; }).map(function (f) { return { label: t(f.l), value: t(fieldValue(f, state, ctx)), wide: f.t === 'area' || f.wide }; });
+      var items = fields.filter(function (f) { return !f.nopdf && calc.showIf(f.cond, ctx); }).map(function (f) { return { label: t(f.l), value: t(fieldValue(f, state, ctx)), wide: f.t === 'area' || f.wide }; });
       var rows = fieldRows(items); ensure(Math.min(rows.length * 7 + 4, 95));
       table({ body: rows, columnStyles: PAIR_COLS, head: head || undefined });
     }

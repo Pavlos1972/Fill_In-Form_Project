@@ -717,3 +717,20 @@ test('Type of quote: a question names the quote it is about, and a plain one tak
   assert.strictEqual(ask('Is it new business or servicing?', id => id !== 'fna_type'), 'sf_type');
   assert.strictEqual(ask('What is the FNA quote?'), 'fna_req');                      // the request box keeps its own name
 });
+
+test('Date of marriage: asked for by its own words, filled from a spoken date, and only offered for a marriage type', () => {
+  assert.strictEqual(q('and when did you get married', 'income'), 'marr_date');
+  assert.strictEqual(q('what is your date of marriage', 'income'), 'marr_date');
+  assert.strictEqual(q('your wedding date', 'income'), 'marr_date');
+  assert.strictEqual(q('are you married', 'income'), 'marital');
+  assert.strictEqual(q('what is your marital status', 'income'), 'marital');
+  assert.deepStrictEqual(say('marr_date', 'the fourteenth of March 2010'), { value: '14/03/2010', status: 'verify' });
+  assert.deepStrictEqual(say('marr_date', '14 March 2010'), { value: '14/03/2010', status: 'verify' });
+  assert.deepStrictEqual(say('marr_date', '2010-03-14'), { value: '14/03/2010', status: 'verify' });
+  assert.deepStrictEqual(say('marr_date', 'a long time ago'), { error: 'no-date' });
+  const calc = require('../app/js/calc.js');
+  const ctxOf = marital => ({ v: id => (id === 'marital' ? marital : '') });
+  assert.strictEqual(calc.showIf(f('marr_date').cond, ctxOf('Customary marriage')), true);
+  assert.strictEqual(calc.showIf(f('marr_date').cond, ctxOf('Single')), false);
+  assert.strictEqual(calc.showIf(f('marr_date').cond, ctxOf('')), false);
+});

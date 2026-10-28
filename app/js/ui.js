@@ -195,12 +195,13 @@
     if (f.calc) { v = FF.calc.field(f.calc, ctx()); st = 'calc'; }
     var rt = f.link ? '<a class="lnk" href="' + f.link[1] + '" target="_blank" rel="noopener">' + esc(f.link[0]) + ' ↗</a>' : '';
     if (f.lookup) rt += '<button type="button" class="lookup" data-lookup="' + f.id + '">' + esc(f.lookupBtn || 'Look up online') + '</button>';
+    if (f.cal) rt += '<button type="button" class="calbtn" data-cal="' + f.id + '" aria-label="Pick ' + esc(f.l.toLowerCase()) + ' from a calendar">📅 Calendar</button>';
     if (f.none) rt += '<label class="nonebox"><input type="checkbox" data-none="' + f.id + '"' + (isNone ? ' checked' : '') + '> ' + esc(f.none) + '</label>';
     if (f.t === 'area' && !f.opt) rt += badge(st, 'f:' + f.id);
     var attrs = 'data-f="' + f.id + '"' + (f.hint ? ' placeholder="' + esc(f.hint) + '"' : '');
     var style = g12 ? ' style="--s:' + (f.wide ? 12 : (f.s || 4)) + '"' : '';
     return '<label class="f s-' + st + (f.wide ? ' wide' : '') + '" data-field="' + f.id + '"' + style + '><span class="l"><span>' + esc(f.l) + '</span>' + (rt ? '<span class="rt">' + rt + '</span>' : '') + '</span>' +
-      '<span class="box">' + control(attrs, f, v, !!f.calc || isNone) + (f.t === 'area' ? '' : '<span class="st">' + badge(st, 'f:' + f.id) + '</span>') + '</span>' +
+      '<span class="box">' + control(attrs, f, v, !!f.calc || isNone) + (f.cal ? '<input type="date" class="calpick" data-calpick="' + f.id + '" tabindex="-1" aria-hidden="true">' : '') + (f.t === 'area' ? '' : '<span class="st">' + badge(st, 'f:' + f.id) + '</span>') + '</span>' +
       (f.len ? lenChip(f.id) : '') + '<span class="warn" data-warn="' + f.id + '" hidden></span></label>';
   }
   function cellHTML(key, i, c, r, card) {
@@ -254,7 +255,7 @@
       if (!calc.showIf(b.cond, c)) { h += '<div class="block-title">' + esc(b.title) + '</div><div class="note">' + esc(b.condMsg) + '</div>'; return; }
       if (b.title) h += '<div class="block-title">' + esc(b.title) + '</div>';
       if (b.help) h += '<p class="help">' + esc(b.help) + '</p>';
-      if (b.fields) h += '<div class="grid' + (b.layout === 'g12' ? ' g12' : '') + '">' + b.fields.map(function (f) { return fieldHTML(f, b.layout === 'g12'); }).join('') + '</div>';
+      if (b.fields) h += '<div class="grid' + (b.layout === 'g12' ? ' g12' : '') + '">' + b.fields.filter(function (f) { return calc.showIf(f.cond, c); }).map(function (f) { return fieldHTML(f, b.layout === 'g12'); }).join('') + '</div>';
       if (b.docs) h += docsHTML();
       if (b.list) { if (!b.title && schema.lists[b.list].title !== sec.title) h += '<div class="block-title">' + esc(schema.lists[b.list].title) + '</div>'; h += listHTML(b.list); }
     });
@@ -337,12 +338,25 @@
   function sectionOfList(key) { var r = ''; schema.sections.forEach(function (s) { s.blocks.forEach(function (b) { if (b.list === key) r = s.id; }); }); return r; }
 
   /* ---------- events ---------- */
+  /* The calendar button: a hidden date picker opens on the date already typed (or today); the date chosen is written into the text box as day/month/year and saved like a typed one. */
+  function openCalendar(id) {
+    var pick = document.querySelector('[data-calpick="' + id + '"]'), box = document.querySelector('[data-f="' + id + '"]'); if (!pick || !box) return;
+    var d = util.parseDate(box.value) || util.parseDate(util.isoToday());
+    pick.value = d.y + '-' + (d.m < 10 ? '0' : '') + d.m + '-' + (d.d < 10 ? '0' : '') + d.d;
+    try { pick.showPicker(); } catch (e) { box.focus(); toast('Your browser cannot open the calendar here. Type the date as day/month/year.'); }
+  }
+  function calendarPicked(pick) {
+    var box = document.querySelector('[data-f="' + pick.dataset.calpick + '"]'), d = util.parseDate(pick.value); if (!box || !d) return;
+    box.value = util.formatDate(d);
+    box.dispatchEvent(new Event('change', { bubbles: true }));
+  }
   var condIds = {};
-  schema.sections.forEach(function (s) { calc.condFields(s.cond).concat([].concat.apply([], s.blocks.map(function (b) { return calc.condFields(b.cond); }))).forEach(function (id) { condIds[id] = 1; }); });
+  schema.sections.forEach(function (s) { calc.condFields(s.cond).concat([].concat.apply([], s.blocks.map(function (b) { return calc.condFields(b.cond).concat([].concat.apply([], (b.fields || []).map(function (f) { return calc.condFields(f.cond); }))); }))).forEach(function (id) { condIds[id] = 1; }); });
 
   document.addEventListener('click', function (e) {
-    var t = e.target.closest('[data-sec],[data-accept],[data-add],[data-del],[data-goto],[data-usedob],[data-lookup]');
+    var t = e.target.closest('[data-sec],[data-accept],[data-add],[data-del],[data-goto],[data-usedob],[data-lookup],[data-cal]');
     if (!t) return;
+    if (t.dataset.cal) { openCalendar(t.dataset.cal); return; }
     if (t.dataset.sec) { cur = t.dataset.sec; redraw(); window.scrollTo(0, 0); return; }
     if (t.dataset.lookup) { doLookup(t); return; }
     if (t.dataset.goto) {
@@ -362,6 +376,7 @@
   });
   document.addEventListener('change', function (e) {
     var t = e.target;
+    if (t.dataset.calpick) { calendarPicked(t); return; }
     if (t.dataset.none) {
       store.setField(state, t.dataset.none, t.checked ? 'None' : '');
       var wrapN = t.closest('.f'); if (wrapN) wrapN.outerHTML = fieldHTML(schema.fieldsById[t.dataset.none], !!document.querySelector('.g12'));
