@@ -23,18 +23,20 @@
     'When "note" is present it says what the page has already done for the newest line (for example that it already moved to a section): do not do that again, do the rest of the line.',
     'Nobody tells you who is speaking. The adviser and the client talk fluidly: ONE line can hold the adviser asking, the client answering, a correction and a new fact.',
     'Read the whole line and work out what was ASKED, what was STATED and what was CHANGED, however loosely it was worded, then say what to do on the form.',
-    'Reply with ONE JSON object and nothing else: {"actions": [ ... ]} (and "unplaced", see "Facts with no box" below). Put the actions in the order things were said. Each action is one of:',
+    'Reply with ONE JSON object and nothing else, with no words before or after it and never a second object (do not correct yourself afterwards): {"actions": [ ... ]} (and "unplaced", see "Facts with no box" below). Put the actions in the order things were said. Each action is one of:',
     '  {"do":"ask","field":"<id>"}                  someone asks about, or moves to, one box ("do you have a work number?", "and your second name?")',
     '  {"do":"section","section":"<id>"}            someone moves to a whole topic ("let\'s talk about your health")',
     '  {"do":"fill","field":"<id>","value":"..."}   a value is stated for a box, WHOEVER says it. Add "correction":true when it replaces a value that is already in the box (see "filled")',
     '  {"do":"confirm","field":"<id>"}              the client agrees to a value on the form ("yes, that\'s right"): see "Confirming" below',
     '  {"do":"empty","field":"<id>"}                one box is to be emptied ("delete his name", "scratch the surname", "remove the occupation"); for a box of a row: {"do":"empty","list":"<list id>","row":<row number>,"col":"<column id>"}',
     '  {"do":"wait"}                                nothing to fill yet: the value in position.current_value was rejected, or the line stopped before the value ("my surname is spelled ...")',
-    '  {"do":"cmd","cmd":"undo|next|prev|nextSection|prevSection|clear|clearAll|notes|notesOff"}   a request about the form itself: "scratch that" is undo, "skip" or "next question" is next,',
+    '  {"do":"cmd","cmd":"undo|next|prev|nextSection|prevSection|clear|clearAll|confirmAll|notes|notesOff"}   a request about the form itself: "scratch that" is undo, "skip" or "next question" is next,',
     '                                               "let me take some notes" is notes (add "retro":true for "note that down"), "that\'s all for the notes" is notesOff,',
     '                                               "clear that", "delete that", "remove it" and "we need to delete that" are clear (only the box being talked about: position.field, or the box just read back), and clearAll is for wanting EVERYTHING on the whole form removed',
     '                                               ("all my details are wrong, remove them all", "wipe the entire form", "start again from scratch"). For clearAll give just that one action:',
     '                                               the page asks "are you sure?" before anything is cleared. A wrong value in ONE box is not clearAll: that is a correction or "wait".',
+    '                                               confirmAll is for the adviser saying in words that ALL the answers on the whole form are verified or correct ("everything is fine, all the answers are verified", "I think we can verify all the answers"):',
+    '                                               it marks every answer still waiting for the client as agreed, in every section. Give it only for those words, never for a "yes" to one read-back (that is "confirm").',
     '  {"do":"note","text":"- ...\n- ..."}           something for the notes box, WHOEVER says it (see "Notes" below)',
     '',
     'How to read the line:',
@@ -53,6 +55,9 @@
     '- An amount in the past tense is not what the box holds now: "I used to put about 2000 a month" is the old figure, so fill nothing for the current monthly amount until the client says what it is now (0 if he says he has stopped).',
     '- "heard_alternatives" (when present) are other wordings the speech recogniser considered for the newest line; "newest" is its best guess and the right words are often in one of them ("broken record" or "Brokers on record"). Use them to work out what was really said, but fill nothing that only an alternative says unless it fits the question being asked.',
     '- Speech recognition garbles names and South African terms: "pt1 limited" is (Pty) Ltd, "chair holding" is shareholding, "University" is annuity, "text number" is tax number, "cold well" is wealth. When the line holds a word that sounds like a name already in "filled" (for example "confesses" or "offenses" for Kafentzis), use the spelling in "filled".',
+    '- A box of a list ("debts", "kids", "risk" and so on, position.field such as "debts.prov") is only ever filled with a "cell" action (or a new row with "row"), never with "fill" and never with a field id like "debts.prov".',
+    '- The form works out "Direct Net Income" (dnet) and "Disposable income" (disp) itself. When the adviser reads such a figure out ("according to the SARS calculator your direct net income is 291 757") it is not something the client said and it is not the take-home pay: give {"actions": []}. Take-home pay (net) is only what the client says they actually receive.',
+    '- Money left over: "I am left with 90 000 after all my expenses" is NOT the expenses. When "filled" holds the take-home pay (net), the expenses (exp) are net minus that amount (net 290 000 minus 90 000 is 200 000): fill exp with the result. When net is not on the form yet, put it in "unplaced" instead.',
     '- Remarks about the form or the software itself ("that\'s a definite error", "the program ...", "it did not look up the company", "testing") are not facts, answers or questions: give {"actions": []}.',
     '- One line can move to another part of the form and carry on there: "let\'s talk about your investments. Do you have a tax free? Yes, an Old Mutual one, R3400 a month" is [section, row]. Everything said after the move',
     '  belongs to the boxes and lists of THAT section, which are all described in "fields" and "lists" whichever section is open now. Give every action of the line in one reply. Never stop after the "section" action.',
@@ -236,17 +241,29 @@
   }
   function buildRequest(idx, ctx, who, text, model) { return prepare(idx, ctx, who, text, model).req; }
 
+  /* The model sometimes writes an answer, then "Wait, correcting that" and a second answer. The whole span is tried first; failing that, every complete {...} in the reply is tried and the LAST one that holds
+     "actions" wins (the correction), else the last one that parses. */
   function extractJson(text) {
     var s = String(text || ''), a = s.indexOf('{'), b = s.lastIndexOf('}');
     if (a < 0 || b < a) return null;
-    try { return JSON.parse(s.slice(a, b + 1)); } catch (e) { return null; }
+    try { return JSON.parse(s.slice(a, b + 1)); } catch (e) { /* more than one object, or text between them */ }
+    var found = [], depth = 0, start = -1, inStr = false, esc = false, i, ch;
+    for (i = 0; i < s.length; i++) {
+      ch = s.charAt(i);
+      if (inStr) { if (esc) esc = false; else if (ch === '\\') esc = true; else if (ch === '"') inStr = false; continue; }
+      if (ch === '"') { if (depth > 0) inStr = true; }
+      else if (ch === '{') { if (depth === 0) start = i; depth++; }
+      else if (ch === '}' && depth > 0) { depth--; if (depth === 0) { try { found.push(JSON.parse(s.slice(start, i + 1))); } catch (e2) { /* not an answer */ } } }
+    }
+    var withActions = found.filter(function (o) { return o && typeof o === 'object' && Array.isArray(o.actions); });
+    return withActions.length ? withActions[withActions.length - 1] : (found.length ? found[found.length - 1] : null);
   }
   function textOf(resp) {
     return (resp.content || []).filter(function (b) { return b.type === 'text'; }).map(function (b) { return b.text; }).join(' ');
   }
 
   var EMAIL_LEAD = /^(?:is|are|it|its|it's|my|our|email|e-mail|mail|address|at|on|me|to|and|or|the|a|an|work|personal|private|office|business|use|using|via|send|sent|contact|reach|for|from)$/i;   // words that lead into an address but are not part of it
-  var CMDS = { undo: { type: 'undo' }, next: { type: 'next' }, prev: { type: 'prev' }, nextSection: { type: 'nextSection' }, prevSection: { type: 'prevSection' }, clear: { type: 'clear' }, clearAll: { type: 'clearAll' }, notesOff: { type: 'notesOff' } };
+  var CMDS = { undo: { type: 'undo' }, next: { type: 'next' }, prev: { type: 'prev' }, nextSection: { type: 'nextSection' }, prevSection: { type: 'prevSection' }, clear: { type: 'clear' }, clearAll: { type: 'clearAll' }, notesOff: { type: 'notesOff' }, confirmAll: { type: 'confirmAll' } };
   /* "unplaced": facts the model heard but could not put in a box. Markers are swapped for the real values (they stay on this computer). -> [{ text, section }] */
   function unplacedOf(raw, idx, vault) {
     if (!raw || !Array.isArray(raw.unplaced)) return [];
@@ -298,7 +315,17 @@
         }
         return s;
       };
-      if (Array.isArray(raw.actions)) raw.actions.forEach(function (a) {
+      /* A box of a list written as a plain box: {"do":"fill","list":"debts","row":1,"col":"prov"} or {"do":"fill","field":"debts.prov"} (the form of position.field). Both mean the "cell" action. */
+      var listForm = function (a) {
+        if (!a || typeof a !== 'object') return a;
+        var m = typeof a.field === 'string' ? /^(\w+)\.(\w+)$/.exec(a.field) : null, list = a.list || (m && okList(m[1]) ? m[1] : null), col = a.col || (m && m[2]) || null;
+        if (!list || !okList(list) || !col || !okCol(list, col) || (a.do !== 'fill' && a.do !== 'ask' && a.do !== 'empty' && a.do !== 'confirm')) return a;
+        var b = { do: a.do === 'fill' ? 'cell' : a.do, list: list, col: col, row: a.row == null ? 'last' : a.row };
+        if (a.value != null) b.value = a.value;
+        if (a.correction === true) b.correction = true;
+        return b;
+      };
+      if (Array.isArray(raw.actions)) raw.actions.map(listForm).forEach(function (a) {
         if (!a || typeof a !== 'object') return;
         var v, vals;
         if (a.do === 'ask' && okAny(a.field)) acts.push({ do: 'ask', field: a.field });
@@ -350,8 +377,16 @@
 
   /* A reply that takes too long is given up on, so a slow connection never holds up the conversation (the page falls back to its own reading). */
   function callModel(opts, req) {
-    var ms = opts.timeoutMs || 25000, timer, slow = new Promise(function (_, reject) { timer = setTimeout(function () { reject(new Error('Claude took too long to answer')); }, ms); });
-    return Promise.race([callModel0(opts, req), slow]).then(function (v) { clearTimeout(timer); return v; }, function (e) { clearTimeout(timer); throw e; });
+    var ms = opts.timeoutMs || 25000, timer, hedge, slow = new Promise(function (_, reject) { timer = setTimeout(function () { reject(new Error('Claude took too long to answer')); }, ms); });
+    var first = callModel0(opts, req), answer = first;
+    if (opts.hedgeMs) {                                            // an occasional call takes 6 to 9 seconds where most take 1 to 2: after hedgeMs a second request is sent and the first answer back is used
+      answer = new Promise(function (resolve, reject) {
+        var open = 1, done = false, win = function (v) { if (!done) { done = true; resolve(v); } }, lose = function (e) { open--; if (open <= 0 && !done) reject(e); };
+        first.then(win, lose);
+        hedge = setTimeout(function () { open++; callModel0(opts, req).then(win, lose); }, opts.hedgeMs);
+      });
+    }
+    return Promise.race([answer, slow]).then(function (v) { clearTimeout(timer); clearTimeout(hedge); return v; }, function (e) { clearTimeout(timer); clearTimeout(hedge); throw e; });
   }
   /* Sends one request and resolves to the model's text. opts: { apiKey, fetchImpl } or { ask } (a host that reaches Claude without a key). */
   function callModel0(opts, req) {
@@ -420,7 +455,8 @@
   var SWEEP_SYSTEM = [
     'You check a Fact Find form against the conversation it was filled from. A financial adviser spoke with a client; the form was filled live while they talked, and some of what was said never reached a box.',
     'You receive JSON: "sections", "fields" (every box of the form with its section; boxes with "options" take exactly one of them), "filled" (what is in the boxes now), "lists" (every list of rows, with its columns and the rows there now),',
-    '"transcript" (the conversation in order: "who" is "adviser", "client" or "unclear"; nobody is labelled reliably, so read each line for what it says) and "focus" (a section id, or null for the whole form).',
+    '"transcript" (the conversation in order: "who" is "adviser", "client" or "unclear"; nobody is labelled reliably, so read each line for what it says), "focus" (a section id, or null for the whole form),',
+    '"notes" (what is already written in the notes box of each section) and "listed" (facts already offered to the adviser as "heard but not placed").',
     'Find every FACT in the transcript that belongs in a box that is EMPTY now (not in "filled"), and give it. Reply with ONE JSON object and nothing else:',
     '{"actions": [ ... ], "unplaced": [ ... ]}. Each action is one of:',
     '  {"do":"fill","field":"<id>","value":"..."}                                   a value for a box that is empty now',
@@ -429,6 +465,9 @@
     'Rules:',
     '- Facts count whoever says them. When "focus" is a section id, give only facts for the boxes and lists of that section; when it is null, the whole form.',
     '- Only the LAST version of a fact counts: when something is corrected ("sorry, it is 61 449, not 61 000"), give the final value. Speech recognition garbles South African speech ("tax fee" is tax free, "absent" is Absa, "random" is rand); use the conversation to decide.',
+    '- A fact that is already in "notes" or in "listed" is never reported again, neither as an action nor in "unplaced". Report each fact once, even when it was said, corrected and said again.',
+    '- Money left over: "I am left with 90 000 after all my expenses" is NOT the expenses. When "filled" holds the take-home pay (net) and exp is empty, fill exp with net minus that amount; otherwise report the fact in "unplaced".',
+    '- The form works out "Direct Net Income" (dnet) and "Disposable income" (disp) itself: a figure the adviser reads out from the calculator is not a fact about the client and is not the take-home pay.',
     '- Never fill a box that already has a value in "filled" (even if the conversation says something different: then put that in "unplaced" as {"text":"<Box label>: the conversation says <value>, the form has <value>","section":"<id>"}). Never invent a value that was not said.',
     '- Give nothing for a question, an acknowledgement, small talk, a remark about the software, or a value that was only being asked about and not answered. An amount in the past tense is not what the box holds now.',
     '- A box of "fields" marked "private" is not here: do not give ID, tax, phone or email values. A line shows [number] or [email] where one was said; ignore those.',
@@ -447,6 +486,7 @@
       focus: opts.focus || null,
       sections: idx.sections.map(function (x) { return { id: x.id, title: x.title }; }),
       fields: fields, filled: filled, lists: listsFor(idx, opts),
+      notes: opts.notes || {}, listed: (opts.listed || []).slice(0, 40),
       transcript: (opts.transcript || []).map(function (l) { return { who: l.who === 'adviser' || l.who === 'client' ? l.who : 'unclear', text: scrub(l.text).slice(0, 500) }; })
     };
     return withThinking({ model: opts.model, max_tokens: 6000, output_config: { effort: 'medium' }, system: SWEEP_SYSTEM, messages: [{ role: 'user', content: JSON.stringify(body) }] });

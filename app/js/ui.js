@@ -901,7 +901,7 @@
     vm.target = id; vm.answered = false; vm.secGlow = false; vmMarkWait();
     if (vm.run && vm.run.box !== id) vm.run = null;  // a number being said belongs to its own box
     if (vm.erun && vm.erun.box !== id) vmEmailGiveUp();
-    if (NUMBER_BOXES.indexOf(id) >= 0) vm.lastNum = id;
+    if (isNumBox(id)) vm.lastNum = id;
     var el = vmEl(id);
     if (el) {
       el.scrollIntoView({ block: 'center', behavior: 'smooth' });
@@ -931,6 +931,7 @@
     var e = vm.undo.pop();
     if (!e) return;
     if (e.kind === 'nav') { cur = e.sec; vm.target = e.target; vm.answered = e.answered; vm.secGlow = false; redraw(); vmPulseNav(); return; }
+    if (e.kind === 'bulk') { e.fields.forEach(function (x) { if (state.f[x.id]) state.f[x.id].st = x.st; }); e.rows.forEach(function (x) { var r = state.l[x.list] && state.l[x.list][x.i]; if (r) r.st = x.st; }); touch(); redraw(); return; }
     if (e.kind === 'wipe') {
       e.snap.claude = state.claude; state = e.snap; fileBase = e.base; fileHandle = e.handle; rememberHandle(e.handle); dirty = e.dirty; cur = e.sec;
       vm.target = null; vm.answered = false; vm.secGlow = true; saveDraft(); redraw(); vmMarkWait(); toast('Everything is back as it was.'); return;
@@ -941,6 +942,18 @@
     state.f[e.id] = { v: e.prev.v, st: e.prev.st };
     (e.extras || []).forEach(function (x) { state.f[x.id] = { v: x.prev.v, st: x.prev.st }; });
     touch(); vmShow(e.id); redraw(); vmMarkWait();
+  }
+  /* "Everything is fine, all the answers are verified": every answer still amber (heard or to verify) becomes agreed, in every section. "Scratch that" puts them back. */
+  function vmConfirmAll() {
+    var undo = { kind: 'bulk', fields: [], rows: [] };
+    Object.keys(state.f).forEach(function (id) {
+      var c = state.f[id], d = schema.fieldsById[id];
+      if (c && c.v !== '' && (c.st === 'heard' || c.st === 'verify') && d && !d.calc) { undo.fields.push({ id: id, st: c.st }); c.st = 'confirmed'; }
+    });
+    Object.keys(state.l).forEach(function (k) { state.l[k].forEach(function (r, i) { if (r.st === 'heard' || r.st === 'verify') { undo.rows.push({ list: k, i: i, st: r.st }); r.st = 'confirmed'; } }); });
+    var n = undo.fields.length + undo.rows.length;
+    if (!n) { vmLog('nothing was waiting to be confirmed'); return; }
+    vm.undo.push(undo); touch(); redraw(); vmLog('confirmed ' + n + ' answers on the whole form');
   }
   function vmCommand(c) {
     if (vm.noteMode && /^(goto|next|prev|nextSection|prevSection|notesOff)$/.test(c.type)) vmStopNotes();   // moving on ends the notes
@@ -953,6 +966,7 @@
       case 'nextSection': return vmStepSection(1);
       case 'prevSection': return vmStepSection(-1);
       case 'undo': return vmUndo();
+      case 'confirmAll': return vmConfirmAll();
       case 'clearAll': return vmWipeAsk();
       case 'clear':
         if (!vm.target) return;
@@ -1049,6 +1063,7 @@
     }
     return pts.then(function (list) {
       var cell = state.f[id], add = list.map(function (x) { return '- ' + x; }).join('\n');
+      vmLog('noted: ' + list.join('; '));
       vm.undo.push({ kind: 'fill', id: id, prev: { v: cell.v, st: cell.st }, extras: [] });
       store.setField(state, id, cell.v ? cell.v.replace(/\s+$/, '') + '\n' + add : add, 'heard');
       touch(); redraw(); vmFlash(id);
@@ -1130,7 +1145,7 @@
       if (id === 'idno') { var dobWas = autoDob(); if (dobWas) { entry.extras.push({ id: 'dob', prev: dobWas }); extraIds.push('dob'); } var sexWas = autoGender(); if (sexWas) { entry.extras.push({ id: 'gender', prev: sexWas }); extraIds.push('gender'); } }   // the date of birth and an empty gender come from the ID number
     }
     vm.undo.push(entry);
-    if (NUMBER_BOXES.indexOf(id) >= 0) vm.lastNum = id;
+    if (isNumBox(id)) vm.lastNum = id;
     if (id === vm.target) vm.answered = true;
     touch(); redraw(); vmFlash(id); extraIds.forEach(vmFlash);
     /* Employer or business name filled: look up what the company does. Only the company name is sent. */
@@ -1184,7 +1199,7 @@
     vm.busy++; vmRender();
     return vmSlot().then(function () {
       return VAI.decide({
-        apiKey: set.apiKey, ask: !set.apiKey && FF.voiceBackend && FF.voiceBackend.available ? FF.voiceBackend.ask : null, model: set.voiceModel, idx: vidx, who: who, text: text, fetchImpl: entry || vmCur ? loggedFetch(entry || vmCur) : meteredFetch,
+        apiKey: set.apiKey, ask: !set.apiKey && FF.voiceBackend && FF.voiceBackend.available ? FF.voiceBackend.ask : null, model: set.voiceModel, hedgeMs: 3500, idx: vidx, who: who, text: text, fetchImpl: entry || vmCur ? loggedFetch(entry || vmCur) : meteredFetch,
         ctx: { sectionId: sec, targetId: tid, targetRow: tcr ? tcr.i + 1 : null, targetValue: tv, targetFilled: tfilled, alternatives: entry && entry.m && entry.shown === entry.text ? entry.m.also : null, filled: fl.filled, filledPrivate: fl.filledPrivate, awaiting: aw.awaiting, privateHeld: aw.held, note: note,
           listRows: function (key) { return rows[key] || []; }, recent: recent }
       }).then(function (r) { vmSlotFree(); return r; }, function (e) { vmSlotFree(); throw e; });
@@ -1209,9 +1224,11 @@
     var onlyCommand = pl.actions.length > 0 && pl.actions.every(function (a) { return a.do === 'cmd' && !(/^(?:undo|clear|clearAll)$/.test(a.cmd && a.cmd.type)); }) && words <= 8 && !startsNotes;
     return !startsNotes && !onlyCommand;
   }
+  var ACK_WORDS = {};
+  'okay ok alright all right excellent perfect great fantastic wonderful wow um uh umm mm mhm hmm hey hi hello sure thanks thank you sorry well so and anyway good nice lovely brilliant awesome oh ah ha interesting ja righto fine cool'.split(' ').forEach(function (w) { ACK_WORDS[w] = 1; });
   function vmStartCall(text, entry) {
     var keep = {}, nw = text.split(/\s+/).length; keep.short = !entry.quick && nw <= 8;           // a short answer means what the box the talk was on says (a line already filled by the quick path is checked by that)
-    keep.answerish = /\d/.test(text) || nw >= 3 || !!V.yesNo(V.norm(text));                       // "Excellent." or "Um" is not an answer to anything, so nothing is lost when Claude finds nothing in it
+    keep.answerish = !V.norm(text).split(' ').filter(Boolean).every(function (w) { return ACK_WORDS[w]; });   // "Excellent.", "Um", "All right" are not answers to anything, so nothing is lost when Claude finds nothing in them; "Absa Bank." and "Old Mutual" are
     var call = { keep: keep, promise: vmAsk('auto', text, null, entry, keep) };
     entry.call = call; entry.early = true;
     return call;
@@ -1252,7 +1269,7 @@
     });
   }
   /* Do what a line of conversation says, in order. Actions come from V.plan (on this computer) or from Claude. */
-  var SAID_UNDO = /\b(?:undo|scratch|take (?:that|it|those|them) back|cancel|never ?mind|revert|forget (?:that|it)|ignore (?:that|it))\b/i, SAID_CLEAR = /\b(?:clear|delete|remove|erase|wipe|empty|scratch|get rid of|take out|cancel|forget)\b/i;
+  var SAID_UNDO = /\b(?:undo|scratch|take (?:that|it|those|them) back|cancel|never ?mind|revert|forget (?:that|it)|ignore (?:that|it))\b/i, SAID_CLEAR = /\b(?:clear|delete|remove|erase|wipe|empty|scratch|get rid of|take out|cancel|forget)\b/i, SAID_ALL_OK = /\b(?:all|every|everything)\b[^.?!]{0,50}\b(?:verified|correct|confirmed|good|fine|right|accurate|agreed)\b|\b(?:verify|confirm)\s+(?:all|everything|every)\b/i;
   function vmAskId(a) {
     if (a.list) { var n = state.l[a.list].length, i = a.row === 'new' ? n : a.row === 'last' ? Math.max(n - 1, 0) : a.row - 1; return a.list + ':' + i + ':' + a.col; }
     return a.field || null;
@@ -1281,6 +1298,7 @@
     switch (a.do) {
       case 'cmd':
         if (a.cmd && vmCur && ((a.cmd.type === 'undo' && !SAID_UNDO.test(vmCur.text)) || (a.cmd.type === 'clear' && !SAID_CLEAR.test(vmCur.text)))) { vmLog('did not ' + a.cmd.type + ': the words were not said'); return; }   // undo and clear destroy work, so the line has to ask for them
+        if (a.cmd && a.cmd.type === 'confirmAll' && vmCur && !SAID_ALL_OK.test(vmCur.text)) { vmLog('did not confirm everything: the words were not said'); return; }
         vmLog('command: ' + (a.cmd && a.cmd.type)); return vmCommand(a.cmd);
       case 'section': return vmOpenSection(a.section);
       case 'empty':
@@ -1320,7 +1338,7 @@
           if (!a.explicit && res.kind === 'fill' && cell.v !== '' && cell.st === 'confirmed') { if (!vmCellRef(a.field)) vmUnplace({ text: f.label + ': ' + vmShown(a.field, res.value), why: 'the box already holds a confirmed answer' + (vmPrivate(a.field) && !vmShareOn() ? '' : ' (' + cell.v + ')'), field: vmPrivate(a.field) ? undefined : a.field, value: vmPrivate(a.field) ? undefined : String(res.value), sec: f.sec }); return; }   // Claude's volunteered fact never overwrites a confirmed value: it is kept for the adviser
           vmShow(a.field);                                                                              // the screen follows the conversation to that box
         }
-        if (res.kind === 'fill' && NUMBER_BOXES.indexOf(a.field) >= 0 && vmHoldPartial(a.field, res.value)) return;
+        if (res.kind === 'fill' && isNumBox(a.field) && vmHoldPartial(a.field, res.value)) return;
         if (vmApply(a.field, res)) vmLog((res.kind === 'confirm' ? 'confirmed ' : 'filled ') + [f.label || a.field].concat((res.extra || []).map(function (x) { var xf = vmField(x.id); return xf ? xf.label : x.id; })).join(', '));
     }
   }
@@ -1415,13 +1433,18 @@
   /* A number said in pieces ("082 454", then "1751") arrives as separate lines, from a pause or from the speech recogniser. Lines that are only digits, one after another within 12 seconds,
      are joined until there are enough digits for a number (10 for a phone or tax number, 13 for an ID). One that starts while a phone, ID or tax box is waiting, or with a 0, starts the run. */
   var DIGIT_WORD = /^(?:\d+|oh|zero|one|two|three|four|five|six|seven|eight|nine|double|triple)$/, NUMBER_BOXES = ['idno', 'tax', 'cell', 'work', 'home', 'sp_tel'];
+  /* The ID and cell number of a partner or shareholder (a row of the "shares" list) are said in pieces just like the client's own. */
+  var PARTNER_NUM = /^shares:\d+:(id|cell)$/;
+  function isNumBox(id) { return !!id && (NUMBER_BOXES.indexOf(id) >= 0 || PARTNER_NUM.test(id)); }
+  function numLen(id) { var m = PARTNER_NUM.exec(id || ''); return m ? (m[1] === 'id' ? 13 : 10) : NUM_LEN[id]; }
+  function idLike(id) { return id === 'idno' || id === 'tax' || /^shares:\d+:id$/.test(id || ''); }                    // a number that is not grouped like a phone number
   function vmJoinDigits(text) {
     var tk = V.norm(text).split(' ').filter(Boolean), d = V.spokenDigits(text), now = Date.now(), b = vm.digits;
     var dateLike = function (x) { return /^\d{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01])/.test(x); };
     if (!tk.length || d.length < 2 || !tk.every(function (w) { return DIGIT_WORD.test(w); })) { vm.digits = null; return text; }
     var join = !!b && now - b.t < 12000 && b.d.length + d.length <= 13 && (b.d.length < 10 || dateLike(b.d));
-    if (join && vm.target && NUMBER_BOXES.indexOf(vm.target) >= 0) vm.answered = false;                  // the rest of the number is an answer to the same box, not a new line about a finished one
-    if (!join && !((vm.target && !vm.answered && NUMBER_BOXES.indexOf(vm.target) >= 0) || d.charAt(0) === '0')) { vm.digits = null; return text; }
+    if (join && vm.target && isNumBox(vm.target)) vm.answered = false;                  // the rest of the number is an answer to the same box, not a new line about a finished one
+    if (!join && !((vm.target && !vm.answered && isNumBox(vm.target)) || d.charAt(0) === '0')) { vm.digits = null; return text; }
     var all = join ? b.d + d : d, shown = join ? b.text + ' ' + text : text;
     vm.digits = all.length >= 13 || (all.length >= 10 && !dateLike(all)) ? null : { d: all, text: shown, t: now };
     return shown;
@@ -1434,23 +1457,27 @@
   var RUN_FILLER = {};
   ('yes yeah yep yup ok okay alright right so um uh er erm ah hm hmm well let lets me see is it its the that thats this a an of in number numbers my mine your cell work home phone mobile telephone tax id sorry hold on moment second sec minute just give you again please then and next hang think check checking looking look sure i im ill am was do does did have has got can could will we us to for at from digits digit about like starts start begins begin with thank thanks wait').split(' ').forEach(function (w) { RUN_FILLER[w] = 1; });
   var RUN_CANCEL = /\b(?:wrong|incorrect|not (?:right|correct)|(?:correct|fix|redo|change) (?:that|it|this)|from the (?:top|start|beginning)|(?:scratch|clear|forget|ignore|cancel|delete|discard) (?:that|it|those|these|all that|what i (?:said|gave))|(?:give|say|read|do|redo|try|start|begin|go|repeat)\b[^.?!]{0,25}\b(?:again|over|afresh))\b/;
-  function vmGroup(box, s) { return box !== 'idno' && box !== 'tax' && !/^27/.test(s) ? s.slice(0, 3) + (s.length > 3 ? ' ' + s.slice(3, 6) : '') + (s.length > 6 ? ' ' + s.slice(6) : '') : s; }
+  function vmGroup(box, s) { return !idLike(box) && !/^27/.test(s) ? s.slice(0, 3) + (s.length > 3 ? ' ' + s.slice(3, 6) : '') + (s.length > 6 ? ' ' + s.slice(6) : '') : s; }
   var RUN_UNITS = /\b(?:rands?|percent|per|months?|years?|days?|weeks?|kids?|children|aged?|old|thousand|million|hundred|k)\b/;
   function vmNumberRun(text) {
     var raw = String(text == null ? '' : text).toLowerCase().replace(/[‘’`]/g, "'").replace(/\bone (?:moment|second|sec|minute)\b/g, 'moment'), named = null;
     raw.split(/[^a-z]+/).forEach(function (w) { if (RUN_NAMES[w]) named = RUN_NAMES[w]; });  // "my work number is 011" names its box
-    var tgt = vm.target && NUMBER_BOXES.indexOf(vm.target) >= 0 ? vm.target : null, run = vm.run;
-    if (run && (run.box !== tgt || (named && named !== run.box))) run = vm.run = null;  // the talk has moved on to another box
-    var box = run ? run.box : (named || tgt), fd = box && vmField(box);
+    var tgt = vm.target && isNumBox(vm.target) ? vm.target : null, run = vm.run;
+    var kindOf = function (b) { var m = PARTNER_NUM.exec(b || ''); return m ? (m[1] === 'id' ? 'idno' : 'cell') : b; };               // a partner's ID box is named like the client's own
+    if (run && (run.box !== tgt || (named && named !== kindOf(run.box)))) run = vm.run = null;  // the talk has moved on to another box
+    var sameKind = tgt && named && ((named === 'cell' && /:cell$/.test(tgt)) || (named === 'idno' && /:id$/.test(tgt)));       // "his cell number is ..." while the partner's cell box waits is that box
+    var box = run ? run.box : (sameKind ? tgt : (named || tgt)), fd = box && vmField(box);
     if (!box || !fd || !vmVisible(fd) || (box === 'idno' && state.f.idtype.v === 'Passport')) return null;
     if (/\?/.test(raw) || vmReadBack(text) || vmEditParse(text)) return null;
     if (run && RUN_CANCEL.test(raw)) { var gone = run.d; vm.run = null; vm.answered = false; vmMarkWait(); return { hold: true, note: 'dropped ' + vmGroup(box, gone) + ': ready for the number again' }; }
     var tk = V.norm(raw).split(' ').filter(Boolean), dt = tk.filter(function (w) { return DIGIT_WORD.test(w); }), d = V.spokenDigits(dt.join(' '));
     /* Starting a number: only filler words may come with the digits, so nothing else said in the line is lost. Once one is held, any short line with three or more digits goes into it. */
     var strict = tk.every(function (w) { return DIGIT_WORD.test(w) || RUN_FILLER[w]; });
-    if (!strict && !(run && tk.length <= 14 && d.length >= 3 && !RUN_UNITS.test(raw))) return null;
+    /* The first piece of a long number may come with chatter in front of it ("but if I look it up, it is 720926"): when the box is waiting and the line ends in the digits, it starts the number. */
+    var tail = !run && !!tgt && !vm.answered && tk.length <= 16 && d.length >= 5 && DIGIT_WORD.test(tk[tk.length - 1]) && !RUN_UNITS.test(raw) && !/\?/.test(raw);
+    if (!strict && !tail && !(run && tk.length <= 14 && d.length >= 3 && !RUN_UNITS.test(raw))) return null;
     if (!d) return run ? { hold: true, note: 'still holding ' + vmGroup(box, run.d) + ' (' + run.d.length + ' of ' + run.want + ' digits): waiting for the rest' } : null;
-    var len = NUM_LEN[box], phone = box !== 'idno' && box !== 'tax', want = function (x) { return phone && /^27/.test(x) ? 11 : len; };
+    var len = numLen(box), phone = !idLike(box), want = function (x) { return phone && /^27/.test(x) ? 11 : len; };
     if (!run && (d.length < 2 || !(named || !vm.answered || vmValue(box) === '' || d.charAt(0) === '0'))) return null;
     if (!run && d.length >= want(d)) return null;  // the whole number in one line: read as usual
     var all = (run ? run.d : '') + d;
@@ -1594,7 +1621,7 @@
   function vmHoldPartial(box, value) {
     var v = String(value == null ? '' : value), d = v.replace(/\D/g, '');
     if (/[a-z]/i.test(v) || d.length < 2 || (box === 'idno' && state.f.idtype.v === 'Passport')) return false;
-    var want = box !== 'idno' && box !== 'tax' && /^27/.test(d) ? 11 : NUM_LEN[box];
+    var want = !idLike(box) && /^27/.test(d) ? 11 : numLen(box);
     if (d.length >= want) return false;
     vm.run = { box: box, d: d, want: want }; vm.answered = false; vmMarkWait();
     vmNote(box, d.length + ' of ' + want + ' digits so far: waiting for the rest');
@@ -1629,9 +1656,9 @@
   function vmEditDigits(text) {
     var ed = vmEditParse(text);
     if (!ed) return false;
-    var id = NUMBER_BOXES.indexOf(vm.target) >= 0 ? vm.target : vm.lastNum, held = vm.run && vm.run.box === id ? vm.run : null, cur = held ? held.d : (id ? vmValue(id).replace(/\D/g, '') : '');
+    var id = isNumBox(vm.target) ? vm.target : vm.lastNum, held = vm.run && vm.run.box === id ? vm.run : null, cur = held ? held.d : (id ? vmValue(id).replace(/\D/g, '') : '');
     if (!id || !cur) return false;                                               // no number is held to edit: the line is read as usual
-    var f = vmField(id), len = held ? held.want : NUM_LEN[id], next, what;
+    var f = vmField(id), len = held ? held.want : numLen(id), next, what;
     if (ed.op === 'add') { next = ed.pos === 'start' ? ed.d + cur : cur + ed.d; what = 'added ' + ed.d + ' to the ' + ed.pos + ' of'; }
     else if (ed.op === 'cut') { next = cur.slice(0, Math.max(0, cur.length - ed.n)); what = 'removed the last ' + (ed.n > 1 ? ed.n + ' digits' : 'digit') + ' of'; }
     else if (ed.op === 'set') { next = cur.slice(0, Math.max(0, cur.length - ed.d.length)) + ed.d; what = 'changed the end to ' + ed.d + ' in'; }
@@ -1735,12 +1762,22 @@
   /* A line whose speaker is not known. It may hold the adviser and the client together, in any order, with corrections and things they do not have.
      Claude reads it and says what to do on the form; this computer's own reading is used only for a bare command word, while notes are being taken,
      for a one or two word answer, and when Claude cannot be reached. */
+  var NOTES_LEADIN = /^\s*(?:(?:okay|ok|right|so|and|alright|now|well|yes|yeah)[ ,]+)*(?:that(?:'s|s| is)?|this is|we are|we're|i am|i'm) (?:the end of|done with|finished with|finished|done)(?: with)?(?: the)? (?:noting|notes|note[- ]?taking|taking notes|making notes)(?: that| there| now| for now)?[.,!]?\s*/i;
   function vmProcessAuto(text, entry) {
     if (vm.wipe) {                                                       // "Delete all data from the entire form?" is waiting: only yes or no counts, and nothing goes to Claude
       var ans = V.wipeAnswer(text);
       if (ans) return vmWipeEnd(ans === 'yes');
       toast('Waiting for a yes or no: delete all data from the entire form?');
       return Promise.resolve();
+    }
+    if (vm.noteMode) {                                                   // "Okay, so that's the end of noting that. Can we say there are no other debts?": the notes end, and the rest is read as a line
+      var endM = NOTES_LEADIN.exec(text);
+      if (endM) {
+        vmStopNotes(); vmLog('notes ended');
+        var rest = text.slice(endM[0].length).trim();
+        if (rest.split(/\s+/).filter(function (w) { return /\w/.test(w); }).length < 2) return Promise.resolve();
+        text = rest; if (entry) entry.call = null;
+      }
     }
     if (entry && entry.quick) return vmCheckQuick(text, entry);
     if (vmEditDigits(text)) return Promise.resolve();                    // "add an 8 to the end"
@@ -1869,8 +1906,9 @@
     if (manual) toast('Checking ' + title + ' for answers that were missed…');
     return vm.queue.then(function () {                                                        // every line heard so far is on the form first
       cvAdd(entry); convoSoon();
-      var fl = vmFilled();
-      return VAI.sweep({ apiKey: set.apiKey, ask: !set.apiKey && FF.voiceBackend && FF.voiceBackend.available ? FF.voiceBackend.ask : null, model: set.voiceModel, idx: vidx, transcript: lines, filled: fl.filled,
+      var fl = vmFilled(), notes = {};
+      vidx.notes.forEach(function (n) { var v = state.f[n.id] && String(state.f[n.id].v || '').trim(); if (v) notes[n.sec] = (notes[n.sec] ? notes[n.sec] + '\n' : '') + v.slice(0, 600); });
+      return VAI.sweep({ notes: notes, listed: (state.unplaced || []).map(function (u) { return u.text; }),  apiKey: set.apiKey, ask: !set.apiKey && FF.voiceBackend && FF.voiceBackend.available ? FF.voiceBackend.ask : null, model: set.voiceModel, idx: vidx, transcript: lines, filled: fl.filled,
         listRows: function (key) { return state.l[key].map(function (r) { return r.d; }); }, focus: o.sec || null, fetchImpl: meteredFetch });
     }).then(function (r) { vmSweepApply(entry, r, o, manual); }, function (err) {
       entry.did.push('could not check: ' + ((err && err.message) || 'no answer'));
@@ -1902,7 +1940,7 @@
     if (!vmVisible(f)) { vmUnplace({ text: f.label + ': ' + a.value, why: 'that box is not shown for this client', sec: f.sec }); return 0; }
     var c = state.f[id], x = V.interpret(f, a.value);
     if (!x || x.error) { vmUnplace({ text: f.label + ': ' + a.value, why: 'could not be read as an answer for that box', sec: f.sec }); return 0; }
-    if (c.v === '') { if (vmApply(id, { kind: 'fill', value: x.value, status: 'verify', extra: x.extra })) { vmLog('filled (missed earlier) ' + f.label); return 1; } return 0; }
+    if (c.v === '') { if (vmApply(id, { kind: 'fill', value: x.value, status: 'verify', extra: x.extra })) { vmLog('filled (missed earlier) ' + f.label + ': ' + vmShown(id, x.value)); return 1; } return 0; }
     if (vmSame(c.v, x.value)) return 0;
     vmUnplace({ text: f.label + ': the conversation says ' + x.value, why: 'the box holds "' + c.v + '"', field: id, value: x.value, sec: f.sec });
     return 0;
@@ -1914,7 +1952,8 @@
     if (!row) { vmUnplace({ text: L.title + ': ' + def.label + ' ' + a.value, why: 'there is no such row on the form', sec: L.sec }); return 0; }
     if (!x || x.error) { vmUnplace({ text: L.title + ' ' + (ri + 1) + ': ' + def.label + ' ' + a.value, why: 'could not be read as an answer for that box', sec: L.sec }); return 0; }
     var cur0 = row.d[a.col] == null ? '' : String(row.d[a.col]);
-    if (cur0 === '') { var rc = vm.rowCur[a.list]; var ok = vmApplyCell({ list: a.list, i: ri, k: a.col }, id, { kind: 'fill', value: x.value, status: 'verify' }); vm.rowCur[a.list] = rc; if (ok) vmLog('filled (missed earlier) ' + L.title + ' ' + (ri + 1) + ': ' + def.label); return ok ? 1 : 0; }
+    if (!Object.keys(row.d).some(function (k) { return row.d[k] !== '' && row.d[k] != null; })) { vmUnplace({ text: L.title + ': ' + def.label + ' ' + x.value, why: 'the row is still empty (it was only pointed at)', sec: L.sec }); return 0; }
+    if (cur0 === '') { var rc = vm.rowCur[a.list]; var ok = vmApplyCell({ list: a.list, i: ri, k: a.col }, id, { kind: 'fill', value: x.value, status: 'verify' }); vm.rowCur[a.list] = rc; if (ok) vmLog('filled (missed earlier) ' + L.title + ' ' + (ri + 1) + ': ' + def.label + ': ' + x.value); return ok ? 1 : 0; }
     if (!vmSame(cur0, x.value)) vmUnplace({ text: L.title + ' ' + (ri + 1) + ': the conversation says ' + def.label + ' ' + x.value, why: 'the box holds "' + cur0 + '"', sec: L.sec });
     return 0;
   }
@@ -1939,8 +1978,10 @@
   function vmPointNow(entry, pl) {
     if (entry.who === 'client' || !pl.sure || !pl.actions.length || !pl.actions.every(function (a) { return a.do === 'ask'; })) return;
     if (!vmAIReady() || vm.wipe || vm.noteMode || vm.paused || vm.run || vm.erun) return;
-    var id = vmAskId(pl.actions[pl.actions.length - 1]), f = id && !/^count:/.test(id) ? vmField(id) : null;
+    var id = vmAskId(pl.actions[pl.actions.length - 1]), f = id && !/^count:/.test(id) ? vmField(id) : null, cr = id ? vmCellRef(id) : null;
     if (!id || (!/^count:/.test(id) && (!f || !vmVisible(f)))) return;
+    /* This computer's guess is only trusted inside the section that is open, and at a box that exists (not a new row): a wrong guess in another section moved the screen there and back ("And the balance?" opened Debts). */
+    if (/^count:/.test(id) ? !vidx.lists[id.slice(6)] || vidx.lists[id.slice(6)].sec !== cur : f.sec !== cur || (cr && !(state.l[cr.list] && state.l[cr.list][cr.i]))) return;
     var was = vmCur; vmCur = entry;
     try { vmShow(id); entry.prov = id; vmLog('pointed at ' + (f ? f.label : id) + ' as the question was heard'); } finally { vmCur = was; }
   }

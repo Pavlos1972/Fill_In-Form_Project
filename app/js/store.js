@@ -123,6 +123,17 @@
   /* Facts heard in the conversation that did not reach a box ("Heard but not placed"). They are kept with the Fact Find until the adviser deals with each one.
      item: { text, why?, sec?, field?, value? (a box and the value to put in it), list?, values? (a list and the row to add) } */
   function unplacedKey(it) { return String(it.text || '').toLowerCase().replace(/[^a-z0-9]+/g, '') + '|' + (it.field || it.list || ''); }
+  /* The same fact in other words ("Has gout" / "Health: client also has gout"; "blood pressure 140 over 180" said twice): most of the words of the shorter one are in the other, in the same section. */
+  var FACT_FILLER = { the: 1, a: 1, an: 1, of: 1, is: 1, was: 1, are: 1, has: 1, have: 1, had: 1, that: 1, and: 1, to: 1, for: 1, in: 1, on: 1, her: 1, his: 1, she: 1, he: 1, client: 1, says: 1, said: 1, also: 1, about: 1, with: 1, from: 1, it: 1, its: 1, mentioned: 1, health: 1, note: 1 };
+  function factWords(t) { return String(t || '').toLowerCase().replace(/[^a-z0-9% ]+/g, ' ').split(/\s+/).filter(function (w) { return w && !FACT_FILLER[w]; }); }
+  function sameFact(a, b) {
+    if (a.sec && b.sec && a.sec !== b.sec) return false;
+    if ((a.field || a.list || '') !== (b.field || b.list || '')) return false;
+    var x = factWords(a.text), y = factWords(b.text), small = x.length <= y.length ? x : y, big = x.length <= y.length ? y : x;
+    if (small.length < 1 || (small.length < 2 && big.length > 2)) return false;                 // one word is enough only when the other has hardly any more ("gout")
+    var hit = small.filter(function (w) { return big.indexOf(w) >= 0; }).length;
+    return hit / small.length >= 0.7;
+  }
   function cleanUnplaced(it) {
     if (!it || typeof it !== 'object' || typeof it.text !== 'string' || it.text.trim().length < 3) return null;
     var o = { id: String(it.id || ''), text: it.text.trim().slice(0, 240) };
@@ -140,7 +151,7 @@
   function addUnplaced(state, item, seen) {
     var it = cleanUnplaced(item); if (!it) return null;
     var k = unplacedKey(it);
-    if ((seen && seen[k]) || (state.unplaced || []).some(function (x) { return unplacedKey(x) === k; })) return null;
+    if ((seen && seen[k]) || (state.unplaced || []).some(function (x) { return unplacedKey(x) === k || sameFact(x, it); })) return null;
     (state.unplaced = state.unplaced || []).push(it);
     return it;
   }

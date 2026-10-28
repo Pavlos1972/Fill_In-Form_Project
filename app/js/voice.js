@@ -308,6 +308,21 @@
   var COMPANY_IDS = ['employer', 'biz_name', 'cl_lender'];
   var OCC_IDS = ['occ', 'sp_occ', 'km_role'];
   var DATE_IDS = ['dob', 'will_date', 'marr_date'];
+  var APPROX_DATE_IDS = ['will_date', 'marr_date'];                         // boxes where "in 2023" or "about two years ago" is a good enough answer
+  /* "2023", "in 2023", "about two years ago", "last year", "six months ago" -> the year, as text; null when it is not a loose date. */
+  function looseYear(raw, now) {
+    var t = ' ' + norm(raw) + ' ', y = (now || new Date()).getFullYear(), m, n;
+    if ((m = /\b((?:19|20)\d\d)\b/.exec(t)) && !monthOf(t.split(' ').filter(function (w) { return monthOf(w); })[0] || '')) return m[1];
+    if ((m = / two thousand(?: and)? ([a-z]+(?: [a-z]+)?) /.exec(t)) && (n = wordsToNumber(m[1])) != null && n > 0 && n < 100) return String(2000 + n);
+    if ((m = / (nineteen|twenty) ((?:oh |zero )?[a-z]+(?: [a-z]+)?) /.exec(t)) && (n = wordsToNumber(m[2].replace(/^(?:oh|zero) /, ''))) != null && n >= 0 && n < 100 && !/hundred|thousand/.test(m[2])) return String((m[1] === 'nineteen' ? 1900 : 2000) + n);   // "twenty twenty three"
+    if (/ last year /.test(t)) return String(y - 1);
+    if (/ this year /.test(t)) return String(y);
+    if ((m = / (?:about |around |roughly |maybe |nearly |almost |over |more than |just over )?(\w+(?: \w+)?) (years?|months?) (?:ago|back) /.exec(t))) {
+      n = /^\d+$/.test(m[1]) ? +m[1] : wordsToNumber(m[1]);
+      if (n != null && n >= 0 && n <= 80) return String(/^month/.test(m[2]) ? new Date(y, (now || new Date()).getMonth() - n, 1).getFullYear() : y - n);
+    }
+    return null;
+  }
   var PHONE_IDS = ['cell', 'work', 'home', 'sp_tel'];
   var EMAIL_IDS = ['pemail', 'wemail'];
   var DIGIT_IDS = ['idno', 'tax'];
@@ -757,7 +772,11 @@
       var amt = wordsToNumber(raw);
       return amt == null ? { error: 'no-number' } : { value: util.formatMoney(String(amt)), status: 'verify' };
     }
-    if (DATE_IDS.indexOf(id) >= 0 || f.date) { var d = spokenDate(raw); return d ? { value: d, status: 'verify' } : { error: 'no-date' }; }
+    if (DATE_IDS.indexOf(id) >= 0 || f.date) {
+      var d = spokenDate(raw);
+      if (!d && APPROX_DATE_IDS.indexOf(id) >= 0) { var yr = looseYear(raw); if (yr) return { value: yr, status: 'verify' }; }       // a year is what the client remembers
+      return d ? { value: d, status: 'verify' } : { error: 'no-date' };
+    }
     if (EMAIL_IDS.indexOf(id) >= 0) {
       var em = spokenEmail(raw);
       return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(em) ? { value: em, status: 'verify' } : { error: 'no-email', note: 'heard "' + em + '"' };

@@ -127,7 +127,7 @@ test('Claude can add rows and fill boxes of rows, and nothing else gets through'
     { do: 'ask', list: 'debts', row: 'new', col: 'bal' }]);
   const bad = await run({ actions: [{ do: 'row', list: 'nope', values: { a: 'b' } }, { do: 'row', list: 'shares', values: { id: '8001015800087', cell: '0825550148' } },
     { do: 'cell', list: 'shares', row: 1, col: 'id', value: '1' }, { do: 'fill', field: 'kids.dob', value: '1' }, { do: 'ask', field: 'debts.bal' }, { do: 'row', list: 'kids', values: {} }] });
-  assert.deepStrictEqual(bad, { kind: 'none' });                          // unknown lists, private columns, list boxes named as plain fields, empty rows
+  assert.deepStrictEqual(bad, { kind: 'actions', actions: [{ do: 'cell', list: 'kids', col: 'dob', row: 'last', value: '1', explicit: false }, { do: 'ask', list: 'debts', col: 'bal', row: 'last' }] });   // unknown lists, private columns and empty rows are dropped; a list box named as a plain field is read as the list box
   assert.strictEqual((await run({ actions: [{ do: 'cell', list: 'kids', row: 'banana', col: 'name', value: 'A' }] })).actions[0].row, 'last');
 });
 
@@ -398,7 +398,7 @@ test('an empty value for one box means the box is to be emptied, and unknown box
   assert.deepStrictEqual(run([{ do: 'empty', list: 'shares', row: 'last', col: 'name' }]).actions, [{ do: 'empty', list: 'shares', row: 'last', col: 'name' }]);
   assert.strictEqual(run([{ do: 'fill', field: '', value: '' }]).kind, 'none');
   assert.strictEqual(run([{ do: 'fill', field: 'shares', value: '' }]).kind, 'none');
-  assert.strictEqual(run([{ do: 'fill', field: 'shares.name', value: '' }]).kind, 'none');
+  assert.deepStrictEqual(run([{ do: 'fill', field: 'shares.name', value: '' }]).actions, [{ do: 'empty', list: 'shares', row: 'last', col: 'name' }]);
 });
 test('an amount in the past tense is not taken as the current figure', () => {
   assert.match(AI.SYSTEM, /"I used to put about 2000 a month" is the old figure/);
@@ -471,4 +471,56 @@ test('the catch-up check returns fills, rows and unplaced facts through the same
   assert.deepStrictEqual(r.unplaced, [{ text: 'Wants to retire at 60', section: 'income' }]);
   assert.strictEqual(asked.max_tokens, 6000);
   assert.ok(/Fact Find form against the conversation/.test(asked.system));
+});
+
+test('a reply with a second, corrected answer is read from its last complete answer', () => {
+  const two = '{"actions":[{"do":"fill","field":"risk.prov","value":"Liberty"}]}\n\nWait \u2014 correcting to the proper list action:\n\n{"actions":[{"do":"cell","list":"risk","row":1,"col":"prov","value":"Liberty"}]}';
+  assert.deepStrictEqual(AI.extractJson(two), { actions: [{ do: 'cell', list: 'risk', row: 1, col: 'prov', value: 'Liberty' }] });
+  const talk = '{"actions":[{"do":"fill","field":"marital","value":"Married in community of property"}]}  Wait, the client only said "I\'m married" and did not say how. Corrected: {"actions":[{"do":"ask","field":"marital"}]} and nothing else {braces} here';
+  assert.deepStrictEqual(AI.extractJson(talk), { actions: [{ do: 'ask', field: 'marital' }] });
+  assert.deepStrictEqual(AI.extractJson('Here you go: {"actions": []}'), { actions: [] });
+  assert.deepStrictEqual(AI.extractJson('{"actions":[{"do":"note","text":"a } b"}]} trailing'), { actions: [{ do: 'note', text: 'a } b' }] });
+  assert.strictEqual(AI.extractJson('no json at all'), null);
+});
+
+test('a box of a list written as a plain box is still read as that list box', () => {
+  const run = actions => AI.normalize({ actions }, idx, 'auto', { _line: '', _sent: '', _held: {} }).actions;
+  assert.deepStrictEqual(run([{ do: 'fill', list: 'debts', row: 1, col: 'prov', value: 'ABSA' }]), [{ do: 'cell', list: 'debts', row: 1, col: 'prov', value: 'ABSA', explicit: false }]);
+  assert.deepStrictEqual(run([{ do: 'fill', field: 'debts.prov', value: 'ABSA' }]), [{ do: 'cell', list: 'debts', row: 'last', col: 'prov', value: 'ABSA', explicit: false }]);
+  assert.deepStrictEqual(run([{ do: 'fill', field: 'risk.prov', value: 'Liberty', correction: true }]), [{ do: 'cell', list: 'risk', row: 'last', col: 'prov', value: 'Liberty', explicit: true }]);
+  assert.deepStrictEqual(run([{ do: 'ask', field: 'debts.desc' }]), [{ do: 'ask', list: 'debts', row: 'last', col: 'desc' }]);
+  assert.deepStrictEqual(run([{ do: 'fill', field: 'shares.id', value: '8001015800087' }]), undefined);                 // a private column still takes only a marker
+  assert.deepStrictEqual(run([{ do: 'fill', field: 'nope.prov', value: 'x' }]), undefined);
+});
+
+test('the prompt says: one answer only, list boxes by "cell", calculated figures are not facts, and what is left over is not the expenses', () => {
+  assert.ok(/never a second object/.test(AI.SYSTEM));
+  assert.ok(/only ever filled with a "cell" action/.test(AI.SYSTEM));
+  assert.ok(/Direct Net Income" \(dnet\)/.test(AI.SYSTEM) && /not the take-home pay/.test(AI.SYSTEM));
+  assert.ok(/left with 90 000 after all my expenses/.test(AI.SYSTEM) && /net minus that amount/.test(AI.SYSTEM));
+});
+
+test('a slow answer is raced by a second request and the first answer back is used; without hedging nothing is sent twice', async () => {
+  let calls = 0;
+  const slowThenFast = () => { const n = ++calls; return new Promise(r => setTimeout(() => r({ ok: true, status: 200, json: () => Promise.resolve({ content: [{ type: 'text', text: JSON.stringify({ actions: [{ do: 'ask', field: 'occ' }] }) }] }) }), n === 1 ? 600 : 20)); };
+  const t0 = Date.now();
+  const r = await AI.decide({ apiKey: 'k', model: 'm', idx, who: 'auto', text: 'x', hedgeMs: 80, ctx: { sectionId: 'occ', recent: [] }, fetchImpl: slowThenFast });
+  assert.strictEqual(r.kind, 'actions'); assert.strictEqual(calls, 2); assert.ok(Date.now() - t0 < 400, 'waited for the slow one');
+  calls = 0;
+  await AI.decide({ apiKey: 'k', model: 'm', idx, who: 'auto', text: 'x', hedgeMs: 500, ctx: { sectionId: 'occ', recent: [] }, fetchImpl: () => { calls++; return reply({ actions: [] })(); } });
+  assert.strictEqual(calls, 1, 'a quick answer sends no second request');
+  calls = 0;
+  await AI.decide({ apiKey: 'k', model: 'm', idx, who: 'auto', text: 'x', ctx: { sectionId: 'occ', recent: [] }, fetchImpl: slowThenFast });
+  assert.strictEqual(calls, 1, 'no hedging unless asked for');
+  await assert.rejects(() => AI.decide({ apiKey: 'k', model: 'm', idx, who: 'auto', text: 'x', hedgeMs: 20, ctx: { sectionId: 'occ', recent: [] }, fetchImpl: () => Promise.reject(new Error('down')) }), /no connection/);
+});
+
+test('the catch-up request carries the notes and the facts already offered, and tells the model not to repeat them', () => {
+  const req = AI.sweepRequest({ idx, model: 'claude-sonnet-5-5', focus: null, transcript: [{ who: 'client', text: 'I have gout' }], filled: {}, listRows: () => [],
+    notes: { health: '- Has gout' }, listed: ['Blood pressure 140 over 180'] });
+  const body = JSON.parse(req.messages[0].content);
+  assert.deepStrictEqual(body.notes, { health: '- Has gout' });
+  assert.deepStrictEqual(body.listed, ['Blood pressure 140 over 180']);
+  assert.ok(/already in "notes" or in "listed" is never reported again/.test(req.system));
+  assert.ok(/net minus that amount/.test(req.system));
 });

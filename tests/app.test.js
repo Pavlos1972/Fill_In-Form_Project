@@ -391,3 +391,27 @@ test('Debts: Owner and Payer both offer Ex-Spouse/Partner, and an older file wit
   assert.strictEqual(back.l.debts[0].d.owner, 'Ex-Spouse/Partner');
   assert.strictEqual(back.l.debts[0].d.payer, 'Ex-Spouse/Partner');
 });
+
+test('the same fact in other words is not listed twice, but a different fact is', () => {
+  const s = fresh(), seen = {};
+  const add = t => !!store.addUnplaced(s, { text: t }, seen);
+  assert.ok(add('Has gout'));
+  assert.ok(!add('Health: client also has gout'));
+  assert.ok(add('Blood pressure reading 140 over 180'));
+  assert.ok(!add('Blood pressure about 140 over 180'));
+  assert.ok(!add('Health: blood pressure last reading 140 over 180'));
+  assert.ok(add('Health: BMI is 28'));
+  assert.ok(add('Discovery investment is called FlexiSave, client unsure of the product type'));
+  assert.ok(!add('Discovery investment called FlexiSave, type unknown to client'));
+  assert.ok(add('The Discovery Invest investment (R11 000, R99.99 p.m.) is for her husband'));
+  assert.ok(!add("The Discovery Invest investment (R11 000, R99.99 p.m.) is held for the client's husband"));
+  assert.ok(add('Boat loan of R180 000 with Wesbank'));
+  assert.ok(add('Plans to emigrate in 2028'));
+  assert.strictEqual(s.unplaced.length, 7);
+});
+test('a marriage date that is only a year is accepted, and one in the future is still flagged', () => {
+  const msgs = (d) => { const s = fresh(); set(s, 'marital', 'Customary marriage'); set(s, 'marr_date', d); return validate.check(store.ctxFor(s)).filter(w => w.id === 'marr_date').map(w => w.msg); };
+  assert.deepStrictEqual(msgs('2014'), []);
+  assert.match(msgs('2099')[0], /after the date of the form/);
+  assert.match(msgs('sometime')[0], /not recognised/);
+});
