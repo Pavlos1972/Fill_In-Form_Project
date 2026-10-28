@@ -23,7 +23,7 @@
     'When "note" is present it says what the page has already done for the newest line (for example that it already moved to a section): do not do that again, do the rest of the line.',
     'Nobody tells you who is speaking. The adviser and the client talk fluidly: ONE line can hold the adviser asking, the client answering, a correction and a new fact.',
     'Read the whole line and work out what was ASKED, what was STATED and what was CHANGED, however loosely it was worded, then say what to do on the form.',
-    'Reply with ONE JSON object and nothing else: {"actions": [ ... ]}. Put the actions in the order things were said. Each action is one of:',
+    'Reply with ONE JSON object and nothing else: {"actions": [ ... ]} (and "unplaced", see "Facts with no box" below). Put the actions in the order things were said. Each action is one of:',
     '  {"do":"ask","field":"<id>"}                  someone asks about, or moves to, one box ("do you have a work number?", "and your second name?")',
     '  {"do":"section","section":"<id>"}            someone moves to a whole topic ("let\'s talk about your health")',
     '  {"do":"fill","field":"<id>","value":"..."}   a value is stated for a box, WHOEVER says it. Add "correction":true when it replaces a value that is already in the box (see "filled")',
@@ -62,6 +62,10 @@
     '  When that next line answers the question or the announcement before it, fill that box with it, even if it is a single word ("Kafentzis" after "what is your surname?" or "my surname is spelled").',
     '  If the box already holds a wrong value left by an earlier fragment, fill it again with "correction":true. A name spelled out letter by letter ("K A F E N T Z I S") is one word: Kafentzis.',
     '- When unsure what a line means, work it out from the conversation: what was just asked (position.field), the last lines, and what is in "filled". Prefer waiting (an empty list) to guessing, and never put a word that is not a value into a box.',
+    '',
+    'Facts with no box. When the newest line states a fact about the client\'s situation that belongs on the form (an amount, a name, a date, a product, a plan, a reason) but you cannot put it in any box or list column of "fields" and "lists" (there is no such box, or you cannot tell which one),',
+    'add it to the reply as {"actions": [...], "unplaced": [{"text": "short point in plain words, the figures as said", "section": "<id of the section it belongs in, if you can tell>"}]} so the adviser can see it. Give one entry per fact.',
+    'Never put in "unplaced" small talk, a question, an acknowledgement, a remark about the software, something you already gave as an action, or a value that is already in "filled". Leave "unplaced" out when there is nothing.',
     '',
     'Notes. "let me take some notes", "I\'d like to make a couple of notes about ...", "note that down" start the notes (cmd notes). The notes box takes what you give it in "note" actions, so when the line holds the thing to be noted, ALSO give it:',
     '"I\'d like to make a couple of notes about the Old Mutual tax free. The client told me it is for his son\'s university fees when he turns 18" is',
@@ -243,6 +247,20 @@
 
   var EMAIL_LEAD = /^(?:is|are|it|its|it's|my|our|email|e-mail|mail|address|at|on|me|to|and|or|the|a|an|work|personal|private|office|business|use|using|via|send|sent|contact|reach|for|from)$/i;   // words that lead into an address but are not part of it
   var CMDS = { undo: { type: 'undo' }, next: { type: 'next' }, prev: { type: 'prev' }, nextSection: { type: 'nextSection' }, prevSection: { type: 'prevSection' }, clear: { type: 'clear' }, clearAll: { type: 'clearAll' }, notesOff: { type: 'notesOff' } };
+  /* "unplaced": facts the model heard but could not put in a box. Markers are swapped for the real values (they stay on this computer). -> [{ text, section }] */
+  function unplacedOf(raw, idx, vault) {
+    if (!raw || !Array.isArray(raw.unplaced)) return [];
+    var out = [];
+    raw.unplaced.forEach(function (u) {
+      var t = u && typeof u === 'object' ? u.text : (typeof u === 'string' ? u : '');
+      if (typeof t !== 'string') return;
+      t = t.replace(/\[((?:N|E)\d+)\]/g, function (m, k) { return vault && vault[k] != null ? vault[k] : ''; }).replace(/\s+/g, ' ').trim().slice(0, 240);
+      if (t.length < 3) return;
+      var sec = u && typeof u === 'object' && typeof u.section === 'string' && idx.sections.some(function (x) { return x.id === u.section; }) ? u.section : null;
+      out.push({ text: t, section: sec });
+    });
+    return out.slice(0, 6);
+  }
   /* Only ids that exist get through. A private box takes only a marker (swapped for the real value here) or "None".
      -> { kind: 'actions', actions } | { kind: 'point', field, section } | { kind: 'answers', answers, waiting } | { kind: 'none' } */
   function normalize(raw, idx, who, vault) {
@@ -309,7 +327,9 @@
           else if (a && okField(a.field) && a.value != null && String(a.value).trim() !== '') acts.push({ do: 'fill', field: a.field, value: String(a.value).trim() });
         });
       }
-      return acts.length ? { kind: 'actions', actions: acts } : { kind: 'none' };
+      var gone = unplacedOf(raw, idx, vault), res = acts.length ? { kind: 'actions', actions: acts } : { kind: 'none' };
+      if (gone.length) res.unplaced = gone;                                                    // only when there is something, so every other answer keeps its shape
+      return res;
     }
     if (who !== 'client') {
       var field = okField(raw.field) ? raw.field : null;
@@ -395,6 +415,47 @@
     return callModel(opts, opts.ask ? prep.req : cachedRequest(prep)).then(function (text) { return normalize(extractJson(text), opts.idx, opts.who, prep.vault); });
   }
 
+  /* The catch-up check: the whole conversation (or the part since a section was entered) read again against the form as it is now, to find what was said and never reached a box.
+     Only boxes that are empty are ever filled from it; anything else it finds is handed back as "unplaced" for the adviser. */
+  var SWEEP_SYSTEM = [
+    'You check a Fact Find form against the conversation it was filled from. A financial adviser spoke with a client; the form was filled live while they talked, and some of what was said never reached a box.',
+    'You receive JSON: "sections", "fields" (every box of the form with its section; boxes with "options" take exactly one of them), "filled" (what is in the boxes now), "lists" (every list of rows, with its columns and the rows there now),',
+    '"transcript" (the conversation in order: "who" is "adviser", "client" or "unclear"; nobody is labelled reliably, so read each line for what it says) and "focus" (a section id, or null for the whole form).',
+    'Find every FACT in the transcript that belongs in a box that is EMPTY now (not in "filled"), and give it. Reply with ONE JSON object and nothing else:',
+    '{"actions": [ ... ], "unplaced": [ ... ]}. Each action is one of:',
+    '  {"do":"fill","field":"<id>","value":"..."}                                   a value for a box that is empty now',
+    '  {"do":"cell","list":"<list id>","row":<row number>,"col":"<column id>","value":"..."}   a value for an empty box of a row that is already in "lists"',
+    '  {"do":"row","list":"<list id>","values":{"<column id>":"<value>", ...}}     a person or item that was talked about but has NO row in "lists" (a child, a loan, a policy)',
+    'Rules:',
+    '- Facts count whoever says them. When "focus" is a section id, give only facts for the boxes and lists of that section; when it is null, the whole form.',
+    '- Only the LAST version of a fact counts: when something is corrected ("sorry, it is 61 449, not 61 000"), give the final value. Speech recognition garbles South African speech ("tax fee" is tax free, "absent" is Absa, "random" is rand); use the conversation to decide.',
+    '- Never fill a box that already has a value in "filled" (even if the conversation says something different: then put that in "unplaced" as {"text":"<Box label>: the conversation says <value>, the form has <value>","section":"<id>"}). Never invent a value that was not said.',
+    '- Give nothing for a question, an acknowledgement, small talk, a remark about the software, or a value that was only being asked about and not answered. An amount in the past tense is not what the box holds now.',
+    '- A box of "fields" marked "private" is not here: do not give ID, tax, phone or email values. A line shows [number] or [email] where one was said; ignore those.',
+    '- Values: a box with "options" takes exactly one of them (leave it out if none fits); amounts are digits only (85000); dates are YYYY-MM-DD; names are just the name, capitalised; otherwise the client\'s own words, tidied.',
+    '- "unplaced": facts about the client\'s situation that belong on the form but fit no box or column at all (or that you cannot place), as {"text":"short point in plain words, figures as said","section":"<section id if you can tell>"}. One entry per fact; leave the list out when there is none.',
+    '- Be careful rather than generous: a fact you are not sure of goes in "unplaced" (or nowhere), not in a box. When there is nothing to add reply {"actions": []}.'
+  ].join('\n');
+  /* opts: { idx, transcript: [{who, text}], filled: {id: value}, listRows(key), focus: section id | null, model }. -> the request (nothing private leaves: lines are scrubbed, private boxes are not listed). */
+  function sweepRequest(opts) {
+    var idx = opts.idx, priv = function (id) { return !share && V.PRIVATE_IDS.indexOf(id) >= 0; };
+    var fields = idx.fields.filter(function (f) { return !f.list && !priv(f.id); }).map(function (f) {
+      var o = { id: f.id, label: f.label, section: f.sec }; if (f.options) o.options = f.options; return o;
+    });
+    var filled = {}; Object.keys(opts.filled || {}).forEach(function (id) { if (!priv(id)) filled[id] = scrub(String(opts.filled[id])).slice(0, 160); });
+    var body = {
+      focus: opts.focus || null,
+      sections: idx.sections.map(function (x) { return { id: x.id, title: x.title }; }),
+      fields: fields, filled: filled, lists: listsFor(idx, opts),
+      transcript: (opts.transcript || []).map(function (l) { return { who: l.who === 'adviser' || l.who === 'client' ? l.who : 'unclear', text: scrub(l.text).slice(0, 500) }; })
+    };
+    return withThinking({ model: opts.model, max_tokens: 6000, output_config: { effort: 'medium' }, system: SWEEP_SYSTEM, messages: [{ role: 'user', content: JSON.stringify(body) }] });
+  }
+  function sweep(opts) {
+    var o = Object.assign({}, opts, { timeoutMs: opts.timeoutMs || 120000 });
+    return callModel(o, sweepRequest(opts)).then(function (text) { return normalize(extractJson(text), opts.idx, 'auto', { _line: '', _sent: '', _held: {} }); });
+  }
+
   /* File notes in point form. opts: { apiKey | ask, model, text, topic, fetchImpl } -> Promise of an array of short points (maybe empty). */
   var POINTS_SYSTEM = [
     'You help a financial adviser keep file notes while on a call with a client.',
@@ -410,5 +471,5 @@
     });
   }
 
-  return { decide: decide, points: points, warm: warm, reconcile: reconcile, setShare: setShare, sharing: sharing, thinkingFor: thinkingFor, prepare: prepare, buildRequest: buildRequest, cachedRequest: cachedRequest, normalize: normalize, extractJson: extractJson, scrub: scrub, shield: shield, SYSTEM: SYSTEM };
+  return { decide: decide, sweep: sweep, sweepRequest: sweepRequest, SWEEP_SYSTEM: SWEEP_SYSTEM, points: points, warm: warm, reconcile: reconcile, setShare: setShare, sharing: sharing, thinkingFor: thinkingFor, prepare: prepare, buildRequest: buildRequest, cachedRequest: cachedRequest, normalize: normalize, extractJson: extractJson, scrub: scrub, shield: shield, SYSTEM: SYSTEM };
 });

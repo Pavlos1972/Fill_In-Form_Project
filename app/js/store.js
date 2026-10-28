@@ -15,7 +15,7 @@
     return o;
   }
   function blank() {
-    var s = { app: APP_ID, schema: schema.version, created: new Date().toISOString(), modified: null, f: {}, l: {}, docs: {}, claude: blankTally() };
+    var s = { app: APP_ID, schema: schema.version, created: new Date().toISOString(), modified: null, f: {}, l: {}, docs: {}, unplaced: [], claude: blankTally() };
     Object.keys(schema.fieldsById).forEach(function (id) {
       var d = schema.fieldsById[id], p = d.preset === '@today' ? util.todayDMY() : d.preset;
       s.f[id] = p ? { v: p, st: 'preset' } : { v: '', st: 'empty' };
@@ -99,6 +99,7 @@
       });
     });
     s.docs = j.docs || {};
+    s.unplaced = (Array.isArray(j.unplaced) ? j.unplaced : []).map(cleanUnplaced).filter(Boolean).slice(0, 60);
     s.claude = tallyFrom(j.claude);
     tidyAmounts(s);
     tidyDates(s);
@@ -118,6 +119,37 @@
     Object.keys(schema.lists).forEach(function (k) {
       schema.lists[k].cols.forEach(function (c) { if (c.date) s.l[k].forEach(function (r) { r.d[c.k] = fix(r.d[c.k]); }); });
     });
+  }
+  /* Facts heard in the conversation that did not reach a box ("Heard but not placed"). They are kept with the Fact Find until the adviser deals with each one.
+     item: { text, why?, sec?, field?, value? (a box and the value to put in it), list?, values? (a list and the row to add) } */
+  function unplacedKey(it) { return String(it.text || '').toLowerCase().replace(/[^a-z0-9]+/g, '') + '|' + (it.field || it.list || ''); }
+  function cleanUnplaced(it) {
+    if (!it || typeof it !== 'object' || typeof it.text !== 'string' || it.text.trim().length < 3) return null;
+    var o = { id: String(it.id || ''), text: it.text.trim().slice(0, 240) };
+    if (typeof it.why === 'string' && it.why) o.why = it.why.slice(0, 240);
+    if (typeof it.sec === 'string' && schema.sections.some(function (x) { return x.id === it.sec; })) o.sec = it.sec;
+    if (typeof it.field === 'string' && schema.fieldsById[it.field] && typeof it.value === 'string') { o.field = it.field; o.value = it.value; }
+    if (typeof it.list === 'string' && schema.lists[it.list] && it.values && typeof it.values === 'object') {
+      o.list = it.list; o.values = {};
+      Object.keys(it.values).forEach(function (k) { if (schema.lists[it.list].cols.some(function (c) { return c.k === k; })) o.values[k] = String(it.values[k]); });
+    }
+    if (!o.id) o.id = 'u' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    return o;
+  }
+  /* seen (optional): keys already dealt with this session, so a fact that was dismissed does not come back. -> the stored item, or null when it is a repeat. */
+  function addUnplaced(state, item, seen) {
+    var it = cleanUnplaced(item); if (!it) return null;
+    var k = unplacedKey(it);
+    if ((seen && seen[k]) || (state.unplaced || []).some(function (x) { return unplacedKey(x) === k; })) return null;
+    (state.unplaced = state.unplaced || []).push(it);
+    return it;
+  }
+  function closeUnplaced(state, id, seen) {
+    var list = state.unplaced || [], i = -1;
+    list.forEach(function (x, n) { if (x.id === id) i = n; });
+    if (i < 0) return null;
+    var it = list.splice(i, 1)[0]; if (seen) seen[unplacedKey(it)] = 1;
+    return it;
   }
   function toJSON(state) { state.modified = new Date().toISOString(); return JSON.stringify(state, null, 2); }
 
@@ -140,5 +172,5 @@
     return { tot: tot, fill: fill, ver: ver };
   }
 
-  return { blank: blank, blankTally: blankTally, ctxFor: ctxFor, setField: setField, addRow: addRow, delRow: delRow, setCell: setCell, accept: accept, clientName: clientName, idClash: idClash, idKey: idKey, fatherSurname: fatherSurname, baseFileName: baseFileName, fromJSON: fromJSON, toJSON: toJSON, counts: counts };
+  return { addUnplaced: addUnplaced, closeUnplaced: closeUnplaced, unplacedKey: unplacedKey, blank: blank, blankTally: blankTally, ctxFor: ctxFor, setField: setField, addRow: addRow, delRow: delRow, setCell: setCell, accept: accept, clientName: clientName, idClash: idClash, idKey: idKey, fatherSurname: fatherSurname, baseFileName: baseFileName, fromJSON: fromJSON, toJSON: toJSON, counts: counts };
 });

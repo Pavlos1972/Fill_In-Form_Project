@@ -423,3 +423,52 @@ test('what else the speech recogniser thought it heard goes to Claude as text, w
   assert.match(AI.SYSTEM, /"heard_alternatives"/);
   assert.match(AI.SYSTEM, /"confesses" or "offenses" for Kafentzis/);
 });
+
+test('facts Claude had no box for come back as "unplaced", with markers swapped for the real values and only real sections kept', async () => {
+  const sent = AI.shield('my bond is with [N1]');
+  const raw = { actions: [{ do: 'ask', field: 'occ' }], unplaced: [{ text: 'Has a boat loan of R180 000 with Wesbank', section: 'debts' }, { text: 'Policy number [N1]', section: 'nowhere' }, 'Plans to emigrate in 2028', { text: 'ab' }, { section: 'debts' }, 42] };
+  const r = AI.normalize(raw, idx, 'auto', { N1: '0825550148' });
+  assert.strictEqual(r.kind, 'actions');
+  assert.deepStrictEqual(r.unplaced, [
+    { text: 'Has a boat loan of R180 000 with Wesbank', section: 'debts' },
+    { text: 'Policy number 0825550148', section: null },
+    { text: 'Plans to emigrate in 2028', section: null }
+  ]);
+  assert.deepStrictEqual(AI.normalize({ actions: [], unplaced: [{ text: 'She also owns a small farm', section: 'info' }] }, idx, 'auto', {}), { kind: 'none', unplaced: [{ text: 'She also owns a small farm', section: 'info' }] });
+  assert.deepStrictEqual(AI.normalize({ actions: [{ do: 'ask', field: 'occ' }] }, idx, 'auto', {}), { kind: 'actions', actions: [{ do: 'ask', field: 'occ' }] });   // nothing unplaced: the answer keeps its old shape
+  assert.strictEqual(AI.normalize({ actions: [], unplaced: new Array(20).fill({ text: 'a fact to keep' }) }, idx, 'auto', {}).unplaced.length, 6);
+  assert.ok(/unplaced/.test(AI.SYSTEM) && /Never put in "unplaced" small talk/.test(AI.SYSTEM));
+  void sent;
+});
+
+test('the catch-up request holds the conversation and the form, and nothing private', () => {
+  const req = AI.sweepRequest({ idx, model: 'claude-sonnet-5-5', focus: 'info',
+    transcript: [{ who: 'adviser', text: 'what is your cell number?' }, { who: 'client', text: 'it is 082 555 0148 and my email is vicky@example.com' }, { who: 'unlabelled', text: 'I earn R85 000 a month' }],
+    filled: { fname: 'Vicky', cell: '0825550148', gross: 'R 85 000.00' }, listRows: () => [] });
+  const s = JSON.stringify(req), body = JSON.parse(req.messages[0].content);
+  assert.ok(!/0825550148|082 555|vicky@example/.test(s), 'private values left the computer');
+  assert.ok(s.includes('[number]') && s.includes('[email]'));
+  assert.strictEqual(body.focus, 'info');
+  assert.deepStrictEqual(body.transcript.map(l => l.who), ['adviser', 'client', 'unclear']);
+  ['idno', 'cell', 'work', 'home', 'pemail', 'wemail', 'sp_tel', 'tax'].forEach(id => assert.ok(!body.fields.some(f => f.id === id), id + ' is private and not listed'));
+  assert.ok(!('cell' in body.filled) && body.filled.fname === 'Vicky');
+  assert.ok(body.fields.some(f => f.id === 'gross') && body.lists.some(l => l.id === 'kids'));
+  assert.strictEqual(req.model, 'claude-sonnet-5-5');
+  assert.ok(/EMPTY now/.test(req.system) && /Never fill a box that already has a value/.test(req.system));
+});
+
+test('the catch-up check returns fills, rows and unplaced facts through the same safe reading as a live line', async () => {
+  let asked = null;
+  const fetchImpl = (url, init) => { asked = JSON.parse(init.body); return reply({ actions: [
+    { do: 'fill', field: 'occ', value: 'Nurse' }, { do: 'fill', field: 'cell', value: '0825550148' }, { do: 'fill', field: 'nonsense', value: 'x' },
+    { do: 'cell', list: 'kids', row: 1, col: 'dob', value: '2019-08-22' }, { do: 'row', list: 'kids', values: { name: 'Ben', nonsense: 'x' } }, { do: 'cmd', cmd: 'clearAll' }
+  ], unplaced: [{ text: 'Wants to retire at 60', section: 'income' }] })(); };
+  const r = await AI.sweep({ apiKey: 'k', fetchImpl, idx, model: 'claude-sonnet-5-5', transcript: [{ who: 'client', text: 'I am a nurse' }], filled: {}, listRows: () => [] });
+  assert.strictEqual(r.kind, 'actions');
+  assert.ok(r.actions.some(a => a.do === 'fill' && a.field === 'occ' && a.value === 'Nurse'));
+  assert.ok(!r.actions.some(a => a.field === 'cell' || a.field === 'nonsense'), 'a private box or an unknown box got through');
+  assert.deepStrictEqual(r.actions.find(a => a.do === 'row'), { do: 'row', list: 'kids', values: { name: 'Ben' } });
+  assert.deepStrictEqual(r.unplaced, [{ text: 'Wants to retire at 60', section: 'income' }]);
+  assert.strictEqual(asked.max_tokens, 6000);
+  assert.ok(/Fact Find form against the conversation/.test(asked.system));
+});
