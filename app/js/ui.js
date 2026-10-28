@@ -244,36 +244,104 @@
     }
     return h + '</table></div><button type="button" class="addrow" data-add="' + key + '">+ ' + esc(L.add) + '</button>';
   }
-  function docsHTML() {
-    return schema.docs.map(function (d) { return '<label class="check"><input type="checkbox" data-doc="' + esc(d) + '"' + (state.docs[d] ? ' checked' : '') + '> ' + esc(d) + '</label>'; }).join('');
+  /* A greyed-out box or block (its rule is not met) stays on screen, but nothing in it can be used until the rule is met. */
+  function greyed(html) { return html.replace(/^<label class="f /, '<label inert class="f off '); }
+  function gridHTML(b, c) {
+    var g12 = b.layout === 'g12';
+    var cells = b.fields.map(function (f) {
+      var ok = calc.showIf(f.cond, c);
+      if (!ok && !f.grey) return '';
+      var x = fieldHTML(f, g12);
+      return ok ? x : greyed(x);
+    }).join('');
+    return cells ? '<div class="grid' + (g12 ? ' g12' : '') + '">' + cells + '</div>' : '';
+  }
+  function blockHTML(b, sec, c) {
+    var ok = calc.showIf(b.cond, c), own = calc.showIf('own' in b ? b.own : b.cond, c), h = '';
+    if (!ok && !b.grey) return '<div class="block-title">' + esc(b.title) + '</div><div class="note">' + esc(b.condMsg) + '</div>';
+    if (b.title) h += '<div class="block-title">' + esc(b.title) + '</div>';
+    if (!ok && !own && b.condMsg && !b.nomsg) h += '<div class="note">' + esc(b.condMsg) + '</div>';
+    var inner = '';
+    if (b.help) inner += '<p class="help">' + esc(b.help) + '</p>';
+    if (b.fields) inner += gridHTML(b, c);
+    if (b.list) { if (!b.title && schema.lists[b.list].title !== sec.title) inner += '<div class="block-title">' + esc(schema.lists[b.list].title) + '</div>'; inner += listHTML(b.list); }
+    return h + (ok ? inner : '<div class="off" inert>' + inner + '</div>');
+  }
+  /* The risk-calculation blocks of the Life area are folded away until opened (or until the voice needs a box in them). */
+  var calcOpen = {};
+  /* One area of the Client priorities page: its decision and comments boxes on the left with its quotes and referrals, and a short summary of what the client has on the right.
+     The whole area takes a green haze when it is a priority and a red haze when it is not (its quotes are then greyed out; the comments box stays). */
+  function panelHTML(sec, id) {
+    var P = schema.panelsById[id], c = ctx(), v = P.dec ? state.f[P.dec].v : '', cls = v === schema.PRIORITY ? ' p1' : v === schema.NOT_PRIORITY ? ' p2' : '';
+    var applies = calc.showIf(P.cond, c);
+    var chip = !P.dec ? (applies ? 'Business owner' : 'Not applicable') : cls === ' p1' ? 'Priority' : cls === ' p2' ? 'Not a priority' : 'Not yet discussed';
+    var blocks = sec.blocks.filter(function (b) { return b.pri === id; }), head = blocks.filter(function (b) { return b.head; })[0];
+    var h = '<section class="prio' + cls + '" data-prio="' + id + '"><header><h3>' + esc(P.title) + '</h3><span class="sub">' + esc(P.sub) + '</span><span class="chip">' + chip + '</span></header><div class="pbody"><div class="pl">';
+    if (head) h += gridHTML(head, c);
+    if (!applies) h += '<div class="note warn">' + esc(P.condMsg) + ' <button type="button" class="btn ghost" data-sec="occ">Go to Occupation</button></div>';
+    if (cls === ' p2') h += '<div class="note warn">The client said this is not a priority. The quote boxes are switched off. Use the comments box for the reason or your instructions.</div>';
+    h += '<div class="area">';
+    var run = '';
+    function flush() { if (run) { h += '<details class="calcbox" data-calc="' + id + '"' + (calcOpen[id] ? ' open' : '') + '><summary>Risk calculation (life, disability, dread disease, income protection)</summary>' + run + '</details>'; run = ''; } }
+    blocks.forEach(function (b) { if (b.head) return; if (b.calc) { run += blockHTML(b, sec, c); return; } flush(); h += blockHTML(b, sec, c); });
+    flush();
+    return h + '</div></div>' + (P.sum ? '<div class="sum" data-sum="' + id + '">' + sumInner(id) + '</div>' : '') + '</div></section>';
   }
   function sectionHTML(sec) {
     var c = ctx();
-    var h = '<header><h2>' + esc(sec.title) + '</h2><span class="tier ' + (sec.adv ? 'c' : '') + '">' + (sec.adv ? 'Advisor only' : 'Client answers') + '</span></header>';
+    var h = '<header><h2>' + esc(sec.title) + '</h2><span class="tier ' + (sec.adv ? 'c' : '') + '">' + (sec.adv ? 'Client priorities identified' : 'Client answers') + '</span></header>';
     if (!calc.showIf(sec.cond, c)) return h + '<div class="note">' + esc(sec.condMsg) + '</div>';
+    if (sec.intro) h += '<p class="help">' + esc(sec.intro) + '</p>';
+    var seen = {};
     sec.blocks.forEach(function (b) {
-      if (!calc.showIf(b.cond, c)) { h += '<div class="block-title">' + esc(b.title) + '</div><div class="note">' + esc(b.condMsg) + '</div>'; return; }
-      if (b.title) h += '<div class="block-title">' + esc(b.title) + '</div>';
-      if (b.help) h += '<p class="help">' + esc(b.help) + '</p>';
-      if (b.fields) h += '<div class="grid' + (b.layout === 'g12' ? ' g12' : '') + '">' + b.fields.filter(function (f) { return calc.showIf(f.cond, c); }).map(function (f) { return fieldHTML(f, b.layout === 'g12'); }).join('') + '</div>';
-      if (b.docs) h += docsHTML();
-      if (b.list) { if (!b.title && schema.lists[b.list].title !== sec.title) h += '<div class="block-title">' + esc(schema.lists[b.list].title) + '</div>'; h += listHTML(b.list); }
+      if (b.pri) { if (!seen[b.pri]) { seen[b.pri] = 1; h += panelHTML(sec, b.pri); } return; }
+      h += blockHTML(b, sec, c);
     });
     return h;
   }
+
+  /* ---------- the summaries on the Client priorities page ---------- */
+  var sumBusy = {}, sumTimer = null;
+  function sumInner(id) {
+    var P = schema.panelsById[id], r = FF.summary.linesFor(state, id), busy = sumBusy[id], ready = vmAIReady();
+    var when = r.by === 'claude' ? 'Written by Claude' + (r.at ? ', ' + new Date(r.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '')
+      : busy ? 'Claude is writing this…' : ready ? 'Plain points from the form. Press Refresh for Claude to write them.' : 'Plain points from the form. Claude writes these when the Anthropic key is in Settings.';
+    return '<div class="sh">Summary<button type="button" class="link-btn" data-sumrefresh="' + id + '"' + (busy ? ' disabled' : '') + '>' + (busy ? 'Refreshing…' : 'Refresh') + '</button></div>' +
+      '<ul>' + (r.lines.length ? r.lines.map(function (l) { return '<li>' + esc(l) + '</li>'; }).join('') : '<li class="none">Nothing recorded yet</li>') + '</ul>' +
+      '<div class="src">Drawn from: ' + esc(P.src) + '</div><div class="when">' + esc(when) + '</div>';
+  }
+  function sumPaint(ids) { ids.forEach(function (id) { var el = document.querySelector('[data-sum="' + id + '"]'); if (el) el.innerHTML = sumInner(id); }); }
+  /* Claude writes the points for every area that has none yet or whose facts have changed (all eight in one request). manual: the Refresh button, which rewrites the area. */
+  function sumRefresh(only, manual) {
+    if (!VAI || !VAI.summarise || !vmAIReady()) { if (manual) toast('Claude writes these summaries: put the Anthropic key in Settings.'); return; }
+    var todo = FF.summary.stale(state, only, !!manual);
+    Object.keys(todo).forEach(function (id) { if (sumBusy[id]) delete todo[id]; });
+    var ids = Object.keys(todo); if (!ids.length) return;
+    ids.forEach(function (id) { sumBusy[id] = 1; }); sumPaint(ids);
+    var set = FF.lookup.getSettings();
+    VAI.summarise({ apiKey: set.apiKey, ask: !set.apiKey && FF.voiceBackend && FF.voiceBackend.available ? FF.voiceBackend.ask : null, model: set.voiceModel, areas: todo, fetchImpl: meteredFetch }).then(function (res) {
+      ids.forEach(function (id) { delete sumBusy[id]; if (res[id] && res[id].length) store.setSum(state, id, res[id], todo[id].key); });
+      saveDraft(); sumPaint(ids);
+    }, function (e) { ids.forEach(function (id) { delete sumBusy[id]; }); sumPaint(ids); if (manual) toast('Claude could not write the summary (' + ((e && e.message) || 'no answer') + ').'); });
+  }
+  function sumSoon() { clearTimeout(sumTimer); sumTimer = setTimeout(function () { if (cur === 'prio') sumRefresh(null, false); }, 700); }
+  document.addEventListener('toggle', function (e) { var d = e.target; if (d && d.classList && d.classList.contains('calcbox')) calcOpen[d.dataset.calc] = d.open; }, true);
 
   /* Redrawing the section replaces its boxes, so the box the cursor is in (and anything typed there but not yet kept) is found again afterwards: an answer filled in the background does not take the cursor away. */
   function boxSelector(el) {
     if (!el || !el.dataset || !el.closest || !el.closest('#main')) return '';
     return el.dataset.f ? '[data-f="' + el.dataset.f + '"]' : el.dataset.l ? '[data-l="' + el.dataset.l + '"][data-i="' + el.dataset.i + '"][data-k="' + el.dataset.k + '"]' : '';
   }
+  var drawn = '';
   function redraw() {
     renderNav();
     var sec = schema.sections.filter(function (x) { return x.id === cur; })[0], main = $('#main');
     var ae = document.activeElement, sel = ae && ae !== document.body ? boxSelector(ae) : '', field = sel && /^(?:INPUT|TEXTAREA|SELECT)$/.test(ae.tagName) && ae.type !== 'checkbox';
     var text = field && ae.tagName !== 'SELECT', keep = field ? { sel: sel, was: ae.defaultValue, typed: text && ae.value !== ae.defaultValue ? ae.value : null, a: text ? ae.selectionStart : null, b: text ? ae.selectionEnd : null } : null;
-    main.className = 'main' + (sec.roomy ? ' roomy' : '') + (sec.fit ? ' fit' : '') + (sec.adv ? ' advisor' : '');
+    main.className = 'main' + (sec.roomy ? ' roomy' : '') + (sec.fit ? ' fit' : '') + (sec.adv ? ' priorities' : '');
     main.innerHTML = sectionHTML(sec);
+    if (cur === 'prio' && drawn !== 'prio') sumSoon();                                       // Claude writes the summaries when the page is opened
+    drawn = cur;
     refreshChrome(); refreshWarnings();
     if (vm.on) vmMarkWait();
     var back = keep && document.querySelector(keep.sel);
@@ -286,7 +354,7 @@
   function renderNav() {
     var nav = '<div class="sep">Client answers</div>', adv = false;
     schema.sections.forEach(function (s) {
-      if (s.adv && !adv) { nav += '<div class="sep">Advisor</div>'; adv = true; }
+      if (s.adv && !adv) { nav += '<div class="sep">Client Priorities identified</div>'; adv = true; }
       var c = store.counts(state, s);
       nav += '<button type="button" data-sec="' + s.id + '"' + (s.id === cur ? ' aria-current="true"' : '') + '><span>' + esc(s.title) + '</span><span class="n" data-count="' + s.id + '">' + (s.adv ? '' : c.fill + '/' + c.tot) + '</span></button>';
     });
@@ -368,8 +436,9 @@
   schema.sections.forEach(function (s) { calc.condFields(s.cond).concat([].concat.apply([], s.blocks.map(function (b) { return calc.condFields(b.cond).concat([].concat.apply([], (b.fields || []).map(function (f) { return calc.condFields(f.cond); }))); }))).forEach(function (id) { condIds[id] = 1; }); });
 
   document.addEventListener('click', function (e) {
-    var t = e.target.closest('[data-sec],[data-accept],[data-add],[data-del],[data-goto],[data-usedob],[data-lookup],[data-cal]');
+    var t = e.target.closest('[data-sec],[data-accept],[data-add],[data-del],[data-goto],[data-usedob],[data-lookup],[data-cal],[data-sumrefresh]');
     if (!t) return;
+    if (t.dataset.sumrefresh) { sumRefresh([t.dataset.sumrefresh], true); return; }
     if (t.dataset.cal) { openCalendar(t.dataset.cal); return; }
     if (t.dataset.sec) { cur = t.dataset.sec; redraw(); window.scrollTo(0, 0); return; }
     if (t.dataset.lookup) { doLookup(t); return; }
@@ -434,7 +503,7 @@
       }
       var row = t.closest('.rowcard, tr'); if (row) row.className = row.className.replace(/\bs-(heard|verify)\b/, 's-confirmed');
       touch(); refreshLive();
-    } else if (t.dataset.doc) { state.docs[t.dataset.doc] = t.checked ? 1 : 0; touch(); }
+    }
   });
   window.addEventListener('beforeunload', function (e) { if (dirty) { e.preventDefault(); e.returnValue = ''; } });
 
@@ -902,7 +971,8 @@
     if (vm.run && vm.run.box !== id) vm.run = null;  // a number being said belongs to its own box
     if (vm.erun && vm.erun.box !== id) vmEmailGiveUp();
     if (isNumBox(id)) vm.lastNum = id;
-    var el = vmEl(id);
+    var el = vmEl(id), fold = el && el.closest && el.closest('details.calcbox');
+    if (fold && !fold.open) { fold.open = true; calcOpen[fold.dataset.calc] = true; }
     if (el) {
       el.scrollIntoView({ block: 'center', behavior: 'smooth' });
       var inp = el.querySelector('input:not([type=checkbox]),select,textarea');
@@ -2056,7 +2126,8 @@
   function vmSpeechHints(last) {
     var seen = {}, names = [];
     function add(v) { v = String(v == null ? '' : v).replace(/\s+/g, ' ').trim(); if (v && v.length <= 40 && !/\d{3,}|@/.test(v) && !seen[v.toLowerCase()]) { seen[v.toLowerCase()] = 1; names.push(v); } }
-    ['advisor', 'fname', 'sname', 'sp_name', 'employer', 'biz_name'].forEach(function (id) { if (state.f[id]) add(state.f[id].v); });
+    add(schema.advisor);
+    ['fname', 'sname', 'sp_name', 'employer', 'biz_name'].forEach(function (id) { if (state.f[id]) add(state.f[id].v); });
     ['shares', 'kids'].forEach(function (key) { (state.l[key] || []).forEach(function (r) { add(r.d.name); add(r.d.sname); }); });
     return 'A South African financial adviser and a client are filling in a Fact Find. Names and terms that may be said: ' + names.slice(0, 20).join(', ') + (names.length ? ', ' : '') + SPEECH_TERMS + '.' + (last ? ' The line before: ' + last : '');
   }

@@ -68,6 +68,12 @@
     '  If the box already holds a wrong value left by an earlier fragment, fill it again with "correction":true. A name spelled out letter by letter ("K A F E N T Z I S") is one word: Kafentzis.',
     '- When unsure what a line means, work it out from the conversation: what was just asked (position.field), the last lines, and what is in "filled". Prefer waiting (an empty list) to guessing, and never put a word that is not a value into a box.',
     '',
+    'Client priorities. The last page of the form holds the areas the adviser recommends to the client: Life, RA, RGAR, Invest, EGAR, Medical Aid, Will and Short Term. Each has a decision box (ids pr_life, pr_ra, pr_rgar, pr_inv, pr_egar, pr_med, pr_will, pr_st)',
+    'and a comments box (the same id with _cm on the end). The adviser raising an area ("I would recommend life cover", "what about a retirement annuity?", "we should look at your will") is an "ask" for its decision box.',
+    'The client agreeing ("yes", "definitely", "go ahead", "that makes sense", "please do") fills the decision box with the option that starts "Priority"; the client declining ("not now", "I\'m not interested", "I already have that", "no thanks") fills it with the option that starts "Not a priority".',
+    'The reason or instruction that comes with it ("I can\'t afford it at the moment", "revisit in six months", "Valerie must call him on Monday") goes into that area\'s comments box (the _cm id) as a short note in the speaker\'s words, tidied; a decision and its reason in one line are two fills.',
+    'The comments boxes hold reasons and instructions only: a fact about what the client has (a policy, a fund, a will) belongs in the boxes of the earlier pages, never in these.',
+    '',
     'Facts with no box. When the newest line states a fact about the client\'s situation that belongs on the form (an amount, a name, a date, a product, a plan, a reason) but you cannot put it in any box or list column of "fields" and "lists" (there is no such box, or you cannot tell which one),',
     'add it to the reply as {"actions": [...], "unplaced": [{"text": "short point in plain words, the figures as said", "section": "<id of the section it belongs in, if you can tell>"}]} so the adviser can see it. Give one entry per fact.',
     'Never put in "unplaced" small talk, a question, an acknowledgement, a remark about the software, something you already gave as an action, or a value that is already in "filled". Leave "unplaced" out when there is nothing.',
@@ -511,5 +517,40 @@
     });
   }
 
-  return { decide: decide, sweep: sweep, sweepRequest: sweepRequest, SWEEP_SYSTEM: SWEEP_SYSTEM, points: points, warm: warm, reconcile: reconcile, setShare: setShare, sharing: sharing, thinkingFor: thinkingFor, prepare: prepare, buildRequest: buildRequest, cachedRequest: cachedRequest, normalize: normalize, extractJson: extractJson, scrub: scrub, shield: shield, SYSTEM: SYSTEM };
+  /* The summaries on the Client priorities page. Claude is given, for each area, only what the form holds about that one area, and writes a few short points about what the client HAS there.
+     opts: { apiKey | ask, model, areas: { id: { area, data: { facts, lists } } }, fetchImpl } -> Promise of { id: [points] } for the areas asked about (an area it did not answer is left out). */
+  var SUMMARY_SYSTEM = [
+    'You help a financial adviser who is meeting a client. The Fact Find form has a page of areas (Life, RA, RGAR, Invest, EGAR, Medical Aid, Will, Short Term) where the adviser recommends what the client should do.',
+    'For each area you receive JSON "areas": { "<id>": { "area": "<name>", "data": { "facts": { "<box>": "<value>" }, "lists": { "<list>": [ { "<column>": "<value>" } ] } } } }.',
+    'Write a very brief point-form summary of what the client HAS in that area, so the adviser can see at a glance what is in place and what is missing before advising.',
+    'Rules:',
+    '- Use only the data given for that area. Never mention anything that is not in it and never bring in another area: no income, family, health or marital details unless they are in that area\'s data.',
+    '- Do not advise or recommend. Only say what the client has, or plainly that something is not in place ("No group risk", "No will in place").',
+    '- 2 to 6 short points, each under 14 words. Keep names, amounts, dates and numbers exactly as given. A list with no rows, or a fact with the answer No or None, means there is none: say so.',
+    '- A box that is not in the data has not been asked yet: do not say anything about it. If the data is empty say "Nothing recorded yet".',
+    '- "Credit life" is reported against each debt that was asked about; "Quote asked for" or "RGAR"/"EGAR requested" only when the data says so.',
+    'Reply with ONE JSON object and nothing else: {"areas": {"<id>": ["point", "point"]}} with an entry for every area you were sent.'
+  ].join('\n');
+  function scrubData(x) {
+    if (typeof x === 'string') return scrub(x);
+    if (Array.isArray(x)) return x.map(scrubData);
+    if (x && typeof x === 'object') { var o = {}; Object.keys(x).forEach(function (k) { o[k] = scrubData(x[k]); }); return o; }
+    return x;
+  }
+  function summarise(opts) {
+    var ids = Object.keys(opts.areas || {}), body = {};
+    ids.forEach(function (id) { body[id] = { area: opts.areas[id].area, data: scrubData(opts.areas[id].data) }; });
+    var req = withThinking({ model: opts.model, max_tokens: 1800, output_config: { effort: 'low' }, system: SUMMARY_SYSTEM, messages: [{ role: 'user', content: JSON.stringify({ areas: body }) }] });
+    return callModel(opts, req).then(function (text) {
+      var raw = extractJson(text), got = raw && raw.areas && typeof raw.areas === 'object' ? raw.areas : {}, out = {};
+      ids.forEach(function (id) {
+        var list = Array.isArray(got[id]) ? got[id] : [];
+        list = list.map(function (p) { return String(p == null ? '' : p).replace(/^[\s\-•*]+/, '').replace(/\s+/g, ' ').trim().slice(0, 200); }).filter(Boolean).slice(0, 8);
+        if (list.length) out[id] = list;
+      });
+      return out;
+    });
+  }
+
+  return { summarise: summarise, SUMMARY_SYSTEM: SUMMARY_SYSTEM, decide: decide, sweep: sweep, sweepRequest: sweepRequest, SWEEP_SYSTEM: SWEEP_SYSTEM, points: points, warm: warm, reconcile: reconcile, setShare: setShare, sharing: sharing, thinkingFor: thinkingFor, prepare: prepare, buildRequest: buildRequest, cachedRequest: cachedRequest, normalize: normalize, extractJson: extractJson, scrub: scrub, shield: shield, SYSTEM: SYSTEM };
 });
