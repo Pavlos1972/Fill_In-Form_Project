@@ -7,7 +7,7 @@
                 lookup (a box with a look-up button: the id of the box holding the name to search for, or 'client'), lookupBtn (the button's words), nopdf (left off the PDF), rows (lines of a text box), len (shows a live digit count: see validate.lengthState).
                 grey (a box whose cond is false stays on screen, greyed out, instead of going away).
    Block keys:  title, fields, list, cond (show only when true), condMsg, help (guidance shown on screen only),
-                grey (when cond is false the block stays on screen greyed out, under condMsg, instead of going away), nomsg (no condMsg above a greyed block), own (the block's own cond, apart from its area being switched off),
+                grey (when cond is false the block stays on screen greyed out, under condMsg, instead of going away), nomsg (no condMsg above a greyed block), own (the block's own cond, apart from its area being switched off: a block with its own condMsg is hidden when that rule fails, but greyed when only its area is off),
                 pri (the priority area of the Client priorities page the block belongs to), head (the block holding that area's decision and comments boxes), calc (a risk-calculation block, shown folded away). */
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
@@ -398,8 +398,8 @@
   sections.forEach(function (sec) {
     sec.blocks.forEach(function (b) {
       var p = b.pri && panelsById[b.pri]; if (!p) return;
-      b.grey = 1; b.own = b.cond || null;                                                   // own: the block's own rule (a Shortfall quote needs a Group), apart from the area being switched off
-      if (!b.condMsg) b.nomsg = 1;
+      b.own = b.cond || null;                                                                 // own: the block's own rule (a Shortfall quote needs a Group), apart from the area being switched off
+      if (!b.condMsg) { b.grey = 1; b.nomsg = 1; }                                            // a block with a message of its own (Shortfall) says so and goes away, as before
       if (p.dec && !b.head) { var off = { f: p.dec, nin: [NOT_PRIORITY] }; b.cond = b.cond ? { all: [b.cond, off] } : off; }
     });
   });

@@ -258,7 +258,7 @@
   }
   function blockHTML(b, sec, c) {
     var ok = calc.showIf(b.cond, c), own = calc.showIf('own' in b ? b.own : b.cond, c), h = '';
-    if (!ok && !b.grey) return '<div class="block-title">' + esc(b.title) + '</div><div class="note">' + esc(b.condMsg) + '</div>';
+    if (!ok && !b.grey && !('own' in b && own)) return '<div class="block-title">' + esc(b.title) + '</div><div class="note">' + esc(b.condMsg) + '</div>';      // a block whose rule is not met says so and goes away (unless it is only its area that is off)
     if (b.title) h += '<div class="block-title">' + esc(b.title) + '</div>';
     if (!ok && !own && b.condMsg && !b.nomsg) h += '<div class="note">' + esc(b.condMsg) + '</div>';
     var inner = '';
@@ -339,6 +339,7 @@
     var ae = document.activeElement, sel = ae && ae !== document.body ? boxSelector(ae) : '', field = sel && /^(?:INPUT|TEXTAREA|SELECT)$/.test(ae.tagName) && ae.type !== 'checkbox';
     var text = field && ae.tagName !== 'SELECT', keep = field ? { sel: sel, was: ae.defaultValue, typed: text && ae.value !== ae.defaultValue ? ae.value : null, a: text ? ae.selectionStart : null, b: text ? ae.selectionEnd : null } : null;
     main.className = 'main' + (sec.roomy ? ' roomy' : '') + (sec.fit ? ' fit' : '') + (sec.adv ? ' priorities' : '');
+    document.querySelectorAll('details.calcbox').forEach(function (d) { calcOpen[d.dataset.calc] = d.open; });          // a folded section opened a moment ago stays open
     main.innerHTML = sectionHTML(sec);
     if (cur === 'prio' && drawn !== 'prio') sumSoon();                                       // Claude writes the summaries when the page is opened
     drawn = cur;

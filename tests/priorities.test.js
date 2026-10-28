@@ -86,6 +86,7 @@ test('business assurance follows Business owner', () => {
   const s = fresh(), biz = sec('prio').blocks.filter(b => b.pri === 'biz');
   assert.strictEqual(biz.length, 3); assert.match(schema.panelsById.biz.condMsg, /applies only when Business owner is set to Yes/);
   assert.ok(biz.every(b => !show(s, b.cond) && b.grey));
+  assert.ok(!sec('prio').blocks.find(b => b.title === 'Shortfall quote').grey);                       // the Shortfall quote keeps its own message and goes away, as before
   set(s, 'bizowner', 'Yes'); assert.ok(biz.every(b => show(s, b.cond)));
 });
 
