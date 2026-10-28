@@ -3,6 +3,7 @@
    Field keys:  id, l (label), t ('txt' | 'sel' | 'area'), o (options), free (pick a value or type your own),
                 preset (default value), calc (name of a calculation in calc.js), risky (check the spelling or number),
                 opt (optional, left out of the progress count), wide (full width), link ([text, url]), hint,
+                cal (a calendar button beside a date box), cond (show the box only when true, same form as a block's),
                 lookup (a box with a look-up button: the id of the box holding the name to search for, or 'client'), lookupBtn (the button's words), nopdf (left off the PDF), rows (lines of a text box), len (shows a live digit count: see validate.lengthState).
    Block keys:  title, fields, list, cond (show only when true), condMsg, help (guidance shown on screen only), docs. */
 (function (root, factory) {
@@ -21,6 +22,7 @@
   var MED_SCHEMES = ['Discovery Health', 'Momentum Medical Scheme', 'Bonitas Medical Fund', 'Bestmed Medical Scheme', 'Fedhealth Medical Scheme', 'Medihelp Medical Scheme', 'KeyHealth Medical Scheme', 'Medshield Medical Scheme', 'CompCare Medical Scheme', 'GEMS (Government Employees Medical Scheme)', 'POLMED (SA Police Service)', 'SAMWUMED (Municipal Workers)', 'Transmed (Transport industry)', 'LA Health (Local Authorities)', 'Bankmed (Banking sector)', 'Sizwe Hosmed Medical Scheme', 'Profmed (Professionals only)', 'Anglovaal Group Medical Scheme (AGMS)', 'Sasolmed', 'Cape Medical Plan (Cape Medical Scheme)', 'Hosmed Medical Scheme', 'Genesis Medical Scheme', 'Suremed Health', 'Resolution Health Medical Scheme', 'Makoti Medical Scheme', 'BMW Medical Aid Scheme', 'Anglo Medical Scheme', 'Other'];
   var GAP_PROVIDERS = ['TRA (Total Risk Administrators)', 'Turnberry', 'Ambledown Financial Services', 'Stratum Benefits', 'Kaelo', 'Zestlife', 'GapCover', 'Oneplan', 'Discovery', 'Momentum', 'Sanlam', 'Old Mutual', 'Dis-Chem Health', 'NetcarePlus', 'Other'];
   var INV_PROVIDERS = ['Old Mutual', 'Momentum', 'Sanlam', 'Liberty', 'Discovery Invest', 'Allan Gray', 'Coronation', 'Ninety One', 'PSG', 'Sygnia', 'Satrix', '10X Investments', 'Glacier by Sanlam', 'Investec', 'Nedgroup Investments', 'STANLIB', 'Absa', 'EasyEquities', 'Other'];
+  var MARRIED = ['Married in community of property', 'Married out of community (with accrual)', 'Married out of community (no accrual)', 'Customary marriage', 'Civil union'];     // the marital statuses that have a date of marriage
   var STAGES = ['Not Yet in School', 'Pre-school', 'Primary', 'High School', 'Tertiary'];
 
   function riskCalc(p) {
@@ -112,7 +114,8 @@
         { id: 'net', money: 1, l: 'Take-home net income (R p.m.)', t: 'txt', risky: 1 },
         { id: 'exp', money: 1, l: 'Monthly expenses / budget (R)', t: 'txt', risky: 1 },
         { id: 'disp', l: 'Disposable income (R)', t: 'txt', calc: 'disp' },
-        { id: 'marital', l: 'Marital status', t: 'sel', o: ['Single', 'Married in community of property', 'Married out of community (with accrual)', 'Married out of community (no accrual)', 'Customary marriage', 'Civil union', 'Life partner', 'Divorced', 'Widowed'] }
+        { id: 'marital', l: 'Marital status', t: 'sel', o: ['Single', 'Married in community of property', 'Married out of community (with accrual)', 'Married out of community (no accrual)', 'Customary marriage', 'Civil union', 'Life partner', 'Divorced', 'Widowed'] },
+        { id: 'marr_date', l: 'Date of marriage', t: 'txt', date: 1, cal: 1, hint: 'e.g. 14/03/2010', cond: { f: 'marital', in: MARRIED } }
       ], help: 'Direct Net Income is gross income less PAYE and UIF, calculated from the SARS tables. It matches TaxTim\'s "Take-home pay" for a client under 65 with no pension contribution and no medical aid credits. Take-home net income is what the employer actually pays after all deductions.' },
       { title: 'Spouse / partner', cond: { f: 'marital', nin: ['Single', 'Divorced', 'Widowed'] }, condMsg: 'Spouse details are not needed for this marital status.', fields: [
         { id: 'sp_name', l: 'Spouse / partner name', t: 'txt', risky: 1 },

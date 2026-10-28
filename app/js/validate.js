@@ -33,6 +33,12 @@
     var tax = v('tax').replace(/[\s\-]/g, '');
     if (tax && !/^\d{10}$/.test(tax)) warn('tax', /^\d+$/.test(tax) ? 'A tax number has 10 digits.' : 'A tax number has digits only (10 of them).');
     if (v('dob') && !util.parseDate(v('dob'))) warn('dob', 'Date not recognised. Use day/month/year, such as 14/03/1986.');
+    if (/^(Married|Customary marriage|Civil union)/.test(v('marital')) && v('marr_date')) {                                          // the date of marriage only counts for a marriage type
+      var md = util.parseDate(v('marr_date')), now = calc.meetingDate(ctx), cd = util.parseDate(v('dob')) || (util.saIdValid(idno) ? util.dobFromSaId(idno) : null);
+      if (!md) warn('marr_date', 'Date not recognised. Use day/month/year, such as 14/03/2010.');
+      else if (md.y * 10000 + md.m * 100 + md.d > now.y * 10000 + now.m * 100 + now.d) warn('marr_date', 'This date is after the date of the form.');
+      else if (cd && util.ageAt(cd, md) < 16) warn('marr_date', 'The client would have been under 16 on this date. Check the date.');
+    }
     var fromId = util.saIdValid(idno) ? util.dobFromSaId(idno) : null, typed = util.parseDate(v('dob'));
     if (fromId && typed && (fromId.y !== typed.y || fromId.m !== typed.m || fromId.d !== typed.d)) warn('dob', 'Does not match the date of birth in the ID number (' + util.longDate(fromId) + ').');
 

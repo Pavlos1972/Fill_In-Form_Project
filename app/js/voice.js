@@ -283,6 +283,7 @@
     will_up: ['up to date', 'is it current', 'updated'],
     will_where: ['held with', 'where is your will', 'who holds', 'where is the will kept'],
     will_broker: ['will broker', 'who drew up', 'who did your will'],
+    marr_date: ['date of marriage', 'marriage date', 'wedding date', 'date of your wedding', 'wedding day', 'when did you get married', 'when were you married', 'when did you marry', 'married on', 'got married on', 'were married on', 'married since', 'wedding anniversary'],
     will_date: ['last updated', 'when last', 'when was it updated', 'last update'],
     sti: ['short term', 'short term insurance', 'car insurance', 'household insurance'],
     sti_broker: ['short term broker', 'who is your short term broker', 'broker for short term'],
@@ -306,7 +307,7 @@
   var NAME_PARTS = { van: 1, der: 1, den: 1, de: 1, du: 1, le: 1, la: 1, von: 1, bin: 1, al: 1 };
   var COMPANY_IDS = ['employer', 'biz_name', 'cl_lender'];
   var OCC_IDS = ['occ', 'sp_occ', 'km_role'];
-  var DATE_IDS = ['dob', 'will_date'];
+  var DATE_IDS = ['dob', 'will_date', 'marr_date'];
   var PHONE_IDS = ['cell', 'work', 'home', 'sp_tel'];
   var EMAIL_IDS = ['pemail', 'wemail'];
   var DIGIT_IDS = ['idno', 'tax'];
@@ -357,7 +358,7 @@
             notes.push(ne); noteById[f.id] = ne; return;
           }
           if (f.calc || f.opt || (f.preset && !f.voice)) return;
-          var e = { id: f.id, label: f.l, sec: sec.id, blk: bi, blkTitle: b.title || '', cond: b.cond, secCond: sec.cond, t: f.t === 'area' ? 'area' : (f.o ? 'sel' : 'txt'), options: f.o || null, free: !!f.free, money: !!f.money, none: !!f.none, lt: content(String(f.l).replace(/\([^)]*\)/g, ' ')), lx: bracketWords(f.l), bt: content(b.title || ''), order: fields.length };
+          var e = { id: f.id, label: f.l, sec: sec.id, blk: bi, blkTitle: b.title || '', cond: f.cond ? (b.cond ? { all: [b.cond, f.cond] } : f.cond) : b.cond, secCond: sec.cond, t: f.t === 'area' ? 'area' : (f.o ? 'sel' : 'txt'), options: f.o || null, free: !!f.free, money: !!f.money, none: !!f.none, lt: content(String(f.l).replace(/\([^)]*\)/g, ' ')), lx: bracketWords(f.l), bt: content(b.title || ''), order: fields.length };
           fields.push(e); byId[f.id] = e;
         });
       });
