@@ -734,3 +734,10 @@ test('Date of marriage: asked for by its own words, filled from a spoken date, a
   assert.strictEqual(calc.showIf(f('marr_date').cond, ctxOf('Single')), false);
   assert.strictEqual(calc.showIf(f('marr_date').cond, ctxOf('')), false);
 });
+
+test('Debts owner and payer: an ex-spouse or ex-partner is its own choice, and a plain spouse is still the current one', () => {
+  ['debts.owner', 'debts.payer'].forEach(id => {
+    ['my ex-wife', 'it is my ex husband', 'his former wife', 'the ex partner pays it', 'Ex-Spouse/Partner', 'ex spouse'].forEach(t => assert.strictEqual(say(id, t).value, 'Ex-Spouse/Partner', id + ' <- ' + t));
+    [['spouse', 'Spouse'], ['my spouse', 'Spouse'], ['joint', 'Joint'], ['the business', 'Business'], ['client', 'Client']].forEach(([t, want]) => assert.strictEqual(say(id, t).value, want, id + ' <- ' + t));
+  });
+});
