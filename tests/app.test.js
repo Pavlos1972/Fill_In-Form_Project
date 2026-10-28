@@ -21,7 +21,8 @@ test('every field id is unique and every list and calc used exists', () => {
 });
 test('a new Fact Find starts blank apart from the preset values', () => {
   const s = store.blank();
-  assert.strictEqual(s.f.advisor.v, 'Paul Kafentzis');
+  assert.strictEqual(s.f.advisor, undefined);                                    // there is no Advisor box; the PDF header carries the name
+  assert.strictEqual(schema.advisor, 'Paul Kafentzis');
   assert.strictEqual(s.f.fname.st, 'empty');
   assert.strictEqual(s.f.h_chol.v, '');           // no silent "No"
   assert.strictEqual(s.f.dd_cover.v, '');         // no default R500 000
@@ -56,7 +57,7 @@ test('duties total adds the seven percentages', () => {
 });
 test('business and spouse sections show only when they apply', () => {
   const s = fresh(); const c = () => store.ctxFor(s);
-  const biz = schema.sections.find(x => x.id === 'q_biz');
+  const biz = schema.panelsById.biz;
   assert.strictEqual(calc.showIf(biz.cond, c()), false);
   set(s, 'bizowner', 'Yes'); assert.strictEqual(calc.showIf(biz.cond, c()), true);
   const spouse = schema.sections.find(x => x.id === 'income').blocks[1];
@@ -217,7 +218,7 @@ test('the risk calculation boxes start with the agreed defaults', () => {
 const util = require('../app/js/util.js');
 
 test('the Shortfall quote block is only there when the client has group risk', () => {
-  const blk = schema.sections.find(x => x.id === 'q_risk').blocks.find(b => b.title === 'Shortfall quote');
+  const blk = schema.sections.find(x => x.id === 'prio').blocks.find(b => b.title === 'Shortfall quote');
   assert.ok(blk.cond && blk.condMsg && blk.pdfMsg);
   assert.match(blk.condMsg, /No Group exists for a Shortfall Quote to be compiled/);
   const show = v => { const s = fresh(); if (v !== undefined) set(s, 'has_group', v); return calc.showIf(blk.cond, store.ctxFor(s)); };

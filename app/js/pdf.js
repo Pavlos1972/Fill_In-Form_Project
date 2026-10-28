@@ -5,6 +5,7 @@
 
   /* Colours taken from the Wealth Revolution logo: its blue (#27A8E0) and grey. DEEP is a darker blue for small text so it stays readable. */
   var ACCENT = [39, 168, 224], DEEP = [18, 118, 168], ACCENT_SOFT = [225, 243, 251], INK = [40, 40, 42], MUTED = [110, 110, 113], LINE = [205, 222, 232], PALE = [243, 249, 252];
+  var GO = [31, 122, 66], STOP = [179, 38, 30], GO_SOFT = [226, 242, 231], STOP_SOFT = [250, 229, 226];            // a priority area that is wanted, and one that is not
   var M = 14, W = 210, PAGE_H = 297, CW = W - 2 * M;
 
   /* Standard PDF fonts cannot show every character. Keep to what they can. */
@@ -49,7 +50,7 @@
     doc.setFont('helvetica', 'bold'); doc.setFontSize(18); doc.setTextColor.apply(doc, INK); var ty = 8 + lh + 12; doc.text('CLIENT FACT FIND', M, ty);
     doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor.apply(doc, MUTED);
     doc.text(t(name), W - M, ty - 4, { align: 'right' });
-    doc.text('Completed ' + t(state.f.date.v) + '  |  Advisor ' + t(state.f.advisor.v), W - M, ty + 1, { align: 'right' });
+    doc.text('Completed ' + t(state.f.date.v) + '  |  Advisor ' + t(schema.advisor), W - M, ty + 1, { align: 'right' });
     y = ty + 8;
 
     function sectionHeading(title) {
@@ -95,17 +96,44 @@
       }
     }
 
+    function blockPdf(b, sec) {
+      if (!calc.showIf(b.cond, ctx)) { if (b.pdfMsg && b.condMsg && !calc.showIf('own' in b ? b.own : b.cond, ctx)) { if (b.title) blockTitle(b.title); table({ body: [[{ content: t(b.condMsg), styles: { fontStyle: 'italic', textColor: MUTED } }]] }); } return; }    // a block that does not apply says so when it asks to
+      if (b.fields && b.fields.length && b.fields.every(function (f) { return f.nopdf; })) return;     // a block of boxes that are left off the PDF has no heading either
+      if (b.title) blockTitle(b.title);
+      if (b.fields) fieldsTable(b.fields);
+      if (b.list) { if (!b.title && schema.lists[b.list].title !== sec.title) blockTitle(schema.lists[b.list].title); listBlock(b.list); }
+    }
+    /* One area of the Client priorities page: its name and the client's decision, what the client has (the summary), the decision and comments, then its quotes and referrals. */
+    function panelPdf(sec, id) {
+      var P = schema.panelsById[id];
+      if (!calc.showIf(P.cond, ctx)) return;                                         // business assurance when the client has no business
+      var v = P.dec ? state.f[P.dec].v : '', on = v === schema.PRIORITY, off = v === schema.NOT_PRIORITY;
+      ensure(46);
+      doc.setFillColor.apply(doc, on ? GO_SOFT : off ? STOP_SOFT : PALE); doc.rect(M, y, CW, 7, 'F');
+      doc.setDrawColor.apply(doc, on ? GO : off ? STOP : LINE); doc.setLineWidth(0.4); doc.line(M, y + 7, M + CW, y + 7);
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor.apply(doc, INK); doc.text(t(P.title), M + 2.5, y + 4.9);
+      if (P.dec) { doc.setFontSize(8.5); doc.setTextColor.apply(doc, on ? GO : off ? STOP : MUTED); doc.text(t(v || 'Not yet discussed'), M + CW - 2.5, y + 4.9, { align: 'right' }); }
+      y += 10;
+      if (P.sum) {
+        var lines = FF.summary.linesFor(state, id).lines;
+        if (lines.length) table({ head: [[{ content: 'Summary: what the client has' }]], body: lines.map(function (l) { return ['- ' + t(l)]; }), columnStyles: { 0: { cellWidth: CW } } });
+      }
+      var calcDone = false;
+      sec.blocks.forEach(function (b) {
+        if (b.pri !== id) return;
+        if (b.calc && !calcDone && calc.showIf(b.cond, ctx)) { calcDone = true; blockTitle('Risk calculation'); }
+        blockPdf(b, sec);
+      });
+      y += 2;
+    }
     schema.sections.forEach(function (sec) {
       if (!calc.showIf(sec.cond, ctx)) return;
-      if (sec.adv && firstAdvisor) { firstAdvisor = false; doc.addPage(); y = 22; doc.setFont('helvetica', 'bold'); doc.setFontSize(14); doc.setTextColor.apply(doc, INK); doc.text('ADVISOR ACTIONS', M, y + 3); y += 10; }
+      if (sec.adv && firstAdvisor) { firstAdvisor = false; doc.addPage(); y = 22; doc.setFont('helvetica', 'bold'); doc.setFontSize(14); doc.setTextColor.apply(doc, INK); doc.text('CLIENT PRIORITIES IDENTIFIED', M, y + 3); y += 10; }
       sectionHeading(sec.title);
+      var done = {};
       sec.blocks.forEach(function (b) {
-        if (!calc.showIf(b.cond, ctx)) { if (b.pdfMsg && b.condMsg) { if (b.title) blockTitle(b.title); table({ body: [[{ content: t(b.condMsg), styles: { fontStyle: 'italic', textColor: MUTED } }]] }); } return; }    // a block that does not apply says so when it asks to
-        if (b.fields && b.fields.length && b.fields.every(function (f) { return f.nopdf; })) return;     // a block of boxes that are left off the PDF has no heading either
-        if (b.title) blockTitle(b.title);
-        if (b.fields) fieldsTable(b.fields);
-        if (b.docs) table({ body: schema.docs.map(function (d) { return [d, state.docs[d] ? 'Requested' : '']; }), columnStyles: { 0: { cellWidth: CW - 40 }, 1: { cellWidth: 40, fontStyle: 'bold', textColor: DEEP } } });
-        if (b.list) { if (!b.title && schema.lists[b.list].title !== sec.title) blockTitle(schema.lists[b.list].title); listBlock(b.list); }
+        if (b.pri) { if (!done[b.pri]) { done[b.pri] = 1; panelPdf(sec, b.pri); } return; }
+        blockPdf(b, sec);
       });
       y += 2;
     });
