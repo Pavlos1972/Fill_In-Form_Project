@@ -5,7 +5,10 @@
                 opt (optional, left out of the progress count), wide (full width), link ([text, url]), hint,
                 cal (a calendar button beside a date box), cond (show the box only when true, same form as a block's),
                 lookup (a box with a look-up button: the id of the box holding the name to search for, or 'client'), lookupBtn (the button's words), nopdf (left off the PDF), rows (lines of a text box), len (shows a live digit count: see validate.lengthState).
-   Block keys:  title, fields, list, cond (show only when true), condMsg, help (guidance shown on screen only), docs. */
+                grey (a box whose cond is false stays on screen, greyed out, instead of going away).
+   Block keys:  title, fields, list, cond (show only when true), condMsg, help (guidance shown on screen only),
+                grey (when cond is false the block stays on screen greyed out, under condMsg, instead of going away), nomsg (no condMsg above a greyed block), own (the block's own cond, apart from its area being switched off: a block with its own condMsg is hidden when that rule fails, but greyed when only its area is off),
+                pri (the priority area of the Client priorities page the block belongs to), head (the block holding that area's decision and comments boxes), calc (a risk-calculation block, shown folded away). */
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
   else { root.FF = root.FF || {}; root.FF.schema = factory(); }
@@ -24,6 +27,18 @@
   var INV_PROVIDERS = ['Old Mutual', 'Momentum', 'Sanlam', 'Liberty', 'Discovery Invest', 'Allan Gray', 'Coronation', 'Ninety One', 'PSG', 'Sygnia', 'Satrix', '10X Investments', 'Glacier by Sanlam', 'Investec', 'Nedgroup Investments', 'STANLIB', 'Absa', 'EasyEquities', 'Other'];
   var MARRIED = ['Married in community of property', 'Married out of community (with accrual)', 'Married out of community (no accrual)', 'Customary marriage', 'Civil union'];     // the marital statuses that have a date of marriage
   var STAGES = ['Not Yet in School', 'Pre-school', 'Primary', 'High School', 'Tertiary'];
+  var ADVISOR = 'Paul Kafentzis';                                                                // printed in the PDF header; there is no Advisor box on the form
+  var PRIORITY = 'Priority: client agrees', NOT_PRIORITY = 'Not a priority: client not interested';     // the two answers of a priority's decision box (empty = not discussed yet)
+  var HAS_RISK = { f: 'has_risk', nin: ['No'] }, HAS_GROUP = { f: 'has_group', nin: ['No', 'Not sure'] };
+
+  /* The first block of a priority area: the client's decision (empty until discussed) and the box for the reason or the adviser's instructions. */
+  var TITLES = { life: 'Life', ra: 'RA', rgar: 'RGAR', inv: 'Invest', egar: 'EGAR', med: 'Medical Aid', will: 'Will', st: 'Short Term' };
+  function HEAD(id) {
+    return { pri: id, head: 1, fields: [
+      { id: 'pr_' + id, l: TITLES[id] + ': client decision', t: 'sel', o: [PRIORITY, NOT_PRIORITY], wide: 1 },
+      { id: 'pr_' + id + '_cm', l: TITLES[id] + ': comments (the reason, or your instructions)', t: 'area', wide: 1, rows: 2 }
+    ] };
+  }
 
   function riskCalc(p) {
     return [
@@ -38,10 +53,9 @@
     { id: 'info', title: 'Client info', roomy: 1, fit: 1, blocks: [
       { title: 'Meeting', layout: 'g12', fields: [
         { id: 'consent', l: 'Consent to record and transcribe', t: 'sel', o: YN, s: 3 },
-        { id: 'advisor', l: 'Advisor', t: 'txt', preset: 'Paul Kafentzis', s: 3 },
-        { id: 'date', l: 'Date completed', t: 'txt', date: 1, preset: '@today', s: 2 },
-        { id: 'meet', l: 'Type of meeting', t: 'sel', o: ['Teams Meeting', 'Telephonic Meeting', 'Physical Meeting', 'Other'], preset: 'Teams Meeting', s: 2 },
-        { id: 'ref', l: 'Referral from', t: 'sel', o: ['D&R Marketing', 'Current client', 'Referral prospect', 'Spouse', 'Other'], s: 2 }
+        { id: 'date', l: 'Date completed', t: 'txt', date: 1, preset: '@today', s: 3 },
+        { id: 'meet', l: 'Type of meeting', t: 'sel', o: ['Teams Meeting', 'Telephonic Meeting', 'Physical Meeting', 'Other'], preset: 'Teams Meeting', s: 3 },
+        { id: 'ref', l: 'Referral from', t: 'sel', o: ['D&R Marketing', 'Current client', 'Referral prospect', 'Spouse', 'Other'], s: 3 }
       ] },
       { title: 'Client', layout: 'g12', fields: [
         { id: 'fname', l: 'First name', t: 'txt', s: 3 },
@@ -125,15 +139,22 @@
       { fields: [N('n_income')] }
     ] },
 
-    { id: 'cover', title: 'Existing cover & retirement', blocks: [
+    { id: 'cover', title: 'Personal & group risk cover', blocks: [
       { title: 'Personal risk cover', fields: [
         { id: 'has_risk', l: 'Has personal risk cover', t: 'sel', o: YN },
-        { id: 'joint', l: 'Joint cover with spouse', t: 'sel', o: YN },
+        { id: 'joint', l: 'Joint life with spouse', t: 'sel', o: YN, cond: HAS_RISK, grey: 1 }
+      ] },
+      { title: 'Existing personal risk policies', list: 'risk', cond: HAS_RISK, grey: 1, condMsg: 'No personal risk cover is in place, so there are no policies to record.' },
+      { title: 'Group risk cover', fields: [
         { id: 'has_group', l: 'Group risk through employer', t: 'sel', o: ['Yes', 'No', 'Not sure'] }
       ] },
-      { list: 'risk' },
-      { title: 'Retirement funding', list: 'ret' },
+      { title: 'Existing group risk policies', list: 'grp', cond: HAS_GROUP, grey: 1, condMsg: 'No group risk cover is in place (Group risk through employer is No or Not sure), so there are no policies to record.' },
       { fields: [N('n_cover')] }
+    ] },
+
+    { id: 'retire', title: 'Retirement funding', blocks: [
+      { title: 'Retirement annuity, pension and provident funds', list: 'ret' },
+      { fields: [N('n_retire')] }
     ] },
 
     { id: 'inv', title: 'Investments', blocks: [
@@ -192,48 +213,29 @@
       ] }
     ] },
 
-    { id: 'q_risk', adv: 1, title: 'Personal risk quotes', blocks: [
-      { title: 'FNA quote', fields: [
+    /* Client priorities identified: what is recommended to the client, area by area. Each area has a decision (priority, or not a priority), a box for the reason or instructions,
+       a short summary of what the client has now (written from the rest of the form, see summary.js) and the quotes and referrals that belong to it. The earlier advisor pages are merged in here. */
+    { id: 'prio', adv: 1, roomy: 1, title: 'Client priorities', intro: 'What we recommend to the client, area by area. Each area has a short summary of what the client has now, a decision for the client to agree or decline, and a box for the reason or your instructions. A priority turns the area green; not a priority turns it red.', blocks: [
+      HEAD('life'),
+      { pri: 'life', title: 'FNA quote', fields: [
         { id: 'fna_req', l: 'FNA quote', t: 'sel', o: ['Request a quote', 'Not required', 'No FNA done'] },
         { id: 'fna_type', l: 'Type of quote', t: 'sel', o: QTYPE },
         { id: 'fna_ins', l: 'Insurer', t: 'sel', free: 1, o: INS }
       ] },
-      { title: 'Shortfall quote', cond: { f: 'has_group', nin: ['No', 'Not sure'] }, condMsg: 'No Group exists for a Shortfall Quote to be compiled. (Group risk through employer, on the Existing cover & retirement page, is No or Not sure.)', pdfMsg: 1, fields: [
+      { pri: 'life', title: 'Shortfall quote', cond: HAS_GROUP, condMsg: 'No Group exists for a Shortfall Quote to be compiled. (Group risk through employer, on the Personal & group risk cover page, is No or Not sure.)', pdfMsg: 1, fields: [
         { id: 'sf_req', l: 'Shortfall quote', t: 'sel', o: REQ },
         { id: 'sf_type', l: 'Type of quote', t: 'sel', o: QTYPE },
         { id: 'sf_ins', l: 'Insurer', t: 'sel', free: 1, o: INS }
       ] },
-      { title: 'Reduced quotes', list: 'redq' },
-      { fields: [{ id: 'pref_spend', money: 1, l: 'Preferred monthly spend (R)', t: 'txt', opt: 1 }, N('n_q_risk')] }
-    ] },
-    { id: 'q_ret', adv: 1, title: 'Retirement & investment quotes', blocks: [
-      { title: 'Retirement goal analysis (RGAR)', fields: [
-        { id: 'rgar_req', l: 'RGAR', t: 'sel', o: ['Request an RGAR', 'Not required'] },
-        { id: 'ret_age', l: 'Retirement age', t: 'sel', o: ['50', '55', '60', '65', '70'] },
-        { id: 'ret_net', money: 1, l: 'Net amount (today\'s terms) (R)', t: 'txt' }
-      ] },
-      { title: 'Retirement annuity quotes', list: 'raq' },
-      { title: 'Education goal analysis (EGAR)', fields: [{ id: 'egar_req', l: 'EGAR', t: 'sel', o: ['Request an EGAR', 'Not required'] }] },
-      { title: 'Investment quotes', list: 'invq' },
-      { fields: [N('n_q_ret')] }
-    ] },
-    { id: 'q_ref', adv: 1, roomy: 1, title: 'Referrals & documents', blocks: [
-      { title: 'Referrals', fields: [
-        { id: 'ref_sti', l: 'Short-term (Cameron)', t: 'sel', o: ['Cameron to contact client', 'Must not contact client', 'Client has own broker', 'Not interested'] },
-        { id: 'ref_med', l: 'Medical & gap (Valerie)', t: 'sel', o: ['Valerie to contact for medical aid', 'Valerie to contact for gap cover', 'Valerie to contact for both', 'Not required'] },
-        { id: 'ref_will', l: 'Will (Capital Legacy)', t: 'sel', o: ['Capital Legacy to contact client', 'Has updated will', 'Not interested'] }
-      ] },
-      { title: 'Documents to request', docs: 1 },
-      { fields: [N('n_ref')] }
-    ] },
-    { id: 'q_calc', adv: 1, title: 'Risk calculation', blocks: [
-      { title: 'Life cover: fractured cover', fields: riskCalc('lc').concat([
+      { pri: 'life', title: 'Reduced quotes', list: 'redq' },
+      { pri: 'life', fields: [{ id: 'pref_spend', money: 1, l: 'Preferred monthly spend (R)', t: 'txt', opt: 1 }] },
+      { pri: 'life', calc: 1, title: 'Life cover: fractured cover', fields: riskCalc('lc').concat([
         { id: 'lc_f_aci', l: 'ACI', t: 'sel', o: ACI, opt: 1, preset: 'Fixed' },
         { id: 'lc_f_aciv', l: 'ACI value', t: 'txt', opt: 1, preset: '?' },
         { id: 'lc_wol', l: 'Life cover (WOL) ABI', t: 'txt', opt: 1, preset: '3%' },
         { id: 'lc_ccabi', l: 'Childcare ABI', t: 'txt', opt: 1, preset: '5%' }
       ]) },
-      { title: 'Life cover: standard', fields: [
+      { pri: 'life', calc: 1, title: 'Life cover: standard', fields: [
         { id: 'lc_sa', money: 1, l: 'Sum assured (R)', t: 'txt', opt: 1 },
         { id: 'lc_term', l: 'Term', t: 'sel', o: ['WOL', 'Fixed term', 'Other'], opt: 1 },
         { id: 'lc_termv', l: 'Term value', t: 'txt', opt: 1 },
@@ -242,12 +244,12 @@
         { id: 'lc_abiv', l: 'ABI', t: 'txt', opt: 1 },
         N('lc_cmt', 'Comments')
       ] },
-      { title: 'Permanent disability: fractured cover', fields: riskCalc('pd').concat([
+      { pri: 'life', calc: 1, title: 'Permanent disability: fractured cover', fields: riskCalc('pd').concat([
         { id: 'pd_f_aci', l: 'ACI', t: 'sel', o: ACI, opt: 1, preset: 'Fixed' },
         { id: 'pd_f_aciv', l: 'ACI value', t: 'txt', opt: 1, preset: '?' },
         { id: 'pd_ccabi', l: 'Childcare ABI', t: 'txt', opt: 1, preset: '5%' }
       ]) },
-      { title: 'Permanent disability: standard', fields: [
+      { pri: 'life', calc: 1, title: 'Permanent disability: standard', fields: [
         { id: 'pd_sa', money: 1, l: 'Sum assured (R)', t: 'txt', opt: 1 },
         { id: 'pd_term', l: 'Term', t: 'sel', o: ['To age 65', 'To age 70', 'Fixed term', 'Other'], opt: 1 },
         { id: 'pd_termv', l: 'Term value', t: 'txt', opt: 1 },
@@ -256,7 +258,7 @@
         { id: 'pd_abiv', l: 'ABI', t: 'txt', opt: 1 },
         N('pd_cmt', 'Comments')
       ] },
-      { title: 'Dread disease', fields: [
+      { pri: 'life', calc: 1, title: 'Dread disease', fields: [
         { id: 'dd_cover', money: 1, l: 'Dread disease cover (R)', t: 'txt', opt: 1 },
         { id: 'dd_term', l: 'Term', t: 'sel', o: ['WOL', 'Specified Age', 'Other'], opt: 1 },
         { id: 'dd_termv', l: 'Term value', t: 'txt', opt: 1 },
@@ -265,7 +267,7 @@
         { id: 'dd_abiv', l: 'ABI', t: 'txt', opt: 1, preset: '3%' },
         N('dd_cmt', 'Comments')
       ] },
-      { title: 'Income protection / sickness benefit', fields: [
+      { pri: 'life', calc: 1, title: 'Income protection / sickness benefit', fields: [
         { id: 'ip_age', l: 'Income protection age', t: 'sel', o: ['65', '70'], opt: 1 },
         { id: 'ip_amt', l: 'Insured amount (R p.m.)', t: 'txt', calc: 'ip_amt' },
         { id: 'ip_wait', l: 'Waiting period', t: 'sel', o: ['7 days', '14 days', '1 month', '3 months', 'Other'], opt: 1 },
@@ -274,38 +276,86 @@
         { id: 'ip_abiv', l: 'ABI', t: 'txt', opt: 1, preset: '5%' },
         N('ip_cmt', 'Comments')
       ] },
-      { fields: [N('n_calc')] }
-    ] },
-    { id: 'q_biz', adv: 1, roomy: 1, title: 'Business assurance', cond: BIZ, condMsg: 'Business assurance applies only when Business owner is set to Yes on the Occupation page.', blocks: [
-      { title: 'Buy & Sell', help: 'Partner names, ID numbers, cell numbers and shareholding % come from the Partners and shareholders list on the Occupation page.', fields: [
+      HEAD('ra'),
+      { pri: 'ra', title: 'Retirement annuity quotes', list: 'raq' },
+      HEAD('rgar'),
+      { pri: 'rgar', title: 'Retirement goal analysis (RGAR)', fields: [
+        { id: 'rgar_req', l: 'RGAR', t: 'sel', o: ['Request an RGAR', 'Not required'] },
+        { id: 'ret_age', l: 'Retirement age', t: 'sel', o: ['50', '55', '60', '65', '70'] },
+        { id: 'ret_net', money: 1, l: 'Net amount (today\'s terms) (R)', t: 'txt' }
+      ] },
+      HEAD('inv'),
+      { pri: 'inv', title: 'Investment quotes', list: 'invq' },
+      HEAD('egar'),
+      { pri: 'egar', title: 'Education goal analysis (EGAR)', fields: [{ id: 'egar_req', l: 'EGAR', t: 'sel', o: ['Request an EGAR', 'Not required'] }] },
+      HEAD('med'),
+      { pri: 'med', title: 'Referral', fields: [
+        { id: 'ref_med', l: 'Medical & gap (Valerie)', t: 'sel', o: ['Valerie to contact for medical aid', 'Valerie to contact for gap cover', 'Valerie to contact for both', 'Not required'] }
+      ] },
+      HEAD('will'),
+      { pri: 'will', title: 'Referral', fields: [
+        { id: 'ref_will', l: 'Will (Capital Legacy)', t: 'sel', o: ['Capital Legacy to contact client', 'Has updated will', 'Not interested'] }
+      ] },
+      HEAD('st'),
+      { pri: 'st', title: 'Referral', fields: [
+        { id: 'ref_sti', l: 'Short-term (Cameron)', t: 'sel', o: ['Cameron to contact client', 'Must not contact client', 'Client has own broker', 'Not interested'] }
+      ] },
+      { pri: 'biz', cond: BIZ, grey: 1, nomsg: 1, title: 'Buy & Sell', help: 'Partner names, ID numbers, cell numbers and shareholding % come from the Partners and shareholders list on the Occupation page.', fields: [
         { id: 'bs_req', l: 'Buy & Sell quote', t: 'sel', o: REQ },
         { id: 'bs_ins', l: 'Insurer', t: 'sel', free: 1, o: INS },
         { id: 'bs_value', money: 1, l: 'Agreed cover value (R)', t: 'txt' },
         { id: 'bs_basis', l: 'Basis of value', t: 'sel', o: ['Formal valuation', 'Shareholders agreement', 'Agreed between parties'] },
-        { id: 'bs_own', l: 'Partner completes own Fact Find', t: 'sel', o: YN },
-        N('n_bs')
+        { id: 'bs_own', l: 'Partner completes own Fact Find', t: 'sel', o: YN }
       ] },
-      { title: 'Contingent liability', fields: [
+      { pri: 'biz', cond: BIZ, grey: 1, nomsg: 1, title: 'Contingent liability', fields: [
         { id: 'cl_req', l: 'Contingent liability quote', t: 'sel', o: REQ },
         { id: 'cl_lender', l: 'Lender / credit provider', t: 'txt' },
         { id: 'cl_bal', money: 1, l: 'Loan account balance (R)', t: 'txt' },
         { id: 'cl_life', l: 'Life to be insured', t: 'txt' }
       ] },
-      { title: 'Keyman', fields: [
+      { pri: 'biz', cond: BIZ, grey: 1, nomsg: 1, title: 'Keyman', fields: [
         { id: 'km_req', l: 'Keyman quote', t: 'sel', o: REQ },
         { id: 'km_name', l: 'Keyman name', t: 'txt' },
         { id: 'km_role', l: 'Keyman role', t: 'txt' },
         { id: 'km_amt', money: 1, l: 'Cover amount (R)', t: 'txt' },
         { id: 'km_basis', l: 'Basis of cover amount', t: 'sel', o: ['Multiple of salary', 'Profit contribution', 'Replacement cost', 'Other'] }
-      ] }
+      ] },
+      { fields: [N('n_prio')] }
     ] }
   ];
+
+  /* The areas of the Client priorities page. dec / cm are the ids of the area's decision and comments boxes (made below). sum: the boxes (f) and lists (l, with the columns used, or 0 for all)
+     that the area's summary is written from, and nothing else, so a summary only ever speaks about its own area. */
+  var panels = [
+    { id: 'life', title: 'Life', sub: 'Life cover, disability, dread disease, income protection', src: 'Personal risk cover, group risk cover, credit life on debts',
+      sum: { f: ['has_risk', 'joint', 'has_group', 'fna_req', 'fna_type', 'sf_req', 'sf_type'], l: { risk: 0, grp: 0, debts: ['type', 'prov', 'prov_other', 'desc', 'cl'], redq: 0 } } },
+    { id: 'ra', title: 'RA', sub: 'Retirement annuity', src: 'Retirement funding: retirement annuities, pension and provident funds',
+      sum: { f: [], l: { ret: 0, raq: 0 } } },
+    { id: 'rgar', title: 'RGAR', sub: 'Retirement goal analysis', src: 'Retirement funding totals, retirement age and income goal',
+      sum: { f: ['rgar_req', 'ret_age', 'ret_net'], l: { ret: ['type', 'val', 'contrib'] } } },
+    { id: 'inv', title: 'Invest', sub: 'Investments', src: 'Investments',
+      sum: { f: [], l: { inv: 0, invq: 0 } } },
+    { id: 'egar', title: 'EGAR', sub: 'Education goal analysis', src: 'Children (education stage and cost)',
+      sum: { f: ['egar_req'], l: { kids: ['age', 'stage', 'cost'] } } },
+    { id: 'med', title: 'Medical Aid', sub: 'Medical aid and gap cover', src: 'Medical aid and gap cover',
+      sum: { f: ['ma', 'ma_prov', 'ma_plan', 'ma_broker', 'gap', 'gap_prov', 'gap_broker', 'ref_med'], l: {} } },
+    { id: 'will', title: 'Will', sub: 'Will and estate planning', src: 'Will',
+      sum: { f: ['will', 'will_up', 'will_where', 'will_where_other', 'will_broker', 'will_date', 'ref_will'], l: {} } },
+    { id: 'st', title: 'Short Term', sub: 'Short-term insurance', src: 'Short-term insurance',
+      sum: { f: ['sti', 'sti_broker', 'sti_car', 'sti_house', 'sti_struct', 'sti_personal', 'sti_biz', 'sti_biz_spend', 'ref_sti'], l: {} } },
+    { id: 'biz', title: 'Business assurance', sub: 'Buy & sell, contingent liability, keyman', nodec: 1, cond: BIZ, condMsg: 'Business assurance applies only when Business owner is set to Yes on the Occupation page.' }
+  ];
+  var panelsById = {};
+  panels.forEach(function (p) { panelsById[p.id] = p; if (!p.nodec) { p.dec = 'pr_' + p.id; p.cm = 'pr_' + p.id + '_cm'; } });
 
   /* Lists that grow. cards: show each row as a spread-out card (and in the PDF as its own block).
      sum: columns that get a total.  calc: a column worked out from other columns. */
   var lists = {
     risk: { title: 'Existing personal risk policies', add: 'Add policy', cols: [
       { k: 'prov', l: 'Provider', o: INS, free: 1 }, { k: 'spend', money: 1, l: 'Spend (R p.m.)', num: 1 }, { k: 'broker', l: 'Broker on record', o: BROKER }, { k: 'notes', l: 'Notes' }
+    ], sum: { spend: 'Total spend' } },
+    grp: { title: 'Existing group risk policies', add: 'Add group policy', cols: [
+      { k: 'prov', l: 'Provider / administrator', o: INS, free: 1 }, { k: 'spend', money: 1, l: 'Spend (R p.m.)', num: 1 }, { k: 'broker', l: 'Broker on record', o: BROKER }, { k: 'notes', l: 'Notes' }
     ], sum: { spend: 'Total spend' } },
     ret: { title: 'Retirement funding', add: 'Add fund', cols: [
       { k: 'type', l: 'Type', o: ['Retirement annuity', 'Pension fund', 'Provident fund'] }, { k: 'prov', l: 'Provider / administrator', o: INS.concat(['Allan Gray']), free: 1 },
@@ -343,11 +393,20 @@
     ], sum: {} }
   };
 
-  var docs = ['Existing life policy schedules', 'Group risk benefit summary', 'Retirement annuity statements', 'Pension / provident statement', 'Investment statements'];
+  /* A block of a priority area that is not applicable (not a priority, or no business) stays on screen greyed out; its answers are left out of the voice reading, the progress count and the PDF.
+     The decision box that switches an area off is listed here as the cond of each of the area's blocks. */
+  sections.forEach(function (sec) {
+    sec.blocks.forEach(function (b) {
+      var p = b.pri && panelsById[b.pri]; if (!p) return;
+      b.own = b.cond || null;                                                                 // own: the block's own rule (a Shortfall quote needs a Group), apart from the area being switched off
+      if (!b.condMsg) { b.grey = 1; b.nomsg = 1; }                                            // a block with a message of its own (Shortfall) says so and goes away, as before
+      if (p.dec && !b.head) { var off = { f: p.dec, nin: [NOT_PRIORITY] }; b.cond = b.cond ? { all: [b.cond, off] } : off; }
+    });
+  });
 
   /* Every field, flat, for lookups. */
   var byId = {};
   sections.forEach(function (s) { s.blocks.forEach(function (b) { (b.fields || []).forEach(function (f) { byId[f.id] = f; }); }); });
 
-  return { version: '3.0', released: 'October 2026', sections: sections, lists: lists, docs: docs, fieldsById: byId };
+  return { version: '3.0', released: 'October 2026', sections: sections, lists: lists, panels: panels, panelsById: panelsById, advisor: ADVISOR, PRIORITY: PRIORITY, NOT_PRIORITY: NOT_PRIORITY, fieldsById: byId };
 });

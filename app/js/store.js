@@ -15,7 +15,7 @@
     return o;
   }
   function blank() {
-    var s = { app: APP_ID, schema: schema.version, created: new Date().toISOString(), modified: null, f: {}, l: {}, docs: {}, unplaced: [], claude: blankTally() };
+    var s = { app: APP_ID, schema: schema.version, created: new Date().toISOString(), modified: null, f: {}, l: {}, sum: {}, unplaced: [], claude: blankTally() };
     Object.keys(schema.fieldsById).forEach(function (id) {
       var d = schema.fieldsById[id], p = d.preset === '@today' ? util.todayDMY() : d.preset;
       s.f[id] = p ? { v: p, st: 'preset' } : { v: '', st: 'empty' };
@@ -98,13 +98,37 @@
         return { d: d, st: r.st || 'confirmed' };
       });
     });
-    s.docs = j.docs || {};
+    s.sum = cleanSum(j.sum);
+    legacyNotes(s, j);
     s.unplaced = (Array.isArray(j.unplaced) ? j.unplaced : []).map(cleanUnplaced).filter(Boolean).slice(0, 60);
     s.claude = tallyFrom(j.claude);
     tidyAmounts(s);
     tidyDates(s);
     return s;
   }
+  /* The notes boxes of the old advisor pages (quotes, referrals, risk calculation, buy & sell) are now one notes box on the Client priorities page: what was written in them is kept there, each under its old heading. */
+  var LEGACY_NOTES = [['n_q_risk', 'Personal risk quotes'], ['n_q_ret', 'Retirement & investment quotes'], ['n_ref', 'Referrals'], ['n_calc', 'Risk calculation'], ['n_bs', 'Buy & Sell']];
+  function legacyNotes(s, j) {
+    var add = [];
+    LEGACY_NOTES.forEach(function (n) { var c = j.f && j.f[n[0]], v = c && String(c.v == null ? '' : c.v).trim(); if (v) add.push(n[1] + ': ' + v); });
+    if (add.length && s.f.n_prio && !String(s.f.n_prio.v).trim()) s.f.n_prio = { v: add.join('\n'), st: 'confirmed' };
+  }
+  /* The summaries on the Client priorities page, as Claude last wrote them: per area { lines: [short points], key (what the area held when it was written), at (when) }. */
+  function cleanSum(x) {
+    var out = {};
+    if (!x || typeof x !== 'object') return out;
+    Object.keys(schema.panelsById).forEach(function (id) {
+      var e = x[id]; if (!e || !Array.isArray(e.lines)) return;
+      var lines = e.lines.map(function (l) { return String(l == null ? '' : l).replace(/\s+/g, ' ').trim().slice(0, 200); }).filter(Boolean).slice(0, 10);
+      if (lines.length) out[id] = { lines: lines, key: String(e.key || ''), at: String(e.at || '') };
+    });
+    return out;
+  }
+  function setSum(state, id, lines, key) {
+    state.sum = state.sum || {};
+    state.sum[id] = { lines: lines.slice(0, 10), key: String(key || ''), at: new Date().toISOString() };
+  }
+
   /* Older drafts and files may hold amounts typed as plain numbers. Show them all as Rand with two decimals. */
   function tidyAmounts(s) {
     Object.keys(schema.fieldsById).forEach(function (id) { var d = schema.fieldsById[id]; if (d.money && s.f[id]) s.f[id].v = util.formatMoney(s.f[id].v); });
@@ -183,5 +207,5 @@
     return { tot: tot, fill: fill, ver: ver };
   }
 
-  return { addUnplaced: addUnplaced, closeUnplaced: closeUnplaced, unplacedKey: unplacedKey, blank: blank, blankTally: blankTally, ctxFor: ctxFor, setField: setField, addRow: addRow, delRow: delRow, setCell: setCell, accept: accept, clientName: clientName, idClash: idClash, idKey: idKey, fatherSurname: fatherSurname, baseFileName: baseFileName, fromJSON: fromJSON, toJSON: toJSON, counts: counts };
+  return { setSum: setSum, cleanSum: cleanSum, addUnplaced: addUnplaced, closeUnplaced: closeUnplaced, unplacedKey: unplacedKey, blank: blank, blankTally: blankTally, ctxFor: ctxFor, setField: setField, addRow: addRow, delRow: delRow, setCell: setCell, accept: accept, clientName: clientName, idClash: idClash, idKey: idKey, fatherSurname: fatherSurname, baseFileName: baseFileName, fromJSON: fromJSON, toJSON: toJSON, counts: counts };
 });

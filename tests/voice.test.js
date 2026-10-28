@@ -64,7 +64,10 @@ test('commands that open a section', () => {
   assert.strictEqual(g('We will deal with the children now'), 'kids');
   assert.strictEqual(g("I'd like to talk about your health"), 'health');
   assert.strictEqual(g('moving on to debts'), 'debts');
-  assert.strictEqual(g('go to retirement and investment quotes'), 'q_ret');
+  assert.strictEqual(g('go to retirement and investment quotes'), 'prio');
+  assert.strictEqual(g('go to retirement funding'), 'retire');
+  assert.strictEqual(g('lets talk about group risk'), 'cover');
+  assert.strictEqual(g('go to client priorities'), 'prio');
   assert.strictEqual(g('open the investments'), 'inv');
   assert.strictEqual(g('occupation'), 'occ');
   assert.strictEqual(g('the health section'), 'health');
@@ -465,7 +468,7 @@ const briefL = p => p.actions.map(a => a.do + (a.list ? '(' + a.list + ')' : '')
 const thandi = { rows: { kids: [{ name: 'Thandi' }] }, curRow: { kids: 0 } };
 
 test('the lists are in the voice index, and a partner\'s ID and cell number are private', () => {
-  assert.deepStrictEqual(Object.keys(idx.lists).sort(), ['debts', 'inv', 'invq', 'kids', 'raq', 'redq', 'ret', 'risk', 'shares']);
+  assert.deepStrictEqual(Object.keys(idx.lists).sort(), ['debts', 'grp', 'inv', 'invq', 'kids', 'raq', 'redq', 'ret', 'risk', 'shares']);
   assert.ok(idx.byId['kids.dob'].date && idx.byId['debts.bal'].money && idx.byId['risk.prov'].options);
   assert.ok(V.PRIVATE_IDS.includes('shares.id') && V.PRIVATE_IDS.includes('shares.cell'));
   assert.ok(!idx.byId['kids.cost'].none);
@@ -686,7 +689,7 @@ test('more ways of asking to make notes are understood, and what follows in the 
 
 test('Type of quote: the FNA, shortfall and reduced quote each have one, with three choices', () => {
   ['fna_type', 'sf_type', 'redq.type'].forEach(id => assert.deepStrictEqual(f(id).options, ['New Business', 'Servicing', 'N/A'], id));
-  const order = schema.sections.find(s => s.id === 'q_risk').blocks.map(b => (b.fields || []).map(x => x.id).join());
+  const order = schema.sections.find(s => s.id === 'prio').blocks.filter(b => b.pri === 'life' && !b.head).map(b => (b.fields || []).map(x => x.id).join());
   assert.strictEqual(order[0], 'fna_req,fna_type,fna_ins');
   assert.strictEqual(order[1], 'sf_req,sf_type,sf_ins');
   assert.deepStrictEqual(schema.lists.redq.cols.map(c => c.k), ['req', 'type', 'ins', 'amt']);
@@ -708,7 +711,7 @@ test('Type of quote: answers in the words people use', () => {
 });
 
 test('Type of quote: a question names the quote it is about, and a plain one takes the first still empty', () => {
-  const ask = (t, empty) => { const r = V.matchQuestion(t, idx, { cur: 'q_risk', isEmpty: empty || (() => true) }); return r && r.id; };
+  const ask = (t, empty) => { const r = V.matchQuestion(t, idx, { cur: 'prio', isEmpty: empty || (() => true) }); return r && r.id; };
   assert.strictEqual(ask('What type of quote is the FNA quote?'), 'fna_type');
   assert.strictEqual(ask('What type of quote is the shortfall?'), 'sf_type');
   assert.strictEqual(ask('And the shortfall quote type?'), 'sf_type');

@@ -167,17 +167,14 @@
     info: ['client info', 'client information', 'client details', 'personal details', 'personal info', 'about you', 'contact details', 'the client'],
     income: ['income and household', 'income', 'household', 'salary', 'earnings', 'finances'],
     occ: ['occupation', 'work', 'job', 'employment', 'your work'],
-    cover: ['existing cover and retirement', 'existing cover', 'existing risk cover', 'risk cover', 'existing policies', 'retirement', 'cover'],
+    cover: ['personal and group risk cover', 'personal risk cover', 'group risk cover', 'existing risk cover', 'existing cover', 'risk cover', 'existing policies', 'group risk', 'group cover', 'cover'],
+    retire: ['retirement funding', 'retirement funds', 'retirement', 'pension and provident', 'pension fund', 'provident fund', 'retirement annuities'],
     inv: ['investments', 'investment', 'savings'],
     other: ['medical will and short term', 'medical aid', 'medical', 'gap cover', 'will', 'wills', 'short term insurance', 'short term', 'insurance'],
     health: ['health', 'health questions', 'medical history'],
     debts: ['debts', 'debt', 'loans', 'liabilities'],
     kids: ['children', 'kids', 'dependants', 'dependents'],
-    q_risk: ['personal risk quotes', 'risk quotes', 'personal risk'],
-    q_ret: ['retirement and investment quotes', 'retirement quotes', 'investment quotes', 'retirement and investment'],
-    q_ref: ['referrals and documents', 'referrals', 'documents'],
-    q_calc: ['risk calculation', 'calculation', 'needs calculation'],
-    q_biz: ['business assurance', 'buy and sell', 'buy and sell agreement', 'key man', 'keyman', 'contingent liability']
+    prio: ['client priorities identified', 'client priorities', 'priorities', 'what we recommend', 'recommendations', 'personal risk quotes', 'risk quotes', 'retirement and investment quotes', 'retirement quotes', 'investment quotes', 'referrals', 'risk calculation', 'needs calculation', 'business assurance', 'buy and sell', 'buy and sell agreement', 'key man', 'keyman', 'contingent liability']
   };
 
   /* What you might say when asking about each field. Fields without an entry are matched on their on-screen label. */
@@ -214,6 +211,9 @@
     'risk.prov': ['which insurer', 'who is the policy with', 'policy provider', 'insurer'],
     'risk.spend': ['premium', 'monthly premium', 'how much do you pay', 'pay per month'],
     'risk.broker': ['broker on record', 'who is your broker', 'broker'],
+    'grp.prov': ['which insurer', 'who is the group policy with', 'group policy provider', 'who administers the group cover', 'group administrator'],
+    'grp.spend': ['group premium', 'group risk premium', 'how much is the group risk', 'what does the group cover cost', 'what does your employer pay for group risk'],
+    'grp.broker': ['group broker', 'who is the group broker', 'who looks after the group cover'],
     'ret.type': ['type of fund', 'kind of fund', 'pension or provident'],
     'ret.prov': ['fund administrator', 'administrator', 'who is the fund with'],
     'ret.val': ['fund value', 'value of the fund', 'how much is in the fund'],
@@ -270,7 +270,7 @@
     d_heavy: ['heavy manual', 'heavy'],
     d_desc: ['duties', 'describe your duties', 'what do you do all day'],
     has_risk: ['personal risk cover', 'life cover', 'risk cover', 'life insurance', 'any cover', 'cover in place', 'existing cover'],
-    joint: ['joint cover', 'joint with spouse', 'joint with your spouse'],
+    joint: ['joint life', 'joint cover', 'joint with spouse', 'joint with your spouse'],
     has_group: ['group risk', 'group cover', 'cover through your employer', 'employer cover', 'group life', 'death benefit through work'],
     ma: ['medical aid', 'hospital plan', 'medical scheme'],
     ma_prov: ['medical aid provider', 'which medical aid', 'which scheme', 'who is your medical aid', 'medical scheme'],
@@ -283,6 +283,22 @@
     will_up: ['up to date', 'is it current', 'updated'],
     will_where: ['held with', 'where is your will', 'who holds', 'where is the will kept'],
     will_broker: ['will broker', 'who drew up', 'who did your will'],
+    pr_life: ['life cover a priority', 'life cover is a priority', 'life cover priority', 'life priority', 'risk cover a priority', 'recommend life cover', 'priority life cover'],
+    pr_ra: ['ra a priority', 'ra priority', 'retirement annuity a priority', 'retirement annuity priority', 'recommend an ra', 'recommend a retirement annuity'],
+    pr_rgar: ['rgar a priority', 'rgar priority', 'retirement goal analysis a priority', 'retirement goal priority', 'recommend an rgar'],
+    pr_inv: ['investing a priority', 'invest a priority', 'investment a priority', 'investments a priority', 'invest priority', 'recommend investing', 'recommend an investment', 'tax free a priority'],
+    pr_egar: ['egar a priority', 'egar priority', 'education goal analysis a priority', 'education a priority', 'education planning a priority', 'school fees a priority', 'recommend an egar'],
+    pr_med: ['medical aid a priority', 'medical aid priority', 'gap cover a priority', 'medical a priority', 'recommend medical aid', 'recommend gap cover'],
+    pr_will: ['will a priority', 'will priority', 'a will a priority', 'estate planning a priority', 'recommend a will', 'update your will a priority'],
+    pr_st: ['short term a priority', 'short term priority', 'short term insurance a priority', 'insurance a priority', 'recommend short term'],
+    pr_life_cm: ['life comments', 'life cover comments', 'reason for life', 'life instructions'],
+    pr_ra_cm: ['ra comments', 'retirement annuity comments', 'reason for the ra', 'ra instructions'],
+    pr_rgar_cm: ['rgar comments', 'reason for the rgar', 'rgar instructions'],
+    pr_inv_cm: ['invest comments', 'investment comments', 'reason for investing', 'invest instructions'],
+    pr_egar_cm: ['egar comments', 'education comments', 'reason for the egar', 'egar instructions'],
+    pr_med_cm: ['medical aid comments', 'medical comments', 'reason for medical aid', 'medical aid instructions'],
+    pr_will_cm: ['will comments', 'reason for the will', 'will instructions'],
+    pr_st_cm: ['short term comments', 'reason for short term', 'short term instructions'],
     marr_date: ['date of marriage', 'marriage date', 'wedding date', 'date of your wedding', 'wedding day', 'when did you get married', 'when were you married', 'when did you marry', 'married on', 'got married on', 'were married on', 'married since', 'wedding anniversary'],
     will_date: ['last updated', 'when last', 'when was it updated', 'last update'],
     sti: ['short term', 'short term insurance', 'car insurance', 'household insurance'],
@@ -342,6 +358,7 @@
   var LIST_NOUNS = {
     kids: ['child', 'children', 'kid', 'kids', 'son', 'sons', 'daughter', 'daughters', 'dependant', 'dependants', 'dependent', 'dependents'],
     debts: ['debt', 'debts', 'loan', 'loans', 'bond', 'bonds', 'mortgage', 'home loan', 'credit card', 'vehicle finance', 'car finance', 'car loan', 'overdraft', 'liability', 'liabilities', 'finance'],
+    grp: ['group policy', 'group policies', 'group risk policy', 'group risk policies', 'group cover policy', 'group life policy', 'group risk cover policy'],
     risk: ['policy', 'policies', 'risk policy', 'risk policies', 'life policy', 'life policies', 'existing cover', 'existing policy', 'existing policies'],
     ret: ['retirement fund', 'retirement funds', 'pension', 'pensions', 'pension fund', 'provident', 'provident fund', 'retirement annuity', 'retirement annuities', 'retirement product'],
     inv: ['investment', 'investments', 'unit trust', 'unit trusts', 'tax free', 'tax free investment', 'endowment', 'endowments'],
@@ -709,6 +726,18 @@
     };
   });
 
+  /* Client priorities: a plain "yes", "definitely", "go ahead" makes the area a priority; "not now", "not interested", "I can't afford it", "I already have that" make it not a priority. */
+  var PRI_NO = / (not interested|not a priority|not priority|not now|no thanks|no thank you|not at the moment|not at this stage|not for now|not right now|cannot afford|can not afford|cant afford|can t afford|already have|already covered|dont need|do not need|don t need|not needed|no need|rather not|not necessary|no) /;
+  var PRI_YES = / (yes|yeah|yep|yup|ja|definitely|absolutely|certainly|agree|agreed|please do|go ahead|sounds good|makes sense|sure|priority|of course) /;
+  ['pr_life', 'pr_ra', 'pr_rgar', 'pr_inv', 'pr_egar', 'pr_med', 'pr_will', 'pr_st'].forEach(function (id) {
+    SPECIAL[id] = function (t) {
+      var s = ' ' + t + ' ', unsure = / (not sure|unsure|maybe|perhaps|don t know|do not know) /.test(s), no = PRI_NO.test(s), yes = PRI_YES.test(s.replace(/ not (?:a )?priority /g, ' ').replace(/ (?:not sure|unsure) /g, ' '));
+      if (no && yes) return { error: 'ambiguous', note: 'priority or not a priority?' };
+      if (unsure && !no) return { error: 'unsure', note: 'not sure: left empty' };
+      return no ? 'Not a priority: client not interested' : yes ? 'Priority: client agrees' : null;
+    };
+  });
+
   function pickOption(f, t, raw) {
     var opts = f.options, low = opts.map(function (o) { return o.toLowerCase(); }), res;
     var sp = SPECIAL[f.id];
@@ -841,9 +870,9 @@
   function isFreeText(f) { return !!f && f.t === 'txt' && !f.options && !f.money && TYPED.indexOf(vid(f)) < 0 && PCT_IDS.indexOf(vid(f)) < 0 && vid(f) !== 'years'; }
   /* What a sentence that introduces a row says about it: "a home loan with ABSA bank" -> type Home loan, provider ABSA; "a daughter called Thandi, born
      22 August 2019" -> name, gender, date of birth. Only what is clear is taken; leftover says how many words were not understood, so Claude can read the rest. */
-  var INTERVIEW = { debts: ['type', 'prov', 'desc', 'inst', 'bal'], risk: ['prov', 'spend', 'broker'], ret: ['type', 'prov', 'val', 'contrib'], inv: ['type', 'prov', 'val', 'prem'],
+  var INTERVIEW = { debts: ['type', 'prov', 'desc', 'inst', 'bal'], risk: ['prov', 'spend', 'broker'], grp: ['prov', 'spend', 'broker'], ret: ['type', 'prov', 'val', 'contrib'], inv: ['type', 'prov', 'val', 'prem'],
     kids: ['name', 'sname', 'gender', 'dob', 'cost'], shares: ['name', 'pct'], redq: ['req', 'ins', 'amt'], raq: ['req', 'ins', 'monthly', 'lump'], invq: ['purpose', 'product', 'ins', 'monthly', 'lump'] };
-  var ROW_COLS = { debts: ['type', 'prov'], risk: ['prov'], ret: ['type', 'prov'], inv: ['type', 'prov'] };
+  var ROW_COLS = { debts: ['type', 'prov'], risk: ['prov'], grp: ['prov'], ret: ['type', 'prov'], inv: ['type', 'prov'] };
   var ROW_SYN = {
     'debts.type': { 'Home loan': ['bond', 'mortgage', 'house loan', 'home bond', 'property loan'], 'Vehicle finance': ['car finance', 'vehicle loan', 'car loan', 'car payment', 'vehicle'], 'Credit card': ['card'], 'Revolving credit': ['overdraft', 'revolving'] },
     'ret.type': { 'Retirement annuity': ['ra', 'retirement annuity'], 'Pension fund': ['pension'], 'Provident fund': ['provident'] },
@@ -851,7 +880,7 @@
   };
   var MONEY_CUES = {
     debts: [['bal', /\b(?:outstanding|balance|owe|owing)\b/], ['inst', /\b(?:instal?ments?|repayments?|a month|per month|monthly|pm)\b/], ['asset', /\b(?:worth|asset)\b/]],
-    risk: [['spend', /\b(?:month|premium|paying|pay)\b/]], ret: [['contrib', /\b(?:month|contribut\w*)\b/], ['val', /\b(?:worth|value|balance|in it)\b/]],
+    risk: [['spend', /\b(?:month|premium|paying|pay)\b/]], grp: [['spend', /\b(?:month|premium|paying|pay)\b/]], ret: [['contrib', /\b(?:month|contribut\w*)\b/], ['val', /\b(?:worth|value|balance|in it)\b/]],
     inv: [['prem', /\b(?:month|premium|invest)\b/], ['val', /\b(?:worth|value|balance)\b/]], kids: [['cost', /\b(?:month|fees|cost|costs)\b/]]
   };
   var GENERIC_WORD = { bank: 1, finance: 1, loan: 1, loans: 1, card: 1, account: 1, policy: 1, policies: 1, fund: 1, funds: 1, limited: 1, ltd: 1, group: 1, life: 1, cover: 1, insurance: 1, with: 1, invest: 1, investment: 1, investments: 1, named: 1, called: 1, born: 1, month: 1, months: 1, per: 1, paying: 1, pay: 1, rand: 1, r: 1 };
