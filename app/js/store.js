@@ -128,7 +128,7 @@
     sec.blocks.forEach(function (b) {
       if (!calc.showIf(b.cond, ctx)) return;
       (b.fields || []).forEach(function (f) {
-        if (f.calc || f.opt || f.preset) return;
+        if (f.calc || f.opt || f.preset || !calc.showIf(f.cond, ctx)) return;
         var c = state.f[f.id];
         tot++; if (c.v !== '') fill++; if (c.st === 'verify') ver++;
       });
