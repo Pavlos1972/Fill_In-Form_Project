@@ -143,7 +143,7 @@
     var r = new FileReader();
     r.onload = function () {
       try {
-        state = store.fromJSON(r.result); fileHandle = handle || null; fileBase = file.name.replace(/\.json$/i, '');
+        state = store.fromJSON(r.result); vmFreshForm(); fileHandle = handle || null; fileBase = file.name.replace(/\.json$/i, '');
         dirty = false; cur = 'info'; rememberHandle(handle || null); saveDraft(); redraw(); toast('Opened ' + file.name);
       } catch (e) { toast(e.message || 'Could not open that file.'); }
     };
@@ -159,7 +159,7 @@
     var timed = meeting.ms() >= 60000;                                                              // a meeting that has run for a minute is not thrown away by a stray click
     if ((dirty || timed) && !window.confirm('Start a new Fact Find?' + (dirty ? ' Changes you have not saved will be lost.' : '') + (timed ? ' The meeting timer goes back to zero.' : ''))) return;
     meeting.reset(); meetingRender();
-    state = store.blank(); fileHandle = null; fileBase = ''; rememberHandle(null); dirty = false; lastSaved = null; cur = 'info'; saveDraft(); redraw();
+    state = store.blank(); vmFreshForm(); fileHandle = null; fileBase = ''; rememberHandle(null); dirty = false; lastSaved = null; cur = 'info'; saveDraft(); redraw();
   }
 
   /* ---------- rendering ---------- */
@@ -306,6 +306,7 @@
     $('#sFilled').textContent = A; $('#sVerify').textContent = V; $('#sEmpty').textContent = E;
     var tax = FF.tax.taxYearFor(calc.meetingDate(ctx())), ver = $('#verLine');
     refreshKey(); refreshCost();
+    if ((state.unplaced && state.unplaced.length) || document.getElementById('convo')) convoSoon();
     if (ver) ver.textContent = 'Version ' + schema.version + ', ' + schema.released + ' · Tax tables ' + tax;
   }
   /* The top bar counts down to the day the Anthropic key stops working. */
@@ -399,6 +400,7 @@
     }
     if (t.dataset.f) {
       var def = schema.fieldsById[t.dataset.f], val = t.value.trim() === '' ? '' : t.value;
+      if (val === '') vm.noSweep[t.dataset.f] = 1;                                  // cleared by hand: the catch-up check does not fill it again
       if (t.dataset.f === 'idno' && val) { var clashMsg = idClashMsg(val, { id: 'idno' }); if (clashMsg) { t.value = state.f.idno.v; toast(clashMsg); return; } }     // the box goes back to what it held
       if (def && def.money) { val = util.formatMoney(val); t.value = val; }
       if (def && def.date) { var pd = util.parseDate(val); if (pd) { val = util.formatDate(pd); t.value = val; } }
@@ -415,6 +417,7 @@
     } else if (t.dataset.l) {
       var key = t.dataset.l, i = +t.dataset.i, k = t.dataset.k, col = schema.lists[key].cols.filter(function (c) { return c.k === k; })[0], row0 = state.l[key][i];
       var v2 = t.value;
+      if (v2.trim() === '') vm.noSweep[key + ':' + i + ':' + k] = 1;
       if (key === 'shares' && k === 'id' && v2.trim()) { var clashMsg2 = idClashMsg(v2, { list: 'shares', i: i }); if (clashMsg2) { t.value = row0.d.id; toast(clashMsg2); return; } }
       if (col && col.money) { v2 = util.formatMoney(v2); t.value = v2; }
       if (col && col.date) { var pd2 = util.parseDate(v2); if (pd2) { v2 = util.formatDate(pd2); t.value = v2; } }
@@ -530,6 +533,7 @@
     if ($('#setSpeech')) { var sp = speechPrefs(); speechChoices(); $('#setSpeech').value = sp.engine; $('#setWhisper').value = sp.model; if ($('#setCall')) $('#setCall').value = sp.call ? '1' : '0'; }
     creditSettings(); var left = creditLeft(); $('#setCredit').value = left == null ? '' : left.toFixed(2);
     quickSettings(); $('#setQuick').value = vmQuickOn() ? '1' : '0';
+    sweepSettings(); $('#setSweep').value = vmSweepMode();
     shareSettings(); $('#setShare').value = vmShareOn() ? '1' : '0';
     dlg.showModal();
   }
@@ -542,6 +546,7 @@
     if ($('#setSpeech')) { try { localStorage.setItem(SPEECH_KEY, JSON.stringify({ engine: $('#setSpeech').value, model: $('#setWhisper').value, call: !!$('#setCall') && $('#setCall').value === '1' })); } catch (e) { /* storage unavailable */ } }
     saveCreditBox();
     if ($('#setQuick')) { try { localStorage.setItem(QUICK_KEY, $('#setQuick').value); } catch (e) { /* storage unavailable */ } }
+    if ($('#setSweep')) { try { localStorage.setItem(SWEEP_KEY, $('#setSweep').value); } catch (e) { /* storage unavailable */ } }
     if ($('#setShare')) { try { localStorage.setItem(SHARE_KEY, $('#setShare').value); } catch (e) { /* storage unavailable */ } vmShareApply(); convoRender(); }
     $('#settings').close(); refreshKey(); refreshCost(); toast('Settings saved.');
   });
@@ -634,7 +639,7 @@
      Whatever listens calls FF.app.voiceHear(text, who), who being 'me' (the adviser) or 'client'. Typing works as always when voice is off. */
   var V = FF.voice, VAI = FF.voiceAI, vidx = V.buildIndex(schema);
   try { if (VAI && VAI.setShare) VAI.setShare(localStorage.getItem('wr-fact-find-share') === '1'); } catch (e) { /* storage unavailable: sharing stays off */ }
-  var vm = { on: false, target: null, answered: false, secGlow: false, noteMode: null, rowCur: {}, undo: [], recent: [], flashes: {}, queue: Promise.resolve(), slow: 0, epoch: 0, busy: 0, seq: 0, moveSeq: 0, calls: 0, laneTarget: null, lastFail: 0, wipe: null, digits: null, run: null, erun: null, eann: null, paused: false, pointed: null, lastNum: null };
+  var vm = { on: false, target: null, answered: false, secGlow: false, noteMode: null, rowCur: {}, undo: [], recent: [], flashes: {}, queue: Promise.resolve(), slow: 0, epoch: 0, busy: 0, seq: 0, moveSeq: 0, calls: 0, laneTarget: null, unplacedSeen: {}, noSweep: {}, sweeping: false, sweepNext: [], sweepSecs: {}, sweepT: 0, secAt: {}, sweptAll: 0, lastFail: 0, wipe: null, digits: null, run: null, erun: null, eann: null, paused: false, pointed: null, lastNum: null };
   /* ---------- "Live Client Conversation": a text box in the right-hand pane under Checks, kept in view while the page scrolls. The lines heard, oldest at the top and the latest at the bottom, each with what was done on the form because of it. ---------- */
   var vmCur = null;                                              // the line being dealt with now, so what is done on the form is listed under it
   var cv = { rows: [], all: [], live: '' }, convoT = 0;
@@ -660,7 +665,7 @@
     if (c || !side) return c;
     var st = document.createElement('style');
     st.textContent = '#convo{border-color:var(--brand);position:sticky;top:12px;z-index:5;max-height:calc(100vh - 24px);display:flex;flex-direction:column}#convo h3{flex:none}' +
-      '#convo .cv-head{display:flex;align-items:baseline;justify-content:space-between;gap:8px;flex:none;margin-bottom:6px}#convo .cv-head h3{margin-bottom:0;min-width:0}#convo .cv-head button{font-size:12px;white-space:nowrap}#convo .cv-btns{display:flex;gap:12px;flex:none}' +
+      '#convo .cv-head{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:2px 8px;flex:none;margin-bottom:6px}#convo .cv-head h3{margin-bottom:0;min-width:0}#convo .cv-head button{font-size:12px;white-space:nowrap}#convo .cv-btns{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:2px 12px;flex:0 1 auto;min-width:0}' +
       '#convo .cv-share{flex:none;font-size:12px;color:var(--muted);margin:-4px 0 6px}' +
       '#cvBox{flex:1 1 300px;min-height:120px;overflow-y:auto;border:1px solid var(--line);background:var(--surface);border-radius:6px;padding:8px 10px}' +
       '#cvBox .cv-empty{color:var(--muted);font-size:13px}#cvBox .cv-live{font-size:15px;font-style:italic;color:var(--muted);overflow-wrap:anywhere;padding-top:6px}' +
@@ -668,10 +673,14 @@
       '.cv-top{display:flex;gap:8px;font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}.cv-who{font-weight:600}' +
       '.cv-adviser .cv-who{color:var(--brand)}.cv-client .cv-who{color:var(--accent)}' +
       '.cv-text{font-size:15px;line-height:1.35;color:var(--ink);overflow-wrap:anywhere}' +
-      '.cv-did{font-size:12px;color:var(--muted);margin-top:2px}';
+      '.cv-did{font-size:12px;color:var(--muted);margin-top:2px}' +
+      '#cvUnplaced{flex:none;max-height:190px;overflow-y:auto;border:1px solid var(--warn);background:var(--surface);border-radius:6px;padding:6px 10px;margin-bottom:8px}' +
+      '.cv-unp-head{font-size:11px;letter-spacing:.05em;text-transform:uppercase;font-weight:600;color:var(--warn)}.cv-unp{padding:6px 0;border-top:1px solid var(--line)}.cv-unp:first-of-type{border-top:0}' +
+      '.cv-unp-text{font-size:14px;line-height:1.3;overflow-wrap:anywhere}.cv-unp-why{font-size:12px;color:var(--muted)}.cv-unp-btns{display:flex;flex-wrap:wrap;gap:4px 12px;margin-top:3px}.cv-unp-btns button{font-size:12px}' +
+      '.cv-sweep .cv-who{color:var(--warn)}';
     document.head.appendChild(st);
     c = document.createElement('div'); c.className = 'card'; c.id = 'convo';
-    c.innerHTML = '<div class="cv-head"><h3>Live Client Conversation</h3><span class="cv-btns"><button type="button" class="link-btn" id="cvPause" hidden title="Stops reading what is said (a remark to yourself, a side conversation) until Resume. The lines still show here, marked as not read.">Pause</button><button type="button" class="link-btn" id="cvSave" title="Saves a file of what was heard, what was sent to Claude, what Claude answered and what the form did, so a problem can be found. Numbers and email addresses are hidden in it unless Claude is allowed to see them.">Save log</button></span></div><div class="cv-share" id="cvShare" hidden>Claude sees ID, tax and phone numbers</div><div id="cvBox" role="log" aria-live="polite" tabindex="0"></div>';
+    c.innerHTML = '<div class="cv-head"><h3>Live Client Conversation</h3><span class="cv-btns"><button type="button" class="link-btn" id="cvPause" hidden title="Stops reading what is said (a remark to yourself, a side conversation) until Resume. The lines still show here, marked as not read.">Pause</button><button type="button" class="link-btn" id="cvSweep" title="Reads the whole conversation again against the form and fills, in amber, any empty box whose answer was said but never reached it. What it cannot place goes to the list \'Heard but not placed\'.">Check for missed answers</button><button type="button" class="link-btn" id="cvSave" title="Saves a file of what was heard, what was sent to Claude, what Claude answered and what the form did, so a problem can be found. Numbers and email addresses are hidden in it unless Claude is allowed to see them.">Save log</button></span></div><div class="cv-share" id="cvShare" hidden>Claude sees ID, tax and phone numbers</div><div id="cvUnplaced" hidden></div><div id="cvBox" role="log" aria-live="polite" tabindex="0"></div>';
     var chk = document.getElementById('checks'), under = chk && chk.closest('.card');
     if (under) under.insertAdjacentElement('afterend', c); else side.insertBefore(c, side.firstChild);
     return c;
@@ -688,11 +697,13 @@
     var c = convoCard(); if (!c) return;
     var sh = document.getElementById('cvShare'); sh.hidden = !vmShareOn();
     var pb = document.getElementById('cvPause'); if (pb) { pb.hidden = !vm.on; pb.textContent = vm.paused ? 'Resume' : 'Pause'; }
+    var sb = document.getElementById('cvSweep'); if (sb) { sb.disabled = vm.sweeping; sb.textContent = vm.sweeping ? 'Checking…' : 'Check for missed answers'; }
+    unplacedRender();
     var box = document.getElementById('cvBox'), stick = box.scrollHeight - box.scrollTop - box.clientHeight < 40;   // stays on the latest line unless it has been scrolled back to read
     var html = cv.rows.map(function (e) {
-      var who = e.who === 'adviser' ? 'Planner' : e.who === 'client' ? 'Client' : '', ms = convoMeta(e),
-        did = e.engine ? '' : e.did.length ? e.did.map(esc).join(' · ') + (e.done ? '' : ' · Claude is checking') : (e.done ? 'nothing to fill' : 'working on it…');
-      return '<div class="cv-row' + (e.who === 'adviser' ? ' cv-adviser' : e.who === 'client' ? ' cv-client' : '') + '"><div class="cv-top"><span class="cv-who">' + who + '</span><span>' + new Date(e.at).toTimeString().slice(0, 8) + '</span></div>' +
+      var who = e.who === 'adviser' ? 'Planner' : e.who === 'client' ? 'Client' : e.who === 'sweep' ? 'Catch-up' : '', ms = convoMeta(e),
+        did = e.engine ? '' : e.did.length ? e.did.map(esc).join(' · ') + (e.done ? '' : (e.sweep ? ' · checking' : ' · Claude is checking')) : (e.done ? 'nothing to fill' : e.sweep ? 'reading the conversation again…' : 'working on it…');
+      return '<div class="cv-row' + (e.who === 'adviser' ? ' cv-adviser' : e.who === 'client' ? ' cv-client' : e.who === 'sweep' ? ' cv-sweep' : '') + '"><div class="cv-top"><span class="cv-who">' + who + '</span><span>' + new Date(e.at).toTimeString().slice(0, 8) + '</span></div>' +
         '<div class="cv-text">' + esc(e.shown || e.text) + '</div><div class="cv-did">' + did + (ms ? ' <span>· ' + ms + '</span>' : '') + '</div></div>';
     }).join('');
     if (cv.live) html += '<div class="cv-live">' + esc(cv.live) + '</div>';
@@ -722,6 +733,7 @@
     return {
       saved: new Date().toISOString(), app: { version: schema.version, released: schema.released },
       meeting: meeting.snapshot(),
+      not_placed_open: (state.unplaced || []).map(function (u) { return { text: hide(u.text), why: u.why, section: u.sec }; }),
       settings: { claude_model: set.voiceModel, fill_at_once: vmQuickOn(), claude_sees_numbers: vmShareOn(), speech: speechPrefs() },
       lines: cv.all.map(function (e) {
         return { at: new Date(e.at).toISOString(), who: e.who, heard: hide(e.shown || e.text), read_as: e.text !== e.shown ? hide(e.text) : undefined, page_did: e.did.map(hide), filled_at_once: e.quick ? true : undefined, taken_back: e.changed || undefined, claude_ms: e.claudeMs, read_at_once: e.early || undefined, read_again: e.reread || undefined, pointed_when_heard: e.prov || undefined, on_form_ms: e.doneAt ? e.doneAt - e.at : undefined, speech: e.m || undefined, claude: e.ai };
@@ -735,6 +747,7 @@
       .then(function () { toast('Voice log saved.'); }).catch(function (e) { if (e && e.name !== 'AbortError') toast('Could not save the log: ' + e.message); });
   }
   document.addEventListener('click', function (e) { if (e.target.closest('#cvSave')) { e.preventDefault(); convoSave(); } });
+  document.addEventListener('click', function (e) { if (e.target.closest('#cvSweep')) { e.preventDefault(); vmSweep({ sec: null, from: 0, why: 'button' }); } });
   document.addEventListener('click', function (e) {
     if (!e.target.closest('#cvPause')) return;
     e.preventDefault(); vm.paused = !vm.paused; convoRender();
@@ -876,14 +889,14 @@
     var cm = /^count:(\w+)$/.exec(id);
     if (cm) {                                                    // waiting to hear how many: the Add button glows
       var L = vidx.lists[cm[1]];
-      if (cur !== L.sec) { cur = L.sec; redraw(); vmPulseNav(); }
+      if (cur !== L.sec) { var fromC = cur; cur = L.sec; redraw(); vmPulseNav(); vmEnter(fromC); }
       vm.target = id; vm.answered = false; vm.secGlow = false; vmMarkWait();
       var ab = vmEl(id); if (ab) ab.scrollIntoView({ block: 'center', behavior: 'smooth' });
       return;
     }
     var f = vmField(id), cr = vmCellRef(id);
     if (cr) while (state.l[cr.list].length <= cr.i) { store.addRow(state, cr.list, {}, 'heard'); vm.pointed = { list: cr.list, i: state.l[cr.list].length - 1 }; }   // the row is there before it is pointed at
-    if (cur !== f.sec) { cur = f.sec; redraw(); vmPulseNav(); }
+    if (cur !== f.sec) { var fromF = cur; cur = f.sec; redraw(); vmPulseNav(); vmEnter(fromF); }
     if (cr) { vm.rowCur[cr.list] = cr.i; if (!vmEl(id)) redraw(); }
     vm.target = id; vm.answered = false; vm.secGlow = false; vmMarkWait();
     if (vm.run && vm.run.box !== id) vm.run = null;  // a number being said belongs to its own box
@@ -900,7 +913,7 @@
     if (vmQuiet) { vmLog('did not move to the section: the page is already on a later question'); return; }
     vmMoved(); vmDropPointed(null);
     vm.undo.push({ kind: 'nav', sec: cur, target: vm.target, answered: vm.answered });
-    cur = secId; vm.target = null; vm.answered = false; vm.secGlow = true;
+    var fromS = cur; cur = secId; vm.target = null; vm.answered = false; vm.secGlow = true; vmEnter(fromS);
     if (document.activeElement && document.activeElement.blur && document.activeElement !== $('#vdText')) document.activeElement.blur();
     redraw(); vmPulseNav(); window.scrollTo(0, 0);
   }
@@ -923,7 +936,8 @@
       vm.target = null; vm.answered = false; vm.secGlow = true; saveDraft(); redraw(); vmMarkWait(); toast('Everything is back as it was.'); return;
     }
     if (e.kind === 'addrow') { store.delRow(state, e.list, e.i); vm.rowCur[e.list] = Math.min(vm.rowCur[e.list] == null ? 0 : vm.rowCur[e.list], state.l[e.list].length - 1); touch(); redraw(); return; }
-    if (e.kind === 'cell') { var ur = state.l[e.list][e.i]; if (ur) { ur.d[e.k] = e.prev.v; ur.st = e.prev.st; } touch(); redraw(); return; }
+    if (e.kind === 'cell') { var ur = state.l[e.list][e.i]; if (e.prev.v === '' || e.prev.v == null) vm.noSweep[e.list + ':' + e.i + ':' + e.k] = 1; if (ur) { ur.d[e.k] = e.prev.v; ur.st = e.prev.st; } touch(); redraw(); return; }
+    if (e.prev.v === '') vm.noSweep[e.id] = 1;                                  // taken back to empty: the catch-up check leaves it
     state.f[e.id] = { v: e.prev.v, st: e.prev.st };
     (e.extras || []).forEach(function (x) { state.f[x.id] = { v: x.prev.v, st: x.prev.st }; });
     touch(); vmShow(e.id); redraw(); vmMarkWait();
@@ -942,6 +956,7 @@
       case 'clearAll': return vmWipeAsk();
       case 'clear':
         if (!vm.target) return;
+        vm.noSweep[vm.target] = 1;
         var ccr = vmCellRef(vm.target);
         if (ccr) { var cr0 = state.l[ccr.list][ccr.i]; if (!cr0 || cr0.d[ccr.k] === '') return; vm.undo.push({ kind: 'cell', list: ccr.list, i: ccr.i, k: ccr.k, prev: { v: cr0.d[ccr.k], st: cr0.st } }); cr0.d[ccr.k] = ''; vm.answered = false; touch(); redraw(); vmMarkWait(); return; }
         var cell = state.f[vm.target];
@@ -980,7 +995,7 @@
   }
   function vmWipe() {
     vm.undo.push({ kind: 'wipe', snap: JSON.parse(JSON.stringify(state)), base: fileBase, handle: fileHandle, dirty: dirty, sec: cur });
-    var cost = state.claude; state = store.blank(); state.claude = cost;                                  // what Claude has cost stays, however much of the form is cleared
+    var cost = state.claude; state = store.blank(); state.claude = cost; vmFreshForm();                                  // what Claude has cost stays, however much of the form is cleared
     fileHandle = null; fileBase = ''; rememberHandle(null); dirty = false; saveDraft();
     cur = 'info'; vm.target = null; vm.answered = false; vm.noteMode = null; vm.rowCur = {}; vm.recent = []; vm.flashes = {}; vm.secGlow = true; vm.run = null; vm.erun = null; vm.eann = null; vm.pointed = null; vm.digits = null;
     redraw(); vmMarkWait(); window.scrollTo(0, 0);
@@ -1070,8 +1085,9 @@
   /* Add a row, with the values Claude heard for it (a child: name and date of birth). A row that is still empty is filled before a new one is added. */
   function vmAddRow(list, values) {
     var L = vidx.lists[list];
+    if (L && !vmVisible(L) && values) { var shown = Object.keys(values).filter(function (k) { return !vmPrivate(list + '.' + k); }).map(function (k) { return values[k]; }).join(', '); if (shown) vmUnplace({ text: L.title + ': ' + shown, why: 'that list is not shown for this client', sec: L.sec }); }
     if (!L || !vmVisible(L)) return -1;
-    if (cur !== L.sec && !vmQuiet) { cur = L.sec; vm.secGlow = false; vmPulseNav(); vmMoved(); }
+    if (cur !== L.sec && !vmQuiet) { var fromR = cur; cur = L.sec; vm.secGlow = false; vmPulseNav(); vmMoved(); vmEnter(fromR); }
     var rows = state.l[list], i = -1, r;
     if (values) for (r = 0; r < rows.length; r++) if (!Object.keys(rows[r].d).some(function (k) { return rows[r].d[k] !== ''; })) { i = r; break; }
     if (i < 0) { store.addRow(state, list, {}, 'heard'); i = rows.length - 1; vm.undo.push({ kind: 'addrow', list: list, i: i }); }
@@ -1293,14 +1309,15 @@
           var cl = state.l[a.list] || [], ci = a.row === 'last' ? Math.max(cl.length - 1, 0) : a.row - 1, crow = cl[ci], ck = crow && vidx.lists[a.list].cols.map(function (id) { return id.split('.')[1]; }).filter(function (k) { return crow.d[k] !== '' && crow.d[k] != null; })[0];
           return ck ? vmDo({ do: 'confirm', field: a.list + ':' + ci + ':' + ck }) : null;
         }
-        if (!f || !vmVisible(f)) return;
+        if (!f) return;
+        if (!vmVisible(f)) { if (a.do === 'fill' && !a.res && a.value != null && String(a.value).trim()) vmUnplace({ text: f.label + ': ' + vmShown(a.field, a.value), why: 'that box is not shown for this client', sec: f.sec }); return; }
         var cell = vmCellRef(a.field) ? { v: vmValue(a.field), st: (state.l[vmCellRef(a.field).list][vmCellRef(a.field).i] || { st: 'heard' }).st } : state.f[a.field], res = a.res;
         if (!res && a.do === 'confirm') res = { kind: 'confirm' };
         if (!res) { var x = V.interpret(f, a.value); if (x && !x.error) res = { kind: 'fill', value: x.value, status: x.status, extra: x.extra, append: x.append && !a.explicit }; }   // a correction replaces the text; only a new fact is added to it
-        if (!res) return;
+        if (!res) { if (a.do === 'fill' && a.value != null && String(a.value).trim()) vmUnplace({ text: f.label + ': ' + vmShown(a.field, a.value), why: 'could not be read as an answer for that box', field: vmPrivate(a.field) ? undefined : a.field, value: vmPrivate(a.field) ? undefined : String(a.value), sec: f.sec }); return; }
         if (res.kind === 'fill' && !res.extra && cell.v !== '' && String(res.value).trim().toLowerCase() === String(cell.v).trim().toLowerCase()) { if (a.field === vm.target && !vm.answered) { vm.answered = true; vmMarkWait(); } return; }   // the box already holds it, so it is answered; the same value again is not agreement (the adviser echoes what the client said: "950,000. Perfect."): the box stays as it is until the client says yes
         if (a.field !== vm.target && a.do !== 'confirm') {                  // agreeing to a box does not move the cursor: it turns green where it is
-          if (!a.explicit && res.kind === 'fill' && cell.v !== '' && cell.st === 'confirmed') return;   // Claude's volunteered fact never overwrites a confirmed value
+          if (!a.explicit && res.kind === 'fill' && cell.v !== '' && cell.st === 'confirmed') { if (!vmCellRef(a.field)) vmUnplace({ text: f.label + ': ' + vmShown(a.field, res.value), why: 'the box already holds a confirmed answer' + (vmPrivate(a.field) && !vmShareOn() ? '' : ' (' + cell.v + ')'), field: vmPrivate(a.field) ? undefined : a.field, value: vmPrivate(a.field) ? undefined : String(res.value), sec: f.sec }); return; }   // Claude's volunteered fact never overwrites a confirmed value: it is kept for the adviser
           vmShow(a.field);                                                                              // the screen follows the conversation to that box
         }
         if (res.kind === 'fill' && NUMBER_BOXES.indexOf(a.field) >= 0 && vmHoldPartial(a.field, res.value)) return;
@@ -1311,6 +1328,7 @@
   function vmEmpty(a) {
     var id = a.list ? a.list + ':' + (a.row === 'last' ? Math.max(state.l[a.list].length - 1, 0) : a.row - 1) + ':' + a.col : a.field, cr = vmCellRef(id), f = vmField(id);
     if (!f || !vmVisible(f)) return;
+    vm.noSweep[id] = 1;                                                       // emptied on purpose: the catch-up check leaves it empty
     if (cr) {
       var r0 = state.l[cr.list][cr.i];
       if (!r0 || r0.d[cr.k] === '' || r0.d[cr.k] == null) return;
@@ -1585,7 +1603,7 @@
   }
   /* A line kept for a number still being said: shown in the conversation box, not sent to Claude, nothing filled. */
   function vmKeepLine(text, who, meta, note) {
-    var entry = { who: who === 'me' ? 'adviser' : who === 'client' ? 'client' : 'unclear', text: text, shown: text, at: Date.now(), did: [note], done: true, m: meta || null };
+    var entry = { who: who === 'me' ? 'adviser' : who === 'client' ? 'client' : 'unclear', text: text, shown: text, at: Date.now(), did: [note], done: true, m: meta || null, skip: /^paused/.test(note) };
     cvAdd(entry); cv.live = ''; convoSoon();
     var p = Promise.resolve(entry); p.entry = entry; return p;
   }
@@ -1634,6 +1652,7 @@
   /* Empties one box, keeping what was in it so that "scratch that" brings it back. False when it was empty already. */
   function vmEmptyBox(id) {
     var cell = state.f[id]; if (!cell || cell.v === '') return false;
+    vm.noSweep[id] = 1;
     vm.undo.push({ kind: 'fill', id: id, prev: { v: cell.v, st: cell.st }, extras: [] });
     store.setField(state, id, '', 'empty'); return true;
   }
@@ -1697,6 +1716,7 @@
   function vmCheckQuick(text, entry) {
     return vmDecide(text, entry).then(function (r) {
       if (!r) return;                                                                // Claude could not be reached: what was filled stands
+      vmTakeUnplaced(r);
       var acts = r.kind === 'actions' ? r.actions : [], rc = VAI.reconcile(entry.quick.actions, acts, vidx);
       if (!rc.agree) { vmTakeBack(entry.quick.entries); entry.changed = true; }
       var put = {}; entry.quick.entries.forEach(function (e) { put[e.id] = 1; (e.extras || []).forEach(function (x) { put[x.id] = 1; }); });
@@ -1733,6 +1753,7 @@
     if (vm.noteMode && vmAIReady() && (startsNotes || (pl.actions.every(function (a) { return a.do === 'note'; }) && vmMayLeaveNotes(text)))) return vmAskInNotes(text, pl);
     if (vm.noteMode || onlyCommand || !vmAIReady()) return vmRun(pl.actions);  // every other line, however short, is read by Claude with the lines before it
     return vmDecide(text, entry).then(function (r) {
+      vmTakeUnplaced(r);
       if (r && r.kind === 'actions') return vmRun(vmAgreeActions(vmGuardReadBack(r.actions, text), text)).then(function () { return vmRestOfLine(r.actions, text, words); });
       if (vmAgreedBox(text)) return vmRun(vmAgreeActions([], text));                  // Claude had nothing to say about a plain statement that a box is correct
       if (!r || agree) return vmRun(pl.actions);                         // Claude could not be reached, or had nothing to add to a plain yes: this computer's best reading
@@ -1752,9 +1773,166 @@
     if (!why || vmRest) return null;
     vmRest = true;
     return vmAsk('auto', text, why).then(function (r) {
-      vmRest = false;
+      vmRest = false; vmTakeUnplaced(r);
       if (r && r.kind === 'actions') return vmRun(vmGuardReadBack(r.actions.filter(function (a) { return a.do !== 'section' && !cmdIs(a, moveRe) && !cmdIs(a, /^notes$/); }), text));
     }, function () { vmRest = false; });
+  }
+  /* ---------- heard but not placed, and the catch-up check ----------
+     A fact that was said but never reached a box is kept in a list ("Heard but not placed") with the Fact Find until the adviser puts it in a box, adds it to the notes or dismisses it. Facts get there from Claude
+     (it names facts it had no box for), from the page (a box that is not shown, a value that cannot be read as that box's answer, a volunteered fact that would overwrite a confirmed one) and from the catch-up check:
+     the conversation read again against the form, when the talk leaves a section and when voice is switched off. The check fills only boxes that are empty, as amber "to verify", and never a box that was emptied on purpose. */
+  function vmFreshForm() { vm.unplacedSeen = {}; vm.noSweep = {}; vm.secAt = {}; vm.sweptAll = cv.all.length; clearTimeout(vm.sweepT); vm.sweepSecs = {}; }
+  function vmUnplace(item) {
+    var it = store.addUnplaced(state, Object.assign({ sec: cur }, item), vm.unplacedSeen);
+    if (!it) return null;
+    vmLog('not placed: ' + it.text);
+    touch(); convoSoon();
+    return it;
+  }
+  function vmTakeUnplaced(r) { if (r && r.unplaced) r.unplaced.forEach(function (u) { vmUnplace({ text: u.text, sec: u.section || cur }); }); }
+  /* What a value is shown as in the list: never a private one. */
+  function vmShown(id, value) { return vmPrivate(id) && !vmShareOn() ? '(a value was said)' : String(value); }
+  function unplacedNotesBox(it) {
+    var pick = function (sec) { var b = vidx.notes.filter(function (n) { return n.sec === sec && vmVisible(n); }); return b.length ? b[0].id : null; };
+    return (it.sec && pick(it.sec)) || pick(cur);
+  }
+  function unplacedRender() {
+    var box = document.getElementById('cvUnplaced'); if (!box) return;
+    var list = state.unplaced || [];
+    box.hidden = !list.length;
+    if (!list.length) { box.innerHTML = ''; return; }
+    box.innerHTML = '<div class="cv-unp-head">Heard but not placed (' + list.length + ')</div>' + list.map(function (u) {
+      var f = u.field ? schema.fieldsById[u.field] : null, btns = '';
+      if (f) btns += '<button type="button" class="link-btn" data-up="' + u.id + ':put">Put in ' + esc(f.l) + '</button>';
+      if (u.list && schema.lists[u.list]) btns += '<button type="button" class="link-btn" data-up="' + u.id + ':row">Add to ' + esc(schema.lists[u.list].title) + '</button>';
+      if (unplacedNotesBox(u)) btns += '<button type="button" class="link-btn" data-up="' + u.id + ':note">Add to notes</button>';
+      btns += '<button type="button" class="link-btn" data-up="' + u.id + ':no">Dismiss</button>';
+      var where = u.sec ? 'Section: ' + vmSecTitle(u.sec) : '';
+      return '<div class="cv-unp"><div class="cv-unp-text">' + esc(u.text) + '</div>' + (u.why || where ? '<div class="cv-unp-why">' + esc([u.why, where].filter(Boolean).join(' · ')) + '</div>' : '') + '<div class="cv-unp-btns">' + btns + '</div></div>';
+    }).join('');
+  }
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest && e.target.closest('[data-up]'); if (!b) return;
+    var p = b.dataset.up.split(':'), it = (state.unplaced || []).filter(function (x) { return x.id === p[0]; })[0]; if (!it) return;
+    var ok = true;
+    if (p[1] === 'put') ok = unplacedPut(it); else if (p[1] === 'row') ok = unplacedRow(it); else if (p[1] === 'note') ok = unplacedNote(it);
+    if (ok) { store.closeUnplaced(state, it.id, vm.unplacedSeen); touch(); unplacedRender(); refreshChrome(); }
+  });
+  function unplacedPut(it) {
+    var f = vmField(it.field), x = f ? V.interpret(f, it.value) : null;
+    if (!f || !x || x.error) { toast('That could not be read as an answer for ' + (f ? f.label : 'the box') + '. Type it in.'); return false; }
+    if (cur !== f.sec) { cur = f.sec; redraw(); }
+    vmApply(it.field, { kind: 'fill', value: x.value, status: 'verify', extra: x.extra });
+    toast('Put in ' + f.label + '.'); return true;
+  }
+  function unplacedRow(it) {
+    if (!vidx.lists[it.list]) return false;
+    vmAddRow(it.list, it.values); toast('Added to ' + vidx.lists[it.list].title + '.'); return true;
+  }
+  function unplacedNote(it) {
+    var id = unplacedNotesBox(it); if (!id) { toast('There is no notes box for this section.'); return false; }
+    var c = state.f[id];
+    vm.undo.push({ kind: 'fill', id: id, prev: { v: c.v, st: c.st }, extras: [] });
+    store.setField(state, id, c.v ? c.v.replace(/\s+$/, '') + '\n- ' + it.text : '- ' + it.text, 'heard');
+    touch(); redraw(); toast('Added to the notes.'); return true;
+  }
+
+  /* ---- the catch-up check ---- */
+  var SWEEP_KEY = 'wr-fact-find-sweep';
+  function vmSweepMode() { try { var v = localStorage.getItem(SWEEP_KEY); return v === '0' || v === '1' ? v : '2'; } catch (e) { return '2'; } }        // 2: at each section and at the end, 1: at the end only, 0: only the button
+  /* The talk has moved to another section: the one it left is checked, after a short pause for the lines still being read. */
+  function vmEnter(from) {
+    if (from === cur) return;
+    vm.secAt[cur] = cv.all.length;
+    if (!vm.on || vmSweepMode() !== '2' || !from) return;
+    var since = vm.secAt[from] == null ? 0 : vm.secAt[from];
+    if (cv.all.length - since < 5) return;                                                    // hardly anything was said there
+    var empty = vidx.fields.some(function (f) { return f.sec === from && !f.list && vmVisible(f) && !vmPrivate(f.id) && state.f[f.id].v === ''; }), lists = Object.keys(vidx.lists).some(function (k) { return vidx.lists[k].sec === from; });
+    if (!empty && !lists) return;
+    vm.sweepSecs[from] = Math.max(0, since - 3);
+    clearTimeout(vm.sweepT);
+    vm.sweepT = setTimeout(function () { var secs = vm.sweepSecs; vm.sweepSecs = {}; Object.keys(secs).forEach(function (sec) { vmSweep({ sec: sec, from: secs[sec], why: 'section' }); }); }, 2500);
+  }
+  function vmSweepLines(from) {
+    return cv.all.slice(Math.max(0, from || 0)).filter(function (e) { return !e.engine && !e.sweep && !e.skip && e.text; }).slice(-400).map(function (e) { return { who: e.who, text: e.text }; });
+  }
+  function vmSweep(o) {
+    var manual = o.why === 'button';
+    if (!VAI || !VAI.sweep || !vmAIReady()) { if (manual) toast('The check needs Claude: put the Anthropic key in Settings.'); return Promise.resolve(); }
+    if (vm.sweeping) { vm.sweepNext.push(o); return Promise.resolve(); }
+    var lines = vmSweepLines(o.from);
+    if (lines.length < (manual ? 1 : 3)) { if (manual) toast('Nothing has been said yet.'); return Promise.resolve(); }
+    if (!o.sec) vm.sweptAll = cv.all.length;
+    var title = o.sec ? vmSecTitle(o.sec) : 'the whole meeting', set = FF.lookup.getSettings();
+    var entry = { who: 'sweep', text: 'Catch-up check: ' + title, shown: 'Catch-up check: ' + title, at: Date.now(), did: [], done: false, m: null, sweep: true };
+    vm.sweeping = true; vm.busy++; vmRender();
+    if (manual) toast('Checking ' + title + ' for answers that were missed…');
+    return vm.queue.then(function () {                                                        // every line heard so far is on the form first
+      cvAdd(entry); convoSoon();
+      var fl = vmFilled();
+      return VAI.sweep({ apiKey: set.apiKey, ask: !set.apiKey && FF.voiceBackend && FF.voiceBackend.available ? FF.voiceBackend.ask : null, model: set.voiceModel, idx: vidx, transcript: lines, filled: fl.filled,
+        listRows: function (key) { return state.l[key].map(function (r) { return r.d; }); }, focus: o.sec || null, fetchImpl: meteredFetch });
+    }).then(function (r) { vmSweepApply(entry, r, o, manual); }, function (err) {
+      entry.did.push('could not check: ' + ((err && err.message) || 'no answer'));
+      if (manual) toast('The check could not be done (' + ((err && err.message) || 'no answer') + ').');
+    }).then(function () {
+      entry.done = true; entry.doneAt = Date.now(); vm.sweeping = false; vm.busy--; vmRender(); convoSoon();
+      var next = vm.sweepNext.shift(); if (next) vmSweep(next);
+    });
+  }
+  function vmSweepApply(entry, r, o, manual) {
+    var acts = r && r.kind === 'actions' ? r.actions : [], n = 0, was = vmCur, wasQuiet = vmQuiet, before = (state.unplaced || []).length;
+    vmCur = entry; vmQuiet = true;                                                           // nothing moves the highlight or the cursor
+    try {
+      acts.forEach(function (a) {
+        if (a.do === 'fill') n += vmSweepFill(a);
+        else if (a.do === 'cell') n += vmSweepCell(a);
+        else if (a.do === 'row') vmSweepRow(a);
+      });
+      ((r && r.unplaced) || []).forEach(function (u) { vmUnplace({ text: u.text, sec: u.section || o.sec || cur }); });
+    } finally { vmCur = was; vmQuiet = wasQuiet; }
+    var found = (state.unplaced || []).length - before;
+    if (!n && !found) entry.did.push('nothing was missed');
+    if (n || found) { touch(); redraw(); }
+    if (n || found || manual) toast(n || found ? 'Catch-up check: ' + (n ? n + ' missed answer' + (n > 1 ? 's' : '') + ' filled in amber to verify' : '') + (n && found ? ', ' : '') + (found ? found + ' fact' + (found > 1 ? 's' : '') + ' heard but not placed' : '') + '.' : 'Catch-up check: nothing was missed.');
+  }
+  function vmSweepFill(a) {
+    var id = a.field, f = vmField(id);
+    if (!f || f.list || vmPrivate(id) || vm.noSweep[id]) return 0;
+    if (!vmVisible(f)) { vmUnplace({ text: f.label + ': ' + a.value, why: 'that box is not shown for this client', sec: f.sec }); return 0; }
+    var c = state.f[id], x = V.interpret(f, a.value);
+    if (!x || x.error) { vmUnplace({ text: f.label + ': ' + a.value, why: 'could not be read as an answer for that box', sec: f.sec }); return 0; }
+    if (c.v === '') { if (vmApply(id, { kind: 'fill', value: x.value, status: 'verify', extra: x.extra })) { vmLog('filled (missed earlier) ' + f.label); return 1; } return 0; }
+    if (vmSame(c.v, x.value)) return 0;
+    vmUnplace({ text: f.label + ': the conversation says ' + x.value, why: 'the box holds "' + c.v + '"', field: id, value: x.value, sec: f.sec });
+    return 0;
+  }
+  function vmSweepCell(a) {
+    var L = vidx.lists[a.list], rows = state.l[a.list], ri = a.row === 'last' ? rows.length - 1 : a.row - 1, id = a.list + ':' + ri + ':' + a.col, def = vidx.byId[a.list + '.' + a.col];
+    if (!L || !def || vmPrivate(a.list + '.' + a.col) || vm.noSweep[id]) return 0;
+    var row = rows[ri], x = V.interpret(def, a.value);
+    if (!row) { vmUnplace({ text: L.title + ': ' + def.label + ' ' + a.value, why: 'there is no such row on the form', sec: L.sec }); return 0; }
+    if (!x || x.error) { vmUnplace({ text: L.title + ' ' + (ri + 1) + ': ' + def.label + ' ' + a.value, why: 'could not be read as an answer for that box', sec: L.sec }); return 0; }
+    var cur0 = row.d[a.col] == null ? '' : String(row.d[a.col]);
+    if (cur0 === '') { var rc = vm.rowCur[a.list]; var ok = vmApplyCell({ list: a.list, i: ri, k: a.col }, id, { kind: 'fill', value: x.value, status: 'verify' }); vm.rowCur[a.list] = rc; if (ok) vmLog('filled (missed earlier) ' + L.title + ' ' + (ri + 1) + ': ' + def.label); return ok ? 1 : 0; }
+    if (!vmSame(cur0, x.value)) vmUnplace({ text: L.title + ' ' + (ri + 1) + ': the conversation says ' + def.label + ' ' + x.value, why: 'the box holds "' + cur0 + '"', sec: L.sec });
+    return 0;
+  }
+  function vmSweepRow(a) {
+    var L = vidx.lists[a.list]; if (!L) return;
+    var vals = {}, bits = [];
+    Object.keys(a.values || {}).forEach(function (k) { var d = vidx.byId[a.list + '.' + k]; if (d && !vmPrivate(a.list + '.' + k)) { var x = V.interpret(d, a.values[k]), v = x && !x.error ? x.value : a.values[k]; vals[k] = v; bits.push(d.label + ' ' + v); } });     // dates and amounts as they are written on the form
+    if (!bits.length) return;
+    var first = vals[L.first] != null ? V.norm(vals[L.first]) : '';
+    if (first && state.l[a.list].some(function (r) { return V.norm(r.d[L.first]) === first; })) return;           // already there under that name
+    vmUnplace({ text: L.title + ': ' + bits.slice(0, 5).join(', '), why: 'there is no such row on the form', list: a.list, values: vals, sec: L.sec });
+  }
+  /* The catch-up choice is added to Settings from here too. */
+  function sweepSettings() {
+    if ($('#setSweep') || !$('#setSpeech')) return;
+    $('#setSpeech').closest('.f').insertAdjacentHTML('beforebegin',
+      '<label class="f"><span class="l"><span>Catch-up check for missed answers</span></span><select id="setSweep"><option value="2">At each section change and when Voice is switched off</option><option value="1">Only when Voice is switched off</option><option value="0">Only when I press the button</option></select></label>' +
+      '<p class="help">Claude reads the conversation again against the form and fills (amber, to verify) any empty box whose answer was said but never reached it. Anything it cannot place goes to the list "Heard but not placed". A box that was filled is never changed, and a box you emptied is left empty. The button "Check for missed answers" in the conversation box does the whole meeting at any time.</p>');
   }
   /* A question the page can place itself ("What is your gross income?") marks its box as it is heard, without waiting for Claude or for the lines before it to be put on the form.
      Claude's answer for the line points at the same box (and corrects it if this computer guessed wrong). */
@@ -1792,9 +1970,12 @@
     return p;
   }
   function vmToggle(on) {
+    var drained = vm.queue;                                                                                    // lines still being put on the form finish before the final check
     vm.on = on; vm.target = null; vm.answered = false; vm.secGlow = on; vm.noteMode = null; vm.rowCur = {}; vm.queue = Promise.resolve(); vm.slow = 0; vm.epoch++; vm.digits = null; vm.run = null; vm.erun = null; vm.eann = null; vm.paused = false; vm.pointed = null; vm.moveSeq = 0; vm.laneTarget = null; cv.live = ''; vmCur = null;
     if (vm.wipe) { vm.wipe = null; var wd = document.getElementById('wipe'); if (wd && wd.open) wd.close(); }   // switching Voice on or off never leaves the question hanging
     if (!on) listenStop();                                                                                       // no voice mode, nothing to listen for
+    clearTimeout(vm.sweepT); vm.sweepSecs = {};
+    if (!on && vmSweepMode() !== '0' && vmAIReady() && cv.all.length - vm.sweptAll >= 6) drained.then(function () { vmSweep({ sec: null, from: 0, why: 'end' }); });     // the end of the meeting: nothing said is left unchecked
     if (!on) { document.querySelectorAll('.voice-wait,.voice-ok').forEach(function (e) { e.classList.remove('voice-wait', 'voice-ok'); }); $('#vdText').hidden = true; vmPickClose(); }
     vmRender(); vmMarkWait();
     if (on) vmWarm();

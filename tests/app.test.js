@@ -361,3 +361,25 @@ test('checks on the date of marriage: unreadable, after the form date, or before
   assert.deepStrictEqual(msgs('Single', '15/11/2026'), [], 'a hidden date is not checked');
   assert.deepStrictEqual(msgs('Life partner', 'rubbish'), []);
 });
+
+/* ---- Heard but not placed ---- */
+test('facts that were heard but not placed are kept once, saved with the file, and a dismissed one does not come back', () => {
+  const s = fresh(); const seen = {};
+  const a = store.addUnplaced(s, { text: 'Has a boat loan of R180 000 with Wesbank', sec: 'debts', why: 'no such box' }, seen);
+  assert.ok(a && a.id && a.sec === 'debts');
+  assert.strictEqual(store.addUnplaced(s, { text: 'has a BOAT loan of R180 000 with Wesbank!', sec: 'debts' }, seen), null, 'the same fact twice');
+  assert.strictEqual(store.addUnplaced(s, { text: 'no' }, seen), null, 'too short');
+  const b = store.addUnplaced(s, { text: 'Occupation: the conversation says Nurse', field: 'occ', value: 'Nurse', sec: 'info' }, seen);
+  const c = store.addUnplaced(s, { text: 'Children: Name Ben', list: 'kids', values: { name: 'Ben', nonsense: 'x' }, sec: 'family' }, seen);
+  assert.deepStrictEqual(c.values, { name: 'Ben' });
+  assert.strictEqual(s.unplaced.length, 3);
+  const back = store.fromJSON(store.toJSON(s));
+  assert.deepStrictEqual(back.unplaced.map(x => x.text), s.unplaced.map(x => x.text));
+  assert.strictEqual(back.unplaced[1].field, 'occ');
+  assert.strictEqual(store.closeUnplaced(s, b.id, seen).id, b.id);
+  assert.strictEqual(s.unplaced.length, 2);
+  assert.strictEqual(store.addUnplaced(s, { text: 'Occupation: the conversation says Nurse', field: 'occ', value: 'Nurse' }, seen), null, 'dismissed: not offered again');
+  const old = JSON.parse(store.toJSON(fresh())); delete old.unplaced;
+  assert.deepStrictEqual(store.fromJSON(JSON.stringify(old)).unplaced, [], 'an older file opens with an empty list');
+  assert.deepStrictEqual(store.fromJSON(JSON.stringify(Object.assign(old, { unplaced: [{ text: 'ok fact here', field: 'nonsense', value: 'x', sec: 'nope' }, 7, null] }))).unplaced.map(x => [x.text, x.field, x.sec]), [['ok fact here', undefined, undefined]]);
+});
