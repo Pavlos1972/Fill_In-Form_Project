@@ -8,7 +8,7 @@
                 grey (a box whose cond is false stays on screen, greyed out, instead of going away).
    Block keys:  title, fields, list, cond (show only when true), condMsg, help (guidance shown on screen only),
                 grey (when cond is false the block stays on screen greyed out, under condMsg, instead of going away), nomsg (no condMsg above a greyed block), own (the block's own cond, apart from its area being switched off: a block with its own condMsg is hidden when that rule fails, but greyed when only its area is off),
-                pri (the priority area of the Client priorities page the block belongs to), head (the block holding that area's decision and comments boxes), calc (a risk-calculation block, shown folded away). */
+                pri (the priority area of the Client priorities page the block belongs to), head (the block holding that area's decision and comments boxes), calc (a risk-calculation block of the Life area, shown under its own heading). */
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
   else { root.FF = root.FF || {}; root.FF.schema = factory(); }

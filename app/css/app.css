@@ -319,6 +319,4 @@ div.off { pointer-events: none; }
 .sum li.none { color: var(--muted); list-style: none; margin-left: -18px; }
 .sum .src { color: var(--muted); font-size: 11.5px; padding-top: 6px; border-top: 1px solid var(--line); }
 .sum .when { color: var(--muted); font-size: 11.5px; }
-details.calcbox { border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; margin-top: 14px; }
-details.calcbox > summary { cursor: pointer; color: var(--accent); font-weight: 500; }
-details.calcbox[open] > summary { margin-bottom: 4px; }
+.prio .calc-title { margin-top: 26px; }
