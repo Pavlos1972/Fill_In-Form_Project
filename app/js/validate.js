@@ -35,7 +35,8 @@
     if (v('dob') && !util.parseDate(v('dob'))) warn('dob', 'Date not recognised. Use day/month/year, such as 14/03/1986.');
     if (/^(Married|Customary marriage|Civil union)/.test(v('marital')) && v('marr_date')) {                                          // the date of marriage only counts for a marriage type
       var md = util.parseDate(v('marr_date')), now = calc.meetingDate(ctx), cd = util.parseDate(v('dob')) || (util.saIdValid(idno) ? util.dobFromSaId(idno) : null);
-      if (!md) warn('marr_date', 'Date not recognised. Use day/month/year, such as 14/03/2010.');
+      if (!md && /^(?:19|20)\d\d$/.test(v('marr_date'))) { if (+v('marr_date') > now.y) warn('marr_date', 'This year is after the date of the form.'); }       // only the year is known: that is enough
+      else if (!md) warn('marr_date', 'Date not recognised. Use day/month/year, such as 14/03/2010.');
       else if (md.y * 10000 + md.m * 100 + md.d > now.y * 10000 + now.m * 100 + now.d) warn('marr_date', 'This date is after the date of the form.');
       else if (cd && util.ageAt(cd, md) < 16) warn('marr_date', 'The client would have been under 16 on this date. Check the date.');
     }

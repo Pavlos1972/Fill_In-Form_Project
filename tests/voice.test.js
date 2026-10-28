@@ -741,3 +741,16 @@ test('Debts owner and payer: an ex-spouse or ex-partner is its own choice, and a
     [['spouse', 'Spouse'], ['my spouse', 'Spouse'], ['joint', 'Joint'], ['the business', 'Business'], ['client', 'Client']].forEach(([t, want]) => assert.strictEqual(say(id, t).value, want, id + ' <- ' + t));
   });
 });
+
+test('Last updated and Date of marriage take a year or "about two years ago", but a birth date still needs a real date', () => {
+  const y = new Date().getFullYear();
+  [['about two years ago', String(y - 2)], ['it was 2023', '2023'], ['in twenty twenty three', '2023'], ['two thousand and nine', '2009'], ['two thousand twenty one', '2021'], ['last year', String(y - 1)], ['this year', String(y)],
+    ['about two years ago, before I got remarried', String(y - 2)], ['nearly ten years ago', String(y - 10)], ['twenty oh five', '2005']].forEach(([t, want]) => {
+    assert.deepStrictEqual(say('will_date', t), { value: want, status: 'verify' }, t);
+    assert.deepStrictEqual(say('marr_date', t), { value: want, status: 'verify' }, t);
+  });
+  assert.strictEqual(say('will_date', '14 March 2023').value, '14/03/2023');                 // a full date is still a full date
+  assert.deepStrictEqual(say('will_date', 'a long time ago'), { error: 'no-date' });
+  assert.deepStrictEqual(say('dob', 'about 40 years ago'), { error: 'no-date' });
+  assert.deepStrictEqual(say('dob', '1986'), { error: 'no-date' });
+});
