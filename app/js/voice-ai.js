@@ -526,8 +526,9 @@
     'Rules:',
     '- Use only the data given for that area. Never mention anything that is not in it and never bring in another area: no income, family, health or marital details unless they are in that area\'s data.',
     '- Do not advise or recommend. Only say what the client has, or plainly that something is not in place ("No group risk", "No will in place").',
-    '- 2 to 6 short points, each under 14 words. Keep names, amounts, dates and numbers exactly as given. A list with no rows, or a fact with the answer No or None, means there is none: say so.',
-    '- A box that is not in the data has not been asked yet: do not say anything about it. If the data is empty say "Nothing recorded yet".',
+    '- 2 to 6 short points, each under 14 words. Keep names, amounts, dates and numbers exactly as given. Say "No ..." or "none" only when the data itself says so: a fact whose answer is No or None means there is none.',
+    '- Anything that is not in the data has not been asked or recorded yet: say nothing about it, and never write "No ... in place" or "none recorded" because something is missing. A list that is not in the data simply has no rows yet.',
+    '- If the data is empty, the one point is "Nothing recorded yet".',
     '- "Credit life" is reported against each debt that was asked about; "Quote asked for" or "RGAR"/"EGAR requested" only when the data says so.',
     'Reply with ONE JSON object and nothing else: {"areas": {"<id>": ["point", "point"]}} with an entry for every area you were sent.'
   ].join('\n');
