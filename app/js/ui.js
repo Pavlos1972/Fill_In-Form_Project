@@ -129,14 +129,14 @@
   function makePdf() { return FF.pdf.build(state); }
   function savePdf() {
     var blob = makePdf().output('blob');
-    writeFile(blob, currentBase() + '.pdf', 'PDF document', '.pdf', null, 'fact-find-pdf', fileHandle)
+    writeFile(blob, store.pdfFileName(state) + '.pdf', 'PDF document', '.pdf', null, 'fact-find-pdf', fileHandle)
       .then(function () { toast('PDF saved.'); })
       .catch(function (e) { if (e && e.name !== 'AbortError') toast('Could not save the PDF: ' + e.message); });
   }
   function previewPdf() {
     var url = URL.createObjectURL(makePdf().output('blob'));
     var w = window.open(url, '_blank');
-    if (!w) download(makePdf().output('blob'), currentBase() + '.pdf');
+    if (!w) download(makePdf().output('blob'), store.pdfFileName(state) + '.pdf');
   }
   /* Opens a saved client. With Chrome's file picker the file is remembered, so Save writes back to it. */
   function openFile(file, handle) {

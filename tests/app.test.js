@@ -105,6 +105,14 @@ test('file name follows the meeting date and client', () => {
   const s = fresh(); set(s, 'fname', 'Thandi'); set(s, 'sname', 'Dlamini');
   assert.strictEqual(store.baseFileName(s), 'Fact Find - 15.10.2026 - Thandi Dlamini');
 });
+test('the PDF is named "Fact Find (Voice to Text) - dd.mm.yy - (Name Surname)"', () => {
+  const s = fresh(); set(s, 'fname', 'Sitamah'); set(s, 'sname', 'Nathoo'); set(s, 'date', '29/10/2026');
+  assert.strictEqual(store.pdfFileName(s), 'Fact Find (Voice to Text) - 29.10.26 - (Sitamah Nathoo)');
+  set(s, 'date', '05/03/2027'); assert.strictEqual(store.pdfFileName(s), 'Fact Find (Voice to Text) - 05.03.27 - (Sitamah Nathoo)');         // day and month with two digits, the year with two
+  set(s, 'fname', 'Thandi'); set(s, 'sname', 'Dlamini: "Test"/Co'); assert.strictEqual(store.pdfFileName(s), 'Fact Find (Voice to Text) - 05.03.27 - (Thandi Dlamini TestCo)');   // characters a file name cannot hold are left out
+  const e = fresh(); set(e, 'date', '17/10/2026'); assert.strictEqual(store.pdfFileName(e), 'Fact Find (Voice to Text) - 17.10.26 - (New client)');
+  assert.strictEqual(store.baseFileName(s), 'Fact Find - 05.03.2027 - Thandi Dlamini TestCo');                                                        // the saved .json keeps its own name
+});
 test('each debt has an Other bank box and its own notes', () => {
   const cols = schema.lists.debts.cols.map(c => c.k);
   assert.ok(cols.includes('prov_other') && cols.includes('notes'));
