@@ -8,7 +8,7 @@
                 grey (a box whose cond is false stays on screen, greyed out, instead of going away).
    Block keys:  title, fields, list, cond (show only when true), condMsg, help (guidance shown on screen only),
                 grey (when cond is false the block stays on screen greyed out, under condMsg, instead of going away), nomsg (no condMsg above a greyed block), own (the block's own cond, apart from its area being switched off: a block with its own condMsg is hidden when that rule fails, but greyed when only its area is off),
-                pri (the priority area of the Client priorities page the block belongs to), head (the block holding that area's decision and comments boxes), calc (a risk-calculation block of the Life area, shown under its own heading). */
+                pri (the priority area of the Client priorities page the block belongs to), head (the block holding that area's decision and comments boxes). */
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
   else { root.FF = root.FF || {}; root.FF.schema = factory(); }
@@ -229,53 +229,6 @@
       ] },
       { pri: 'life', title: 'Reduced quotes', list: 'redq' },
       { pri: 'life', fields: [{ id: 'pref_spend', money: 1, l: 'Preferred monthly spend (R)', t: 'txt', opt: 1 }] },
-      { pri: 'life', calc: 1, title: 'Life cover: fractured cover', fields: riskCalc('lc').concat([
-        { id: 'lc_f_aci', l: 'ACI', t: 'sel', o: ACI, opt: 1, preset: 'Fixed' },
-        { id: 'lc_f_aciv', l: 'ACI value', t: 'txt', opt: 1, preset: '?' },
-        { id: 'lc_wol', l: 'Life cover (WOL) ABI', t: 'txt', opt: 1, preset: '3%' },
-        { id: 'lc_ccabi', l: 'Childcare ABI', t: 'txt', opt: 1, preset: '5%' }
-      ]) },
-      { pri: 'life', calc: 1, title: 'Life cover: standard', fields: [
-        { id: 'lc_sa', money: 1, l: 'Sum assured (R)', t: 'txt', opt: 1 },
-        { id: 'lc_term', l: 'Term', t: 'sel', o: ['WOL', 'Fixed term', 'Other'], opt: 1 },
-        { id: 'lc_termv', l: 'Term value', t: 'txt', opt: 1 },
-        { id: 'lc_aci', l: 'ACI', t: 'sel', o: ACI, opt: 1 },
-        { id: 'lc_aciv', l: 'ACI value', t: 'txt', opt: 1 },
-        { id: 'lc_abiv', l: 'ABI', t: 'txt', opt: 1 },
-        N('lc_cmt', 'Comments')
-      ] },
-      { pri: 'life', calc: 1, title: 'Permanent disability: fractured cover', fields: riskCalc('pd').concat([
-        { id: 'pd_f_aci', l: 'ACI', t: 'sel', o: ACI, opt: 1, preset: 'Fixed' },
-        { id: 'pd_f_aciv', l: 'ACI value', t: 'txt', opt: 1, preset: '?' },
-        { id: 'pd_ccabi', l: 'Childcare ABI', t: 'txt', opt: 1, preset: '5%' }
-      ]) },
-      { pri: 'life', calc: 1, title: 'Permanent disability: standard', fields: [
-        { id: 'pd_sa', money: 1, l: 'Sum assured (R)', t: 'txt', opt: 1 },
-        { id: 'pd_term', l: 'Term', t: 'sel', o: ['To age 65', 'To age 70', 'Fixed term', 'Other'], opt: 1 },
-        { id: 'pd_termv', l: 'Term value', t: 'txt', opt: 1 },
-        { id: 'pd_aci', l: 'ACI', t: 'sel', o: ACI, opt: 1 },
-        { id: 'pd_aciv', l: 'ACI value', t: 'txt', opt: 1 },
-        { id: 'pd_abiv', l: 'ABI', t: 'txt', opt: 1 },
-        N('pd_cmt', 'Comments')
-      ] },
-      { pri: 'life', calc: 1, title: 'Dread disease', fields: [
-        { id: 'dd_cover', money: 1, l: 'Dread disease cover (R)', t: 'txt', opt: 1 },
-        { id: 'dd_term', l: 'Term', t: 'sel', o: ['WOL', 'Specified Age', 'Other'], opt: 1 },
-        { id: 'dd_termv', l: 'Term value', t: 'txt', opt: 1 },
-        { id: 'dd_aci', l: 'ACI', t: 'sel', o: ['Fixed', 'Age-rated', 'Other'], opt: 1, preset: 'Fixed' },
-        { id: 'dd_aciv', l: 'ACI value', t: 'txt', opt: 1, preset: '?' },
-        { id: 'dd_abiv', l: 'ABI', t: 'txt', opt: 1, preset: '3%' },
-        N('dd_cmt', 'Comments')
-      ] },
-      { pri: 'life', calc: 1, title: 'Income protection / sickness benefit', fields: [
-        { id: 'ip_age', l: 'Income protection age', t: 'sel', o: ['65', '70'], opt: 1 },
-        { id: 'ip_amt', l: 'Insured amount (R p.m.)', t: 'txt', calc: 'ip_amt' },
-        { id: 'ip_wait', l: 'Waiting period', t: 'sel', o: ['7 days', '14 days', '1 month', '3 months', 'Other'], opt: 1 },
-        { id: 'ip_aci', l: 'ACI', t: 'sel', o: ['Fixed', 'Age-rated', 'Other'], opt: 1, preset: 'Fixed' },
-        { id: 'ip_aciv', l: 'ACI value', t: 'txt', opt: 1, preset: '?' },
-        { id: 'ip_abiv', l: 'ABI', t: 'txt', opt: 1, preset: '5%' },
-        N('ip_cmt', 'Comments')
-      ] },
       HEAD('ra'),
       { pri: 'ra', title: 'Retirement annuity quotes', list: 'raq' },
       HEAD('rgar'),
@@ -321,6 +274,58 @@
         { id: 'km_basis', l: 'Basis of cover amount', t: 'sel', o: ['Multiple of salary', 'Profit contribution', 'Replacement cost', 'Other'] }
       ] },
       { fields: [N('n_prio')] }
+    ] },
+
+    /* Risk calculation: always on its own page in the list (not tied to the Life area or to what cover the client has now). */
+    { id: 'calc', adv: 1, title: 'Risk calculation', blocks: [
+      { title: 'Life cover: fractured cover', fields: riskCalc('lc').concat([
+        { id: 'lc_f_aci', l: 'ACI', t: 'sel', o: ACI, opt: 1, preset: 'Fixed' },
+        { id: 'lc_f_aciv', l: 'ACI value', t: 'txt', opt: 1, preset: '?' },
+        { id: 'lc_wol', l: 'Life cover (WOL) ABI', t: 'txt', opt: 1, preset: '3%' },
+        { id: 'lc_ccabi', l: 'Childcare ABI', t: 'txt', opt: 1, preset: '5%' }
+      ]) },
+      { title: 'Life cover: standard', fields: [
+        { id: 'lc_sa', money: 1, l: 'Sum assured (R)', t: 'txt', opt: 1 },
+        { id: 'lc_term', l: 'Term', t: 'sel', o: ['WOL', 'Fixed term', 'Other'], opt: 1 },
+        { id: 'lc_termv', l: 'Term value', t: 'txt', opt: 1 },
+        { id: 'lc_aci', l: 'ACI', t: 'sel', o: ACI, opt: 1 },
+        { id: 'lc_aciv', l: 'ACI value', t: 'txt', opt: 1 },
+        { id: 'lc_abiv', l: 'ABI', t: 'txt', opt: 1 },
+        N('lc_cmt', 'Comments')
+      ] },
+      { title: 'Permanent disability: fractured cover', fields: riskCalc('pd').concat([
+        { id: 'pd_f_aci', l: 'ACI', t: 'sel', o: ACI, opt: 1, preset: 'Fixed' },
+        { id: 'pd_f_aciv', l: 'ACI value', t: 'txt', opt: 1, preset: '?' },
+        { id: 'pd_ccabi', l: 'Childcare ABI', t: 'txt', opt: 1, preset: '5%' }
+      ]) },
+      { title: 'Permanent disability: standard', fields: [
+        { id: 'pd_sa', money: 1, l: 'Sum assured (R)', t: 'txt', opt: 1 },
+        { id: 'pd_term', l: 'Term', t: 'sel', o: ['To age 65', 'To age 70', 'Fixed term', 'Other'], opt: 1 },
+        { id: 'pd_termv', l: 'Term value', t: 'txt', opt: 1 },
+        { id: 'pd_aci', l: 'ACI', t: 'sel', o: ACI, opt: 1 },
+        { id: 'pd_aciv', l: 'ACI value', t: 'txt', opt: 1 },
+        { id: 'pd_abiv', l: 'ABI', t: 'txt', opt: 1 },
+        N('pd_cmt', 'Comments')
+      ] },
+      { title: 'Dread disease', fields: [
+        { id: 'dd_cover', money: 1, l: 'Dread disease cover (R)', t: 'txt', opt: 1 },
+        { id: 'dd_term', l: 'Term', t: 'sel', o: ['WOL', 'Specified Age', 'Other'], opt: 1 },
+        { id: 'dd_termv', l: 'Term value', t: 'txt', opt: 1 },
+        { id: 'dd_aci', l: 'ACI', t: 'sel', o: ['Fixed', 'Age-rated', 'Other'], opt: 1, preset: 'Fixed' },
+        { id: 'dd_aciv', l: 'ACI value', t: 'txt', opt: 1, preset: '?' },
+        { id: 'dd_abiv', l: 'ABI', t: 'txt', opt: 1, preset: '3%' },
+        N('dd_cmt', 'Comments')
+      ] },
+      { title: 'Income protection / sickness benefit', fields: [
+        { id: 'ip_age', l: 'Income protection age', t: 'sel', o: ['65', '70'], opt: 1 },
+        { id: 'ip_amt', l: 'Insured amount (R p.m.)', t: 'txt', calc: 'ip_amt' },
+        { id: 'ip_wait', l: 'Waiting period', t: 'sel', o: ['7 days', '14 days', '1 month', '3 months', 'Other'], opt: 1 },
+        { id: 'ip_aci', l: 'ACI', t: 'sel', o: ['Fixed', 'Age-rated', 'Other'], opt: 1, preset: 'Fixed' },
+        { id: 'ip_aciv', l: 'ACI value', t: 'txt', opt: 1, preset: '?' },
+        { id: 'ip_abiv', l: 'ABI', t: 'txt', opt: 1, preset: '5%' },
+        N('ip_cmt', 'Comments')
+      ] },
+      { fields: [N('n_calc')] }
     ] }
   ];
 

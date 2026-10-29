@@ -106,8 +106,8 @@
     tidyDates(s);
     return s;
   }
-  /* The notes boxes of the old advisor pages (quotes, referrals, risk calculation, buy & sell) are now one notes box on the Client priorities page: what was written in them is kept there, each under its old heading. */
-  var LEGACY_NOTES = [['n_q_risk', 'Personal risk quotes'], ['n_q_ret', 'Retirement & investment quotes'], ['n_ref', 'Referrals'], ['n_calc', 'Risk calculation'], ['n_bs', 'Buy & Sell']];
+  /* The notes boxes of the old advisor pages (quotes, referrals, buy & sell) are now one notes box on the Client priorities page (the Risk calculation page keeps its own): what was written in them is kept there, each under its old heading. */
+  var LEGACY_NOTES = [['n_q_risk', 'Personal risk quotes'], ['n_q_ret', 'Retirement & investment quotes'], ['n_ref', 'Referrals'], ['n_bs', 'Buy & Sell']];
   function legacyNotes(s, j) {
     var add = [];
     LEGACY_NOTES.forEach(function (n) { var c = j.f && j.f[n[0]], v = c && String(c.v == null ? '' : c.v).trim(); if (v) add.push(n[1] + ': ' + v); });

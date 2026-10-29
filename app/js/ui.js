@@ -279,12 +279,8 @@
     if (!applies) h += '<div class="note warn">' + esc(P.condMsg) + ' <button type="button" class="btn ghost" data-sec="occ">Go to Occupation</button></div>';
     if (cls === ' p2') h += '<div class="note warn">The client said this is not a priority. The quote boxes are switched off. Use the comments box for the reason or your instructions.</div>';
     h += '<div class="area">';
-    var calcHead = false;
-    blocks.forEach(function (b) {
-      if (b.head) return;
-      if (b.calc && !calcHead) { calcHead = true; h += '<div class="block-title calc-title">Risk calculation: life, disability, dread disease, income protection</div>'; }      // always open with the area, whether or not the client has cover now
-      h += blockHTML(b, sec, c);
-    });
+    blocks.forEach(function (b) { if (!b.head) h += blockHTML(b, sec, c); });
+    if (id === 'life') h += '<p class="calc-link">The risk calculation (life, disability, dread disease, income protection) has its own page in the list. <button type="button" class="btn ghost" data-sec="calc">Open Risk calculation</button></p>';
     return h + '</div></div>' + (P.sum ? '<div class="sum" data-sum="' + id + '">' + sumInner(id) + '</div>' : '') + '</div></section>';
   }
   function sectionHTML(sec) {
