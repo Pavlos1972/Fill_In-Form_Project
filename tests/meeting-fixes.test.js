@@ -100,3 +100,75 @@ test('a Next appointment date sits on the Client priorities page and can be said
   const m = V.matchQuestion('When can we meet again for the next appointment?', idx, { cur: 'prio' });
   assert.strictEqual(m && m.id, 'next_appt');
 });
+
+/* ---------- sections that are finished, and the notes that end ---------- */
+const sch = require('../app/js/schema.js'), Vv = require('../app/js/voice.js'), AIv = require('../app/js/voice-ai.js');
+const widx = Vv.buildIndex(sch);
+const wrap = (t, prev, cur) => Vv.wrapUp(t, widx, { cur: cur || 'debts', prev });
+
+test('the adviser says a section is finished: that is not small talk', () => {
+  ['Okay, that concludes the debt section.', 'That is the debts done', 'We are done with the debts', 'The debts section is complete', 'Right, that is all for the debts', "Let's wrap up the debts"]
+    .forEach(t => assert.deepStrictEqual(wrap(t), { sec: 'debts', list: null, via: 'said' }, t));
+  assert.deepStrictEqual(wrap('That covers income.'), { sec: 'income', list: null, via: 'said' });
+  assert.deepStrictEqual(wrap('I think that is everything for your children'), { sec: 'kids', list: null, via: 'said' });
+  assert.deepStrictEqual(wrap('That is all for this section', null, 'kids'), { sec: 'kids', list: null, via: 'said' });                  // this section: the one that is open
+  assert.deepStrictEqual(wrap('Okay, we are done here', null, 'health'), { sec: 'health', list: null, via: 'said' });
+});
+
+test('things that sound like it but are not: the client\'s own debts, a question, the notes, a box, one item', () => {
+  ['My debts are all done', 'The car loan is finished', 'That concludes the notes', 'Is that the debts done?', 'That is all for this one', 'We are done with this', 'He has completed the form'].forEach(t => assert.strictEqual(wrap(t), null, t));
+});
+
+test('a part of a page that holds several topics does not finish the page', () => {
+  assert.deepStrictEqual(wrap('OK that is it for the will', null, 'other'), { sec: null, list: null, part: 'other', via: 'said' });
+  assert.deepStrictEqual(wrap('That is the group risk done', null, 'cover'), { sec: null, list: null, part: 'cover', via: 'said' });
+  assert.deepStrictEqual(wrap('That concludes medical will and short term', null, 'other'), { sec: 'other', list: null, via: 'said' });     // the page itself, by its name
+});
+
+test('"no" to "any more ...?" is the end of the list: the section when the list is all of it, only the list when the section has several', () => {
+  assert.deepStrictEqual(wrap('No.', 'Mr client, do you have any more debts?'), { sec: 'debts', list: 'debts', via: 'declined' });
+  assert.deepStrictEqual(wrap('No, that is all', 'Do you have any other children?', 'kids'), { sec: 'kids', list: 'kids', via: 'declined' });
+  assert.deepStrictEqual(wrap('Nothing else', 'Anything else on the investments?', 'inv'), { sec: 'inv', list: 'inv', via: 'declined' });
+  assert.deepStrictEqual(wrap('Nope, that is all', 'Do you have any more policies?', 'cover'), { sec: null, list: 'risk', via: 'declined' });          // personal and group policies share a page
+  assert.deepStrictEqual(wrap('That is everything', 'Is that everything?', 'income'), { sec: 'income', list: null, via: 'declined' });
+  // not an end: a different answer, a box that exists, no question before it
+  assert.strictEqual(wrap('No, I also have a car loan', 'any more debts?'), null);
+  assert.strictEqual(wrap('No', 'Do you have any other health issues?', 'health'), null);          // the box "Other health issues": its answer is the box's
+  assert.strictEqual(wrap('No', 'what is your cell number'), null);
+  assert.strictEqual(wrap('No'), null);
+  assert.deepStrictEqual(wrap('No', 'Is there anything else you want to tell me about your health?', 'health'), { sec: 'health', list: null, via: 'declined' });
+});
+
+test('the page\'s own reading follows it: the question is about the list, the "no" finishes it, a line says what to do', () => {
+  const st = { cur: 'debts', rows: () => [{ type: 'Home loan' }], visible: () => true };
+  const q = Vv.plan('Do you have any more debts?', widx, st).actions;
+  assert.deepStrictEqual(q.map(a => a.do + ':' + a.field), ['ask:count:debts']);                  // not the box "Other" of the client's details
+  const no = Vv.plan('No.', widx, Object.assign({ prev: 'Do you have any more debts?' }, st)).actions;
+  assert.deepStrictEqual(no.map(a => [a.do, a.section, a.via]), [['done', 'debts', 'declined']]);
+  const said = Vv.plan('Okay that concludes the debt section. Let\'s talk about the children.', widx, st).actions;
+  assert.deepStrictEqual(said.map(a => a.do + ':' + (a.section || (a.cmd && a.cmd.sec) || '')), ['done:debts', 'cmd:kids']);
+});
+
+test('Claude can say a section is finished, and is told which ones are', () => {
+  const r = AIv.normalize({ actions: [{ do: 'done', section: 'debts' }, { do: 'done', list: 'risk' }, { do: 'done' }, { do: 'done', section: 'nope' }] }, widx, 'auto', {});
+  assert.deepStrictEqual(r.actions.map(a => [a.section, a.list]), [['debts', null], [null, 'risk'], [null, null]]);
+  const body = JSON.parse(AIv.buildRequest(widx, { sectionId: 'debts', recent: [], concluded: ['income', 'debts'] }, 'auto', 'one more debt, a car loan', 'm').messages[0].content);
+  assert.deepStrictEqual(body.position.concluded, ['income', 'debts']);
+  assert.ok(!('concluded' in JSON.parse(AIv.buildRequest(widx, { sectionId: 'debts', recent: [] }, 'auto', 'x', 'm').messages[0].content).position));
+  assert.match(AIv.SYSTEM, /Sections that are finished/); assert.match(AIv.SYSTEM, /any more debts/); assert.match(AIv.SYSTEM, /reopens it/);
+  assert.match(AIv.SYSTEM, /I\\?'ve noted that, I\\?'ve completed those notes/);
+});
+
+test('the notes end in many ways, and the words that end them are never noted', () => {
+  const ends = t => Vv.endsNotes(Vv.norm(t));
+  ["I've noted that, I've completed those notes", "I've noted that", "That's noted", 'I have noted it down', 'Nothing more to note', "Okay, that's all I wanted to note", "That's the end of noting that", 'Notes are done', "I'm done with the notes", 'back to the form']
+    .forEach(t => assert.ok(ends(t), t));
+  ['noted', 'he noted that the client smokes', 'let me make a note of that', "I've noted that the client is a smoker", 'make a note of this', 'note that down'].forEach(t => assert.ok(!ends(t), t));
+  assert.deepStrictEqual(Vv.splitNotesEnd("He wants it for school fees. I've noted that, I've completed those notes. Let's talk about the children."), { before: ['He wants it for school fees.'], rest: ["Let's talk about the children."] });
+  assert.strictEqual(Vv.splitNotesEnd('He wants it for school fees.'), null);
+  assert.strictEqual(Vv.parseCommand('Let me make a note of this', widx).type, 'notes');
+  assert.strictEqual(Vv.parseCommand("I've noted that, I've completed those notes", widx).type, 'notesOff');
+  assert.ok(Vv.mentionsNotes('and that is the notes done for now') && !Vv.mentionsNotes('he has two children') && Vv.mayEndNotes("That's everything for this one") && !Vv.mayEndNotes('He lost all his savings in 2019'));
+  const noting = Vv.plan("Wants a shorter term. I've noted that", widx, { cur: 'debts', noting: true, visible: () => true }).actions;
+  assert.deepStrictEqual(noting.map(a => a.do), ['note', 'cmd']); assert.ok(!/noted/.test(noting[0].text)); assert.strictEqual(noting[1].cmd.type, 'notesOff');       // the last note, then the notes end
+});

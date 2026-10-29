@@ -14,6 +14,19 @@
   }
   function sumRows(ctx, key, col) { return ctx.rows(key).reduce(function (a, r) { return a + util.num(r.d[col]); }, 0); }
 
+  /* The income protection insured amount split for the quote: the take-home income (Insured amount), the debts the client is paying off (one line each, from the Debts page: what each instalment is) that get an
+     instalment protector ceded to the bank, and what is left for the household. -> { insured (null until the take-home income is known), rows: [{ label, prov, inst }], total, rest, over }. */
+  var IP_NAMES = { 'Home loan': 'Bond repayments', 'Vehicle finance': 'Car', 'Credit card': 'Credit card', 'Personal loan': 'Personal loan', 'Revolving credit': 'Revolving credit' };
+  function ipSplit(ctx) {
+    var insured = ctx.v('net') ? ctx.n('net') : null, rows = [], total = 0;
+    ctx.rows('debts').forEach(function (r) {
+      var inst = util.num(r.d.inst); if (!(inst > 0)) return;
+      rows.push({ label: IP_NAMES[r.d.type] || (r.d.type === 'Other' && r.d.desc) || r.d.desc || (r.d.type === 'Other' ? 'Other debt' : r.d.type) || 'Debt', prov: (r.d.prov === 'Other' ? r.d.prov_other : r.d.prov) || r.d.prov_other || '', inst: inst });
+      total += inst;
+    });
+    return { insured: insured, rows: rows, total: total, rest: insured == null ? null : insured - total, over: insured != null && total > insured + 0.004 };
+  }
+
   var fieldCalcs = {
     /* The client's age on the date of the form (Date completed), from the date of birth. */
     age: function (ctx) {
@@ -37,6 +50,8 @@
     hh: function (ctx) { return ctx.v('net') ? util.money(ctx.n('net')) : ''; },
     /* The income protection insured amount is always the take-home net income (Income & household), worked out and never typed. */
     ip_amt: function (ctx) { return ctx.v('net') ? util.money(ctx.n('net')) : ''; },
+    /* Household needs: the insured amount less the debt instalments that are protected for the bank (negative when the instalments are more, which the checks flag). */
+    ip_hh: function (ctx) { var sp = ipSplit(ctx); return sp.rest == null ? '' : util.money(sp.rest); },
     cc: function (ctx) { return ctx.rows('kids').length ? util.money(sumRows(ctx, 'kids', 'cost')) : ''; },
     dr: function (ctx) { return ctx.rows('debts').length ? util.money(sumRows(ctx, 'debts', 'inst')) : ''; },
     need: function (ctx) { return ctx.v('net') ? util.money(ctx.n('net') - sumRows(ctx, 'kids', 'cost') - sumRows(ctx, 'debts', 'inst')) : ''; }
@@ -80,5 +95,5 @@
     return [cond.f];
   }
 
-  return { field: field, rowCalc: rowCalc, showIf: showIf, condFields: condFields, clientAge: clientAge, meetingDate: meetingDate, DUTY_IDS: DUTY_IDS };
+  return { ipSplit: ipSplit, field: field, rowCalc: rowCalc, showIf: showIf, condFields: condFields, clientAge: clientAge, meetingDate: meetingDate, DUTY_IDS: DUTY_IDS };
 });

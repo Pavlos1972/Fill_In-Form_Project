@@ -11,11 +11,13 @@
     if (b.list && !blockOfList[b.list]) blockOfList[b.list] = b;
   }); });
 
-  /* What the form holds for one area, and nothing else: { fields: { id: value }, lists: { key: [ { col: value } ] } }. Boxes that do not apply (the area's quotes while it is not a priority,
-     joint cover when there is no personal cover, ...) are left out, a list that applies but is empty is there as an empty list, so "none recorded" can be said. null for an area with no summary. */
+  /* What the form holds for one area, and nothing else: { fields: { id: value }, lists: { key: [ { col: value } ] }, totals: { label: amount } }. Boxes that do not apply (the area's quotes while it is not a priority,
+     joint cover when there is no personal cover, ...) are left out, a list that applies but is empty is there as an empty list, so "none recorded" can be said. Totals are added up here (a total with nothing under it is left out).
+     null for an area with no summary, or for one that does not apply to this client (Business assurance for a client who is not a business owner). */
   function areaData(state, id) {
     var P = schema.panelsById[id]; if (!P || !P.sum) return null;
-    var ctx = store.ctxFor(state), out = { fields: {}, lists: {} };
+    var ctx = store.ctxFor(state), out = { fields: {}, lists: {}, totals: {} };
+    if (!calc.showIf(P.cond, ctx)) return null;
     P.sum.f.forEach(function (fid) {
       var f = schema.fieldsById[fid], b = blockOfField[fid];
       if (!f || (b && !calc.showIf(b.cond, ctx)) || !calc.showIf(f.cond, ctx)) return;
@@ -35,12 +37,18 @@
         return o;
       }).filter(function (o) { return Object.keys(o).length; });
     });
+    (P.sum.t || []).forEach(function (t) {
+      var n = 0, any = false;
+      t[1].forEach(function (lc) { (state.l[lc[0]] || []).forEach(function (r) { if (String(r.d[lc[1]] == null ? '' : r.d[lc[1]]).trim() !== '') { any = true; n += util.num(r.d[lc[1]]); } }); });
+      if (any) out.totals[t[0]] = amt(util.money(n));
+    });
     return out;
   }
-  /* The same, with the boxes named by their labels, as it is sent to Claude (lists with no rows are left out). */
+  /* The same, with the boxes named by their labels, as it is sent to Claude (lists with no rows are left out; the totals go in with the facts). */
   function labelled(data) {
     var out = { facts: {}, lists: {} };
     Object.keys(data.fields).forEach(function (id) { out.facts[schema.fieldsById[id].l.replace(/^[^:]*: /, '')] = data.fields[id]; });
+    Object.keys(data.totals || {}).forEach(function (l) { out.facts[l] = data.totals[l]; });
     Object.keys(data.lists).forEach(function (key) {
       var L = schema.lists[key];
       if (!data.lists[key].length) return;                                         // a list with no rows is not mentioned: nothing asked yet is not the same as none
@@ -62,13 +70,9 @@
   function total(rows, k) { return rows.reduce(function (a, r) { return a + util.num(r[k]); }, 0); }
   function money(n) { return amt(util.money(n)); }
   function lower(s) { return String(s || '').toLowerCase(); }
-  function fundLines(rows, type, label) {
-    var mine = rows.filter(function (r) { return r.type === type; });
-    return mine.length ? mine.map(function (r) { return label + ': ' + parts(r.prov, r.val && amt(r.val), pm(r.contrib), r.broker); }) : [label + ': none'];
-  }
   var LOCAL = {
-    life: function (d, L) {
-      var out = [], risk = L.risk || [], grp = L.grp || [];
+    life: function (d, L, T) {
+      var out = [], risk = L.risk || [], grp = L.grp || []; T = T || {};
       if (d.has_risk === 'No') out.push('No personal risk cover in place');
       else {
         risk.forEach(function (r) { out.push('Personal risk cover: ' + parts(r.prov, pm(r.spend), r.broker, r.notes)); });
@@ -84,12 +88,16 @@
       if (d.sf_req === 'Request a quote') q.push('shortfall quote');
       (L.redq || []).filter(function (r) { return r.req === 'Request a quote'; }).forEach(function (r) { q.push('reduced quote' + (r.amt ? ' ' + pm(r.amt) : '')); });
       if (q.length) out.push('Quote asked for: ' + q.join(', '));
+      Object.keys(T).forEach(function (l) { out.push(l + ': ' + T[l] + (/monthly/.test(l) ? ' p.m.' : '')); });
       return out;
     },
     ra: function (d, L) {
-      var ret = L.ret || [], out = [];
-      if (!ret.length) out.push('No retirement funds recorded');
-      else ['Retirement annuity|Retirement annuity', 'Pension fund|Pension fund', 'Provident fund|Provident fund'].forEach(function (x) { var p = x.split('|'); out = out.concat(fundLines(ret, p[0], p[1])); });
+      var ra = L.ret_ra || [], pp = L.ret_pp || [], out = [];
+      if (!ra.length && !pp.length) out.push('No retirement funds recorded yet');
+      else {
+        if (ra.length) ra.forEach(function (r) { out.push('Retirement annuity: ' + parts(r.prov, r.val && amt(r.val), pm(r.contrib), r.broker)); }); else out.push('Retirement annuity: none');
+        if (pp.length) pp.forEach(function (r) { out.push((r.type || 'Pension or provident fund') + ': ' + parts(r.prov, r.val && amt(r.val), pm(r.contrib), r.broker)); }); else out.push('Pension or provident fund: none');
+      }
       (L.raq || []).forEach(function (r) {
         if (r.req === 'Request a quote') out.push('RA quote asked for: ' + parts(r.ins, pm(r.monthly), r.lump && amt(r.lump) + ' lump sum'));
         else if (r.req === 'Cannot afford now') out.push('RA quote: client cannot afford it now');
@@ -97,10 +105,10 @@
       });
       return out;
     },
-    rgar: function (d, L) {
-      var ret = L.ret || [], out = [];
-      if (!ret.length) out.push('No retirement funds recorded');
-      else { out.push('Total saved across all retirement funds: ' + money(total(ret, 'val'))); out.push('Total contributions: ' + money(total(ret, 'contrib')) + ' p.m.'); }
+    rgar: function (d, L, T) {
+      var out = []; T = T || {};
+      if (!Object.keys(T).length) out.push('No retirement funds recorded yet');
+      else Object.keys(T).forEach(function (l) { out.push(l + ': ' + T[l] + (/monthly/.test(l) ? ' p.m.' : '')); });
       if (d.ret_age || d.ret_net) out.push('Wants to retire' + (d.ret_age ? ' at ' + d.ret_age : '') + (d.ret_net ? ' on ' + pm(d.ret_net) + ' net, in today\'s terms' : ''));
       else out.push('Retirement age and income goal not captured yet');
       out.push('RGAR: ' + (d.rgar_req === 'Request an RGAR' ? 'requested' : d.rgar_req === 'Not required' ? 'not required' : 'not yet requested'));
@@ -163,18 +171,32 @@
       } else out.push('Nothing recorded yet about short-term insurance');
       if (d.ref_sti) out.push('Referral: ' + d.ref_sti);
       return out;
+    },
+    biz: function (d, L) {
+      var out = [], pol = L.bizpol || [], sh = L.shares || [];
+      pol.forEach(function (r) { out.push((r.type || 'Business assurance') + ': ' + parts(r.prov, r.cover && 'cover ' + amt(r.cover), pm(r.prem), r.paid && 'paid by ' + lower(r.paid).replace(/^the /, ''), r.broker, r.notes)); });
+      if (d.biz_assur === 'No') out.push('No business assurance in place');
+      else if (d.biz_assur === 'Not sure') out.push('Not sure whether there is business assurance');
+      else if (d.biz_assur === 'Yes' && !pol.length) out.push('Business assurance in place: yes, no policies recorded yet');
+      if (d.biz_partners === 'Yes') out.push('Has partners or co-owners' + (sh.length ? ': ' + sh.map(function (r) { return [r.name, r.pct && r.pct + '%'].filter(Boolean).join(' '); }).join('; ') : '') + (d.biz_pct ? ' (client holds ' + d.biz_pct + '%)' : ''));
+      else if (d.biz_partners === 'No') out.push('No partners or co-owners');
+      if (d.biz_loans === 'Yes') out.push('Business loans or surety signed: yes');
+      else if (d.biz_loans === 'Unsure') out.push('Business loans or surety signed: unsure');
+      if (!out.length) out.push('Nothing recorded yet about business assurance');
+      return out;
     }
   };
   function local(state, id) {
     var data = areaData(state, id); if (!data || !LOCAL[id]) return [];
-    return LOCAL[id](data.fields, data.lists).filter(Boolean);
+    return LOCAL[id](data.fields, data.lists, data.totals).filter(Boolean);
   }
   /* The points to show and print for an area: Claude's, while the area still holds what it held when they were written; otherwise the page's own plain points. */
   function linesFor(state, id) {
-    var data = areaData(state, id); if (!data) return { lines: [], by: 'form', fresh: true };
+    var data = areaData(state, id), P = schema.panelsById[id];
+    if (!data) return { lines: P && P.sum && P.cond ? ['Not applicable: the client is not a business owner'] : [], by: 'form', fresh: true };
     var k = key(data), mine = state.sum && state.sum[id];
     if (mine && mine.lines && mine.lines.length && mine.key === k) return { lines: mine.lines, by: 'claude', fresh: true, at: mine.at };
-    return { lines: LOCAL[id] ? LOCAL[id](data.fields, data.lists).filter(Boolean) : [], by: 'form', fresh: false, key: k };
+    return { lines: LOCAL[id] ? LOCAL[id](data.fields, data.lists, data.totals).filter(Boolean) : [], by: 'form', fresh: false, key: k };
   }
   /* The areas whose summary is missing or out of date (all the areas asked for when force is set), and the facts to send for them: { id: { area, key, data } }
      (labelled boxes only; the page's private numbers are not among them). */

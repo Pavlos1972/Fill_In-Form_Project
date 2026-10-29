@@ -25,7 +25,8 @@ test('a new Fact Find starts blank apart from the preset values', () => {
   assert.strictEqual(schema.advisor, 'Paul Kafentzis');
   assert.strictEqual(s.f.fname.st, 'empty');
   assert.strictEqual(s.f.h_chol.v, '');           // no silent "No"
-  assert.strictEqual(s.f.dd_cover.v, '');         // no default R500 000
+  assert.strictEqual(s.f.dd_cover.v, 'R 500 000.00'); assert.strictEqual(s.f.dd_cover.st, 'preset');       // dread disease starts at R 500 000.00 with a term of WOL
+  assert.strictEqual(s.f.dd_term.v, 'WOL'); assert.strictEqual(s.f.dds_cover.v, 'R 500 000.00'); assert.strictEqual(s.f.dds_term.v, 'WOL');
 });
 test('Direct Net Income follows the TaxTim figure and the take-home stays separate', () => {
   const s = fresh(); set(s, 'gross', 'R 40 000'); set(s, 'net', '32 000');
@@ -202,8 +203,9 @@ test('the risk calculation boxes start with the agreed defaults', () => {
   const s = store.blank(), want = {
     lc_f_aci: 'Fixed', lc_f_aciv: '?', lc_wol: '3%', lc_ccabi: '5%',
     pd_f_aci: 'Fixed', pd_f_aciv: '?', pd_ccabi: '5%',
-    dd_aci: 'Fixed', dd_aciv: '?', dd_abiv: '3%',
-    ip_aci: 'Fixed', ip_aciv: '?', ip_abiv: '5%'
+    dd_aci: 'Fixed', dd_aciv: '?', dd_abiv: '3%', dd_cover: 'R 500 000.00', dd_term: 'WOL',
+    dds_aci: 'Fixed', dds_aciv: '?', dds_abiv: '3%', dds_cover: 'R 500 000.00', dds_term: 'WOL',
+    ip_aci: 'Fixed', ip_aciv: '?', ip_abiv: '5%', ips_aci: 'Fixed', ips_aciv: '?', ips_abiv: '5%'
   };
   Object.keys(want).forEach(id => { assert.strictEqual(s.f[id].v, want[id], id); assert.strictEqual(s.f[id].st, 'preset', id); });
   Object.keys(want).filter(id => schema.fieldsById[id].t === 'sel').forEach(id => assert.ok(schema.fieldsById[id].o.includes(want[id]), id + ' is not one of its choices'));
@@ -415,4 +417,36 @@ test('a marriage date that is only a year is accepted, and one in the future is 
   assert.deepStrictEqual(msgs('2014'), []);
   assert.match(msgs('2099')[0], /after the date of the form/);
   assert.match(msgs('sometime')[0], /not recognised/);
+});
+
+test('income protection (fractured cover): the insured amount is split into the instalment protector, one line for each debt with an instalment, and household needs', () => {
+  const s = fresh(), c = () => store.ctxFor(s);
+  assert.deepStrictEqual(calc.ipSplit(c()), { insured: null, rows: [], total: 0, rest: null, over: false });     // nothing known yet
+  assert.strictEqual(calc.field('ip_hh', c()), '');
+  set(s, 'net', 'R 60 000.00');
+  [['Home loan', 'Nedbank', 10000], ['Vehicle finance', 'Wesbank', 10000], ['Credit card', 'Discovery Bank', 5000], ['Personal loan', 'Capitec', 5000]].forEach(d => store.addRow(s, 'debts', { type: d[0], prov: d[1], inst: 'R ' + d[2] + '.00' }));
+  store.addRow(s, 'debts', { type: 'Vehicle finance', prov: 'Absa' });                                                // no instalment recorded: no box
+  const sp = calc.ipSplit(c());
+  assert.deepStrictEqual(sp.rows.map(r => [r.label, r.prov, r.inst]), [['Bond repayments', 'Nedbank', 10000], ['Car', 'Wesbank', 10000], ['Credit card', 'Discovery Bank', 5000], ['Personal loan', 'Capitec', 5000]]);
+  assert.strictEqual(sp.total, 30000); assert.strictEqual(sp.rest, 30000); assert.strictEqual(sp.over, false);
+  assert.strictEqual(calc.field('ip_amt', c()), 'R 60 000.00'); assert.strictEqual(calc.field('ip_hh', c()), 'R 30 000.00');
+  assert.strictEqual(sp.rows.reduce((a, r) => a + r.inst, 0) + sp.rest, sp.insured);                                   // 10 000 + 10 000 + 5 000 + 5 000 + 30 000 = 60 000
+  store.addRow(s, 'debts', { type: 'Other', desc: 'Boat loan', prov: 'Other', prov_other: 'Local bank', inst: 'R 3 000' });
+  assert.deepStrictEqual(calc.ipSplit(c()).rows.pop(), { label: 'Boat loan', prov: 'Local bank', inst: 3000 });
+  assert.strictEqual(calc.field('ip_hh', c()), 'R 27 000.00');
+  assert.deepStrictEqual(validate.check(c()), []);
+  store.addRow(s, 'debts', { type: 'Revolving credit', inst: 'R 40 000' });                                            // more than the insured amount
+  assert.strictEqual(calc.ipSplit(c()).over, true); assert.strictEqual(calc.field('ip_hh', c()), '-R 13 000.00');
+  const w = validate.check(c()).filter(x => x.id === 'ip_hh'); assert.strictEqual(w.length, 1); assert.match(w[0].msg, /R 73 000\.00 p\.m\.\) are more than the Insured amount \(R 60 000\.00 p\.m\.\) by R 13 000\.00/);
+  const blk = schema.sections.find(x => x.id === 'calc').blocks.find(b => b.protector);
+  assert.deepStrictEqual(blk.fields.map(f => f.id).slice(0, 3), ['ip_age', 'ip_amt', 'ip_hh']);                         // the insured amount sits right under the age
+  assert.strictEqual(blk.title, 'Income protection / sickness benefit: fractured cover');
+});
+test('the Standard Quotes have an income protection and a dread disease quote of their own, and an older file keeps its answers', () => {
+  ['ips_age', 'ips_amt', 'ips_wait', 'ips_aci', 'ips_abiv', 'ips_cmt', 'dds_cover', 'dds_term', 'dds_termv', 'dds_aci', 'dds_abiv', 'dds_cmt'].forEach(id => assert.ok(schema.fieldsById[id], id));
+  const old = store.blank(); old.f.dd_cover = { v: 'R 250 000.00', st: 'confirmed' }; old.f.ip_wait = { v: '1 month', st: 'confirmed' }; old.f.dd_term = { v: '', st: 'empty' };
+  const back = store.fromJSON(JSON.stringify(old));
+  assert.strictEqual(back.f.dd_cover.v, 'R 250 000.00'); assert.strictEqual(back.f.ip_wait.v, '1 month');             // what was typed stays
+  assert.strictEqual(back.f.dd_term.v, '');                                                                          // and a box left empty in the old file is not filled behind the adviser's back
+  assert.strictEqual(back.f.dds_cover.v, 'R 500 000.00');
 });
