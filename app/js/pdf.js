@@ -118,12 +118,7 @@
         var lines = FF.summary.linesFor(state, id).lines;
         if (lines.length) table({ head: [[{ content: 'Summary: what the client has' }]], body: lines.map(function (l) { return ['- ' + t(l)]; }), columnStyles: { 0: { cellWidth: CW } } });
       }
-      var calcDone = false;
-      sec.blocks.forEach(function (b) {
-        if (b.pri !== id) return;
-        if (b.calc && !calcDone && calc.showIf(b.cond, ctx)) { calcDone = true; blockTitle('Risk calculation'); }
-        blockPdf(b, sec);
-      });
+      sec.blocks.forEach(function (b) { if (b.pri === id) blockPdf(b, sec); });
       y += 2;
     }
     schema.sections.forEach(function (sec) {

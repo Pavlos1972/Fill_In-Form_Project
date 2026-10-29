@@ -16,10 +16,13 @@ const PRI = schema.PRIORITY, NOT = schema.NOT_PRIORITY;
 const AREAS = ['life', 'ra', 'rgar', 'inv', 'egar', 'med', 'will', 'st'];
 
 test('the pages: risk cover, retirement funding, then one Client priorities page; the old advisor pages and the Advisor box are gone', () => {
-  assert.deepStrictEqual(schema.sections.map(s => s.id), ['info', 'occ', 'income', 'cover', 'retire', 'inv', 'other', 'debts', 'kids', 'health', 'prio']);
+  assert.deepStrictEqual(schema.sections.map(s => s.id), ['info', 'occ', 'income', 'cover', 'retire', 'inv', 'other', 'debts', 'kids', 'health', 'prio', 'calc']);
   assert.strictEqual(sec('cover').title, 'Personal & group risk cover');
   assert.strictEqual(sec('retire').title, 'Retirement funding');
   assert.ok(sec('prio').adv && sec('prio').title === 'Client priorities');
+  assert.ok(sec('calc').adv && sec('calc').title === 'Risk calculation' && !sec('calc').cond);                       // its own page in the list, always there
+  assert.deepStrictEqual(sec('calc').blocks.map(b => b.title || '-'), ['Life cover: fractured cover', 'Life cover: standard', 'Permanent disability: fractured cover', 'Permanent disability: standard', 'Dread disease', 'Income protection / sickness benefit', '-']);
+  assert.ok(sec('calc').blocks.every(b => !b.cond && !b.pri));                                                          // not tied to the Life area, to its decision or to the cover the client has now
   assert.ok(!schema.fieldsById.advisor && schema.advisor === 'Paul Kafentzis');
   assert.ok(!('docs' in schema));
   assert.ok(!schema.sections.some(s => /^q_/.test(s.id)));
@@ -60,7 +63,7 @@ test('the priority areas, in order, each with a decision and a comments box; eve
     assert.deepStrictEqual(dec.o, [PRI, NOT]); assert.strictEqual(cm.t, 'area');
     assert.strictEqual(sec('prio').blocks.filter(b => b.pri === id && b.head).length, 1, id);
   });
-  ['fna_req', 'fna_type', 'fna_ins', 'sf_req', 'pref_spend', 'rgar_req', 'ret_age', 'ret_net', 'egar_req', 'ref_sti', 'ref_med', 'ref_will', 'lc_sa', 'pd_sa', 'dd_cover', 'ip_age', 'bs_req', 'cl_req', 'km_req', 'n_prio'].forEach(id => assert.ok(schema.fieldsById[id], id));
+  ['fna_req', 'fna_type', 'fna_ins', 'sf_req', 'n_calc', 'pref_spend', 'rgar_req', 'ret_age', 'ret_net', 'egar_req', 'ref_sti', 'ref_med', 'ref_will', 'lc_sa', 'pd_sa', 'dd_cover', 'ip_age', 'bs_req', 'cl_req', 'km_req', 'n_prio'].forEach(id => assert.ok(schema.fieldsById[id], id));
   ['redq', 'raq', 'invq'].forEach(k => assert.ok(schema.lists[k], k));
   const order = sec('prio').blocks.filter(b => b.head).map(b => b.pri);
   assert.deepStrictEqual(order, AREAS);
@@ -92,12 +95,13 @@ test('business assurance follows Business owner', () => {
 
 test('an older file opens: the advisor name is ignored, the old notes boxes become the one Notes box, quotes and referrals are kept', () => {
   const old = fresh();
-  old.f.advisor = { v: 'Someone', st: 'preset' }; old.f.n_q_risk = { v: 'Wants R1m cover', st: 'confirmed' }; old.f.n_calc = { v: 'Used fractured', st: 'confirmed' }; old.f.fna_req = { v: 'Request a quote', st: 'confirmed' }; old.f.ref_will = { v: 'Not interested', st: 'confirmed' };
+  old.f.advisor = { v: 'Someone', st: 'preset' }; old.f.n_q_risk = { v: 'Wants R1m cover', st: 'confirmed' }; old.f.n_bs = { v: 'Partner agrees', st: 'confirmed' }; old.f.n_calc = { v: 'Used fractured', st: 'confirmed' }; old.f.fna_req = { v: 'Request a quote', st: 'confirmed' }; old.f.ref_will = { v: 'Not interested', st: 'confirmed' };
   old.docs = { 'Group risk benefit summary': 1 };
   const back = store.fromJSON(JSON.stringify(Object.assign({ app: 'wr-fact-find' }, old)));
   assert.strictEqual(back.f.fna_req.v, 'Request a quote'); assert.strictEqual(back.f.ref_will.v, 'Not interested');
   assert.strictEqual(back.f.advisor, undefined); assert.strictEqual(back.docs, undefined);
-  assert.strictEqual(back.f.n_prio.v, 'Personal risk quotes: Wants R1m cover\nRisk calculation: Used fractured');
+  assert.strictEqual(back.f.n_prio.v, 'Personal risk quotes: Wants R1m cover\nBuy & Sell: Partner agrees');
+  assert.strictEqual(back.f.n_calc.v, 'Used fractured');                                    // the Risk calculation page keeps its own notes
   const again = store.fromJSON(store.toJSON(back)); assert.strictEqual(again.f.n_prio.v, back.f.n_prio.v);
   const newer = fresh(); set(newer, 'n_prio', 'Mine'); newer.f.n_q_risk = { v: 'Old', st: 'confirmed' };
   assert.strictEqual(store.fromJSON(JSON.stringify(Object.assign({ app: 'wr-fact-find' }, newer))).f.n_prio.v, 'Mine');       // never over what is already there

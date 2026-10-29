@@ -68,6 +68,7 @@ test('commands that open a section', () => {
   assert.strictEqual(g('go to retirement funding'), 'retire');
   assert.strictEqual(g('lets talk about group risk'), 'cover');
   assert.strictEqual(g('go to client priorities'), 'prio');
+  assert.strictEqual(g('go to the risk calculation'), 'calc');
   assert.strictEqual(g('open the investments'), 'inv');
   assert.strictEqual(g('occupation'), 'occ');
   assert.strictEqual(g('the health section'), 'health');

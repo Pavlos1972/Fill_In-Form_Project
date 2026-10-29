@@ -174,7 +174,8 @@
     health: ['health', 'health questions', 'medical history'],
     debts: ['debts', 'debt', 'loans', 'liabilities'],
     kids: ['children', 'kids', 'dependants', 'dependents'],
-    prio: ['client priorities identified', 'client priorities', 'priorities', 'what we recommend', 'recommendations', 'personal risk quotes', 'risk quotes', 'retirement and investment quotes', 'retirement quotes', 'investment quotes', 'referrals', 'risk calculation', 'needs calculation', 'business assurance', 'buy and sell', 'buy and sell agreement', 'key man', 'keyman', 'contingent liability']
+    calc: ['risk calculation', 'calculation', 'needs calculation'],
+    prio: ['client priorities identified', 'client priorities', 'priorities', 'what we recommend', 'recommendations', 'personal risk quotes', 'risk quotes', 'retirement and investment quotes', 'retirement quotes', 'investment quotes', 'referrals', 'business assurance', 'buy and sell', 'buy and sell agreement', 'key man', 'keyman', 'contingent liability']
   };
 
   /* What you might say when asking about each field. Fields without an entry are matched on their on-screen label. */
