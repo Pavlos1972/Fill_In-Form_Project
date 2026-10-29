@@ -81,6 +81,11 @@
     return [state.f.fname.v, state.f.sname.v].map(function (x) { return String(x || '').trim(); }).filter(Boolean).join(' ');
   }
   function safeName(s) { return String(s).replace(/[\\/:*?"<>|]/g, '').replace(/\s+/g, ' ').trim(); }
+  /* The name of the Fact Find saved as a PDF: "Fact Find (Voice to Text) - dd.mm.yy - (Name Surname)", the date being Date completed (two-digit year), e.g. "Fact Find (Voice to Text) - 29.10.26 - (Sitamah Nathoo)". */
+  function pdfFileName(state) {
+    var d = util.parseDate(state.f.date.v) || util.parseDate(util.isoToday()), two = function (n) { return (n < 10 ? '0' : '') + n; };
+    return 'Fact Find (Voice to Text) - ' + two(d.d) + '.' + two(d.m) + '.' + two(d.y % 100) + ' - (' + (safeName(clientName(state)) || 'New client') + ')';
+  }
   function baseFileName(state) {
     var d = util.parseDate(state.f.date.v) || util.parseDate(util.isoToday()), date = (d.d < 10 ? '0' : '') + d.d + '.' + (d.m < 10 ? '0' : '') + d.m + '.' + d.y;
     return 'Fact Find - ' + date + ' - ' + (safeName(clientName(state)) || 'New client');
@@ -224,5 +229,5 @@
     return { tot: tot, fill: fill, ver: ver };
   }
 
-  return { setSum: setSum, cleanSum: cleanSum, addUnplaced: addUnplaced, closeUnplaced: closeUnplaced, unplacedKey: unplacedKey, blank: blank, blankTally: blankTally, ctxFor: ctxFor, setField: setField, addRow: addRow, delRow: delRow, setCell: setCell, accept: accept, clientName: clientName, idClash: idClash, idKey: idKey, fatherSurname: fatherSurname, baseFileName: baseFileName, fromJSON: fromJSON, toJSON: toJSON, counts: counts };
+  return { setSum: setSum, cleanSum: cleanSum, addUnplaced: addUnplaced, closeUnplaced: closeUnplaced, unplacedKey: unplacedKey, blank: blank, blankTally: blankTally, ctxFor: ctxFor, setField: setField, addRow: addRow, delRow: delRow, setCell: setCell, accept: accept, clientName: clientName, idClash: idClash, idKey: idKey, fatherSurname: fatherSurname, baseFileName: baseFileName, pdfFileName: pdfFileName, fromJSON: fromJSON, toJSON: toJSON, counts: counts };
 });

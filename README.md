@@ -152,7 +152,7 @@ The **Voice** button in the black bar switches voice mode on and off. Nothing el
 
 Whatever listens (Chrome's recogniser, Whisper or Moonshine on this computer, or OpenAI transcription; another service could be added in `js/listen.js`) only needs to call `FF.app.voiceHear(text)`. An optional second argument, `'me'` or `'client'`, is only a hint. For testing, press and hold the Voice button to show a hidden test line.
 
-File names are `Fact Find - dd.mm.yyyy - Name Surname`.
+File names: the saved Fact Find file (.json) is `Fact Find - dd.mm.yyyy - Name Surname`. **The Fact Find saved as a PDF must always be named `Fact Find (Voice to Text) - dd.mm.yy - (Name Surname)`**, for example `Fact Find (Voice to Text) - 29.10.26 - (Sitamah Nathoo)`: the date is the form's **Date completed**, written day.month.two-digit year, and the client's name and surname are in round brackets (`(New client)` until a name is entered). This is built in `store.pdfFileName()` and used by both **Save PDF** and the fallback download of **Preview PDF**; it does not depend on what the saved .json file is called. Do not change it without being asked.
 
 ## Not built yet
 
