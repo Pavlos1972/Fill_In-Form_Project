@@ -96,18 +96,36 @@
       }
     }
 
+    /* Income protection (fractured cover): age and insured amount, the instalment protector (a line for each debt with an instalment, then their total), household needs, then the other boxes. */
+    function protectorPdf(b) {
+      var f = {}; b.fields.forEach(function (x) { f[x.id] = x; });
+      var sp = calc.ipSplit(ctx);
+      fieldsTable([f.ip_age, f.ip_amt]);
+      var body = sp.rows.map(function (r) { return [t(r.label + (r.prov ? ' (' + r.prov + ')' : '')), { content: t(util.money(r.inst) + ' p.m.'), styles: { halign: 'right' } }]; });
+      body.push([{ content: 'Total instalments', styles: { fontStyle: 'bold' } }, { content: t(util.money(sp.total) + ' p.m.'), styles: { halign: 'right', fontStyle: 'bold' } }]);
+      ensure(Math.min(body.length * 7 + 12, 60));
+      table({ head: [[{ content: 'Instalment Protector' }, { content: 'Instalment (R p.m.)', styles: { halign: 'right' } }]], body: sp.rows.length ? body : [[{ content: 'No debt with an instalment recorded.', colSpan: 2, styles: { textColor: MUTED, fontStyle: 'italic' } }]], columnStyles: { 0: { cellWidth: CW - 50 }, 1: { cellWidth: 50 } } });
+      fieldsTable([f.ip_hh]);
+      fieldsTable(b.fields.filter(function (x) { return !/^ip_(?:age|amt|hh)$/.test(x.id); }));
+    }
     function blockPdf(b, sec) {
+      if (b.part) {                                                                  // "Fractured Covers", "Standard Quotes"
+        ensure(40);
+        doc.setFillColor.apply(doc, ACCENT_SOFT); doc.rect(M, y, CW, 7, 'F');
+        doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor.apply(doc, DEEP); doc.text(t(b.part), M + 2.5, y + 4.9);
+        y += 10; return;
+      }
       if (!calc.showIf(b.cond, ctx)) { if (b.pdfMsg && b.condMsg && !calc.showIf('own' in b ? b.own : b.cond, ctx)) { if (b.title) blockTitle(b.title); table({ body: [[{ content: t(b.condMsg), styles: { fontStyle: 'italic', textColor: MUTED } }]] }); } return; }    // a block that does not apply says so when it asks to
       if (b.fields && b.fields.length && b.fields.every(function (f) { return f.nopdf; })) return;     // a block of boxes that are left off the PDF has no heading either
       if (b.title) blockTitle(b.title);
-      if (b.fields) fieldsTable(b.fields);
+      if (b.protector) protectorPdf(b); else if (b.fields) fieldsTable(b.fields);
       if (b.list) { if (!b.title && schema.lists[b.list].title !== sec.title) blockTitle(schema.lists[b.list].title); listBlock(b.list); }
     }
     /* One area of the Client priorities page: its name and the client's decision, what the client has (the summary), the decision and comments, then its quotes and referrals. */
     function panelPdf(sec, id) {
       var P = schema.panelsById[id];
       if (!calc.showIf(P.cond, ctx)) return;                                         // business assurance when the client has no business
-      var v = P.dec ? state.f[P.dec].v : '', on = v === schema.PRIORITY, off = v === schema.NOT_PRIORITY, maybe = v === schema.UNSURE;
+      var v = P.dec ? state.f[P.dec].v : '', on = v === schema.PRIORITY, off = v === schema.NOT_PRIORITY, maybe = v === schema.UNSURE || v === schema.BUDGET;
       ensure(46);
       doc.setFillColor.apply(doc, on ? GO_SOFT : off ? STOP_SOFT : maybe ? MAYBE_SOFT : PALE); doc.rect(M, y, CW, 7, 'F');
       doc.setDrawColor.apply(doc, on ? GO : off ? STOP : maybe ? MAYBE : LINE); doc.setLineWidth(0.4); doc.line(M, y + 7, M + CW, y + 7);

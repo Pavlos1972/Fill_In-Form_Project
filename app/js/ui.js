@@ -256,23 +256,40 @@
     }).join('');
     return cells ? '<div class="grid' + (g12 ? ' g12' : '') + '">' + cells + '</div>' : '';
   }
+  /* Income protection (fractured cover): the age and the insured amount down the left; on the right the instalment protector (one box for each debt with an instalment, from the Debts page: nothing is typed here)
+     and, under it, household needs. A message under household needs says so when the instalments are more than the insured amount. */
+  function protectorHTML(b, c) {
+    var f = {}; b.fields.forEach(function (x) { f[x.id] = x; });
+    var sp = calc.ipSplit(c), plain = function (n) { return util.money(n).replace(/^R /, '').replace(/\.00$/, ''); };
+    var rows = sp.rows.map(function (r) {
+      return '<label class="f s-calc"><span class="l"><span>' + esc(r.label) + '</span>' + (r.prov ? '<span class="rt">' + esc(r.prov) + '</span>' : '') + '</span><span class="box"><input value="' + esc(util.money(r.inst) + ' p.m.') + '" readonly tabindex="-1" autocomplete="off"><span class="st">' + badge('calc', '') + '</span></span></label>';
+    }).join('');
+    var hh = fieldHTML(f.ip_hh, false);
+    if (sp.over) hh = hh.replace('class="f ', 'class="f neg ');
+    var quote = sp.insured != null && !sp.over ? '<div class="ipcheck">In the quote: <b>' + sp.rows.map(function (r) { return plain(r.inst); }).concat([plain(sp.rest)]).join(' + ') + ' = ' + plain(sp.insured) + ' p.m.</b> (the instalments to the bank, then household needs, add up to the insured amount)</div>' : '';
+    return '<div class="ipgrid"><div class="ipleft">' + fieldHTML(f.ip_age, false) + fieldHTML(f.ip_amt, false) + '</div>' +
+      '<div class="protector"><h5>Instalment Protector</h5>' + (rows ? '<div class="prows">' + rows + '</div><div class="sumline"><span>Total instalments</span><b>' + esc(util.money(sp.total)) + ' p.m.</b></div>' : '<p class="help">No debt with an instalment on the Debts page yet.</p>') +
+      '<div class="household"><h5>Household needs</h5>' + hh + '</div></div></div>' + quote +
+      gridHTML({ fields: b.fields.filter(function (x) { return !/^ip_(?:age|amt|hh)$/.test(x.id); }) }, c);
+  }
   function blockHTML(b, sec, c) {
+    if (b.part) return '<div class="partband"><h3>' + esc(b.part) + '</h3>' + (b.sub ? '<span class="sub">' + esc(b.sub) + '</span>' : '') + '</div>';
     var ok = calc.showIf(b.cond, c), own = calc.showIf('own' in b ? b.own : b.cond, c), h = '';
     if (!ok && !b.grey && !('own' in b && own)) return '<div class="block-title">' + esc(b.title) + '</div><div class="note">' + esc(b.condMsg) + '</div>';      // a block whose rule is not met says so and goes away (unless it is only its area that is off)
     if (b.title) h += '<div class="block-title">' + esc(b.title) + '</div>';
     if (!ok && !own && b.condMsg && !b.nomsg) h += '<div class="note">' + esc(b.condMsg) + '</div>';
     var inner = '';
     if (b.help) inner += '<p class="help">' + esc(b.help) + '</p>';
-    if (b.fields) inner += gridHTML(b, c);
+    if (b.protector) inner += protectorHTML(b, c); else if (b.fields) inner += gridHTML(b, c);
     if (b.list) { if (!b.title && schema.lists[b.list].title !== sec.title) inner += '<div class="block-title">' + esc(schema.lists[b.list].title) + '</div>'; inner += listHTML(b.list); }
     return h + (ok ? inner : '<div class="off" inert>' + inner + '</div>');
   }
   /* One area of the Client priorities page: its decision and comments boxes on the left with its quotes and referrals, and a short summary of what the client has on the right.
-     The whole area takes a green haze when it is a priority, a red haze when it is not (its quotes are then greyed out; the comments box stays) and a yellow haze while the client is not sure (the quotes stay open). */
+     The whole area takes a green haze when it is a priority, a red haze when it is not (its quotes are then greyed out; the comments box stays) and a yellow haze while the client is not sure or must check the budget (the quotes stay open). */
   function panelHTML(sec, id) {
-    var P = schema.panelsById[id], c = ctx(), v = P.dec ? state.f[P.dec].v : '', cls = v === schema.PRIORITY ? ' p1' : v === schema.NOT_PRIORITY ? ' p2' : v === schema.UNSURE ? ' p3' : '';
+    var P = schema.panelsById[id], c = ctx(), v = P.dec ? state.f[P.dec].v : '', cls = v === schema.PRIORITY ? ' p1' : v === schema.NOT_PRIORITY ? ' p2' : (v === schema.UNSURE || v === schema.BUDGET) ? ' p3' : '';
     var applies = calc.showIf(P.cond, c);
-    var chip = !P.dec ? (applies ? 'Business owner' : 'Not applicable') : cls === ' p1' ? 'Priority' : cls === ' p2' ? 'Not a priority' : cls === ' p3' ? 'Needs to think about it' : 'Not yet discussed';
+    var chip = !P.dec ? (applies ? 'Business owner' : 'Not applicable') : cls === ' p1' ? 'Priority' : cls === ' p2' ? 'Not a priority' : cls === ' p3' ? (v === schema.BUDGET ? 'Needs to check budget' : 'Needs to think about it') : 'Not yet discussed';
     var blocks = sec.blocks.filter(function (b) { return b.pri === id; }), head = blocks.filter(function (b) { return b.head; })[0];
     var h = '<section class="prio' + cls + '" data-prio="' + id + '"><header><h3>' + esc(P.title) + '</h3><span class="sub">' + esc(P.sub) + '</span><span class="chip">' + chip + '</span></header><div class="pbody"><div class="pl">';
     if (head) h += gridHTML(head, c);
@@ -280,7 +297,7 @@
     if (cls === ' p2') h += '<div class="note warn">The client said this is not a priority. The quote boxes are switched off. Use the comments box for the reason or your instructions.</div>';
     h += '<div class="area">';
     blocks.forEach(function (b) { if (!b.head) h += blockHTML(b, sec, c); });
-    if (id === 'life') h += '<p class="calc-link">The risk calculation (life, disability, dread disease, income protection) has its own page in the list. <button type="button" class="btn ghost" data-sec="calc">Open Risk calculation</button></p>';
+    if (id === 'life') h += '<p class="calc-link">The fractured covers and standard quotes (life, disability, income protection, dread disease) have their own page in the list. <button type="button" class="btn ghost" data-sec="calc">Open Risk Calculation &amp; Quotes</button></p>';
     return h + '</div></div>' + (P.sum ? '<div class="sum" data-sum="' + id + '">' + sumInner(id) + '</div>' : '') + '</div></section>';
   }
   function sectionHTML(sec) {

@@ -174,7 +174,7 @@
     health: ['health', 'health questions', 'medical history'],
     debts: ['debts', 'debt', 'loans', 'liabilities'],
     kids: ['children', 'kids', 'dependants', 'dependents'],
-    calc: ['risk calculation', 'calculation', 'needs calculation'],
+    calc: ['risk calculation and quotes', 'risk calculation', 'calculation', 'needs calculation', 'fractured covers', 'fractured cover', 'standard quotes'],
     prio: ['client priorities identified', 'client priorities', 'priorities', 'what we recommend', 'recommendations', 'personal risk quotes', 'risk quotes', 'retirement and investment quotes', 'retirement quotes', 'investment quotes', 'referrals', 'business assurance', 'buy and sell', 'buy and sell agreement', 'key man', 'keyman', 'contingent liability']
   };
 
@@ -467,6 +467,7 @@
     cover: ['personal risk cover', 'group risk cover', 'group risk', 'group cover', 'existing policies'],
     retire: ['pension and provident', 'pension fund', 'provident fund', 'retirement annuities'],
     info: ['contact details', 'the client'],
+    calc: ['fractured covers', 'fractured cover', 'standard quotes'],
     prio: ['personal risk quotes', 'risk quotes', 'retirement and investment quotes', 'retirement quotes', 'investment quotes', 'referrals', 'business assurance', 'buy and sell', 'buy and sell agreement', 'key man', 'keyman', 'contingent liability']
   };
   function isPartial(hit) { return !!hit && (PARTIAL_WORDS[hit.id] || []).indexOf(hit.word) >= 0; }
@@ -835,12 +836,15 @@
 
   /* Client priorities: a plain "yes", "definitely", "go ahead" makes the area a priority; "not now", "not interested", "I can't afford it", "I already have that" make it not a priority. */
   var PRI_NO = / (not interested|not a priority|not priority|not now|no thanks|no thank you|not at the moment|not at this stage|not for now|not right now|cannot afford|can not afford|cant afford|can t afford|already have|already covered|dont need|do not need|don t need|not needed|no need|rather not|not necessary|no) /;
+  var PRI_NOTINT = / (not interested|not a priority|no thanks|no thank you|not needed|dont need|do not need) /;
   var PRI_UNSURE = / (not sure|unsure|maybe|perhaps|undecided|not convinced|on the fence|don'?t know|dont know|don t know|do not know|think about it|think it over|think on it|think this over|sleep on it|need to think|let me think|i ll think|get back to you|come back to you|come back to it|speak to my|talk to my|discuss it with|discuss this with|need some time|need more time|give me some time|give me time) /;
+  var PRI_BUDGET = / (check (?:my|the|our|his|her|their)? ?budget|checking (?:my|the|our|his|her|their)? ?budget|look at (?:my|the|our|his|her|their)? ?budget|review (?:my|the|our|his|her|their)? ?budget|work out (?:my|the|our|his|her|their)? ?budget|go through (?:my|the|our|his|her|their)? ?budget|see (?:what|if) i can afford|see (?:what|if) we can afford|see what i can afford|check what i can afford|check if i can afford|check if we can afford|need to budget|budget first|see where i am with my budget|affordability) /;
   var PRI_YES = / (yes|yeah|yep|yup|ja|definitely|absolutely|certainly|agree|agreed|please do|go ahead|sounds good|makes sense|sure|priority|of course) /;
   ['pr_life', 'pr_ra', 'pr_rgar', 'pr_inv', 'pr_egar', 'pr_med', 'pr_will', 'pr_st'].forEach(function (id) {
     SPECIAL[id] = function (t) {
-      var s = ' ' + t + ' ', unsure = PRI_UNSURE.test(s), no = PRI_NO.test(s), yes = PRI_YES.test(s.replace(/ not (?:a )?priority /g, ' ').replace(/ (?:not sure|unsure) /g, ' '));
+      var s = ' ' + t + ' ', budget = PRI_BUDGET.test(s), unsure = PRI_UNSURE.test(s), no = PRI_NO.test(s) && !(budget && !PRI_NOTINT.test(s)), yes = PRI_YES.test(s.replace(/ not (?:a )?priority /g, ' ').replace(/ (?:not sure|unsure) /g, ' '));
       if (no && yes) return { error: 'ambiguous', note: 'priority or not a priority?' };
+      if (budget && !PRI_NOTINT.test(s)) return { error: 'budget', note: 'check the budget: left empty' };
       if (unsure && !no) return { error: 'unsure', note: 'not sure: left empty' };       // pickOption turns it into "Client not sure, needs to think about it" for the areas that have that choice
       return no ? 'Not a priority: client not interested' : yes ? 'Priority: client agrees' : null;
     };
@@ -851,9 +855,10 @@
     var sp = SPECIAL[f.id];
     if (sp) {
       var v = sp(t, raw);
-      if (v && v.error === 'unsure') {                                                  // a choice for "not sure, needs to think about it", where the box has one
-        var ith = -1; low.forEach(function (o, i) { if (/not sure|unsure|think about it/.test(o)) ith = i; });
+      if (v && (v.error === 'unsure' || v.error === 'budget')) {                       // the choices for "not sure, needs to think about it" and "needs to check the budget", where the box has them
+        var ith = -1; low.forEach(function (o, i) { if (v.error === 'budget' ? /budget/.test(o) : /not sure|unsure|think about it/.test(o)) ith = i; });
         if (ith >= 0) return ok(opts[ith]);
+        if (v.error === 'budget') return { error: 'unsure', note: 'check the budget: left empty' };
       }
       if (v && v.error) return v;
       if (v && typeof v === 'object') return v;

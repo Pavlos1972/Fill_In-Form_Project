@@ -29,7 +29,7 @@
   var STAGES = ['Not Yet in School', 'Pre-school', 'Primary', 'High School', 'Tertiary'];
   var ADVISOR = 'Paul Kafentzis';                                                                // printed in the PDF header; there is no Advisor box on the form
   var PRIORITY = 'Priority: client agrees', NOT_PRIORITY = 'Not a priority: client not interested';     // the answers of a priority's decision box (empty = not discussed yet)
-  var UNSURE = 'Client not sure, needs to think about it', CAN_THINK = { life: 1, ra: 1, inv: 1 };        // a third answer (yellow) for the areas where a client often wants time
+  var UNSURE = 'Client not sure, needs to think about it', BUDGET = 'Client needs to check their budget', CAN_THINK = { life: 1, ra: 1, inv: 1 };        // two more answers (both yellow) for the areas where a client often wants time
   var HAS_RISK = { f: 'has_risk', nin: ['No'] }, HAS_GROUP = { f: 'has_group', nin: ['No', 'Not sure'] };
   var FNA_ON = { f: 'fna_req', nin: ['Not required', 'No FNA done'] }, SF_ON = { f: 'sf_req', nin: ['Not required'] };      // a quote that is not required has no type or insurer: those boxes go
 
@@ -37,7 +37,7 @@
   var TITLES = { life: 'Life', ra: 'RA', rgar: 'RGAR', inv: 'Invest', egar: 'EGAR', med: 'Medical Aid', will: 'Will', st: 'Short Term' };
   function HEAD(id) {
     return { pri: id, head: 1, fields: [
-      { id: 'pr_' + id, l: TITLES[id] + ': client decision', t: 'sel', o: CAN_THINK[id] ? [PRIORITY, UNSURE, NOT_PRIORITY] : [PRIORITY, NOT_PRIORITY], wide: 1 },
+      { id: 'pr_' + id, l: TITLES[id] + ': client decision', t: 'sel', o: CAN_THINK[id] ? [PRIORITY, UNSURE, BUDGET, NOT_PRIORITY] : [PRIORITY, NOT_PRIORITY], wide: 1 },
       { id: 'pr_' + id + '_cm', l: TITLES[id] + ': comments (the reason, or your instructions)', t: 'area', wide: 1, rows: 2 }
     ] };
   }
@@ -50,6 +50,20 @@
       { id: p + '_need', l: 'Total household income needed (R)', t: 'txt', calc: 'need' }
     ];
   }
+
+  /* Dread disease cover starts at R 500 000.00 with a term of WOL (typed over when different); p is the prefix of the ids (dd: fractured cover, dds: standard quote). */
+  function dread(p) {
+    return [
+      { id: p + '_cover', money: 1, l: 'Dread disease cover (R)', t: 'txt', opt: 1, preset: 'R 500 000.00' },
+      { id: p + '_term', l: 'Term', t: 'sel', o: ['WOL', 'Specified Age', 'Other'], opt: 1, preset: 'WOL' },
+      { id: p + '_termv', l: 'Term value', t: 'txt', opt: 1 },
+      { id: p + '_aci', l: 'ACI', t: 'sel', o: ['Fixed', 'Age-rated', 'Other'], opt: 1, preset: 'Fixed' },
+      { id: p + '_aciv', l: 'ACI value', t: 'txt', opt: 1, preset: '?' },
+      { id: p + '_abiv', l: 'ABI', t: 'txt', opt: 1, preset: '3%' },
+      N(p + '_cmt', 'Comments')
+    ];
+  }
+  var WAIT = ['7 days', '14 days', '1 month', '3 months', 'Other'];
 
   var sections = [
     { id: 'info', title: 'Client info', roomy: 1, fit: 1, blocks: [
@@ -282,14 +296,33 @@
       { fields: [N('n_prio')] }
     ] },
 
-    /* Risk calculation: always on its own page in the list (not tied to the Life area or to what cover the client has now). */
-    { id: 'calc', adv: 1, title: 'Risk calculation', blocks: [
+    /* Risk Calculation & Quotes: always on its own page in the list (not tied to the Life area or to what cover the client has now), in two parts: the fractured covers (what the needs are built from)
+       and the standard quotes (the ordinary policy). Income protection (fractured) also splits the insured amount into the instalment protector, one box for each debt on the Debts page, and household needs. */
+    { id: 'calc', adv: 1, title: 'Risk Calculation & Quotes', blocks: [
+      { part: 'Fractured Covers', sub: 'the needs the cover is built from' },
       { title: 'Life cover: fractured cover', fields: riskCalc('lc').concat([
         { id: 'lc_f_aci', l: 'ACI', t: 'sel', o: ACI, opt: 1, preset: 'Fixed' },
         { id: 'lc_f_aciv', l: 'ACI value', t: 'txt', opt: 1, preset: '?' },
         { id: 'lc_wol', l: 'Life cover (WOL) ABI', t: 'txt', opt: 1, preset: '3%' },
         { id: 'lc_ccabi', l: 'Childcare ABI', t: 'txt', opt: 1, preset: '5%' }
       ]) },
+      { title: 'Permanent disability: fractured cover', fields: riskCalc('pd').concat([
+        { id: 'pd_f_aci', l: 'ACI', t: 'sel', o: ACI, opt: 1, preset: 'Fixed' },
+        { id: 'pd_f_aciv', l: 'ACI value', t: 'txt', opt: 1, preset: '?' },
+        { id: 'pd_ccabi', l: 'Childcare ABI', t: 'txt', opt: 1, preset: '5%' }
+      ]) },
+      { title: 'Income protection / sickness benefit: fractured cover', protector: 1, fields: [
+        { id: 'ip_age', l: 'Income protection age', t: 'sel', o: ['65', '70'], opt: 1 },
+        { id: 'ip_amt', l: 'Insured amount (R p.m.)', t: 'txt', calc: 'ip_amt' },
+        { id: 'ip_hh', l: 'Household needs (R p.m.)', t: 'txt', calc: 'ip_hh' },
+        { id: 'ip_wait', l: 'Waiting period', t: 'sel', o: WAIT, opt: 1 },
+        { id: 'ip_aci', l: 'ACI', t: 'sel', o: ['Fixed', 'Age-rated', 'Other'], opt: 1, preset: 'Fixed' },
+        { id: 'ip_aciv', l: 'ACI value', t: 'txt', opt: 1, preset: '?' },
+        { id: 'ip_abiv', l: 'ABI', t: 'txt', opt: 1, preset: '5%' },
+        N('ip_cmt', 'Comments')
+      ] },
+      { title: 'Dread disease: fractured cover', fields: dread('dd') },
+      { part: 'Standard Quotes', sub: 'the ordinary policy the client could take instead' },
       { title: 'Life cover: standard', fields: [
         { id: 'lc_sa', money: 1, l: 'Sum assured (R)', t: 'txt', opt: 1 },
         { id: 'lc_term', l: 'Term', t: 'sel', o: ['WOL', 'Fixed term', 'Other'], opt: 1 },
@@ -299,11 +332,6 @@
         { id: 'lc_abiv', l: 'ABI', t: 'txt', opt: 1 },
         N('lc_cmt', 'Comments')
       ] },
-      { title: 'Permanent disability: fractured cover', fields: riskCalc('pd').concat([
-        { id: 'pd_f_aci', l: 'ACI', t: 'sel', o: ACI, opt: 1, preset: 'Fixed' },
-        { id: 'pd_f_aciv', l: 'ACI value', t: 'txt', opt: 1, preset: '?' },
-        { id: 'pd_ccabi', l: 'Childcare ABI', t: 'txt', opt: 1, preset: '5%' }
-      ]) },
       { title: 'Permanent disability: standard', fields: [
         { id: 'pd_sa', money: 1, l: 'Sum assured (R)', t: 'txt', opt: 1 },
         { id: 'pd_term', l: 'Term', t: 'sel', o: ['To age 65', 'To age 70', 'Fixed term', 'Other'], opt: 1 },
@@ -313,24 +341,16 @@
         { id: 'pd_abiv', l: 'ABI', t: 'txt', opt: 1 },
         N('pd_cmt', 'Comments')
       ] },
-      { title: 'Dread disease', fields: [
-        { id: 'dd_cover', money: 1, l: 'Dread disease cover (R)', t: 'txt', opt: 1 },
-        { id: 'dd_term', l: 'Term', t: 'sel', o: ['WOL', 'Specified Age', 'Other'], opt: 1 },
-        { id: 'dd_termv', l: 'Term value', t: 'txt', opt: 1 },
-        { id: 'dd_aci', l: 'ACI', t: 'sel', o: ['Fixed', 'Age-rated', 'Other'], opt: 1, preset: 'Fixed' },
-        { id: 'dd_aciv', l: 'ACI value', t: 'txt', opt: 1, preset: '?' },
-        { id: 'dd_abiv', l: 'ABI', t: 'txt', opt: 1, preset: '3%' },
-        N('dd_cmt', 'Comments')
+      { title: 'Income protection / sickness benefit: standard', fields: [
+        { id: 'ips_age', l: 'Income protection age', t: 'sel', o: ['65', '70'], opt: 1 },
+        { id: 'ips_amt', money: 1, l: 'Insured amount (R p.m.)', t: 'txt', opt: 1 },
+        { id: 'ips_wait', l: 'Waiting period', t: 'sel', o: WAIT, opt: 1 },
+        { id: 'ips_aci', l: 'ACI', t: 'sel', o: ['Fixed', 'Age-rated', 'Other'], opt: 1, preset: 'Fixed' },
+        { id: 'ips_aciv', l: 'ACI value', t: 'txt', opt: 1, preset: '?' },
+        { id: 'ips_abiv', l: 'ABI', t: 'txt', opt: 1, preset: '5%' },
+        N('ips_cmt', 'Comments')
       ] },
-      { title: 'Income protection / sickness benefit', fields: [
-        { id: 'ip_age', l: 'Income protection age', t: 'sel', o: ['65', '70'], opt: 1 },
-        { id: 'ip_amt', l: 'Insured amount (R p.m.)', t: 'txt', calc: 'ip_amt' },
-        { id: 'ip_wait', l: 'Waiting period', t: 'sel', o: ['7 days', '14 days', '1 month', '3 months', 'Other'], opt: 1 },
-        { id: 'ip_aci', l: 'ACI', t: 'sel', o: ['Fixed', 'Age-rated', 'Other'], opt: 1, preset: 'Fixed' },
-        { id: 'ip_aciv', l: 'ACI value', t: 'txt', opt: 1, preset: '?' },
-        { id: 'ip_abiv', l: 'ABI', t: 'txt', opt: 1, preset: '5%' },
-        N('ip_cmt', 'Comments')
-      ] },
+      { title: 'Dread disease: standard', fields: dread('dds') },
       { fields: [N('n_calc')] }
     ] }
   ];
@@ -432,5 +452,5 @@
   var byId = {};
   sections.forEach(function (s) { s.blocks.forEach(function (b) { (b.fields || []).forEach(function (f) { byId[f.id] = f; }); }); });
 
-  return { version: '3.0', released: 'October 2026', sections: sections, lists: lists, panels: panels, panelsById: panelsById, advisor: ADVISOR, PRIORITY: PRIORITY, NOT_PRIORITY: NOT_PRIORITY, UNSURE: UNSURE, fieldsById: byId };
+  return { version: '3.0', released: 'October 2026', sections: sections, lists: lists, panels: panels, panelsById: panelsById, advisor: ADVISOR, PRIORITY: PRIORITY, NOT_PRIORITY: NOT_PRIORITY, UNSURE: UNSURE, BUDGET: BUDGET, fieldsById: byId };
 });

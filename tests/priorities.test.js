@@ -12,7 +12,7 @@ const fresh = () => store.blank();
 const set = (s, id, v) => store.setField(s, id, v);
 const show = (s, cond) => calc.showIf(cond, store.ctxFor(s));
 const sec = id => schema.sections.find(x => x.id === id);
-const PRI = schema.PRIORITY, NOT = schema.NOT_PRIORITY, UNSURE = schema.UNSURE;
+const PRI = schema.PRIORITY, NOT = schema.NOT_PRIORITY, UNSURE = schema.UNSURE, BUDGET = schema.BUDGET;
 const AREAS = ['life', 'ra', 'rgar', 'inv', 'egar', 'med', 'will', 'st'];
 
 test('the pages: risk cover, retirement funding, then one Client priorities page; the old advisor pages and the Advisor box are gone', () => {
@@ -20,8 +20,9 @@ test('the pages: risk cover, retirement funding, then one Client priorities page
   assert.strictEqual(sec('cover').title, 'Personal & group risk cover');
   assert.strictEqual(sec('retire').title, 'Retirement funding');
   assert.ok(sec('prio').adv && sec('prio').title === 'Client priorities');
-  assert.ok(sec('calc').adv && sec('calc').title === 'Risk calculation' && !sec('calc').cond);                       // its own page in the list, always there
-  assert.deepStrictEqual(sec('calc').blocks.map(b => b.title || '-'), ['Life cover: fractured cover', 'Life cover: standard', 'Permanent disability: fractured cover', 'Permanent disability: standard', 'Dread disease', 'Income protection / sickness benefit', '-']);
+  assert.ok(sec('calc').adv && sec('calc').title === 'Risk Calculation & Quotes' && !sec('calc').cond);                       // its own page in the list, always there
+  assert.deepStrictEqual(sec('calc').blocks.map(b => b.part ? '## ' + b.part : b.title || '-'), ['## Fractured Covers', 'Life cover: fractured cover', 'Permanent disability: fractured cover', 'Income protection / sickness benefit: fractured cover', 'Dread disease: fractured cover',
+    '## Standard Quotes', 'Life cover: standard', 'Permanent disability: standard', 'Income protection / sickness benefit: standard', 'Dread disease: standard', '-']);
   assert.ok(sec('calc').blocks.every(b => !b.cond && !b.pri));                                                          // not tied to the Life area, to its decision or to the cover the client has now
   assert.ok(!schema.fieldsById.advisor && schema.advisor === 'Paul Kafentzis');
   assert.ok(!('docs' in schema));
@@ -63,7 +64,7 @@ test('the priority areas, in order, each with a decision and a comments box; eve
   AREAS.forEach(id => {
     const p = schema.panelsById[id], dec = schema.fieldsById[p.dec], cm = schema.fieldsById[p.cm];
     assert.strictEqual(p.dec, 'pr_' + id); assert.strictEqual(p.cm, 'pr_' + id + '_cm');
-    assert.deepStrictEqual(dec.o, ['life', 'ra', 'inv'].includes(id) ? [PRI, UNSURE, NOT] : [PRI, NOT]); assert.strictEqual(cm.t, 'area');       // Life, RA and Invest also have "Client not sure, needs to think about it"
+    assert.deepStrictEqual(dec.o, ['life', 'ra', 'inv'].includes(id) ? [PRI, UNSURE, BUDGET, NOT] : [PRI, NOT]); assert.strictEqual(cm.t, 'area');       // Life, RA and Invest also have "Client not sure, needs to think about it"
     assert.strictEqual(sec('prio').blocks.filter(b => b.pri === id && b.head).length, 1, id);
   });
   ['fna_req', 'fna_type', 'fna_ins', 'sf_req', 'n_calc', 'pref_spend', 'rgar_req', 'ret_age', 'ret_net', 'egar_req', 'ref_sti', 'ref_med', 'ref_will', 'lc_sa', 'pd_sa', 'dd_cover', 'ip_age', 'bs_req', 'cl_req', 'km_req', 'n_prio'].forEach(id => assert.ok(schema.fieldsById[id], id));
@@ -229,16 +230,17 @@ test('voice: the areas that are switched off are not asked about, and the priori
 test('Claude is told how the priority boxes work', () => {
   assert.match(AI.buildRequest(V.buildIndex(schema), { sectionId: 'prio', recent: [] }, 'auto', 'is life cover a priority?', 'm').system, /pr_life.*pr_st[\s\S]*Not a priority/);
   const body = JSON.parse(AI.buildRequest(V.buildIndex(schema), { sectionId: 'prio', recent: [] }, 'auto', 'x', 'm').messages[0].content);
-  assert.ok(body.fields.some(f => f.id === 'pr_life' && f.options.length === 3 && f.options[1] === UNSURE) && body.fields.some(f => f.id === 'pr_will' && f.options.length === 2) && body.fields.some(f => f.id === 'pr_life_cm'));
+  assert.ok(body.fields.some(f => f.id === 'pr_life' && f.options.length === 4 && f.options[1] === UNSURE && f.options[2] === BUDGET) && body.fields.some(f => f.id === 'pr_will' && f.options.length === 2) && body.fields.some(f => f.id === 'pr_life_cm'));
   assert.ok(body.lists.some(l => l.id === 'grp' && l.section === 'cover'));
 });
 
 test('"client not sure" is a third answer for Life, RA and Invest: the area stays open, with its own (yellow) state', () => {
   const s = fresh();
-  ['life', 'ra', 'inv'].forEach(id => {
-    set(s, 'pr_' + id, UNSURE);
+  ['life', 'ra', 'inv'].forEach(id => [UNSURE, BUDGET].forEach(ans => {
+    set(s, 'pr_' + id, ans);
     sec('prio').blocks.filter(b => b.pri === id).forEach(b => assert.ok(show(s, b.cond), id + ' ' + (b.title || '')));          // not switched off like "not a priority"
-  });
+  }));
+  assert.strictEqual(BUDGET, 'Client needs to check their budget');
   assert.ok(!schema.fieldsById.pr_will.o.includes(UNSURE) && !schema.fieldsById.pr_egar.o.includes(UNSURE));
   assert.strictEqual(schema.UNSURE, 'Client not sure, needs to think about it');
   assert.match(AI.SYSTEM, /Client not sure, needs to think about it/);
@@ -285,4 +287,13 @@ test('an older file with one retirement list opens as two: retirement annuities,
   assert.deepStrictEqual(back.l.ret_pp.map(r => [r.d.type, r.d.prov, r.st]), [['Provident fund', 'Old Mutual', 'heard'], ['Pension fund', 'Sanlam', 'confirmed']]);
   assert.strictEqual(back.l.ret, undefined);
   const again = store.fromJSON(store.toJSON(back)); assert.strictEqual(again.l.ret_ra.length, 1); assert.strictEqual(again.l.ret_pp.length, 2);
+});
+
+test('"I need to check my budget" is the other yellow answer, for Life, RA and Invest only', () => {
+  const idx = V.buildIndex(schema), v = (id, t) => { const r = V.interpret(idx.byId[id], t); return r && (r.error ? 'ERR:' + r.error : r.value); };
+  ['I need to check my budget', 'let me look at my budget first', "I'll have to see what I can afford", 'I cannot afford it, let me check my budget', 'I need to go through my budget'].forEach(t => assert.strictEqual(v('pr_life', t), BUDGET, t));
+  assert.strictEqual(v('pr_ra', 'I need to check my budget'), BUDGET); assert.strictEqual(v('pr_inv', 'let me check the budget'), BUDGET);
+  assert.strictEqual(v('pr_will', 'I need to check my budget'), 'ERR:unsure');                                          // no such choice there: left empty
+  assert.strictEqual(v('pr_life', 'I cannot afford it'), NOT); assert.strictEqual(v('pr_life', 'not interested, I need to check my budget'), NOT); assert.strictEqual(v('pr_life', 'I am not sure'), UNSURE);
+  assert.match(AI.SYSTEM, /Client needs to check their budget/);
 });
