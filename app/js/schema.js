@@ -24,12 +24,13 @@
   var BIZ = { f: 'bizowner', eq: 'Yes' };
   var MED_SCHEMES = ['Discovery Health', 'Momentum Medical Scheme', 'Bonitas Medical Fund', 'Bestmed Medical Scheme', 'Fedhealth Medical Scheme', 'Medihelp Medical Scheme', 'KeyHealth Medical Scheme', 'Medshield Medical Scheme', 'CompCare Medical Scheme', 'GEMS (Government Employees Medical Scheme)', 'POLMED (SA Police Service)', 'SAMWUMED (Municipal Workers)', 'Transmed (Transport industry)', 'LA Health (Local Authorities)', 'Bankmed (Banking sector)', 'Sizwe Hosmed Medical Scheme', 'Profmed (Professionals only)', 'Anglovaal Group Medical Scheme (AGMS)', 'Sasolmed', 'Cape Medical Plan (Cape Medical Scheme)', 'Hosmed Medical Scheme', 'Genesis Medical Scheme', 'Suremed Health', 'Resolution Health Medical Scheme', 'Makoti Medical Scheme', 'BMW Medical Aid Scheme', 'Anglo Medical Scheme', 'Other'];
   var GAP_PROVIDERS = ['TRA (Total Risk Administrators)', 'Turnberry', 'Ambledown Financial Services', 'Stratum Benefits', 'Kaelo', 'Zestlife', 'GapCover', 'Oneplan', 'Discovery', 'Momentum', 'Sanlam', 'Old Mutual', 'Dis-Chem Health', 'NetcarePlus', 'Other'];
-  var INV_PROVIDERS = ['Old Mutual', 'Momentum', 'Sanlam', 'Liberty', 'Discovery Invest', 'Allan Gray', 'Coronation', 'Ninety One', 'PSG', 'Sygnia', 'Satrix', '10X Investments', 'Glacier by Sanlam', 'Investec', 'Nedgroup Investments', 'STANLIB', 'Absa', 'EasyEquities', 'Other'];
+  var INV_PROVIDERS = ['Old Mutual', 'Momentum', 'Sanlam', 'Liberty', 'Discovery Invest', 'Allan Gray', 'Coronation', 'Ninety One', 'PSG', 'Sygnia', 'Satrix', '10X Investments', 'Glacier by Sanlam', 'Investec', 'Nedgroup Investments', 'STANLIB', 'Absa', 'FNB', 'Nedbank', 'Standard Bank', 'Capitec', 'EasyEquities', 'Other'];
   var MARRIED = ['Married in community of property', 'Married out of community (with accrual)', 'Married out of community (no accrual)', 'Customary marriage', 'Civil union'];     // the marital statuses that have a date of marriage
   var STAGES = ['Not Yet in School', 'Pre-school', 'Primary', 'High School', 'Tertiary'];
   var ADVISOR = 'Paul Kafentzis';                                                                // printed in the PDF header; there is no Advisor box on the form
   var PRIORITY = 'Priority: client agrees', NOT_PRIORITY = 'Not a priority: client not interested';     // the two answers of a priority's decision box (empty = not discussed yet)
   var HAS_RISK = { f: 'has_risk', nin: ['No'] }, HAS_GROUP = { f: 'has_group', nin: ['No', 'Not sure'] };
+  var FNA_ON = { f: 'fna_req', nin: ['Not required', 'No FNA done'] }, SF_ON = { f: 'sf_req', nin: ['Not required'] };      // a quote that is not required has no type or insurer: those boxes go
 
   /* The first block of a priority area: the client's decision (empty until discussed) and the box for the reason or the adviser's instructions. */
   var TITLES = { life: 'Life', ra: 'RA', rgar: 'RGAR', inv: 'Invest', egar: 'EGAR', med: 'Medical Aid', will: 'Will', st: 'Short Term' };
@@ -171,7 +172,7 @@
         N('n_ma')
       ] },
       { title: 'Gap cover', fields: [
-        { id: 'gap', l: 'Gap cover', t: 'sel', o: YN },
+        { id: 'gap', l: 'Gap cover', t: 'sel', o: ['Yes', 'No', 'Not sure'] },
         { id: 'gap_prov', l: 'Gap cover provider', t: 'sel', free: 1, o: GAP_PROVIDERS },
         { id: 'gap_broker', l: 'Gap cover broker', t: 'sel', o: MA_BROKER },
         N('n_gap')
@@ -219,16 +220,16 @@
       HEAD('life'),
       { pri: 'life', title: 'FNA quote', fields: [
         { id: 'fna_req', l: 'FNA quote', t: 'sel', o: ['Request a quote', 'Not required', 'No FNA done'] },
-        { id: 'fna_type', l: 'Type of quote', t: 'sel', o: QTYPE },
-        { id: 'fna_ins', l: 'Insurer', t: 'sel', free: 1, o: INS }
+        { id: 'fna_type', l: 'Type of quote', t: 'sel', o: QTYPE, cond: FNA_ON },
+        { id: 'fna_ins', l: 'Insurer', t: 'sel', free: 1, o: INS, cond: FNA_ON }
       ] },
       { pri: 'life', title: 'Shortfall quote', cond: HAS_GROUP, condMsg: 'No Group exists for a Shortfall Quote to be compiled. (Group risk through employer, on the Personal & group risk cover page, is No or Not sure.)', pdfMsg: 1, fields: [
         { id: 'sf_req', l: 'Shortfall quote', t: 'sel', o: REQ },
-        { id: 'sf_type', l: 'Type of quote', t: 'sel', o: QTYPE },
-        { id: 'sf_ins', l: 'Insurer', t: 'sel', free: 1, o: INS }
+        { id: 'sf_type', l: 'Type of quote', t: 'sel', o: QTYPE, cond: SF_ON },
+        { id: 'sf_ins', l: 'Insurer', t: 'sel', free: 1, o: INS, cond: SF_ON }
       ] },
       { pri: 'life', title: 'Reduced quotes', list: 'redq' },
-      { pri: 'life', fields: [{ id: 'pref_spend', money: 1, l: 'Preferred monthly spend (R)', t: 'txt', opt: 1 }] },
+      { pri: 'life', fields: [{ id: 'pref_spend', money: 1, l: 'Preferred monthly spend (R)', t: 'txt', opt: 1, voice: 1 }] },
       HEAD('ra'),
       { pri: 'ra', title: 'Retirement annuity quotes', list: 'raq' },
       HEAD('rgar'),
@@ -273,6 +274,7 @@
         { id: 'km_amt', money: 1, l: 'Cover amount (R)', t: 'txt' },
         { id: 'km_basis', l: 'Basis of cover amount', t: 'sel', o: ['Multiple of salary', 'Profit contribution', 'Replacement cost', 'Other'] }
       ] },
+      { title: 'Next appointment', fields: [{ id: 'next_appt', l: 'Next appointment (date)', t: 'txt', date: 1, cal: 1, hint: 'e.g. 05/11/2026' }] },
       { fields: [N('n_prio')] }
     ] },
 

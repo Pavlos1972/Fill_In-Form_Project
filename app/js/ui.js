@@ -477,7 +477,7 @@
       if (PROFILE_SRC.indexOf(t.dataset.f) >= 0) autoProfileLookup();
       if (dobSet) paintField('dob');
       if (sexSet) paintField('gender');
-      if (condIds[t.dataset.f]) { redraw(); var again = document.querySelector('[data-f="' + t.dataset.f + '"]'); if (again) again.focus(); } else refreshLive();
+      if (condIds[t.dataset.f]) { redraw(); var again = document.querySelector('[data-f="' + t.dataset.f + '"]'); if (again) again.focus(); if ((state.unplaced || []).length && vmRetryUnplaced) vmRetryUnplaced(); } else refreshLive();
     } else if (t.dataset.l) {
       var key = t.dataset.l, i = +t.dataset.i, k = t.dataset.k, col = schema.lists[key].cols.filter(function (c) { return c.k === k; })[0], row0 = state.l[key][i];
       var v2 = t.value;
@@ -1192,9 +1192,30 @@
     if (msg) { vmNote(id, msg); vmLog('did not fill the ID number: ' + msg); }
     return !!msg;
   }
+  /* The client's own name is spelled as the client said it: Claude changed "Sitamah" (said twice by the client) to "Sithemba", the spelling in the adviser's lines, which come from another microphone.
+     A name Claude gives for the client that is not in the client's line, but is a few letters from a word that is, becomes that word. */
+  function vmOwnSpelling(id, value) {
+    var e = vmCur;
+    if ((id !== 'fname' && id !== 'sname') || !e || e.who !== 'client' || e.done || /[\d@]/.test(String(value))) return value;
+    var line = String(e.text || '').toLowerCase(), v = String(value).toLowerCase().trim();
+    if (!v || line.indexOf(v) >= 0) return value;
+    var best = null, bd = 99;
+    line.split(/[^a-z'\-]+/).filter(function (w) { return w.length >= 3 && !/^(?:its|it's|my|name|surname|first|last|and|the|sure|yes|okay|spell|spelled|called|i'm|am|is)$/.test(w); }).forEach(function (w) {
+      var d = lev(w, v); if (d < bd) { bd = d; best = w; }
+    });
+    return best && bd <= Math.max(3, Math.ceil(v.length * 0.5)) ? V.titleCase(best) : value;
+  }
+  function lev(a, b) {
+    var m = [], i, j;
+    for (i = 0; i <= a.length; i++) m[i] = [i];
+    for (j = 1; j <= b.length; j++) m[0][j] = j;
+    for (i = 1; i <= a.length; i++) for (j = 1; j <= b.length; j++) m[i][j] = Math.min(m[i - 1][j] + 1, m[i][j - 1] + 1, m[i - 1][j - 1] + (a.charAt(i - 1) === b.charAt(j - 1) ? 0 : 1));
+    return m[a.length][b.length];
+  }
   function vmApply(id, res) {
     var cr = vmCellRef(id);
     if (cr) return vmApplyCell(cr, id, res);
+    if (res.kind === 'fill' && res.value != null) res = Object.assign({}, res, { value: vmOwnSpelling(id, res.value) });
     if (res.kind === 'fill' && vmIdClash(id, res.value)) return false;
     var cell = state.f[id], entry = { kind: 'fill', id: id, prev: { v: cell.v, st: cell.st }, extras: [] }, extraIds = [];
     if (res.kind === 'confirm') {
@@ -1212,9 +1233,17 @@
     if (isNumBox(id)) vm.lastNum = id;
     if (id === vm.target) vm.answered = true;
     touch(); redraw(); vmFlash(id); extraIds.forEach(vmFlash);
+    if (condIds[id] && (state.unplaced || []).length) vmRetryUnplaced();
     /* Employer or business name filled: look up what the company does. Only the company name is sent. */
     if (res.kind === 'fill') { autoCompanyLookup(id); if (PROFILE_SRC.indexOf(id) >= 0) autoProfileLookup(); }
     return true;
+  }
+  /* The boxes and lists that are switched off on the form now (the quotes of an area that is not a priority, boxes that do not apply to this client): Claude is told, so it does not offer values for them. */
+  function vmHiddenMap() {
+    var h = {};
+    vidx.fields.forEach(function (f) { if (!f.list && !vmVisible(f)) h[f.id] = 1; });
+    Object.keys(vidx.lists).forEach(function (k) { if (!vmVisible(vidx.lists[k])) h['list:' + k] = 1; });
+    return h;
   }
   /* What is already in the boxes of the form, so Claude can tell a new fact from a correction, in whichever section the line ends up. Private boxes are only said to be filled, never their values. */
   function vmFilled() {
@@ -1264,7 +1293,7 @@
     return vmSlot().then(function () {
       return VAI.decide({
         apiKey: set.apiKey, ask: !set.apiKey && FF.voiceBackend && FF.voiceBackend.available ? FF.voiceBackend.ask : null, model: set.voiceModel, hedgeMs: 3500, idx: vidx, who: who, text: text, fetchImpl: entry || vmCur ? loggedFetch(entry || vmCur) : meteredFetch,
-        ctx: { sectionId: sec, targetId: tid, targetRow: tcr ? tcr.i + 1 : null, targetValue: tv, targetFilled: tfilled, alternatives: entry && entry.m && entry.shown === entry.text ? entry.m.also : null, filled: fl.filled, filledPrivate: fl.filledPrivate, awaiting: aw.awaiting, privateHeld: aw.held, note: note,
+        ctx: { sectionId: sec, targetId: tid, targetRow: tcr ? tcr.i + 1 : null, targetValue: tv, targetFilled: tfilled, alternatives: entry && entry.m && entry.shown === entry.text ? entry.m.also : null, filled: fl.filled, filledPrivate: fl.filledPrivate, hidden: vmHiddenMap(), awaiting: aw.awaiting, privateHeld: aw.held, note: note,
           listRows: function (key) { return rows[key] || []; }, recent: recent }
       }).then(function (r) { vmSlotFree(); return r; }, function (e) { vmSlotFree(); throw e; });
     }).then(function (r) { vm.busy--; vmRender(); if (entry) entry.claudeMs = Date.now() - t0; return r; }, function (err) {
@@ -1333,7 +1362,7 @@
     });
   }
   /* Do what a line of conversation says, in order. Actions come from V.plan (on this computer) or from Claude. */
-  var SAID_UNDO = /\b(?:undo|scratch|take (?:that|it|those|them) back|cancel|never ?mind|revert|forget (?:that|it)|ignore (?:that|it))\b/i, SAID_CLEAR = /\b(?:clear|delete|remove|erase|wipe|empty|scratch|get rid of|take out|cancel|forget)\b/i, SAID_ALL_OK = /\b(?:all|every|everything)\b[^.?!]{0,50}\b(?:verified|correct|confirmed|good|fine|right|accurate|agreed)\b|\b(?:verify|confirm)\s+(?:all|everything|every)\b/i;
+  var SAID_UNDO = /\b(?:undo|scratch|take (?:that|it|those|them) back|cancel|never ?mind|revert|forget (?:that|it)|ignore (?:that|it))\b/i, SAID_CLEAR = /\b(?:clear|delete|remove|erase|wipe|empty|scratch|get rid of|take out|cancel|forget|(?:cleared|deleted|removed|erased|wiped)(?: up)?|(?:must|should|has to|have to|needs? to|got to) go)\b/i, SAID_ALL_OK = /\b(?:all|every|everything)\b[^.?!]{0,50}\b(?:verified|correct|confirmed|good|fine|right|accurate|agreed)\b|\b(?:verify|confirm)\s+(?:all|everything|every)\b/i;
   function vmAskId(a) {
     if (a.list) { var n = state.l[a.list].length, i = a.row === 'new' ? n : a.row === 'last' ? Math.max(n - 1, 0) : a.row - 1; return a.list + ':' + i + ':' + a.col; }
     return a.field || null;
@@ -1392,7 +1421,7 @@
           return ck ? vmDo({ do: 'confirm', field: a.list + ':' + ci + ':' + ck }) : null;
         }
         if (!f) return;
-        if (!vmVisible(f)) { if (a.do === 'fill' && !a.res && a.value != null && String(a.value).trim()) vmUnplace({ text: f.label + ': ' + vmShown(a.field, a.value), why: 'that box is not shown for this client', sec: f.sec }); return; }
+        if (!vmVisible(f)) { if (a.do === 'fill' && !a.res && a.value != null && String(a.value).trim()) vmUnplace(Object.assign({ text: f.label + ': ' + vmShown(a.field, a.value), why: 'that box is not shown for this client', sec: f.sec }, vmPrivate(a.field) ? {} : { field: a.field, value: String(a.value) })); return; }
         var cell = vmCellRef(a.field) ? { v: vmValue(a.field), st: (state.l[vmCellRef(a.field).list][vmCellRef(a.field).i] || { st: 'heard' }).st } : state.f[a.field], res = a.res;
         if (!res && a.do === 'confirm') res = { kind: 'confirm' };
         if (!res) { var x = V.interpret(f, a.value); if (x && !x.error) res = { kind: 'fill', value: x.value, status: x.status, extra: x.extra, append: x.append && !a.explicit }; }   // a correction replaces the text; only a new fact is added to it
@@ -1694,7 +1723,7 @@
   }
   /* A line kept for a number still being said: shown in the conversation box, not sent to Claude, nothing filled. */
   function vmKeepLine(text, who, meta, note) {
-    var entry = { who: who === 'me' ? 'adviser' : who === 'client' ? 'client' : 'unclear', text: text, shown: text, at: Date.now(), did: [note], done: true, m: meta || null, skip: /^paused/.test(note) };
+    var entry = { who: who === 'me' ? 'adviser' : who === 'client' ? 'client' : 'unclear', text: text, shown: text, at: Date.now(), did: [note], done: true, m: meta || null, skip: /^(?:paused|ignored)/.test(note) };
     cvAdd(entry); cv.live = ''; convoSoon();
     var p = Promise.resolve(entry); p.entry = entry; return p;
   }
@@ -1890,6 +1919,18 @@
     touch(); convoSoon();
     return it;
   }
+  /* A fact kept in "Heard but not placed" only because its box was switched off (the area was not a priority yet) is put in, as amber "verify", as soon as the box shows and is still empty. */
+  function vmRetryUnplaced() {
+    (state.unplaced || []).slice().forEach(function (u) {
+      if (!u.field || u.value == null || !/not shown/.test(u.why || '')) return;
+      var f = vmField(u.field); if (!f || !vmVisible(f) || state.f[u.field].v !== '') return;
+      var x = V.interpret(f, u.value); if (!x || x.error) return;
+      store.closeUnplaced(state, u.id, vm.unplacedSeen);
+      vmApply(u.field, { kind: 'fill', value: x.value, status: 'verify', extra: x.extra });
+      vmLog('put in ' + f.label + ' now that the box shows: ' + vmShown(u.field, x.value));
+    });
+    unplacedRender();
+  }
   function vmTakeUnplaced(r) { if (r && r.unplaced) r.unplaced.forEach(function (u) { vmUnplace({ text: u.text, sec: u.section || cur }); }); }
   /* What a value is shown as in the list: never a private one. */
   function vmShown(id, value) { return vmPrivate(id) && !vmShareOn() ? '(a value was said)' : String(value); }
@@ -1972,7 +2013,7 @@
       cvAdd(entry); convoSoon();
       var fl = vmFilled(), notes = {};
       vidx.notes.forEach(function (n) { var v = state.f[n.id] && String(state.f[n.id].v || '').trim(); if (v) notes[n.sec] = (notes[n.sec] ? notes[n.sec] + '\n' : '') + v.slice(0, 600); });
-      return VAI.sweep({ notes: notes, listed: (state.unplaced || []).map(function (u) { return u.text; }),  apiKey: set.apiKey, ask: !set.apiKey && FF.voiceBackend && FF.voiceBackend.available ? FF.voiceBackend.ask : null, model: set.voiceModel, idx: vidx, transcript: lines, filled: fl.filled,
+      return VAI.sweep({ notes: notes, listed: (state.unplaced || []).map(function (u) { return u.text; }),  apiKey: set.apiKey, ask: !set.apiKey && FF.voiceBackend && FF.voiceBackend.available ? FF.voiceBackend.ask : null, model: set.voiceModel, idx: vidx, transcript: lines, filled: fl.filled, hidden: vmHiddenMap(),
         listRows: function (key) { return state.l[key].map(function (r) { return r.d; }); }, focus: o.sec || null, fetchImpl: meteredFetch });
     }).then(function (r) { vmSweepApply(entry, r, o, manual); }, function (err) {
       entry.did.push('could not check: ' + ((err && err.message) || 'no answer'));
@@ -2001,8 +2042,9 @@
   function vmSweepFill(a) {
     var id = a.field, f = vmField(id);
     if (!f || f.list || vmPrivate(id) || vm.noSweep[id]) return 0;
-    if (!vmVisible(f)) { vmUnplace({ text: f.label + ': ' + a.value, why: 'that box is not shown for this client', sec: f.sec }); return 0; }
+    if (!vmVisible(f)) { vmUnplace({ text: f.label + ': ' + a.value, why: 'that box is not shown for this client', field: id, value: String(a.value), sec: f.sec }); return 0; }
     var c = state.f[id], x = V.interpret(f, a.value);
+    if (/^pr_\w+_cm$/.test(id) && String(x && x.value || '').trim().split(/\s+/).length < 3) { vmUnplace({ text: f.label + ': ' + a.value, why: 'too short to be a reason', sec: f.sec }); return 0; }       // a comment is a reason or an instruction, never a fragment ("Not right")
     if (!x || x.error) { vmUnplace({ text: f.label + ': ' + a.value, why: 'could not be read as an answer for that box', sec: f.sec }); return 0; }
     if (c.v === '') { if (vmApply(id, { kind: 'fill', value: x.value, status: 'verify', extra: x.extra })) { vmLog('filled (missed earlier) ' + f.label + ': ' + vmShown(id, x.value)); return 1; } return 0; }
     if (vmSame(c.v, x.value)) return 0;
@@ -2051,10 +2093,16 @@
   }
   /* Called for every line heard. who is 'me' (the adviser), 'client', or left out when the source cannot tell and the words decide.
      Lines are put on the form in the order they were said, but each is sent to Claude as soon as it is heard (see "reading several lines at once"). */
+  /* "Paul Kafentzis" on its own (or just the surname): the speech service gives back the names it was told to listen for when the sound is not speech, and in a meeting it filled the client's first name and surname with the adviser's. */
+  function vmOwnNameOnly(text) {
+    var n = String(text).toLowerCase().replace(/[^a-z ]+/g, ' ').replace(/\s+/g, ' ').trim(), a = String(schema.advisor || '').toLowerCase().trim();
+    return !!a && (n === a || n === a.split(' ').slice(-1)[0]);
+  }
   function vmHear(text, who, meta) {
     text = String(text == null ? '' : text).trim();
     if (!vm.on || !text) return Promise.resolve();
     if (vm.paused) return vmKeepLine(text, who, meta, 'paused: not read');
+    if (vmOwnNameOnly(text)) return vmKeepLine(text, who, meta, 'ignored: only the adviser\'s own name, which the speech service repeats when it hears no clear words');
     var shown = text, run = vmEmailRun(text) || vmNumberRun(text);
     if (run && run.hold) return vmKeepLine(text, who, meta, run.note);  // part of a number or an email address: kept until it is complete
     text = run ? run.text : vmJoinDigits(text);  // a number said in pieces is one line

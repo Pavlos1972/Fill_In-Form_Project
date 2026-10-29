@@ -38,9 +38,12 @@
     if (!now) return;
     (state.l.kids || []).forEach(function (r) { if (!r.d.sname || (was && r.d.sname === was)) r.d.sname = now; });
   }
+  /* A quote that is not required has no type and no insurer: when it is set to not required they are cleared, so nothing is left behind (the boxes themselves go away, see schema.js). */
+  var NOT_REQUIRED = { fna_req: { vals: ['Not required', 'No FNA done'], clear: ['fna_type', 'fna_ins'] }, sf_req: { vals: ['Not required'], clear: ['sf_type', 'sf_ins'] } };
   function setField(state, id, v, st) {
     var was = id === 'sname' || id === 'gender' ? fatherSurname(state) : null;
     state.f[id] = { v: v, st: st || (v === '' ? 'empty' : 'confirmed') };
+    if (NOT_REQUIRED[id] && NOT_REQUIRED[id].vals.indexOf(v) >= 0) NOT_REQUIRED[id].clear.forEach(function (d) { if (state.f[d]) state.f[d] = { v: '', st: 'empty' }; });
     if (id === 'sname' || id === 'gender') followFather(state, was);
   }
   function addRow(state, key, data, st) {
@@ -52,7 +55,10 @@
     return r;
   }
   function delRow(state, key, i) { state.l[key].splice(i, 1); }
-  function setCell(state, key, i, k, v, st) { var r = state.l[key][i]; r.d[k] = v; r.st = st || 'confirmed'; }
+  function setCell(state, key, i, k, v, st) {
+    var r = state.l[key][i]; r.d[k] = v; r.st = st || 'confirmed';
+    if (key === 'redq' && k === 'req' && v === 'Not required') { r.d.type = ''; r.d.ins = ''; r.d.amt = ''; }        // a reduced quote that is not required keeps nothing
+  }
   function accept(state, target) {
     if (target.list) state.l[target.list][target.i].st = 'confirmed';
     else if (state.f[target.id]) state.f[target.id].st = 'confirmed';
