@@ -74,6 +74,16 @@
     'The reason or instruction that comes with it ("I can\'t afford it at the moment", "revisit in six months", "Valerie must call him on Monday") goes into that area\'s comments box (the _cm id) as a short note in the speaker\'s words, tidied; a decision and its reason in one line are two fills.',
     'The comments boxes hold reasons and instructions only: a fact about what the client has (a policy, a fund, a will) belongs in the boxes of the earlier pages, never in these.',
     '',
+    'More rules from real meetings:',
+    '- A box or column marked "free": true takes any value as said when none of its "options" fits (a bank such as FNB for a provider, a medical scheme that is not in the list): give the name as said. Never use "Other" to hide a name that was said.',
+    '- "off" (when present) lists the boxes, and the lists ("list:<id>"), that are switched off on the form now, for example the quotes of an area the client said was not a priority. Give nothing for them,',
+    '  unless the same reply first sets that area\'s decision box (pr_...) to "Priority: client agrees" because the line says it is a priority.',
+    '- When the words fit more than one option and do not tell them apart ("out of community" fits both "...with accrual" and "...no accrual"), do not pick one: give {"do":"ask","field":"<id>"} so the adviser asks which. Never choose between options the client did not distinguish.',
+    '- A name the client says about themselves is spelled exactly as it is in the CLIENT\'s own line, even when the adviser\'s lines spell it differently: the adviser and the client are on different microphones and the same name is heard in different spellings. Never change the client\'s spelling to match the adviser\'s.',
+    '- A range is not a value: "between 30 and 40", "around 3 or 4" fill nothing. Wait for the figure that is settled ("okay, let\'s say 35").',
+    '- A lone word from the adviser that answers nothing ("Okay", "Chai", "Childcare", "Wow") is noise: give {"actions": []}, and never add it to a text box.',
+    '- "Years in this occupation" (years) takes the length as said ("since February 2022", "about four years", "18 months"): the page works out the number of years.',
+    '',
     'Facts with no box. When the newest line states a fact about the client\'s situation that belongs on the form (an amount, a name, a date, a product, a plan, a reason) but you cannot put it in any box or list column of "fields" and "lists" (there is no such box, or you cannot tell which one),',
     'add it to the reply as {"actions": [...], "unplaced": [{"text": "short point in plain words, the figures as said", "section": "<id of the section it belongs in, if you can tell>"}]} so the adviser can see it. Give one entry per fact.',
     'Never put in "unplaced" small talk, a question, an acknowledgement, a remark about the software, something you already gave as an action, or a value that is already in "filled". Leave "unplaced" out when there is nothing.',
@@ -183,6 +193,7 @@
       var cols = L.cols.map(function (id) {
         var c = idx.byId[id], o = { id: c.k, label: c.label };
         if (c.options) o.options = c.options;
+        if (c.options && c.free) o.free = true;
         if (!share && V.PRIVATE_IDS.indexOf(id) >= 0) o.private = true;
         return o;
       });
@@ -208,6 +219,7 @@
       if (priv(f.id)) o.private = true;
       if (f.none) o.none_box = true;
       if (f.options) o.options = f.options;
+      if (f.options && f.free) o.free = true;
       return o;
     });
     var filled = {};
@@ -231,6 +243,7 @@
       return o;
     });
     if (awaiting.length) body.awaiting_confirmation = awaiting;
+    var off = Object.keys(ctx.hidden || {}); if (off.length) body.off = off;                      // the boxes (and "list:<id>") switched off on the form now: kept out of "fields", which never changes, so it can be remembered
     if (ctx.note) body.note = String(ctx.note);
     if (tPriv) body.position.box_has_value = !!ctx.targetFilled;
     if (sh.list.length) body.private_values = sh.list;
@@ -315,6 +328,7 @@
           return raw != null && vault._line && low(vault._line).indexOf(low(pre[1] + ' ' + raw)) >= 0 && !EMAIL_LEAD.test(pre[1].split(/\s+/).pop()) ? pre[1] + ' ' + raw : null;
         }
         if (/\[(?:N|E)\d+\]|\[number\]|\[email\]/.test(s)) return null;
+        if (id === 'years' && V.yearsValue) return V.yearsValue(s);                                        // "since February 2022" is 4.7 years, not 2022
         if (isPriv(id)) {
           if (/^none$/i.test(s) && idx.byId[id] && idx.byId[id].none) return 'None';
           return /^[\d\s\-+().]{5,}$/.test(s) && vault && vault._sent && vault._sent.indexOf(s) >= 0 ? s : null;     // digits are taken only if they went out in the line as plain text (nothing was hidden): then the model really saw them
@@ -479,19 +493,25 @@
     '- A box of "fields" marked "private" is not here: do not give ID, tax, phone or email values. A line shows [number] or [email] where one was said; ignore those.',
     '- Values: a box with "options" takes exactly one of them (leave it out if none fits); amounts are digits only (85000); dates are YYYY-MM-DD; names are just the name, capitalised; otherwise the client\'s own words, tidied.',
     '- "unplaced": facts about the client\'s situation that belong on the form but fit no box or column at all (or that you cannot place), as {"text":"short point in plain words, figures as said","section":"<section id if you can tell>"}. One entry per fact; leave the list out when there is none.',
+    '- "fields" and "lists" hold only what is showing on the form now. A box or list that is not there is switched off (for example the quotes of an area the client said was not a priority): give nothing for it and do not put it in "unplaced".',
+    '- An offer or suggestion the client did not take up is not a fact: "Valerie can call you" followed by "I don\'t think so" requests nothing. Do not fill a referral, a quote or a request box from what the adviser proposed unless the client agreed to it.',
+    '- Do not report in "unplaced" a fact that a box in "filled" already holds (a priority decision, a request for an analysis, a retirement age). Report each fact once.',
+    '- The "comments" boxes of the Client priorities page (labels ending "comments (the reason, or your instructions)") hold a reason or an instruction in a short sentence, never a fragment: leave them empty unless the reason was clearly given.',
+    '- A box or column marked "free": true takes any value as said when none of its options fits. Use "Other" only when a name was said that is not among the options; when no name was said, leave the box empty. A range ("between 30 and 40") is not a value.',
     '- Be careful rather than generous: a fact you are not sure of goes in "unplaced" (or nowhere), not in a box. When there is nothing to add reply {"actions": []}.'
   ].join('\n');
   /* opts: { idx, transcript: [{who, text}], filled: {id: value}, listRows(key), focus: section id | null, model }. -> the request (nothing private leaves: lines are scrubbed, private boxes are not listed). */
   function sweepRequest(opts) {
     var idx = opts.idx, priv = function (id) { return !share && V.PRIVATE_IDS.indexOf(id) >= 0; };
-    var fields = idx.fields.filter(function (f) { return !f.list && !priv(f.id); }).map(function (f) {
-      var o = { id: f.id, label: f.label, section: f.sec }; if (f.options) o.options = f.options; return o;
+    var hid = opts.hidden || {};
+    var fields = idx.fields.filter(function (f) { return !f.list && !priv(f.id) && !hid[f.id]; }).map(function (f) {
+      var o = { id: f.id, label: f.label, section: f.sec }; if (f.options) o.options = f.options; if (f.options && f.free) o.free = true; return o;
     });
     var filled = {}; Object.keys(opts.filled || {}).forEach(function (id) { if (!priv(id)) filled[id] = scrub(String(opts.filled[id])).slice(0, 160); });
     var body = {
       focus: opts.focus || null,
       sections: idx.sections.map(function (x) { return { id: x.id, title: x.title }; }),
-      fields: fields, filled: filled, lists: listsFor(idx, opts),
+      fields: fields, filled: filled, lists: listsFor(idx, opts).filter(function (l) { return !hid['list:' + l.id]; }),
       notes: opts.notes || {}, listed: (opts.listed || []).slice(0, 40),
       transcript: (opts.transcript || []).map(function (l) { return { who: l.who === 'adviser' || l.who === 'client' ? l.who : 'unclear', text: scrub(l.text).slice(0, 500) }; })
     };
