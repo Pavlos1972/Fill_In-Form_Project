@@ -555,8 +555,8 @@
   /* The summaries on the Client priorities page. Claude is given, for each area, only what the form holds about that one area, and writes a few short points about what the client HAS there.
      opts: { apiKey | ask, model, areas: { id: { area, data: { facts, lists } } }, fetchImpl } -> Promise of { id: [points] } for the areas asked about (an area it did not answer is left out). */
   var SUMMARY_SYSTEM = [
-    'You help a financial adviser who is meeting a client. The Fact Find form has a page of areas (Life, RA, RGAR, Invest, EGAR, Medical Aid, Will, Short Term) where the adviser recommends what the client should do.',
-    'For each area you receive JSON "areas": { "<id>": { "area": "<name>", "data": { "facts": { "<box>": "<value>" }, "lists": { "<list>": [ { "<column>": "<value>" } ] } } } }. The areas are Life, RA, RGAR, Invest, EGAR, Medical Aid, Will, Short Term and Business assurance (for a business owner).',
+    'You help a financial adviser who is meeting a client. The Fact Find form has a page of areas (Personal Risk Covers, which is life cover, disability, dread disease and income protection; RA, RGAR, Invest, EGAR, Medical Aid, Will, Short Term) where the adviser recommends what the client should do.',
+    'For each area you receive JSON "areas": { "<id>": { "area": "<name>", "data": { "facts": { "<box>": "<value>" }, "lists": { "<list>": [ { "<column>": "<value>" } ] } } } }. The areas are Personal Risk Covers, RA, RGAR, Invest, EGAR, Medical Aid, Will, Short Term and Business assurance (for a business owner).',
     'Write a very brief point-form summary of what the client HAS in that area, so the adviser can see at a glance what is in place and what is missing before advising.',
     'Rules:',
     '- Use only the data given for that area. Never mention anything that is not in it and never bring in another area: no income, family, health or marital details unless they are in that area\'s data.',
