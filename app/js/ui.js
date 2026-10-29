@@ -1192,13 +1192,13 @@
     if (msg) { vmNote(id, msg); vmLog('did not fill the ID number: ' + msg); }
     return !!msg;
   }
-  /* The client's own name is spelled as the client said it: Claude changed "Sitamah" (said twice by the client) to "Sithemba", the spelling in the adviser's lines, which come from another microphone.
-     A name Claude gives for the client that is not in the client's line, but is a few letters from a word that is, becomes that word. */
+  /* The name is spelled as it was said in this line: Claude changed "Sitamah" (said twice by the client) to "Sithemba", the spelling in the adviser's lines, which come from another microphone.
+     A name Claude gives that is not in this line, but is a few letters from a word that is, becomes that word (unless the box already holds it: a garbled name put right from the form). */
   function vmOwnSpelling(id, value) {
     var e = vmCur;
-    if ((id !== 'fname' && id !== 'sname') || !e || e.who !== 'client' || e.done || /[\d@]/.test(String(value))) return value;
+    if ((id !== 'fname' && id !== 'sname') || !e || (e.who !== 'client' && e.who !== 'unclear' && e.who !== 'adviser') || e.done || /[\d@]/.test(String(value))) return value;
     var line = String(e.text || '').toLowerCase(), v = String(value).toLowerCase().trim();
-    if (!v || line.indexOf(v) >= 0) return value;
+    if (!v || line.indexOf(v) >= 0 || String(state.f[id].v).toLowerCase() === v) return value;                      // the line has it, or the box already has it (a garbled name put right from the form)
     var best = null, bd = 99;
     line.split(/[^a-z'\-]+/).filter(function (w) { return w.length >= 3 && !/^(?:its|it's|my|name|surname|first|last|and|the|sure|yes|okay|spell|spelled|called|i'm|am|is)$/.test(w); }).forEach(function (w) {
       var d = lev(w, v); if (d < bd) { bd = d; best = w; }
@@ -2093,10 +2093,11 @@
   }
   /* Called for every line heard. who is 'me' (the adviser), 'client', or left out when the source cannot tell and the words decide.
      Lines are put on the form in the order they were said, but each is sent to Claude as soon as it is heard (see "reading several lines at once"). */
-  /* "Paul Kafentzis" on its own (or just the surname): the speech service gives back the names it was told to listen for when the sound is not speech, and in a meeting it filled the client's first name and surname with the adviser's. */
+  /* "Paul Kafentzis" on its own, the whole name: the speech service gives back the names it was told to listen for when the sound is not speech, and in a meeting it filled the client's first name and surname with the adviser's.
+     The surname alone is not ignored (it can be a piece of an email address being said), and nothing is ignored while an address or a number is being collected. */
   function vmOwnNameOnly(text) {
     var n = String(text).toLowerCase().replace(/[^a-z ]+/g, ' ').replace(/\s+/g, ' ').trim(), a = String(schema.advisor || '').toLowerCase().trim();
-    return !!a && (n === a || n === a.split(' ').slice(-1)[0]);
+    return !!a && n === a && !vm.erun && !vm.run;
   }
   function vmHear(text, who, meta) {
     text = String(text == null ? '' : text).trim();

@@ -26,6 +26,10 @@ test('"Since February 2022" is 4.7 years, not the number 2022', () => {
   assert.ok(/^\d+\.\d$/.test(said.actions[0].value), JSON.stringify(said));
 });
 
+test('the adviser\'s name only counts as noise when the whole name is the whole line', () => {
+  assert.strictEqual(schema.advisor, 'Paul Kafentzis');
+});
+
 test('Gap cover can be "Not sure", and a client\'s "I\'m not sure" picks it', () => {
   assert.deepStrictEqual(schema.fieldsById.gap.o, ['Yes', 'No', 'Not sure']);
   const r = V.interpret(idx.byId.gap, "I'm not entirely sure, to be honest");
