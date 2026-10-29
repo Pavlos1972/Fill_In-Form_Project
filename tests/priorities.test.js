@@ -172,7 +172,7 @@ test('Claude\'s points are used only while the area still holds what it held whe
 test('what is sent to Claude for the summaries has labelled boxes only, and no private numbers', () => {
   const s = sample(); store.addRow(s, 'risk', { prov: 'Liberty', notes: 'policy 1234567890 for her' });
   const sent = S.stale(s).life, txt = JSON.stringify(sent);
-  assert.strictEqual(sent.area, 'Life');
+  assert.strictEqual(sent.area, 'Personal Risk Covers');                                      // the heading of the Life area
   assert.ok(!/"has_risk"|"prov"|"cl"/.test(txt) && /Has personal risk cover/.test(txt) && /Credit life with lender/.test(txt));
   let body = null;
   return AI.summarise({ ask: (system, content) => { body = { system, content: JSON.parse(content) }; return Promise.resolve('{"areas":{}}'); }, model: 'm', areas: { life: sent } }).then(() => {
@@ -296,4 +296,9 @@ test('"I need to check my budget" is the other yellow answer, for Life, RA and I
   assert.strictEqual(v('pr_will', 'I need to check my budget'), 'ERR:unsure');                                          // no such choice there: left empty
   assert.strictEqual(v('pr_life', 'I cannot afford it'), NOT); assert.strictEqual(v('pr_life', 'not interested, I need to check my budget'), NOT); assert.strictEqual(v('pr_life', 'I am not sure'), UNSURE);
   assert.match(AI.SYSTEM, /Client needs to check their budget/);
+});
+
+test('the Life area is headed "Personal Risk Covers", with the same words under it', () => {
+  const p = schema.panelsById.life;
+  assert.strictEqual(p.title, 'Personal Risk Covers'); assert.strictEqual(p.sub, 'Life cover, disability, dread disease, income protection'); assert.strictEqual(p.dec, 'pr_life');       // only the heading changed
 });

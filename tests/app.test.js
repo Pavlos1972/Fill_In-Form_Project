@@ -205,7 +205,7 @@ test('the risk calculation boxes start with the agreed defaults', () => {
     pd_f_aci: 'Fixed', pd_f_aciv: '?', pd_ccabi: '5%',
     dd_aci: 'Fixed', dd_aciv: '?', dd_abiv: '3%', dd_cover: 'R 500 000.00', dd_term: 'WOL',
     dds_aci: 'Fixed', dds_aciv: '?', dds_abiv: '3%', dds_cover: 'R 500 000.00', dds_term: 'WOL',
-    ip_aci: 'Fixed', ip_aciv: '?', ip_abiv: '5%', ips_aci: 'Fixed', ips_aciv: '?', ips_abiv: '5%'
+    ip_age: '65', ips_age: '65', ip_aci: 'Fixed', ip_aciv: '?', ip_abiv: '5%', ips_aci: 'Fixed', ips_aciv: '?', ips_abiv: '5%'
   };
   Object.keys(want).forEach(id => { assert.strictEqual(s.f[id].v, want[id], id); assert.strictEqual(s.f[id].st, 'preset', id); });
   Object.keys(want).filter(id => schema.fieldsById[id].t === 'sel').forEach(id => assert.ok(schema.fieldsById[id].o.includes(want[id]), id + ' is not one of its choices'));
