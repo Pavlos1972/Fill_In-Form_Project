@@ -5,7 +5,7 @@
 
   /* Colours taken from the Wealth Revolution logo: its blue (#27A8E0) and grey. DEEP is a darker blue for small text so it stays readable. */
   var ACCENT = [39, 168, 224], DEEP = [18, 118, 168], ACCENT_SOFT = [225, 243, 251], INK = [40, 40, 42], MUTED = [110, 110, 113], LINE = [205, 222, 232], PALE = [243, 249, 252];
-  var GO = [31, 122, 66], STOP = [179, 38, 30], GO_SOFT = [226, 242, 231], STOP_SOFT = [250, 229, 226];            // a priority area that is wanted, and one that is not
+  var GO = [31, 122, 66], STOP = [179, 38, 30], GO_SOFT = [226, 242, 231], STOP_SOFT = [250, 229, 226], MAYBE = [150, 110, 0], MAYBE_SOFT = [253, 243, 205];            // a priority area that is wanted, one that is not, and one the client is thinking about
   var M = 14, W = 210, PAGE_H = 297, CW = W - 2 * M;
 
   /* Standard PDF fonts cannot show every character. Keep to what they can. */
@@ -96,23 +96,41 @@
       }
     }
 
+    /* Income protection (fractured cover): age and insured amount, the instalment protector (a line for each debt with an instalment, then their total), household needs, then the other boxes. */
+    function protectorPdf(b) {
+      var f = {}; b.fields.forEach(function (x) { f[x.id] = x; });
+      var sp = calc.ipSplit(ctx);
+      fieldsTable([f.ip_age, f.ip_amt]);
+      var body = sp.rows.map(function (r) { return [t(r.label + (r.prov ? ' (' + r.prov + ')' : '')), { content: t(util.money(r.inst) + ' p.m.'), styles: { halign: 'right' } }]; });
+      body.push([{ content: 'Total instalments', styles: { fontStyle: 'bold' } }, { content: t(util.money(sp.total) + ' p.m.'), styles: { halign: 'right', fontStyle: 'bold' } }]);
+      ensure(Math.min(body.length * 7 + 12, 60));
+      table({ head: [[{ content: 'Instalment Protector' }, { content: 'Instalment (R p.m.)', styles: { halign: 'right' } }]], body: sp.rows.length ? body : [[{ content: 'No debt with an instalment recorded.', colSpan: 2, styles: { textColor: MUTED, fontStyle: 'italic' } }]], columnStyles: { 0: { cellWidth: CW - 50 }, 1: { cellWidth: 50 } } });
+      fieldsTable([f.ip_hh]);
+      fieldsTable(b.fields.filter(function (x) { return !/^ip_(?:age|amt|hh)$/.test(x.id); }));
+    }
     function blockPdf(b, sec) {
+      if (b.part) {                                                                  // "Fractured Covers", "Standard Quotes"
+        ensure(40);
+        doc.setFillColor.apply(doc, ACCENT_SOFT); doc.rect(M, y, CW, 7, 'F');
+        doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor.apply(doc, DEEP); doc.text(t(b.part), M + 2.5, y + 4.9);
+        y += 10; return;
+      }
       if (!calc.showIf(b.cond, ctx)) { if (b.pdfMsg && b.condMsg && !calc.showIf('own' in b ? b.own : b.cond, ctx)) { if (b.title) blockTitle(b.title); table({ body: [[{ content: t(b.condMsg), styles: { fontStyle: 'italic', textColor: MUTED } }]] }); } return; }    // a block that does not apply says so when it asks to
       if (b.fields && b.fields.length && b.fields.every(function (f) { return f.nopdf; })) return;     // a block of boxes that are left off the PDF has no heading either
       if (b.title) blockTitle(b.title);
-      if (b.fields) fieldsTable(b.fields);
+      if (b.protector) protectorPdf(b); else if (b.fields) fieldsTable(b.fields);
       if (b.list) { if (!b.title && schema.lists[b.list].title !== sec.title) blockTitle(schema.lists[b.list].title); listBlock(b.list); }
     }
     /* One area of the Client priorities page: its name and the client's decision, what the client has (the summary), the decision and comments, then its quotes and referrals. */
     function panelPdf(sec, id) {
       var P = schema.panelsById[id];
       if (!calc.showIf(P.cond, ctx)) return;                                         // business assurance when the client has no business
-      var v = P.dec ? state.f[P.dec].v : '', on = v === schema.PRIORITY, off = v === schema.NOT_PRIORITY;
+      var v = P.dec ? state.f[P.dec].v : '', on = v === schema.PRIORITY, off = v === schema.NOT_PRIORITY, maybe = v === schema.UNSURE || v === schema.BUDGET;
       ensure(46);
-      doc.setFillColor.apply(doc, on ? GO_SOFT : off ? STOP_SOFT : PALE); doc.rect(M, y, CW, 7, 'F');
-      doc.setDrawColor.apply(doc, on ? GO : off ? STOP : LINE); doc.setLineWidth(0.4); doc.line(M, y + 7, M + CW, y + 7);
+      doc.setFillColor.apply(doc, on ? GO_SOFT : off ? STOP_SOFT : maybe ? MAYBE_SOFT : PALE); doc.rect(M, y, CW, 7, 'F');
+      doc.setDrawColor.apply(doc, on ? GO : off ? STOP : maybe ? MAYBE : LINE); doc.setLineWidth(0.4); doc.line(M, y + 7, M + CW, y + 7);
       doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor.apply(doc, INK); doc.text(t(P.title), M + 2.5, y + 4.9);
-      if (P.dec) { doc.setFontSize(8.5); doc.setTextColor.apply(doc, on ? GO : off ? STOP : MUTED); doc.text(t(v || 'Not yet discussed'), M + CW - 2.5, y + 4.9, { align: 'right' }); }
+      if (P.dec) { doc.setFontSize(8.5); doc.setTextColor.apply(doc, on ? GO : off ? STOP : maybe ? MAYBE : MUTED); doc.text(t(v || 'Not yet discussed'), M + CW - 2.5, y + 4.9, { align: 'right' }); }
       y += 10;
       if (P.sum) {
         var lines = FF.summary.linesFor(state, id).lines;

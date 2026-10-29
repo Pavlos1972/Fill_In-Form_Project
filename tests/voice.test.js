@@ -469,7 +469,7 @@ const briefL = p => p.actions.map(a => a.do + (a.list ? '(' + a.list + ')' : '')
 const thandi = { rows: { kids: [{ name: 'Thandi' }] }, curRow: { kids: 0 } };
 
 test('the lists are in the voice index, and a partner\'s ID and cell number are private', () => {
-  assert.deepStrictEqual(Object.keys(idx.lists).sort(), ['debts', 'grp', 'inv', 'invq', 'kids', 'raq', 'redq', 'ret', 'risk', 'shares']);
+  assert.deepStrictEqual(Object.keys(idx.lists).sort(), ['bizpol', 'debts', 'grp', 'inv', 'invq', 'kids', 'raq', 'redq', 'ret_pp', 'ret_ra', 'risk', 'shares']);
   assert.ok(idx.byId['kids.dob'].date && idx.byId['debts.bal'].money && idx.byId['risk.prov'].options);
   assert.ok(V.PRIVATE_IDS.includes('shares.id') && V.PRIVATE_IDS.includes('shares.cell'));
   assert.ok(!idx.byId['kids.cost'].none);
@@ -537,7 +537,7 @@ test('two items in one breath become two rows', () => {
 });
 test('retirement funds, policies and children work the same way', () => {
   assert.strictEqual(briefL(planL('I have a life policy with Discovery paying R900 a month', { cur: 'cover' })), 'addrow(risk) fill:risk:0:prov=Discovery fill:risk:0:spend=R 900.00 ask:risk:0:broker');
-  assert.strictEqual(briefL(planL('I have a retirement annuity with Allan Gray', { cur: 'cover' })), 'addrow(ret) fill:ret:0:type=Retirement annuity fill:ret:0:prov=Allan Gray ask:ret:0:val');
+  assert.strictEqual(briefL(planL('I have a retirement annuity with Allan Gray', { cur: 'cover' })), 'addrow(ret_ra) fill:ret_ra:0:prov=Allan Gray ask:ret_ra:0:val');
   assert.strictEqual(briefL(planL('we have a daughter called Thandi, born 22 August 2019', { cur: 'kids' })).replace(/ask:\S+/g, '').replace(/\s+/g, ' ').trim(), 'addrow(kids) fill:kids:0:gender=Female fill:kids:0:name=Thandi fill:kids:0:dob=22/08/2019');
 });
 test('"yes, a home loan with ABSA" answers "do you have any debts?" and fills the row', () => {

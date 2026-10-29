@@ -56,6 +56,8 @@
       var t = calc.DUTY_IDS.reduce(function (a, id) { return a + ctx.n(id); }, 0);
       if (Math.abs(t - 100) > 0.001) warn('d_tot', 'The duties split adds to ' + t + '%. It must be 100%.');
     }
+    var ip = calc.ipSplit(ctx);                                                                  // the instalments protected for the bank cannot be more than the income protection insured amount
+    if (ip.over) warn('ip_hh', 'The debt instalments (' + util.money(ip.total) + ' p.m.) are more than the Insured amount (' + util.money(ip.insured) + ' p.m.) by ' + util.money(ip.total - ip.insured) + '. Household needs cannot be less than nothing: check the instalments on the Debts page.');
     if (v('biz_pct') !== '' && (ctx.n('biz_pct') < 0 || ctx.n('biz_pct') > 100)) warn('biz_pct', 'A shareholding must be between 0 and 100.');
 
     /* An ID number can be on the form once. Every box that repeats one says where the other is. */
