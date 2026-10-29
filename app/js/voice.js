@@ -300,6 +300,8 @@
     pr_med_cm: ['medical aid comments', 'medical comments', 'reason for medical aid', 'medical aid instructions'],
     pr_will_cm: ['will comments', 'reason for the will', 'will instructions'],
     pr_st_cm: ['short term comments', 'reason for short term', 'short term instructions'],
+    pref_spend: ['preferred monthly spend', 'preferred spend', 'monthly spend', 'premium spend', 'what are you comfortable spending', 'comfortable spending', 'how much would you like to spend', 'how much do you want to spend', 'what would you like to spend', 'budget for life cover', 'spend on a life policy', 'spend on life cover', 'spend we should work on'],
+    next_appt: ['next appointment', 'next meeting', 'follow up meeting', 'follow up appointment', 'next appointment date', 'when can we meet again', 'when shall we meet again', 'see you again on', 'come back to you on', 'come back to you with my recommendations', 'date of our next meeting'],
     marr_date: ['date of marriage', 'marriage date', 'wedding date', 'date of your wedding', 'wedding day', 'when did you get married', 'when were you married', 'when did you marry', 'married on', 'got married on', 'were married on', 'married since', 'wedding anniversary'],
     will_date: ['last updated', 'when last', 'when was it updated', 'last update'],
     sti: ['short term', 'short term insurance', 'car insurance', 'household insurance'],
@@ -324,7 +326,7 @@
   var NAME_PARTS = { van: 1, der: 1, den: 1, de: 1, du: 1, le: 1, la: 1, von: 1, bin: 1, al: 1 };
   var COMPANY_IDS = ['employer', 'biz_name', 'cl_lender'];
   var OCC_IDS = ['occ', 'sp_occ', 'km_role'];
-  var DATE_IDS = ['dob', 'will_date', 'marr_date'];
+  var DATE_IDS = ['dob', 'will_date', 'marr_date', 'next_appt'];
   var APPROX_DATE_IDS = ['will_date', 'marr_date'];                         // boxes where "in 2023" or "about two years ago" is a good enough answer
   /* "2023", "in 2023", "about two years ago", "last year", "six months ago" -> the year, as text; null when it is not a loose date. */
   function looseYear(raw, now) {
@@ -339,6 +341,23 @@
       if (n != null && n >= 0 && n <= 80) return String(/^month/.test(m[2]) ? new Date(y, (now || new Date()).getMonth() - n, 1).getFullYear() : y - n);
     }
     return null;
+  }
+  /* "Since February 2022", "since 2019", "about four years", "18 months", "four and a half years": the length as a number of years (one decimal), worked out from today; the words as they were when no length can be read. */
+  function yearsValue(raw, now) {
+    var t = ' ' + norm(raw) + ' ', d = now || new Date(), m, n, mon, months;
+    if (/^\s*\d+(?:\.\d+)?\s*$/.test(String(raw))) return String(raw).trim();
+    if ((m = /\b(?:since|from|started(?: in)?|joined(?: in)?|there since|here since)\s+(?:(?:the\s+)?(?:start|beginning)\s+of\s+|(?:in\s+)?)?(?:([a-z]+)\s+)?((?:19|20)\d\d)\b/.exec(t))) {
+      mon = m[1] ? monthOf(m[1]) : 0;
+      months = (d.getFullYear() - +m[2]) * 12 + (mon ? d.getMonth() + 1 - mon : 0);
+      return months >= 0 && months <= 80 * 12 ? String(Math.round(months / 12 * 10) / 10) : String(raw);
+    }
+    if ((m = / (\d+|[a-z]+) and a half years? /.exec(t))) { n = /^\d/.test(m[1]) ? parseFloat(m[1]) : wordsToNumber(m[1]); return n == null || isNaN(n) ? String(raw) : String(n + 0.5); }
+    if ((m = / ((?:\d+(?:\.\d+)?)|[a-z]+(?: [a-z]+)?) (years?|months?) /.exec(t))) {
+      n = /^\d/.test(m[1]) ? parseFloat(m[1]) : wordsToNumber(m[1]);
+      if (n == null || isNaN(n)) return String(raw);
+      return String(Math.round((/^month/.test(m[2]) ? n / 12 : n) * 10) / 10);
+    }
+    return String(raw);
   }
   var PHONE_IDS = ['cell', 'work', 'home', 'sp_tel'];
   var EMAIL_IDS = ['pemail', 'wemail'];
@@ -390,7 +409,7 @@
             var ne = { id: f.id, label: f.l, sec: sec.id, blk: bi, blkTitle: b.title || '', cond: b.cond, secCond: sec.cond, t: 'area', options: null, notes: true, lt: [] };
             notes.push(ne); noteById[f.id] = ne; return;
           }
-          if (f.calc || f.opt || (f.preset && !f.voice)) return;
+          if (f.calc || (f.opt && !f.voice) || (f.preset && !f.voice)) return;
           var e = { id: f.id, label: f.l, sec: sec.id, blk: bi, blkTitle: b.title || '', cond: f.cond ? (b.cond ? { all: [b.cond, f.cond] } : f.cond) : b.cond, secCond: sec.cond, t: f.t === 'area' ? 'area' : (f.o ? 'sel' : 'txt'), options: f.o || null, free: !!f.free, money: !!f.money, none: !!f.none, lt: content(String(f.l).replace(/\([^)]*\)/g, ' ')), lx: bracketWords(f.l), bt: content(b.title || ''), order: fields.length };
           fields.push(e); byId[f.id] = e;
         });
@@ -828,6 +847,8 @@
       return p == null ? { error: 'no-number' } : { value: String(Math.round(p * 10) / 10), status: 'heard' };
     }
     if (id === 'years') {
+      var yv = yearsValue(raw);
+      if (/^\d+(?:\.\d+)?$/.test(yv) && !/^\s*\d+(?:\.\d+)?\s*$/.test(String(raw))) return { value: yv, status: 'heard' };      // "since February 2022", "18 months", "about four years"
       var y = wordsToNumber(raw);
       if (y == null) return { error: 'no-number' };
       if (/month/.test(t) && !/year/.test(t)) y = Math.round(y / 12 * 10) / 10;
@@ -1240,6 +1261,6 @@
   return {
     norm: norm, wordsToNumber: wordsToNumber, spokenDigits: spokenDigits, spokenDate: spokenDate, spokenEmail: spokenEmail, yesNo: yesNo,
     buildIndex: buildIndex, parseCommand: parseCommand, wipeAnswer: wipeAnswer, looksLikeQuestion: looksLikeQuestion, isChatter: isChatter, plan: plan, pointForm: pointForm, LIST_NOUNS: LIST_NOUNS, matchQuestion: matchQuestion, interpret: interpret, titleCase: titleCase,
-    isConfirm: isConfirm, answerFor: answerFor, clauses: clauses, PRIVATE_IDS: PRIVATE_IDS
+    isConfirm: isConfirm, answerFor: answerFor, clauses: clauses, PRIVATE_IDS: PRIVATE_IDS, yearsValue: yearsValue
   };
 });

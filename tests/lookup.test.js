@@ -127,3 +127,15 @@ test('the look-up model defaults to Sonnet (Opus used up a month of credit); an 
     assert.strictEqual(L.getSettings().model, 'claude-opus-5-5');
   } finally { delete global.localStorage; }
 });
+
+test('only the answer after the last search is kept, not what the model said to itself between searches', () => {
+  const resp = { content: [
+    { type: 'text', text: "That's Australian. Try South Africa once more." },
+    { type: 'server_tool_use', name: 'web_search', input: {} },
+    { type: 'web_search_tool_result', content: [] },
+    { type: 'text', text: 'Wealth Revolution is a financial planning firm.' },
+    { type: 'text', text: ' It advises on risk cover.' }
+  ] };
+  assert.strictEqual(L.extractText(resp), 'Wealth Revolution is a financial planning firm. It advises on risk cover.');
+  assert.strictEqual(L.extractText({ content: [{ type: 'text', text: 'A public school.' }] }), 'A public school.');
+});

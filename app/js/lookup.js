@@ -105,9 +105,12 @@
       messages: messages || [{ role: 'user', content: promptFor(name, kind, extra) }]
     };
   }
-  /* Only the model's own words: skip search calls, search results and thinking. */
+  /* Only the model's own words, and only its answer: search calls, search results and thinking are skipped, and so is what it said to itself between searches ("That's Australian. Try South Africa once more."
+     was written into a company's description in a meeting). The answer is the text after the last search. */
   function extractText(resp) {
-    return (resp.content || []).filter(function (b) { return b.type === 'text'; }).map(function (b) { return b.text; }).join(' ').replace(/\s+/g, ' ').trim();
+    var out = [];
+    (resp.content || []).forEach(function (b) { if (b.type === 'text') out.push(b.text); else if (b.type === 'server_tool_use' || b.type === 'web_search_tool_result' || b.type === 'tool_use') out = []; });
+    return out.join(' ').replace(/\s+/g, ' ').trim();
   }
   function friendlyError(status, body) {
     var msg = body && body.error && body.error.message ? body.error.message : '';
