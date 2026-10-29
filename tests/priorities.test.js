@@ -174,6 +174,16 @@ test('what is sent to Claude for the summaries has labelled boxes only, and no p
   });
 });
 
+test('an area with nothing recorded sends nothing to claim "none" from, and the prompt forbids claiming absence from a missing box', () => {
+  const e = fresh(), sent = S.stale(e).life;
+  assert.deepStrictEqual(sent.data, { facts: {}, lists: {} });                                  // empty lists are left out
+  set(e, 'has_risk', 'No'); assert.deepStrictEqual(S.stale(e).life.data, { facts: { 'Has personal risk cover': 'No' }, lists: {} });
+  store.addRow(e, 'ret', { type: 'Retirement annuity', prov: 'Allan Gray' });
+  assert.deepStrictEqual(Object.keys(S.stale(e).ra.data.lists), ['Retirement funding']);
+  assert.match(AI.SUMMARY_SYSTEM, /never write "No \.\.\. in place" or "none recorded" because something is missing/);
+  assert.match(AI.SUMMARY_SYSTEM, /"Nothing recorded yet"/);
+});
+
 test('Claude\'s reply for the summaries: points are tidied, areas not asked for and empty answers are dropped', async () => {
   const areas = { life: { area: 'Life', data: { facts: {}, lists: {} } }, ra: { area: 'RA', data: { facts: {}, lists: {} } }, will: { area: 'Will', data: { facts: {}, lists: {} } } };
   const reply = '```json\n{"areas": {"life": ["- No personal risk cover", "  No group risk  ", "", 7], "ra": [], "st": ["not asked"]}}\n```';

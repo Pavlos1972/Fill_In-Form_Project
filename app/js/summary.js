@@ -37,12 +37,13 @@
     });
     return out;
   }
-  /* The same, with the boxes named by their labels, as it is sent to Claude. */
+  /* The same, with the boxes named by their labels, as it is sent to Claude (lists with no rows are left out). */
   function labelled(data) {
     var out = { facts: {}, lists: {} };
     Object.keys(data.fields).forEach(function (id) { out.facts[schema.fieldsById[id].l.replace(/^[^:]*: /, '')] = data.fields[id]; });
     Object.keys(data.lists).forEach(function (key) {
       var L = schema.lists[key];
+      if (!data.lists[key].length) return;                                         // a list with no rows is not mentioned: nothing asked yet is not the same as none
       out.lists[L.title] = data.lists[key].map(function (r) { var o = {}; Object.keys(r).forEach(function (k) { o[L.cols.filter(function (c) { return c.k === k; })[0].l] = r[k]; }); return o; });
     });
     return out;
