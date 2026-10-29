@@ -104,6 +104,7 @@
         return { d: d, st: r.st || 'confirmed' };
       });
     });
+    splitRetirement(s, j);
     s.sum = cleanSum(j.sum);
     legacyNotes(s, j);
     s.unplaced = (Array.isArray(j.unplaced) ? j.unplaced : []).map(cleanUnplaced).filter(Boolean).slice(0, 60);
@@ -111,6 +112,16 @@
     tidyAmounts(s);
     tidyDates(s);
     return s;
+  }
+  /* Files saved when retirement annuities, pension funds and provident funds were one list ("ret"): each fund goes into the list of its own kind (a fund with no type is taken as a retirement annuity). */
+  function splitRetirement(s, j) {
+    var old = j.l && j.l.ret;
+    if (!Array.isArray(old) || (j.l.ret_ra || j.l.ret_pp)) return;
+    old.forEach(function (r) {
+      var d = r && r.d || {}, k = /pension|provident/i.test(d.type || '') ? 'ret_pp' : 'ret_ra', n = {};
+      schema.lists[k].cols.forEach(function (c) { n[c.k] = d[c.k] || ''; });
+      if (Object.keys(n).some(function (x) { return n[x]; })) s.l[k].push({ d: n, st: r.st || 'confirmed' });
+    });
   }
   /* The notes boxes of the old advisor pages (quotes, referrals, buy & sell) are now one notes box on the Client priorities page (the Risk calculation page keeps its own): what was written in them is kept there, each under its old heading. */
   var LEGACY_NOTES = [['n_q_risk', 'Personal risk quotes'], ['n_q_ret', 'Retirement & investment quotes'], ['n_ref', 'Referrals'], ['n_bs', 'Buy & Sell']];

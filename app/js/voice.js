@@ -215,11 +215,22 @@
     'grp.prov': ['which insurer', 'who is the group policy with', 'group policy provider', 'who administers the group cover', 'group administrator'],
     'grp.spend': ['group premium', 'group risk premium', 'how much is the group risk', 'what does the group cover cost', 'what does your employer pay for group risk'],
     'grp.broker': ['group broker', 'who is the group broker', 'who looks after the group cover'],
-    'ret.type': ['type of fund', 'kind of fund', 'pension or provident'],
-    'ret.prov': ['fund administrator', 'administrator', 'who is the fund with'],
-    'ret.val': ['fund value', 'value of the fund', 'how much is in the fund'],
-    'ret.contrib': ['contribution', 'monthly contribution', 'how much do you contribute', 'contribute'],
-    'ret.broker': ['broker on record', 'who is your broker', 'broker'],
+    'ret_ra.prov': ['retirement annuity provider', 'who is the retirement annuity with', 'who is the ra with', 'ra provider', 'ra administrator', 'who is the retirement annuity administrator'],
+    'ret_ra.val': ['retirement annuity value', 'value of the retirement annuity', 'value of the ra', 'ra value', 'how much is in the ra', 'how much is in the retirement annuity'],
+    'ret_ra.contrib': ['ra contribution', 'retirement annuity contribution', 'how much do you put into the ra', 'how much do you contribute to the ra', 'monthly contribution', 'contribution', 'how much do you contribute', 'contribute'],
+    'ret_ra.broker': ['broker on record', 'who is your broker', 'broker'],
+    'ret_pp.type': ['type of fund', 'kind of fund', 'pension or provident'],
+    'ret_pp.prov': ['fund administrator', 'administrator', 'who is the fund with', 'pension fund provider', 'provident fund provider'],
+    'ret_pp.val': ['fund value', 'value of the fund', 'how much is in the fund', 'pension value', 'provident value'],
+    'ret_pp.contrib': ['pension contribution', 'provident contribution', 'fund contribution', 'monthly contribution', 'contribution', 'how much do you contribute', 'contribute'],
+    'ret_pp.broker': ['broker on record', 'who is your broker', 'broker'],
+    'bizpol.type': ['type of business policy', 'what kind of business policy', 'type of business assurance', 'is it buy and sell or keyman', 'what type of policy is it'],
+    'bizpol.prov': ['who is the business policy with', 'business policy insurer', 'business assurance insurer', 'who is the keyman policy with', 'who is the buy and sell with', 'which insurer'],
+    'bizpol.cover': ['cover amount', 'how much is the business cover', 'how much cover on the business policy', 'how much is the keyman cover', 'sum assured', 'business cover amount'],
+    'bizpol.prem': ['monthly premium', 'how much is the premium', 'what is the premium', 'how much do you pay'],
+    'bizpol.paid': ['who pays the premium', 'who pays the business policy', 'is the premium paid by the business', 'premium paid by'],
+    'bizpol.broker': ['broker on record', 'who is your broker', 'broker'],
+    biz_assur: ['business assurance', 'do you have business assurance', 'any business assurance', 'business insurance', 'any policies on the business', 'cover on the business', 'policies in the business'],
     'inv.type': ['type of investment', 'kind of investment'],
     'inv.prov': ['who is the investment with', 'investment provider'],
     'inv.val': ['current value', 'how much is it worth', 'worth now'],
@@ -380,7 +391,9 @@
     debts: ['debt', 'debts', 'loan', 'loans', 'bond', 'bonds', 'mortgage', 'home loan', 'credit card', 'vehicle finance', 'car finance', 'car loan', 'overdraft', 'liability', 'liabilities', 'finance'],
     grp: ['group policy', 'group policies', 'group risk policy', 'group risk policies', 'group cover policy', 'group life policy', 'group risk cover policy'],
     risk: ['policy', 'policies', 'risk policy', 'risk policies', 'life policy', 'life policies', 'existing cover', 'existing policy', 'existing policies'],
-    ret: ['retirement fund', 'retirement funds', 'pension', 'pensions', 'pension fund', 'provident', 'provident fund', 'retirement annuity', 'retirement annuities', 'retirement product'],
+    ret_ra: ['retirement annuity', 'retirement annuities', 'ra', 'retirement product', 'retirement products'],
+    ret_pp: ['pension fund', 'pension funds', 'provident fund', 'provident funds', 'pension', 'pensions', 'provident', 'retirement fund', 'retirement funds'],
+    bizpol: ['business policy', 'business policies', 'business assurance policy', 'business assurance policies', 'business assurance', 'business cover', 'keyman policy', 'key man policy', 'keyman cover', 'key man cover', 'buy and sell policy', 'buy and sell cover', 'contingent liability policy', 'contingent liability cover'],
     inv: ['investment', 'investments', 'unit trust', 'unit trusts', 'tax free', 'tax free investment', 'endowment', 'endowments'],
     shares: ['partner', 'partners', 'shareholder', 'shareholders', 'co owner', 'co owners', 'co director', 'co directors'],
     redq: ['reduced quote', 'reduced quotes'],
@@ -437,18 +450,78 @@
   /* ---------- what the advisor says: commands ---------- */
   var NAV_RE = /\b(?:go to|go back to|jump to|move on to|move to|switch to|take me to|show me|open up|open|lets (?:do|deal with|look at|go to|move to|talk about|discuss|start with|begin with|have a look at|move on to)|let us (?:do|deal with|look at|go to|talk about)|i want to (?:deal with|do|look at|go to|talk about|discuss|move to|move on to)|i would like to (?:deal with|do|look at|go to|talk about|discuss)|i'?d like to (?:deal with|do|look at|go to|talk about|discuss)|we(?:'ll| will| are going to| can| should) (?:deal with|do|look at|go to|talk about|discuss|move to|move on to)|moving on to|move onto|on to|onto|turn to|next up(?: is)?|now for|now the)\b/;
 
-  function sectionIn(textNorm, idx) {
+  function sectionHit(textNorm, idx) {
     var best = null, bl = 0;
     idx.sections.forEach(function (s) {
       (SECTION_WORDS[s.id] || []).concat([s.title]).forEach(function (w) {
         var wn = norm(w);
-        if (wn && has(textNorm, wn) && wn.length > bl) { best = s.id; bl = wn.length; }
+        if (wn && has(textNorm, wn) && wn.length > bl) { best = { id: s.id, word: wn }; bl = wn.length; }
       });
     });
     return best;
   }
+  function sectionIn(textNorm, idx) { var h = sectionHit(textNorm, idx); return h ? h.id : null; }
+  /* Words that name only one part of a page that holds several topics (the will, on the page of medical aid, will and short-term insurance): finishing that part does not finish the page. */
+  var PARTIAL_WORDS = {
+    other: ['medical aid', 'medical', 'gap cover', 'will', 'wills', 'short term insurance', 'short term', 'insurance'],
+    cover: ['personal risk cover', 'group risk cover', 'group risk', 'group cover', 'existing policies'],
+    retire: ['pension and provident', 'pension fund', 'provident fund', 'retirement annuities'],
+    info: ['contact details', 'the client'],
+    prio: ['personal risk quotes', 'risk quotes', 'retirement and investment quotes', 'retirement quotes', 'investment quotes', 'referrals', 'business assurance', 'buy and sell', 'buy and sell agreement', 'key man', 'keyman', 'contingent liability']
+  };
+  function isPartial(hit) { return !!hit && (PARTIAL_WORDS[hit.id] || []).indexOf(hit.word) >= 0; }
   function isSectionName(textNorm, idx) {
     return idx.sections.some(function (s) { return (SECTION_WORDS[s.id] || []).concat([s.title]).some(function (w) { return norm(w) === textNorm; }); });
+  }
+
+  /* ---------- a section is finished ----------
+     The adviser says so ("that concludes the debts", "we're done with income", "that's the health questions done"), or asks whether there is more ("do you have any more debts?", "anything else?")
+     and the client declines ("no", "no, that's all", "nothing else"): that "no" answers the question about MORE, it is not small talk and not an answer to a box.
+     -> { sec, list, via: 'said' | 'declined' } or null. sec is the section that is finished (null when only one list of a section with several is: "no more personal policies" leaves the group policies still to ask). */
+  var WRAP_FILL = /^(?:(?:okay|ok|right|so|alright|all right|now|well|good|great|perfect|lovely|excellent|fine|thanks|thank you|then|and|yes|yeah|ja|um+|uh+|oh|i think|i believe|i guess|i reckon)[,.\s]+)+/;
+  var SEC_NOUN = '(?:section|part|page|topic|bit|area|chapter|questions?)';
+  var WRAP_SAID = [
+    /^(?:that|this|we|i|it)(?: is| has| have| are| was|'s|'ve|'re|'m| am)? ?(?:now |just |all |also |successfully )*(?:concluded|concludes?|completed|completes?|complete|finished|finishes|finish|wrapped up|wrap up|wraps up|rounded off|round off|rounds off|closed off|close off|done with|done on|through with|covered|that covers|covers) ?(?:with |on |for |off )?(.*)$/,
+    /^(?:(?:that|this) ?(?:is |was )?)?((?:the |our |your |that |this )?[a-z ]+?) (?:section |part |page |questions |bit |topic )?(?:is |are |was |now )*(?:all )?(?:done|complete|completed|finished|sorted|wrapped up|covered|over)(?: now| then| for now| thanks)?$/,
+    /^(?:we|i)(?: are|'re| am|'m)? (?:all |now |just )?(?:done|finished|through) here(?: now| for now)?$/,
+    /^(?:that|this)(?: is|'s)? (?:all|it|everything|the lot|about it) (?:for|on|about|with|in) (.+)$/,
+    /^(?:that|this)(?: is|'s| was)? (?:all|everything) i (?:needed|wanted|had|have) (?:for|on|about|in) (.+)$/,
+    /^(?:lets|let us|we can|we will|we'll|we should|time to|ready to|shall we) (?:wrap up|finish|conclude|close|end|wrap|round off)(?: off| up)? (.+)$/,
+    /^(?:there is|there's|i have) (?:nothing|no more|no further|no other)(?: questions?)? (?:more |else |left )?(?:for|on|about|in) (.+)$/
+  ];
+  var MORE_LIST = /\b(?:any|are there any|is there any|do you have any|have you got any|got any|do you have)\s+(?:more|other|others|another|further|additional)\b|\bany (?:more|other|others)\b|\banother one\b/;
+  var CLOSE_ANY = /\banything else\b|\bis that (?:all|everything|it|the lot)\b|\bthat (?:all|everything)\s*$|\bhave we (?:got|covered|missed)\b|\banything (?:i|we) (?:missed|have missed|forgot|left out)\b|\banything (?:more|further) to\b|\bis there anything\b|\bany(?:thing)? (?:more|else) (?:to|that|you)\b|\bany (?:more|other|further) questions\b/;
+  var DECLINE = /^(?:(?:okay|ok|ja|yes|yeah|oh|well|um+|uh+|sorry|hmm+|no|nope|nah)[,.\s]+)*(?:no|nope|nah|none|nothing|not really|not at the moment|not right now|not that i know of|not that i can think of|no more|no other|no others|nothing else|nothing more|there is no more|there is nothing else|there is nothing more|there are no more|there are none|i have no more|i have none|i do not have any(?: more| other)?|i don't have any(?: more| other)?|we do not have any(?: more| other)?|we don't have any(?: more| other)?|that(?: is)? all|that(?: is)? it|that(?: is)? everything|that(?: is)? the lot|that should be all|that will be all|that(?: is)? the only one|that(?: is)? the only ones|those are the only ones|those are all|just the one|just those|just that one|just these|only the one|only those|i think that(?: is)? (?:all|it|everything|the lot)|i think that should be all)(?:\s+(?:more|else|other|others|at the moment|right now|for now|thanks|thank you|sorry|really|i think|at all|anymore|any more|that i know of))*[.,!\s]*$/;
+  function wrapTarget(x, idx, cur, raw) {
+    if (new RegExp('\\b(?:this|that|the current|current)\\s+' + SEC_NOUN + '\\b|\\bhere\\b').test(raw)) return cur ? { id: cur, word: '' } : null;           // "this section", "we are done here"
+    x = String(x || '').replace(new RegExp('\\b' + SEC_NOUN + '\\b', 'g'), ' ').replace(/\b(?:the|our|your|of|on|for|with|about|a|an|now|then|so far|please|okay|ok|thanks|thank you|for now)\b/g, ' ').replace(/\s+/g, ' ').trim();
+    return x ? sectionHit(x, idx) : null;
+  }
+  function wrapUp(text, idx, o) {
+    o = o || {};
+    var raw = norm(text).replace(WRAP_FILL, ''), words = raw ? raw.split(' ').length : 0, m, i, sec;
+    if (!raw || words > 16 || /\?\s*$/.test(String(text).trim()) || NOTE_WORD.test(raw) || /\d/.test(raw)) return null;
+    for (i = 0; i < WRAP_SAID.length; i++) {
+      if (!(m = WRAP_SAID[i].exec(raw))) continue;
+      if (/^(?:what|who|where|when|why|how|which|do|did|does|can|could|would|will|shall|are|is)\b/.test(raw)) return null;
+      if (i === 1 && !/^(?:that|this|the|our|your)\b/.test(raw) && !isSectionName(String(m[1]).trim(), idx)) continue;       // "my debts are all done" is the client talking about their own debts
+      sec = wrapTarget(m[1], idx, o.cur, raw);
+      if (sec) return isPartial(sec) ? { sec: null, list: null, part: sec.id, via: 'said' } : { sec: sec.id, list: null, via: 'said' };
+    }
+    if (o.prev && DECLINE.test(raw) && words <= 10) {
+      var pn = norm(o.prev), more = MORE_LIST.test(pn), generic = CLOSE_ANY.test(pn);
+      if (!more && !generic) return null;
+      var hit = matchQuestion(o.prev, idx, { cur: o.cur }), named = Object.keys(listsNamed(pn))[0] || null;
+      if (hit && hit.score >= 4 && !idx.byId[hit.id].list) return null;                       // "any other health issues?" is about a box that exists: its answer is that box's
+      if (!named && !generic) return null;                                                      // "any other dependants?" with no list of its own: the answer belongs to a box, not to the end of a section
+      var sh = !named ? sectionHit(pn, idx) : null;
+      if (sh && isPartial(sh)) return { sec: null, list: null, part: sh.id, via: 'declined' };
+      var lsec = named && idx.lists[named] ? idx.lists[named].sec : (sh ? sh.id : o.cur || null);
+      var one = lsec && Object.keys(idx.lists).filter(function (k) { return idx.lists[k].sec === lsec; }).length === 1 && !idx.fields.some(function (f) { return f.sec === lsec && !f.list; });
+      if (named && !one) return { sec: null, list: named, via: 'declined' };                    // one list of several: that list has no more, the section is not over
+      return lsec ? { sec: lsec, list: named, via: 'declined' } : null;
+    }
+    return null;
   }
 
   /* "let me take some notes", "note that down", "I'll make a note": the glow moves to the section's notes box and what follows is noted in point form. */
@@ -458,14 +531,28 @@
   var NEXT_ON = /^(?:(?:okay|ok|right|so|alright|now|well|please|and)\s+)*(?:(?:lets|let us|we can|we should|we could|time to)\s+)?(?:move on|carry on)(?:\s+(?:then|now|please))?$/;
   var ADD_ROW = /\b(?:add|another|one more|a new|new|next|additional|a second|a third|the other)\b/;
   var NOTES_OFF = /^(?:that(?:'s|s| is)? all (?:for|the) (?:the )?notes|that(?:'s|s| is)? it for the notes|end (?:of )?(?:the )?notes|stop (?:the |taking )?notes|no more notes|done with (?:the )?notes|finished with (?:the )?notes|close (?:the )?notes|back to the (?:form|questions))\b/;
-  /* Ending the notes can be said many ways ("let's end the notes", "I'm done with the notes", "that's enough notes", "okay, back to the form"): a short line that opens like a wrap-up, names the notes and says they are over. */
-  var NOTES_END_LEAD = /^(?:(?:okay|ok|right|so|and|alright|now|well|yes|yeah|please)\s+)*(?:lets|let us|let me|i'm|i am|i'll|i will|we're|we are|we'll|we will|we can|you can|that|this|it|stop|end|finish|finished|done|enough|no more|close|quit)\b/;
-  var NOTES_END_WORD = /\b(?:end|ended|stop|finish|finished|done|enough|close|quit|over|complete|completed|no more|that all|that it|that the end)\b/;
+  /* Ending the notes can be said many ways ("let's end the notes", "I'm done with the notes", "that's enough notes", "okay, back to the form", "I've noted that, I've completed those notes"):
+     a short line that opens like a wrap-up, mentions the notes and says they are over. */
+  var NOTE_WORD = /\bnot(?:e|es|ed|ing)\b|\bnote[- ]?taking\b/;
+  var NOTES_END_LEAD = /^(?:(?:okay|ok|right|so|and|alright|now|well|yes|yeah|please)\s+)*(?:lets|let us|let me|i'm|i am|i'll|i will|i've|i have|ive|we're|we are|we'll|we will|we've|we have|we can|you can|that|this|it|all|nothing|there is nothing|stop|end|finish|finished|done|enough|no more|close|quit)\b/;
+  var NOTES_END_WORD = /\b(?:end|ended|stop|finish|finished|done|enough|close|closed|quit|over|complete|completed|concluded|wrapped up|no more|nothing more|nothing else|nothing further|that all|that it|that the end|all i wanted|everything i wanted|all i need|everything i need)\b/;
   var NOTES_BACK = /^(?:(?:okay|ok|right|so|and|alright|now|well|please|lets|let us|go|get|come)\s+)*back to (?:the )?(?:form|questions?|fact find)\b/;
+  /* "I've noted that", "that's noted", "I've made a note of that": the thing being noted is down, so the notes are over. A lone "noted" is only an acknowledgement. */
+  var NOTES_DONE = /^(?:(?:okay|ok|right|so|and|alright|now|well|yes|yeah)\s+)*(?:i(?:'ve| have)|ive|we(?:'ve| have)|that(?:'s| is| has been)?|it(?:'s| is| has been)?|all)\s+(?:been\s+)?(?:noted|made (?:a )?notes?(?: of (?:that|this|it))?|jotted (?:that|it|this) down|written (?:that|it|this) down|put (?:that|it|this) down|got (?:that|it|this) (?:noted|down)|noted down)(?:\s+(?:that|this|it|down|now|there|thanks|thank you|okay))*$/;
   function endsNotes(t) {
-    return NOTES_BACK.test(t) || /^notes (?:are |is )?(?:done|finished|over|complete|completed)$/.test(t) ||
-      (t.split(' ').length <= 9 && /\bnotes?\b/.test(t) && NOTES_END_LEAD.test(t) && NOTES_END_WORD.test(t) && !/\b(?:take|make|write|jot|add|start|begin|new)\b/.test(t));
+    return NOTES_BACK.test(t) || NOTES_DONE.test(t) || /^notes (?:are |is )?(?:done|finished|over|complete|completed)$/.test(t) ||
+      (t.split(' ').length <= 14 && NOTE_WORD.test(t) && NOTES_END_LEAD.test(t) && NOTES_END_WORD.test(t) && !/\b(?:take|make|write|jot|add|start|begin|new|another|some notes|a few notes)\b/.test(t));
   }
+  /* Where in a line the notes end: the clauses before it are still for the notes, the clauses after it are an ordinary line. -> { before: [clauses], rest: [clauses] } or null. */
+  function splitNotesEnd(text) {
+    var segs = clauses(text), i, t;
+    for (i = 0; i < segs.length; i++) { t = norm(segs[i]); if (NOTES_OFF.test(t) || endsNotes(t)) return { before: segs.slice(0, i), rest: segs.slice(i + 1) }; }
+    return null;
+  }
+  function mentionsNotes(text) { return NOTE_WORD.test(norm(text)) && String(text).split(/\s+/).length <= 18; }
+  /* A short line that opens like a wrap-up ("that's everything for this one", "okay, that's all") may be ending the notes without naming them: Claude decides. */
+  var NOTES_MAY_END = /\b(?:everything|all done|all set|that all|that it|finished|done|complete|completed|enough|over)\b/;
+  function mayEndNotes(text) { var t = norm(text); return t.split(' ').length <= 10 && NOTES_END_LEAD.test(t) && NOTES_MAY_END.test(t) && !/\d/.test(t); }
   /* "remove them all", "delete everything on the form", "wipe the entire form", "start again from scratch": the whole form, not one box. */
   var WIPE_VERB = '(?:remove|delete|clear|wipe|erase|empty|reset|scrap|get rid of|throw away)';
   var WIPE_ALL = new RegExp('\\b' + WIPE_VERB + '\\s+(?:(?:all|every)\\s+(?:of\\s+)?)?(?:(?:the|my|his|her|their|these|those|our)\\s+)?(?:(?:entire|whole|full)\\s+)?' +
@@ -538,7 +625,7 @@
       var s = scoreField(f, tn, tk);
       if (f.list && s > 0) { if (opts.boost && opts.boost[f.list]) s += 2; if (named[f.list]) s += 2; else if (/\b(?:your|my)\b/.test(tn)) s -= 1.5; }   // "the child's name" is the list; "your name" is the client
       if (s < 2) return;
-      var total = s + (f.sec === opts.cur ? 1.5 : 0) + (!opts.isEmpty || opts.isEmpty(f.id) ? 0.4 : 0) + (f.bt && f.bt.some(function (w) { return tk.indexOf(w) >= 0; }) ? 1 : 0);
+      var total = s + (f.sec === opts.cur ? 1.5 : 0) + (!opts.isEmpty || opts.isEmpty(f.id) ? 0.4 : 0) + (f.bt && f.bt.some(function (w) { return tk.indexOf(w) >= 0; }) ? 1 : 0) + (f.list && opts.curList === f.list ? 0.6 : 0);   // the list the talk is in now wins a tie ("the monthly contribution" after a pension fund)
       if (!best || total > best.total) best = { id: f.id, score: s, total: total };
     });
     return best ? { id: best.id, score: best.score } : null;
@@ -748,12 +835,13 @@
 
   /* Client priorities: a plain "yes", "definitely", "go ahead" makes the area a priority; "not now", "not interested", "I can't afford it", "I already have that" make it not a priority. */
   var PRI_NO = / (not interested|not a priority|not priority|not now|no thanks|no thank you|not at the moment|not at this stage|not for now|not right now|cannot afford|can not afford|cant afford|can t afford|already have|already covered|dont need|do not need|don t need|not needed|no need|rather not|not necessary|no) /;
+  var PRI_UNSURE = / (not sure|unsure|maybe|perhaps|undecided|not convinced|on the fence|don'?t know|dont know|don t know|do not know|think about it|think it over|think on it|think this over|sleep on it|need to think|let me think|i ll think|get back to you|come back to you|come back to it|speak to my|talk to my|discuss it with|discuss this with|need some time|need more time|give me some time|give me time) /;
   var PRI_YES = / (yes|yeah|yep|yup|ja|definitely|absolutely|certainly|agree|agreed|please do|go ahead|sounds good|makes sense|sure|priority|of course) /;
   ['pr_life', 'pr_ra', 'pr_rgar', 'pr_inv', 'pr_egar', 'pr_med', 'pr_will', 'pr_st'].forEach(function (id) {
     SPECIAL[id] = function (t) {
-      var s = ' ' + t + ' ', unsure = / (not sure|unsure|maybe|perhaps|don t know|do not know) /.test(s), no = PRI_NO.test(s), yes = PRI_YES.test(s.replace(/ not (?:a )?priority /g, ' ').replace(/ (?:not sure|unsure) /g, ' '));
+      var s = ' ' + t + ' ', unsure = PRI_UNSURE.test(s), no = PRI_NO.test(s), yes = PRI_YES.test(s.replace(/ not (?:a )?priority /g, ' ').replace(/ (?:not sure|unsure) /g, ' '));
       if (no && yes) return { error: 'ambiguous', note: 'priority or not a priority?' };
-      if (unsure && !no) return { error: 'unsure', note: 'not sure: left empty' };
+      if (unsure && !no) return { error: 'unsure', note: 'not sure: left empty' };       // pickOption turns it into "Client not sure, needs to think about it" for the areas that have that choice
       return no ? 'Not a priority: client not interested' : yes ? 'Priority: client agrees' : null;
     };
   });
@@ -763,6 +851,10 @@
     var sp = SPECIAL[f.id];
     if (sp) {
       var v = sp(t, raw);
+      if (v && v.error === 'unsure') {                                                  // a choice for "not sure, needs to think about it", where the box has one
+        var ith = -1; low.forEach(function (o, i) { if (/not sure|unsure|think about it/.test(o)) ith = i; });
+        if (ith >= 0) return ok(opts[ith]);
+      }
       if (v && v.error) return v;
       if (v && typeof v === 'object') return v;
       if (v) return ok(v);
@@ -892,17 +984,19 @@
   function isFreeText(f) { return !!f && f.t === 'txt' && !f.options && !f.money && TYPED.indexOf(vid(f)) < 0 && PCT_IDS.indexOf(vid(f)) < 0 && vid(f) !== 'years'; }
   /* What a sentence that introduces a row says about it: "a home loan with ABSA bank" -> type Home loan, provider ABSA; "a daughter called Thandi, born
      22 August 2019" -> name, gender, date of birth. Only what is clear is taken; leftover says how many words were not understood, so Claude can read the rest. */
-  var INTERVIEW = { debts: ['type', 'prov', 'desc', 'inst', 'bal'], risk: ['prov', 'spend', 'broker'], grp: ['prov', 'spend', 'broker'], ret: ['type', 'prov', 'val', 'contrib'], inv: ['type', 'prov', 'val', 'prem'],
+  var INTERVIEW = { debts: ['type', 'prov', 'desc', 'inst', 'bal'], risk: ['prov', 'spend', 'broker'], grp: ['prov', 'spend', 'broker'], ret_ra: ['prov', 'val', 'contrib'], ret_pp: ['type', 'prov', 'val', 'contrib'], bizpol: ['type', 'prov', 'cover', 'prem'], inv: ['type', 'prov', 'val', 'prem'],
     kids: ['name', 'sname', 'gender', 'dob', 'cost'], shares: ['name', 'pct'], redq: ['req', 'ins', 'amt'], raq: ['req', 'ins', 'monthly', 'lump'], invq: ['purpose', 'product', 'ins', 'monthly', 'lump'] };
-  var ROW_COLS = { debts: ['type', 'prov'], risk: ['prov'], grp: ['prov'], ret: ['type', 'prov'], inv: ['type', 'prov'] };
+  var ROW_COLS = { debts: ['type', 'prov'], risk: ['prov'], grp: ['prov'], ret_ra: ['prov'], ret_pp: ['type', 'prov'], bizpol: ['type', 'prov'], inv: ['type', 'prov'] };
   var ROW_SYN = {
     'debts.type': { 'Home loan': ['bond', 'mortgage', 'house loan', 'home bond', 'property loan'], 'Vehicle finance': ['car finance', 'vehicle loan', 'car loan', 'car payment', 'vehicle'], 'Credit card': ['card'], 'Revolving credit': ['overdraft', 'revolving'] },
-    'ret.type': { 'Retirement annuity': ['ra', 'retirement annuity'], 'Pension fund': ['pension'], 'Provident fund': ['provident'] },
+    'ret_pp.type': { 'Pension fund': ['pension'], 'Provident fund': ['provident'] },
+    'bizpol.type': { 'Buy & sell': ['buy and sell', 'buy sell', 'buy and sell agreement', 'buy and sell cover'], 'Contingent liability': ['contingent liability', 'contingent'], 'Keyman': ['key man', 'keyman', 'key person', 'key person cover'] },
     'inv.type': { 'Unit trust': ['unit trusts'], 'Tax-free savings': ['tax free', 'tax free investment', 'tfsa', 'tax free savings account'], 'Endowment': ['endowments'], 'Offshore': ['offshore investment'], 'Share portfolio': ['shares', 'share portfolio'], 'Living annuity': ['la'] }
   };
   var MONEY_CUES = {
     debts: [['bal', /\b(?:outstanding|balance|owe|owing)\b/], ['inst', /\b(?:instal?ments?|repayments?|a month|per month|monthly|pm)\b/], ['asset', /\b(?:worth|asset)\b/]],
-    risk: [['spend', /\b(?:month|premium|paying|pay)\b/]], grp: [['spend', /\b(?:month|premium|paying|pay)\b/]], ret: [['contrib', /\b(?:month|contribut\w*)\b/], ['val', /\b(?:worth|value|balance|in it)\b/]],
+    risk: [['spend', /\b(?:month|premium|paying|pay)\b/]], grp: [['spend', /\b(?:month|premium|paying|pay)\b/]], ret_ra: [['contrib', /\b(?:month|contribut\w*)\b/], ['val', /\b(?:worth|value|balance|in it)\b/]], ret_pp: [['contrib', /\b(?:month|contribut\w*)\b/], ['val', /\b(?:worth|value|balance|in it)\b/]],
+    bizpol: [['prem', /\b(?:month|premium|paying|pay)\b/], ['cover', /\b(?:cover|covered|sum assured|worth|value)\b/]],
     inv: [['prem', /\b(?:month|premium|invest)\b/], ['val', /\b(?:worth|value|balance)\b/]], kids: [['cost', /\b(?:month|fees|cost|costs)\b/]]
   };
   var GENERIC_WORD = { bank: 1, finance: 1, loan: 1, loans: 1, card: 1, account: 1, policy: 1, policies: 1, fund: 1, funds: 1, limited: 1, ltd: 1, group: 1, life: 1, cover: 1, insurance: 1, with: 1, invest: 1, investment: 1, investments: 1, named: 1, called: 1, born: 1, month: 1, months: 1, per: 1, paying: 1, pay: 1, rand: 1, r: 1 };
@@ -1090,10 +1184,13 @@
       return /^\d{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01])\d{7}$/.test(dg) ? { kind: 'fill', value: dg, status: 'verify' } : null;
     }
 
-    clauses(text).forEach(function (seg) {
+    var segs = clauses(text);
+    segs.forEach(function (seg, ci) {
+      var wr = wrapUp(seg, idx, { cur: st.cur, prev: ci ? segs[ci - 1] : st.prev });                  // "that concludes the debts", or "no" to "any more debts?": the section is over, which is not small talk
+      if (wr) { noting = false; actions.push({ do: 'done', section: wr.sec, list: wr.list, part: wr.part || null, via: wr.via }); target = null; answered = false; return; }
       var core = seg.replace(LEADWORDS, '').trim(), isQ = /\?\s*["')]*$/.test(core), words = seg.split(/\s+/).length;
       if (!core) return;
-      near.boost = namedRows(core);
+      near.boost = namedRows(core); near.curList = cellParts(target) ? cellParts(target).list : null;
       var cmd = parseCommand(core, idx);
       if (cmd && cmd.bare && target && !answered) cmd = null;              // "Medical aid", said while that box waits, is the answer, not a move
       if (cmd && cmd.type === 'addrow') {                                  // "add another child", "one more policy"
@@ -1110,7 +1207,7 @@
         actions.push({ do: 'cmd', cmd: cmd }); return;
       }
       if (noting) {                                                        // while notes are being taken, what is said is noted, not filled in
-        if (isChatter(seg)) return;
+        if (isChatter(seg) || NOTES_DONE.test(norm(seg))) return;
         var askish = isQ || WH.test(core) || looksLikeQuestion(core), strong = askish ? matchQuestion(core, idx, near) : null;
         if (strong && strong.score >= 4 && visible(strong.id)) { noting = false; askCell(aim(strong, core)); return; }
         if (!askish) { var last = actions[actions.length - 1]; if (last && last.do === 'note') last.text += '. ' + seg; else actions.push({ do: 'note', text: seg }); }   // the adviser's own questions are not noted
@@ -1183,6 +1280,8 @@
         }
       }
       if (isQ || WH.test(core) || looksLikeQuestion(core)) {               // someone asks about a field
+        var moreList = MORE_LIST.test(norm(core)) ? listFirst(core) : null;                                   // "do you have any more debts?": about the list itself (its Add button glows), not about a box that shares a word ("other")
+        if (moreList) { actions.push({ do: 'ask', field: 'count:' + moreList }); target = 'count:' + moreList; answered = false; return; }
         var q = matchQuestion(core, idx, near);
         if (q && visible(q.id)) { var qid = askCell(aim(q, core)); actions[actions.length - 1].tentative = q.score < 4; if (q.score < 4) sure = false; return; }
         var lq = listFirst(core);                                          // "do you have any children?", "how many loans?", "tell me about the policies"
@@ -1260,7 +1359,7 @@
 
   return {
     norm: norm, wordsToNumber: wordsToNumber, spokenDigits: spokenDigits, spokenDate: spokenDate, spokenEmail: spokenEmail, yesNo: yesNo,
-    buildIndex: buildIndex, parseCommand: parseCommand, wipeAnswer: wipeAnswer, looksLikeQuestion: looksLikeQuestion, isChatter: isChatter, plan: plan, pointForm: pointForm, LIST_NOUNS: LIST_NOUNS, matchQuestion: matchQuestion, interpret: interpret, titleCase: titleCase,
+    buildIndex: buildIndex, parseCommand: parseCommand, wrapUp: wrapUp, endsNotes: endsNotes, splitNotesEnd: splitNotesEnd, mentionsNotes: mentionsNotes, mayEndNotes: mayEndNotes, wipeAnswer: wipeAnswer, looksLikeQuestion: looksLikeQuestion, isChatter: isChatter, plan: plan, pointForm: pointForm, LIST_NOUNS: LIST_NOUNS, matchQuestion: matchQuestion, interpret: interpret, titleCase: titleCase,
     isConfirm: isConfirm, answerFor: answerFor, clauses: clauses, PRIVATE_IDS: PRIVATE_IDS, yearsValue: yearsValue
   };
 });

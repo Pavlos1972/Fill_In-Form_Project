@@ -5,7 +5,7 @@
 
   /* Colours taken from the Wealth Revolution logo: its blue (#27A8E0) and grey. DEEP is a darker blue for small text so it stays readable. */
   var ACCENT = [39, 168, 224], DEEP = [18, 118, 168], ACCENT_SOFT = [225, 243, 251], INK = [40, 40, 42], MUTED = [110, 110, 113], LINE = [205, 222, 232], PALE = [243, 249, 252];
-  var GO = [31, 122, 66], STOP = [179, 38, 30], GO_SOFT = [226, 242, 231], STOP_SOFT = [250, 229, 226];            // a priority area that is wanted, and one that is not
+  var GO = [31, 122, 66], STOP = [179, 38, 30], GO_SOFT = [226, 242, 231], STOP_SOFT = [250, 229, 226], MAYBE = [150, 110, 0], MAYBE_SOFT = [253, 243, 205];            // a priority area that is wanted, one that is not, and one the client is thinking about
   var M = 14, W = 210, PAGE_H = 297, CW = W - 2 * M;
 
   /* Standard PDF fonts cannot show every character. Keep to what they can. */
@@ -107,12 +107,12 @@
     function panelPdf(sec, id) {
       var P = schema.panelsById[id];
       if (!calc.showIf(P.cond, ctx)) return;                                         // business assurance when the client has no business
-      var v = P.dec ? state.f[P.dec].v : '', on = v === schema.PRIORITY, off = v === schema.NOT_PRIORITY;
+      var v = P.dec ? state.f[P.dec].v : '', on = v === schema.PRIORITY, off = v === schema.NOT_PRIORITY, maybe = v === schema.UNSURE;
       ensure(46);
-      doc.setFillColor.apply(doc, on ? GO_SOFT : off ? STOP_SOFT : PALE); doc.rect(M, y, CW, 7, 'F');
-      doc.setDrawColor.apply(doc, on ? GO : off ? STOP : LINE); doc.setLineWidth(0.4); doc.line(M, y + 7, M + CW, y + 7);
+      doc.setFillColor.apply(doc, on ? GO_SOFT : off ? STOP_SOFT : maybe ? MAYBE_SOFT : PALE); doc.rect(M, y, CW, 7, 'F');
+      doc.setDrawColor.apply(doc, on ? GO : off ? STOP : maybe ? MAYBE : LINE); doc.setLineWidth(0.4); doc.line(M, y + 7, M + CW, y + 7);
       doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor.apply(doc, INK); doc.text(t(P.title), M + 2.5, y + 4.9);
-      if (P.dec) { doc.setFontSize(8.5); doc.setTextColor.apply(doc, on ? GO : off ? STOP : MUTED); doc.text(t(v || 'Not yet discussed'), M + CW - 2.5, y + 4.9, { align: 'right' }); }
+      if (P.dec) { doc.setFontSize(8.5); doc.setTextColor.apply(doc, on ? GO : off ? STOP : maybe ? MAYBE : MUTED); doc.text(t(v || 'Not yet discussed'), M + CW - 2.5, y + 4.9, { align: 'right' }); }
       y += 10;
       if (P.sum) {
         var lines = FF.summary.linesFor(state, id).lines;

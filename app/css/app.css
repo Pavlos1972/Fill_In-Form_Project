@@ -44,6 +44,8 @@ button, select, input, textarea { font: inherit; color: inherit; }
 .nav button:hover { background: var(--accent-soft); }
 .nav button[aria-current="true"] { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
 .nav .n { font: 11px var(--mono); color: var(--muted); }
+.nav .ck { color: var(--ok); font-weight: 700; margin-left: 4px; }
+.nav button[aria-current="true"] .ck { color: inherit; }
 .nav .sep { font: 500 10px var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); padding: 10px 10px 2px; }
 @media (max-width: 720px) { .nav .sep { display: none; } }
 
@@ -94,14 +96,15 @@ button, select, input, textarea { font: inherit; color: inherit; }
 table { width: 100%; border-collapse: collapse; min-width: 640px; }
 th { text-align: left; font: 500 11px var(--mono); letter-spacing: .05em; text-transform: uppercase; color: var(--muted); background: var(--surface-2); padding: 7px 8px; white-space: nowrap; }
 td { padding: 5px 6px; border-top: 1px solid var(--line); vertical-align: middle; }
-td input, td select { width: 100%; min-width: 80px; border: 1px solid transparent; background: transparent; border-radius: 4px; padding: 5px 6px; }
+td input, td select { width: 100%; min-width: 104px; border: 1px solid transparent; background: transparent; border-radius: 4px; padding: 5px 6px; }
 td input:hover, td select:hover { border-color: var(--line); }
 tr.s-heard td { background: var(--accent-soft); }
 tr.s-verify td { background: var(--warn-soft); }
 tr.flash td { animation: rowflash 1.6s ease-out; }
 @keyframes rowflash { from { background: var(--flash); } }
 @media (prefers-reduced-motion: reduce) { tr.flash td { animation: none; } }
-td.num input { text-align: right; font-variant-numeric: tabular-nums; }
+td select { min-width: 132px; }
+td.num input { text-align: right; font-variant-numeric: tabular-nums; min-width: 124px; }
 tfoot td { background: var(--surface-2); font-weight: 600; font-variant-numeric: tabular-nums; }
 .addrow { margin-top: 8px; background: none; border: 1px dashed var(--accent); color: var(--accent); border-radius: 6px; padding: 6px 12px; cursor: pointer; }
 .addrow:hover { background: var(--accent-soft); }
@@ -279,11 +282,12 @@ dialog .f input, dialog .f select { padding-right: 9px; background: var(--surfac
 div.off { pointer-events: none; }
 
 /* The Client priorities page: one area per priority. A priority takes a green haze, a priority that is not wanted a red haze. */
-:root { --go: #1f9d55; --stop: #d6362b; --hz: 16%; --hz-head: 30%; }
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --go: #4cc38a; --stop: #ff6b5e; --hz: 20%; --hz-head: 34%; } }
-:root[data-theme="dark"] { --go: #4cc38a; --stop: #ff6b5e; --hz: 20%; --hz-head: 34%; }
+:root { --go: #1f9d55; --stop: #d6362b; --maybe: #e0a800; --maybe-ink: #7a5a00; --hz: 16%; --hz-head: 30%; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --go: #4cc38a; --stop: #ff6b5e; --maybe: #f2c94c; --maybe-ink: #f2c94c; --hz: 20%; --hz-head: 34%; } }
+:root[data-theme="dark"] { --go: #4cc38a; --stop: #ff6b5e; --maybe: #f2c94c; --maybe-ink: #f2c94c; --hz: 20%; --hz-head: 34%; }
 :root { --haze-ok: color-mix(in srgb, var(--go) var(--hz), var(--surface)); --haze-ok-head: color-mix(in srgb, var(--go) var(--hz-head), var(--surface));
-  --haze-bad: color-mix(in srgb, var(--stop) var(--hz), var(--surface)); --haze-bad-head: color-mix(in srgb, var(--stop) var(--hz-head), var(--surface)); }
+  --haze-bad: color-mix(in srgb, var(--stop) var(--hz), var(--surface)); --haze-bad-head: color-mix(in srgb, var(--stop) var(--hz-head), var(--surface));
+  --haze-maybe: color-mix(in srgb, var(--maybe) var(--hz), var(--surface)); --haze-maybe-head: color-mix(in srgb, var(--maybe) var(--hz-head), var(--surface)); }
 .main.priorities { container-type: inline-size; }
 .main.roomy.priorities { padding: 24px 22px 32px; }
 .prio { border: 1px solid var(--line); border-radius: 10px; margin-top: 18px; overflow: hidden; background: var(--surface); transition: background .4s, border-color .4s; }
@@ -295,7 +299,10 @@ div.off { pointer-events: none; }
 .prio.p1 > header { background: var(--haze-ok-head); border-bottom-color: var(--go); }
 .prio.p2 { background: var(--haze-bad); border: 2px solid var(--stop); }
 .prio.p2 > header { background: var(--haze-bad-head); border-bottom-color: var(--stop); }
+.prio.p3 { background: var(--haze-maybe); border: 2px solid var(--maybe); }
+.prio.p3 > header { background: var(--haze-maybe-head); border-bottom-color: var(--maybe); }
 .prio.p1 .chip { background: var(--surface); border: 1px solid var(--ok); color: var(--ok); font-weight: 600; }
+.prio.p3 .chip { background: var(--surface); border: 1px solid var(--maybe); color: var(--maybe-ink); font-weight: 600; }
 .prio.p2 .chip { background: var(--surface); border: 1px solid var(--bad); color: var(--bad); font-weight: 600; }
 .pbody { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 18px; padding: 16px; }
 @container (max-width: 600px) { .pbody { grid-template-columns: minmax(0, 1fr); } }
@@ -308,13 +315,13 @@ div.off { pointer-events: none; }
 .prio .block-title { margin: 14px 0 8px; }
 .prio .block-title:first-child { margin-top: 0; }
 .prio .area { display: flex; flex-direction: column; gap: 4px; padding: 6px 14px 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
-.prio.p1 .area, .prio.p2 .area, .prio.p1 .sum, .prio.p2 .sum { background: color-mix(in srgb, var(--surface) 60%, transparent); }
+.prio.p1 .area, .prio.p2 .area, .prio.p3 .area, .prio.p1 .sum, .prio.p2 .sum, .prio.p3 .sum { background: color-mix(in srgb, var(--surface) 60%, transparent); }
 .prio .tablewrap { overflow-x: auto; }
 .sum { display: flex; flex-direction: column; gap: 6px; padding: 12px 14px; border-radius: 8px; background: var(--accent-soft); min-width: 0; align-self: start; }
 .sum .sh { display: flex; align-items: center; gap: 8px; font-size: 11.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); font-weight: 600; }
 .sum .sh .link-btn { margin-left: auto; background: none; border: 0; cursor: pointer; font-size: 12px; text-transform: none; letter-spacing: 0; }
 .sum .sh .link-btn:disabled { opacity: .5; cursor: default; }
-.prio.p1 .sum .sh, .prio.p2 .sum .sh { color: var(--ink); }
+.prio.p1 .sum .sh, .prio.p2 .sum .sh, .prio.p3 .sum .sh { color: var(--ink); }
 .sum ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 3px; }
 .sum li.none { color: var(--muted); list-style: none; margin-left: -18px; }
 .sum .src { color: var(--muted); font-size: 11.5px; padding-top: 6px; border-top: 1px solid var(--line); }

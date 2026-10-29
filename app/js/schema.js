@@ -21,14 +21,15 @@
   var ACI = ['Fixed', 'CPI', 'None'], REQ = ['Request a quote', 'Not required'];
   var MA_BROKER = ['Through company', 'Privately paid, no broker', 'Privately paid, other broker', 'Paul K'];
   var N = function (id, l) { return { id: id, l: l || 'Notes', t: 'area', wide: 1, opt: 1 }; };
-  var BIZ = { f: 'bizowner', eq: 'Yes' };
+  var BIZ = { f: 'bizowner', eq: 'Yes' }, HAS_BIZPOL = { all: [BIZ, { f: 'biz_assur', nin: ['No'] }] };
   var MED_SCHEMES = ['Discovery Health', 'Momentum Medical Scheme', 'Bonitas Medical Fund', 'Bestmed Medical Scheme', 'Fedhealth Medical Scheme', 'Medihelp Medical Scheme', 'KeyHealth Medical Scheme', 'Medshield Medical Scheme', 'CompCare Medical Scheme', 'GEMS (Government Employees Medical Scheme)', 'POLMED (SA Police Service)', 'SAMWUMED (Municipal Workers)', 'Transmed (Transport industry)', 'LA Health (Local Authorities)', 'Bankmed (Banking sector)', 'Sizwe Hosmed Medical Scheme', 'Profmed (Professionals only)', 'Anglovaal Group Medical Scheme (AGMS)', 'Sasolmed', 'Cape Medical Plan (Cape Medical Scheme)', 'Hosmed Medical Scheme', 'Genesis Medical Scheme', 'Suremed Health', 'Resolution Health Medical Scheme', 'Makoti Medical Scheme', 'BMW Medical Aid Scheme', 'Anglo Medical Scheme', 'Other'];
   var GAP_PROVIDERS = ['TRA (Total Risk Administrators)', 'Turnberry', 'Ambledown Financial Services', 'Stratum Benefits', 'Kaelo', 'Zestlife', 'GapCover', 'Oneplan', 'Discovery', 'Momentum', 'Sanlam', 'Old Mutual', 'Dis-Chem Health', 'NetcarePlus', 'Other'];
   var INV_PROVIDERS = ['Old Mutual', 'Momentum', 'Sanlam', 'Liberty', 'Discovery Invest', 'Allan Gray', 'Coronation', 'Ninety One', 'PSG', 'Sygnia', 'Satrix', '10X Investments', 'Glacier by Sanlam', 'Investec', 'Nedgroup Investments', 'STANLIB', 'Absa', 'FNB', 'Nedbank', 'Standard Bank', 'Capitec', 'EasyEquities', 'Other'];
   var MARRIED = ['Married in community of property', 'Married out of community (with accrual)', 'Married out of community (no accrual)', 'Customary marriage', 'Civil union'];     // the marital statuses that have a date of marriage
   var STAGES = ['Not Yet in School', 'Pre-school', 'Primary', 'High School', 'Tertiary'];
   var ADVISOR = 'Paul Kafentzis';                                                                // printed in the PDF header; there is no Advisor box on the form
-  var PRIORITY = 'Priority: client agrees', NOT_PRIORITY = 'Not a priority: client not interested';     // the two answers of a priority's decision box (empty = not discussed yet)
+  var PRIORITY = 'Priority: client agrees', NOT_PRIORITY = 'Not a priority: client not interested';     // the answers of a priority's decision box (empty = not discussed yet)
+  var UNSURE = 'Client not sure, needs to think about it', CAN_THINK = { life: 1, ra: 1, inv: 1 };        // a third answer (yellow) for the areas where a client often wants time
   var HAS_RISK = { f: 'has_risk', nin: ['No'] }, HAS_GROUP = { f: 'has_group', nin: ['No', 'Not sure'] };
   var FNA_ON = { f: 'fna_req', nin: ['Not required', 'No FNA done'] }, SF_ON = { f: 'sf_req', nin: ['Not required'] };      // a quote that is not required has no type or insurer: those boxes go
 
@@ -36,7 +37,7 @@
   var TITLES = { life: 'Life', ra: 'RA', rgar: 'RGAR', inv: 'Invest', egar: 'EGAR', med: 'Medical Aid', will: 'Will', st: 'Short Term' };
   function HEAD(id) {
     return { pri: id, head: 1, fields: [
-      { id: 'pr_' + id, l: TITLES[id] + ': client decision', t: 'sel', o: [PRIORITY, NOT_PRIORITY], wide: 1 },
+      { id: 'pr_' + id, l: TITLES[id] + ': client decision', t: 'sel', o: CAN_THINK[id] ? [PRIORITY, UNSURE, NOT_PRIORITY] : [PRIORITY, NOT_PRIORITY], wide: 1 },
       { id: 'pr_' + id + '_cm', l: TITLES[id] + ': comments (the reason, or your instructions)', t: 'area', wide: 1, rows: 2 }
     ] };
   }
@@ -105,8 +106,10 @@
         { id: 'biz_does', l: 'What does the business do?', t: 'area', wide: 1, lookup: 'biz_name' },
         { id: 'biz_partners', l: 'Has partners or co-owners', t: 'sel', o: YN },
         { id: 'biz_pct', l: 'Your shareholding / interest %', t: 'txt' },
-        { id: 'biz_loans', l: 'Business loans / surety signed', t: 'sel', o: ['Yes', 'No', 'Unsure'] }
+        { id: 'biz_loans', l: 'Business loans / surety signed', t: 'sel', o: ['Yes', 'No', 'Unsure'] },
+        { id: 'biz_assur', l: 'Business assurance in place (buy & sell, keyman, contingent liability)', t: 'sel', o: ['Yes', 'No', 'Not sure'] }
       ] },
+      { title: 'Existing business assurance policies', cond: HAS_BIZPOL, condMsg: 'Existing business assurance policies appear when Business owner = Yes and Business assurance in place is not No.', list: 'bizpol' },
       { title: 'Partners and shareholders', cond: { all: [BIZ, { f: 'biz_partners', eq: 'Yes' }] }, condMsg: 'Partner and shareholder details appear when Business owner = Yes and Has partners = Yes.', list: 'shares' },
       { title: 'Duties split', help: 'The percentages must add up to 100%.', fields: [
         { id: 'd_desk', l: 'Deskbound / office %', t: 'txt' },
@@ -154,7 +157,8 @@
     ] },
 
     { id: 'retire', title: 'Retirement funding', blocks: [
-      { title: 'Retirement annuity, pension and provident funds', list: 'ret' },
+      { title: 'Retirement annuities', list: 'ret_ra' },
+      { title: 'Pension and provident funds', list: 'ret_pp' },
       { fields: [N('n_retire')] }
     ] },
 
@@ -333,13 +337,15 @@
 
   /* The areas of the Client priorities page. dec / cm are the ids of the area's decision and comments boxes (made below). sum: the boxes (f) and lists (l, with the columns used, or 0 for all)
      that the area's summary is written from, and nothing else, so a summary only ever speaks about its own area. */
+  /* sum.t: totals worked out by the page (never added up by Claude): [label, [[list, column], ...]]. */
   var panels = [
-    { id: 'life', title: 'Life', sub: 'Life cover, disability, dread disease, income protection', src: 'Personal risk cover, group risk cover, credit life on debts',
-      sum: { f: ['has_risk', 'joint', 'has_group', 'fna_req', 'fna_type', 'sf_req', 'sf_type'], l: { risk: 0, grp: 0, debts: ['type', 'prov', 'prov_other', 'desc', 'cl'], redq: 0 } } },
+    { id: 'life', title: 'Life', sub: 'Life cover, disability, dread disease, income protection', src: 'Personal risk cover, group risk cover, credit life, total debt and childcare to be covered',
+      sum: { f: ['has_risk', 'joint', 'has_group', 'fna_req', 'fna_type', 'sf_req', 'sf_type'], l: { risk: 0, grp: 0, debts: ['type', 'prov', 'prov_other', 'desc', 'cl'], redq: 0 },
+        t: [['Total debt to be covered (balances)', [['debts', 'bal']]], ['Total monthly debt repayments', [['debts', 'inst']]], ['Total childcare cost to be covered, per month', [['kids', 'cost']]]] } },
     { id: 'ra', title: 'RA', sub: 'Retirement annuity', src: 'Retirement funding: retirement annuities, pension and provident funds',
-      sum: { f: [], l: { ret: 0, raq: 0 } } },
+      sum: { f: [], l: { ret_ra: 0, ret_pp: 0, raq: 0 } } },
     { id: 'rgar', title: 'RGAR', sub: 'Retirement goal analysis', src: 'Retirement funding totals, retirement age and income goal',
-      sum: { f: ['rgar_req', 'ret_age', 'ret_net'], l: { ret: ['type', 'val', 'contrib'] } } },
+      sum: { f: ['rgar_req', 'ret_age', 'ret_net'], l: {}, t: [['Total saved across all retirement funds', [['ret_ra', 'val'], ['ret_pp', 'val']]], ['Total monthly contributions to retirement funds', [['ret_ra', 'contrib'], ['ret_pp', 'contrib']]]] } },
     { id: 'inv', title: 'Invest', sub: 'Investments', src: 'Investments',
       sum: { f: [], l: { inv: 0, invq: 0 } } },
     { id: 'egar', title: 'EGAR', sub: 'Education goal analysis', src: 'Children (education stage and cost)',
@@ -350,7 +356,8 @@
       sum: { f: ['will', 'will_up', 'will_where', 'will_where_other', 'will_broker', 'will_date', 'ref_will'], l: {} } },
     { id: 'st', title: 'Short Term', sub: 'Short-term insurance', src: 'Short-term insurance',
       sum: { f: ['sti', 'sti_broker', 'sti_car', 'sti_house', 'sti_struct', 'sti_personal', 'sti_biz', 'sti_biz_spend', 'ref_sti'], l: {} } },
-    { id: 'biz', title: 'Business assurance', sub: 'Buy & sell, contingent liability, keyman', nodec: 1, cond: BIZ, condMsg: 'Business assurance applies only when Business owner is set to Yes on the Occupation page.' }
+    { id: 'biz', title: 'Business assurance', sub: 'Buy & sell, contingent liability, keyman', src: 'Occupation: the business and its existing business assurance policies', nodec: 1, cond: BIZ, condMsg: 'Business assurance applies only when Business owner is set to Yes on the Occupation page.',
+      sum: { f: ['biz_assur', 'biz_struct', 'biz_partners', 'biz_pct', 'biz_loans'], l: { bizpol: 0, shares: ['name', 'pct'] } } }
   ];
   var panelsById = {};
   panels.forEach(function (p) { panelsById[p.id] = p; if (!p.nodec) { p.dec = 'pr_' + p.id; p.cm = 'pr_' + p.id + '_cm'; } });
@@ -364,15 +371,25 @@
     grp: { title: 'Existing group risk policies', add: 'Add group policy', cols: [
       { k: 'prov', l: 'Provider / administrator', o: INS, free: 1 }, { k: 'spend', money: 1, l: 'Spend (R p.m.)', num: 1 }, { k: 'broker', l: 'Broker on record', o: BROKER }, { k: 'notes', l: 'Notes' }
     ], sum: { spend: 'Total spend' } },
-    ret: { title: 'Retirement funding', add: 'Add fund', cols: [
-      { k: 'type', l: 'Type', o: ['Retirement annuity', 'Pension fund', 'Provident fund'] }, { k: 'prov', l: 'Provider / administrator', o: INS.concat(['Allan Gray']), free: 1 },
+    ret_ra: { title: 'Retirement annuities', add: 'Add retirement annuity', cols: [
+      { k: 'prov', l: 'Provider / administrator', o: INS.concat(['Allan Gray']), free: 1 },
       { k: 'val', money: 1, l: 'Value (R)', num: 1 }, { k: 'contrib', money: 1, l: 'Monthly contribution (R p.m.)', num: 1 }, { k: 'broker', l: 'Broker on record', o: BROKER }
-    ], sum: { contrib: 'Total contributions' } },
+    ], sum: { val: 'Total value', contrib: 'Total contributions' } },
+    ret_pp: { title: 'Pension and provident funds', add: 'Add pension / provident fund', cols: [
+      { k: 'type', l: 'Type', o: ['Pension fund', 'Provident fund'] }, { k: 'prov', l: 'Provider / administrator', o: INS.concat(['Allan Gray']), free: 1 },
+      { k: 'val', money: 1, l: 'Value (R)', num: 1 }, { k: 'contrib', money: 1, l: 'Monthly contribution (R p.m.)', num: 1 }, { k: 'broker', l: 'Broker on record', o: BROKER }
+    ], sum: { val: 'Total value', contrib: 'Total contributions' } },
     inv: { title: 'Investments', add: 'Add investment', cols: [
       { k: 'type', l: 'Type', o: ['Unit trust', 'Tax-free savings', 'Endowment', 'Offshore', 'Share portfolio', 'Living annuity', 'Other'] },
       { k: 'prov', l: 'Provider', free: 1, o: INV_PROVIDERS },
       { k: 'val', money: 1, l: 'Current value (R)', num: 1 }, { k: 'prem', money: 1, l: 'Monthly premium (R p.m.)', num: 1 }, { k: 'broker', l: 'Broker on record', o: BROKER }
     ], sum: { val: 'Total value', prem: 'Total monthly' } },
+    bizpol: { cards: 'Business policy', title: 'Existing business assurance policies', add: 'Add business policy', cols: [
+      { k: 'type', l: 'Type', o: ['Buy & sell', 'Contingent liability', 'Keyman', 'Other'] }, { k: 'prov', l: 'Insurer', o: INS, free: 1 },
+      { k: 'cover', money: 1, l: 'Cover amount (R)', num: 1 }, { k: 'prem', money: 1, l: 'Premium (R p.m.)', num: 1 },
+      { k: 'paid', l: 'Premium paid by', o: ['The business', 'The shareholders personally', 'Not sure'] }, { k: 'broker', l: 'Broker on record', o: BROKER },
+      { k: 'notes', l: 'Notes', t: 'area', wide: 1 }
+    ], sum: { cover: 'Total cover', prem: 'Total premiums' } },
     shares: { title: 'Partners and shareholders', add: 'Add partner / shareholder', cols: [
       { k: 'name', l: 'Full name' }, { k: 'id', l: 'ID number' }, { k: 'cell', l: 'Cell number' }, { k: 'pct', l: 'Shareholding %', num: 1 }
     ], sum: {} },
@@ -415,5 +432,5 @@
   var byId = {};
   sections.forEach(function (s) { s.blocks.forEach(function (b) { (b.fields || []).forEach(function (f) { byId[f.id] = f; }); }); });
 
-  return { version: '3.0', released: 'October 2026', sections: sections, lists: lists, panels: panels, panelsById: panelsById, advisor: ADVISOR, PRIORITY: PRIORITY, NOT_PRIORITY: NOT_PRIORITY, fieldsById: byId };
+  return { version: '3.0', released: 'October 2026', sections: sections, lists: lists, panels: panels, panelsById: panelsById, advisor: ADVISOR, PRIORITY: PRIORITY, NOT_PRIORITY: NOT_PRIORITY, UNSURE: UNSURE, fieldsById: byId };
 });

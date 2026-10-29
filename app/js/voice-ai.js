@@ -31,13 +31,14 @@
     '  {"do":"empty","field":"<id>"}                one box is to be emptied ("delete his name", "scratch the surname", "remove the occupation"); for a box of a row: {"do":"empty","list":"<list id>","row":<row number>,"col":"<column id>"}',
     '  {"do":"wait"}                                nothing to fill yet: the value in position.current_value was rejected, or the line stopped before the value ("my surname is spelled ...")',
     '  {"do":"cmd","cmd":"undo|next|prev|nextSection|prevSection|clear|clearAll|confirmAll|notes|notesOff"}   a request about the form itself: "scratch that" is undo, "skip" or "next question" is next,',
-    '                                               "let me take some notes" is notes (add "retro":true for "note that down"), "that\'s all for the notes" is notesOff,',
+    '                                               "let me take some notes" or "let me make a note of this" is notes (add "retro":true for "note that down"), "that\'s all for the notes", "I\'ve noted that, I\'ve completed those notes" is notesOff,',
     '                                               "clear that", "delete that", "remove it" and "we need to delete that" are clear (only the box being talked about: position.field, or the box just read back), and clearAll is for wanting EVERYTHING on the whole form removed',
     '                                               ("all my details are wrong, remove them all", "wipe the entire form", "start again from scratch"). For clearAll give just that one action:',
     '                                               the page asks "are you sure?" before anything is cleared. A wrong value in ONE box is not clearAll: that is a correction or "wait".',
     '                                               confirmAll is for the adviser saying in words that ALL the answers on the whole form are verified or correct ("everything is fine, all the answers are verified", "I think we can verify all the answers"):',
     '                                               it marks every answer still waiting for the client as agreed, in every section. Give it only for those words, never for a "yes" to one read-back (that is "confirm").',
     '  {"do":"note","text":"- ...\n- ..."}           something for the notes box, WHOEVER says it (see "Notes" below)',
+    '  {"do":"done","section":"<id>"}               a section is finished: the adviser says so, or the client has no more to add (see "Sections that are finished" below); for one list only: {"do":"done","list":"<list id>"}',
     '',
     'How to read the line:',
     '- Facts count whoever says them. The adviser saying "your first name is John" and the client saying "my surname is Peters" each fill a box. A full name fills the first name AND the surname.',
@@ -46,7 +47,7 @@
     '  Give ONE fill with the final value, with "correction":true when it replaces something already in the box. Never join the old and the new value.',
     '- "No" boxes: boxes marked "none_box": true have a "No ..." tick box (home number, work number, personal email, work email). When the client does not have one ("I don\'t have a telephone at home", "no landline",',
     '  "I haven\'t got a work email") fill that box with the value "None". Several can be said in one line: one fill per box. Never give "None" to a box the client does give a value for.',
-    '- Understand meaning, not exact words. Ignore filler, false starts and small talk. Give {"actions": []} for acknowledgements and small talk ("okay great", "thank you", "I see", "mm hm", "lovely").',
+    '- Understand meaning, not exact words. Ignore filler, false starts and small talk. Give {"actions": []} for acknowledgements and small talk ("okay great", "thank you", "I see", "mm hm", "lovely"), but not for a section being finished (see "Sections that are finished" below).',
     '- Never invent a value that was not said, and never fill a box for something that is only being asked.',
     '- Only the newest line asks for something. Never repeat a fill for a value that is already in "filled" unless the newest line says it again as the answer to the box being asked about.',
     '- Only give "undo" or "clear" when the newest line asks for it in words ("scratch that", "undo", "clear that", "delete that", "delete the ..."). A correction is a fill with "correction":true, never an undo, and a comment or an unclear line asks for nothing.',
@@ -71,6 +72,7 @@
     'Client priorities. The last page of the form holds the areas the adviser recommends to the client: Life, RA, RGAR, Invest, EGAR, Medical Aid, Will and Short Term. Each has a decision box (ids pr_life, pr_ra, pr_rgar, pr_inv, pr_egar, pr_med, pr_will, pr_st)',
     'and a comments box (the same id with _cm on the end). The adviser raising an area ("I would recommend life cover", "what about a retirement annuity?", "we should look at your will") is an "ask" for its decision box.',
     'The client agreeing ("yes", "definitely", "go ahead", "that makes sense", "please do") fills the decision box with the option that starts "Priority"; the client declining ("not now", "I\'m not interested", "I already have that", "no thanks") fills it with the option that starts "Not a priority".',
+    'For Life, RA and Invest (pr_life, pr_ra, pr_inv) there is a third option, "Client not sure, needs to think about it": use it when the client is undecided ("I\'m not sure", "let me think about it", "I need to speak to my wife first", "maybe later, I\'ll come back to you"). The reason goes in the comments box. The other areas have only the two options: leave their decision box empty when the client is undecided and put the reason in the comments.',
     'The reason or instruction that comes with it ("I can\'t afford it at the moment", "revisit in six months", "Valerie must call him on Monday") goes into that area\'s comments box (the _cm id) as a short note in the speaker\'s words, tidied; a decision and its reason in one line are two fills.',
     'The comments boxes hold reasons and instructions only: a fact about what the client has (a policy, a fund, a will) belongs in the boxes of the earlier pages, never in these.',
     '',
@@ -83,6 +85,16 @@
     '- A range is not a value: "between 30 and 40", "around 3 or 4" fill nothing. Wait for the figure that is settled ("okay, let\'s say 35").',
     '- A lone word from the adviser that answers nothing ("Okay", "Chai", "Childcare", "Wow") is noise: give {"actions": []}, and never add it to a text box.',
     '- "Years in this occupation" (years) takes the length as said ("since February 2022", "about four years", "18 months"): the page works out the number of years.',
+    '',
+    'Sections that are finished. The adviser works through the form section by section, so listen for a section being finished. It is NOT small talk, and it is not an answer to the box that was asked about before:',
+    '- The adviser says so ("that concludes the debts", "that is the debts done", "we are done with the income", "that covers the health questions", "that is everything for this section", "we are done here"): give {"do":"done","section":"<id of that section, else position.section>"}.',
+    '- The adviser asks whether there is MORE ("do you have any more debts?", "any other children?", "any other policies?", "is there anything else you want to tell me about your health?", "is that everything?") and the client declines ("no", "no, that\'s all", "nothing else", "that is everything", "just those"):',
+    '  the "no" answers the question about more, so the list or section is finished: fill nothing, give {"do":"done","section":"<id>"} when the list is the whole section (debts, children, investments) or the question was about the whole section, and {"do":"done","list":"<list id>"} when the section holds several lists',
+    '  (personal policies and group policies, retirement annuities and pension funds): that list is finished but the section is not. A question about a box that exists ("any other health issues?" is the box h_oth) is an "ask" for that box: its answer is that box\'s, not the end of a section.',
+    '- A part of a page that holds several topics (the will on the page of medical aid, will and short-term insurance) can be finished without the page being finished: "that is the will done" gives nothing. The page is finished only when it is named ("that concludes the medical, will and short-term section") or the adviser says the section or the page is done.',
+    '- One line can finish a section and go on: "that concludes the debts, let\'s talk about the children" is [done debts, section kids]; give the "done" first. A "done" that is only an acknowledgement, or only the client saying their own debts are paid off, is not a "done".',
+    '- "position.concluded" (when present) lists the sections already finished. The client or adviser adding something to one of them ("oh wait, there is one more debt, a car loan with Wesbank", "I forgot, I also have a policy with Sanlam") reopens it: give a "section" action for it and the row or the fills. A bare "no", "okay" or "that\'s all" after a section was finished is small talk: give {"actions": []}.',
+    '- "Okay, that\'s the notes done, now the children" is [notesOff, section kids]. While notes are being taken (see below) any wording that says the notes are finished ("I\'ve noted that, I\'ve completed those notes", "that\'s everything I wanted to note", "okay, that\'s the notes") is notesOff and is never itself noted.',
     '',
     'Facts with no box. When the newest line states a fact about the client\'s situation that belongs on the form (an amount, a name, a date, a product, a plan, a reason) but you cannot put it in any box or list column of "fields" and "lists" (there is no such box, or you cannot tell which one),',
     'add it to the reply as {"actions": [...], "unplaced": [{"text": "short point in plain words, the figures as said", "section": "<id of the section it belongs in, if you can tell>"}]} so the adviser can see it. Give one entry per fact.',
@@ -121,7 +133,7 @@
     '{"do":"fill","field":"wemail","value":"Jonathan [E1]"}. Use only words that are really there, immediately before the marker. Otherwise give the marker alone.',
     'A plain "my email" or "email address" is the personal email (pemail); "work email" or "office email" is the work email (wemail). A plain "my number" or "cell" is the cell number, an "office" or "work" number is the work number.',
     '',
-    'Some sections hold LISTS of rows: children, debts, existing policies, retirement funds, investments, partners and shareholders, quotes. "lists" describes every list of the form: its section, its columns, and the rows already there (row numbers start at 1).',
+    'Some sections hold LISTS of rows: children, debts, existing personal and group policies, retirement annuities, pension and provident funds, investments, business assurance policies, partners and shareholders, quotes. "lists" describes every list of the form: its section, its columns, and the rows already there (row numbers start at 1).',
     'Three more actions work on lists:',
     '  {"do":"row","list":"<list id>","values":{"<column id>":"<value>", ...}}   someone introduces a NEW row and says things about it ("we have a daughter, Thandi, born 22 August 2019")',
     '  {"do":"cell","list":"<list id>","row":<row number or "last">,"col":"<column id>","value":"..."}   a value for one box of a row that is already there ("the balance on the bond is R450 000")',
@@ -246,6 +258,7 @@
     var off = Object.keys(ctx.hidden || {}); if (off.length) body.off = off;                      // the boxes (and "list:<id>") switched off on the form now: kept out of "fields", which never changes, so it can be remembered
     if (ctx.note) body.note = String(ctx.note);
     if (tPriv) body.position.box_has_value = !!ctx.targetFilled;
+    if (ctx.concluded && ctx.concluded.length) body.position.concluded = ctx.concluded.slice(0, 14);                  // the sections the adviser has already said are finished
     if (sh.list.length) body.private_values = sh.list;
     var vault = { _line: String(text == null ? '' : text), _sent: sh.text, _held: ctx.privateHeld || {} };                                      // the line itself (to check the words in front of an email marker), what was sent (to recover a number that was sent unshielded) and the values already in the private boxes waiting to be confirmed (to check a read-back against; never sent)
     Object.keys(sh.vault).forEach(function (k) { vault[k] = sh.vault[k]; });
@@ -358,6 +371,7 @@
         else if (a.do === 'empty' && okAny(a.field)) acts.push({ do: 'empty', field: a.field });
         else if ((a.do === 'cell' || a.do === 'empty') && okList(a.list) && okCol(a.list, a.col) && (a.do === 'empty' || (typeof a.value === 'string' && !a.value.trim()))) acts.push({ do: 'empty', list: a.list, row: rowRef(a.row, false), col: a.col });
         else if (a.do === 'wait') acts.push({ do: 'wait' });
+        else if (a.do === 'done' && (okSec(a.section) || okList(a.list) || (a.section == null && a.list == null))) acts.push({ do: 'done', section: okSec(a.section) ? a.section : null, list: okList(a.list) ? a.list : null, via: 'claude' });       // a section (or one list of it) is finished
         else if (a.do === 'cmd' && a.cmd === 'notes') acts.push({ do: 'cmd', cmd: { type: 'notes', retro: a.retro === true, box: null } });
         else if (a.do === 'cmd' && typeof a.cmd === 'string' && CMDS.hasOwnProperty(a.cmd)) acts.push({ do: 'cmd', cmd: { type: CMDS[a.cmd].type } });
         else if (a.do === 'row' && okList(a.list) && a.values && typeof a.values === 'object') {
@@ -541,7 +555,7 @@
      opts: { apiKey | ask, model, areas: { id: { area, data: { facts, lists } } }, fetchImpl } -> Promise of { id: [points] } for the areas asked about (an area it did not answer is left out). */
   var SUMMARY_SYSTEM = [
     'You help a financial adviser who is meeting a client. The Fact Find form has a page of areas (Life, RA, RGAR, Invest, EGAR, Medical Aid, Will, Short Term) where the adviser recommends what the client should do.',
-    'For each area you receive JSON "areas": { "<id>": { "area": "<name>", "data": { "facts": { "<box>": "<value>" }, "lists": { "<list>": [ { "<column>": "<value>" } ] } } } }.',
+    'For each area you receive JSON "areas": { "<id>": { "area": "<name>", "data": { "facts": { "<box>": "<value>" }, "lists": { "<list>": [ { "<column>": "<value>" } ] } } } }. The areas are Life, RA, RGAR, Invest, EGAR, Medical Aid, Will, Short Term and Business assurance (for a business owner).',
     'Write a very brief point-form summary of what the client HAS in that area, so the adviser can see at a glance what is in place and what is missing before advising.',
     'Rules:',
     '- Use only the data given for that area. Never mention anything that is not in it and never bring in another area: no income, family, health or marital details unless they are in that area\'s data.',
@@ -550,6 +564,8 @@
     '- Anything that is not in the data has not been asked or recorded yet: say nothing about it, and never write "No ... in place" or "none recorded" because something is missing. A list that is not in the data simply has no rows yet.',
     '- If the data is empty, the one point is "Nothing recorded yet".',
     '- "Credit life" is reported against each debt that was asked about; "Quote asked for" or "RGAR"/"EGAR requested" only when the data says so.',
+    '- A fact whose label starts with "Total" was added up by the form: give it exactly as it is, as one point (for Life: the total debt to be covered, the monthly debt repayments and the childcare cost per month). Never add figures up yourself and never leave such a total out.',
+    '- Business assurance: say which policies the client already has (buy & sell, contingent liability, keyman, other) with the insurer and the cover amount, and whether there are partners or co-owners and business loans or surety, when the data says so.',
     'Reply with ONE JSON object and nothing else: {"areas": {"<id>": ["point", "point"]}} with an entry for every area you were sent.'
   ].join('\n');
   function scrubData(x) {

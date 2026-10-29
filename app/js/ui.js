@@ -268,11 +268,11 @@
     return h + (ok ? inner : '<div class="off" inert>' + inner + '</div>');
   }
   /* One area of the Client priorities page: its decision and comments boxes on the left with its quotes and referrals, and a short summary of what the client has on the right.
-     The whole area takes a green haze when it is a priority and a red haze when it is not (its quotes are then greyed out; the comments box stays). */
+     The whole area takes a green haze when it is a priority, a red haze when it is not (its quotes are then greyed out; the comments box stays) and a yellow haze while the client is not sure (the quotes stay open). */
   function panelHTML(sec, id) {
-    var P = schema.panelsById[id], c = ctx(), v = P.dec ? state.f[P.dec].v : '', cls = v === schema.PRIORITY ? ' p1' : v === schema.NOT_PRIORITY ? ' p2' : '';
+    var P = schema.panelsById[id], c = ctx(), v = P.dec ? state.f[P.dec].v : '', cls = v === schema.PRIORITY ? ' p1' : v === schema.NOT_PRIORITY ? ' p2' : v === schema.UNSURE ? ' p3' : '';
     var applies = calc.showIf(P.cond, c);
-    var chip = !P.dec ? (applies ? 'Business owner' : 'Not applicable') : cls === ' p1' ? 'Priority' : cls === ' p2' ? 'Not a priority' : 'Not yet discussed';
+    var chip = !P.dec ? (applies ? 'Business owner' : 'Not applicable') : cls === ' p1' ? 'Priority' : cls === ' p2' ? 'Not a priority' : cls === ' p3' ? 'Needs to think about it' : 'Not yet discussed';
     var blocks = sec.blocks.filter(function (b) { return b.pri === id; }), head = blocks.filter(function (b) { return b.head; })[0];
     var h = '<section class="prio' + cls + '" data-prio="' + id + '"><header><h3>' + esc(P.title) + '</h3><span class="sub">' + esc(P.sub) + '</span><span class="chip">' + chip + '</span></header><div class="pbody"><div class="pl">';
     if (head) h += gridHTML(head, c);
@@ -351,7 +351,7 @@
     schema.sections.forEach(function (s) {
       if (s.adv && !adv) { nav += '<div class="sep">Client Priorities identified</div>'; adv = true; }
       var c = store.counts(state, s);
-      nav += '<button type="button" data-sec="' + s.id + '"' + (s.id === cur ? ' aria-current="true"' : '') + '><span>' + esc(s.title) + '</span><span class="n" data-count="' + s.id + '">' + (s.adv ? '' : c.fill + '/' + c.tot) + '</span></button>';
+      nav += '<button type="button" data-sec="' + s.id + '"' + (s.id === cur ? ' aria-current="true"' : '') + '><span>' + esc(s.title) + (vm.done[s.id] ? ' <span class="ck" title="Finished: said in the conversation">✓</span>' : '') + '</span><span class="n" data-count="' + s.id + '">' + (s.adv ? '' : c.fill + '/' + c.tot) + '</span></button>';
     });
     $('#nav').innerHTML = nav;
   }
@@ -703,7 +703,7 @@
      Whatever listens calls FF.app.voiceHear(text, who), who being 'me' (the adviser) or 'client'. Typing works as always when voice is off. */
   var V = FF.voice, VAI = FF.voiceAI, vidx = V.buildIndex(schema);
   try { if (VAI && VAI.setShare) VAI.setShare(localStorage.getItem('wr-fact-find-share') === '1'); } catch (e) { /* storage unavailable: sharing stays off */ }
-  var vm = { on: false, target: null, answered: false, secGlow: false, noteMode: null, rowCur: {}, undo: [], recent: [], flashes: {}, queue: Promise.resolve(), slow: 0, epoch: 0, busy: 0, seq: 0, moveSeq: 0, calls: 0, laneTarget: null, unplacedSeen: {}, noSweep: {}, sweeping: false, sweepNext: [], sweepSecs: {}, sweepT: 0, secAt: {}, sweptAll: 0, lastFail: 0, wipe: null, digits: null, run: null, erun: null, eann: null, paused: false, pointed: null, lastNum: null };
+  var vm = { on: false, done: {}, target: null, answered: false, secGlow: false, noteMode: null, rowCur: {}, undo: [], recent: [], flashes: {}, queue: Promise.resolve(), slow: 0, epoch: 0, busy: 0, seq: 0, moveSeq: 0, calls: 0, laneTarget: null, unplacedSeen: {}, noSweep: {}, sweeping: false, sweepNext: [], sweepSecs: {}, sweepT: 0, secAt: {}, sweptAll: 0, lastFail: 0, wipe: null, digits: null, run: null, erun: null, eann: null, paused: false, pointed: null, lastNum: null };
   /* ---------- "Live Client Conversation": a text box in the right-hand pane under Checks, kept in view while the page scrolls. The lines heard, oldest at the top and the latest at the bottom, each with what was done on the form because of it. ---------- */
   var vmCur = null;                                              // the line being dealt with now, so what is done on the form is listed under it
   var cv = { rows: [], all: [], live: '' }, convoT = 0;
@@ -959,6 +959,7 @@
       return;
     }
     var f = vmField(id), cr = vmCellRef(id);
+    if (f && vm.done[f.sec]) delete vm.done[f.sec];                           // a question or an answer in a finished section opens it again ("oh, there is one more debt")
     if (cr) while (state.l[cr.list].length <= cr.i) { store.addRow(state, cr.list, {}, 'heard'); vm.pointed = { list: cr.list, i: state.l[cr.list].length - 1 }; }   // the row is there before it is pointed at
     if (cur !== f.sec) { var fromF = cur; cur = f.sec; redraw(); vmPulseNav(); vmEnter(fromF); }
     if (cr) { vm.rowCur[cr.list] = cr.i; if (!vmEl(id)) redraw(); }
@@ -977,6 +978,7 @@
     if (vmQuiet) { vmLog('did not move to the section: the page is already on a later question'); return; }
     vmMoved(); vmDropPointed(null);
     vm.undo.push({ kind: 'nav', sec: cur, target: vm.target, answered: vm.answered });
+    delete vm.done[secId];                                                    // going back to a finished section opens it again
     var fromS = cur; cur = secId; vm.target = null; vm.answered = false; vm.secGlow = true; vmEnter(fromS);
     if (document.activeElement && document.activeElement.blur && document.activeElement !== $('#vdText')) document.activeElement.blur();
     redraw(); vmPulseNav(); window.scrollTo(0, 0);
@@ -991,10 +993,30 @@
     var secs = schema.sections.filter(function (s) { return calc.showIf(s.cond, ctx()); }), i = secs.map(function (s) { return s.id; }).indexOf(cur), n = i + dir;
     if (n >= 0 && n < secs.length) vmOpenSection(secs[n].id);
   }
+  /* A section is finished: "that concludes the debts", or "no" to "do you have any more debts?". It is marked in the list, the catch-up check looks at it, and the page moves on to the next section
+     (not when the same line goes somewhere itself, not for a late line, and not when it is not the section being talked about). "scratch that" goes back. One list of a section that holds several lists has no more: only the list is finished. */
+  function vmDone(a) {
+    var L = a.list && vidx.lists[a.list], secId = a.section || (!a.list && !a.part ? cur : null);
+    vmDropPointed(null);                                                       // a row only pointed at ("any more debts?") that stayed empty is taken away
+    if (!secId) {
+      if (vm.target && /^count:/.test(vm.target)) { vm.target = null; vm.answered = false; }
+      vmLog(L ? 'no more ' + L.title.toLowerCase() : 'that part of the page is finished'); vmMarkWait(); return;
+    }
+    var sec = schema.sections.filter(function (x) { return x.id === secId; })[0];
+    if (!sec) return;
+    var was = !!vm.done[secId], from = cur;
+    vm.done[secId] = Date.now();
+    if (vm.target && /^count:/.test(vm.target)) { vm.target = null; vm.answered = false; }
+    redraw();
+    if (!was) { vmLog('section finished: ' + sec.title); toast(sec.title + ': finished. Say "scratch that" to take it back.'); }
+    if (!a.stay && !vmQuiet && secId === cur) vmStepSection(1); else vmMarkWait();
+    if (!was) vm.undo.push({ kind: 'done', sec: secId, moved: cur !== from });                  // after the move, so one "scratch that" takes back both
+  }
   function vmUndo() {
     var e = vm.undo.pop();
     if (!e) return;
     if (e.kind === 'nav') { cur = e.sec; vm.target = e.target; vm.answered = e.answered; vm.secGlow = false; redraw(); vmPulseNav(); return; }
+    if (e.kind === 'done') { delete vm.done[e.sec]; if (e.moved && vm.undo.length && vm.undo[vm.undo.length - 1].kind === 'nav') return vmUndo(); redraw(); return; }      // taking back "finished" also goes back to the page it moved on from
     if (e.kind === 'bulk') { e.fields.forEach(function (x) { if (state.f[x.id]) state.f[x.id].st = x.st; }); e.rows.forEach(function (x) { var r = state.l[x.list] && state.l[x.list][x.i]; if (r) r.st = x.st; }); touch(); redraw(); return; }
     if (e.kind === 'wipe') {
       e.snap.claude = state.claude; state = e.snap; fileBase = e.base; fileHandle = e.handle; rememberHandle(e.handle); dirty = e.dirty; cur = e.sec;
@@ -1097,7 +1119,7 @@
   function vmPreviousStatement() {
     for (var i = vm.recent.length - 2; i >= 0 && i >= vm.recent.length - 4; i--) {
       var t = vm.recent[i].text;
-      if (!V.parseCommand(t, vidx) && !V.looksLikeQuestion(t) && !V.isChatter(t)) return t;
+      if (!V.parseCommand(t, vidx) && !V.looksLikeQuestion(t) && !V.isChatter(t) && !V.wrapUp(t, vidx, { cur: cur })) return t;
     }
     return '';
   }
@@ -1166,6 +1188,7 @@
     var L = vidx.lists[list];
     if (L && !vmVisible(L) && values) { var shown = Object.keys(values).filter(function (k) { return !vmPrivate(list + '.' + k); }).map(function (k) { return values[k]; }).join(', '); if (shown) vmUnplace({ text: L.title + ': ' + shown, why: 'that list is not shown for this client', sec: L.sec }); }
     if (!L || !vmVisible(L)) return -1;
+    delete vm.done[L.sec];
     if (cur !== L.sec && !vmQuiet) { var fromR = cur; cur = L.sec; vm.secGlow = false; vmPulseNav(); vmMoved(); vmEnter(fromR); }
     var rows = state.l[list], i = -1, r;
     if (values) for (r = 0; r < rows.length; r++) if (!Object.keys(rows[r].d).some(function (k) { return rows[r].d[k] !== ''; })) { i = r; break; }
@@ -1293,7 +1316,7 @@
     return vmSlot().then(function () {
       return VAI.decide({
         apiKey: set.apiKey, ask: !set.apiKey && FF.voiceBackend && FF.voiceBackend.available ? FF.voiceBackend.ask : null, model: set.voiceModel, hedgeMs: 3500, idx: vidx, who: who, text: text, fetchImpl: entry || vmCur ? loggedFetch(entry || vmCur) : meteredFetch,
-        ctx: { sectionId: sec, targetId: tid, targetRow: tcr ? tcr.i + 1 : null, targetValue: tv, targetFilled: tfilled, alternatives: entry && entry.m && entry.shown === entry.text ? entry.m.also : null, filled: fl.filled, filledPrivate: fl.filledPrivate, hidden: vmHiddenMap(), awaiting: aw.awaiting, privateHeld: aw.held, note: note,
+        ctx: { sectionId: sec, targetId: tid, targetRow: tcr ? tcr.i + 1 : null, targetValue: tv, targetFilled: tfilled, alternatives: entry && entry.m && entry.shown === entry.text ? entry.m.also : null, filled: fl.filled, filledPrivate: fl.filledPrivate, hidden: vmHiddenMap(), awaiting: aw.awaiting, privateHeld: aw.held, note: note, concluded: Object.keys(vm.done),
           listRows: function (key) { return rows[key] || []; }, recent: recent }
       }).then(function (r) { vmSlotFree(); return r; }, function (e) { vmSlotFree(); throw e; });
     }).then(function (r) { vm.busy--; vmRender(); if (entry) entry.claudeMs = Date.now() - t0; return r; }, function (err) {
@@ -1314,7 +1337,7 @@
     var words = text.split(/\s+/).length;
     if (AGREE_LINE(text) && words <= 9) return false;                                             // a plain yes agrees to what was read back by the lines before it: read after them
     var startsNotes = pl.actions.some(function (a) { return a.do === 'cmd' && a.cmd && a.cmd.type === 'notes'; });
-    var onlyCommand = pl.actions.length > 0 && pl.actions.every(function (a) { return a.do === 'cmd' && !(/^(?:undo|clear|clearAll)$/.test(a.cmd && a.cmd.type)); }) && words <= 8 && !startsNotes;
+    var onlyCommand = pl.actions.length > 0 && pl.actions.every(function (a) { return (a.do === 'cmd' && !(/^(?:undo|clear|clearAll)$/.test(a.cmd && a.cmd.type))) || (a.do === 'done' && a.via === 'said'); }) && words <= 10 && !startsNotes;
     return !startsNotes && !onlyCommand;
   }
   var ACK_WORDS = {};
@@ -1333,7 +1356,7 @@
     if (keep.wipe !== !!vm.wipe) return 'a question about removing everything is open';
     var acts = r && r.kind === 'actions' ? r.actions : [], was = keep.target || null, now = vm.laneTarget || null;
     var named = function (a) { return a.field || (a.list && typeof a.row === 'number' ? a.list + ':' + (a.row - 1) + ':' + a.col : null); };
-    var real = acts.filter(function (a) { return /^(?:fill|confirm|cell|empty|row|addrow|note|section|cmd)$/.test(a.do); });
+    var real = acts.filter(function (a) { return /^(?:fill|confirm|cell|empty|row|addrow|note|section|cmd|done)$/.test(a.do); });
     var usesIt = acts.some(function (a) {                                                       // the reply names the box Claude was told the talk was on (or "the last row" of its list)
       var n = named(a); if (n) return n === was;
       return !!(a.list && was && was.indexOf(a.list + ':') === 0 && a.do !== 'row' && a.do !== 'addrow');
@@ -1387,13 +1410,14 @@
   }
   function vmDoNow(a) {
     var f = a.field ? vmField(a.field) : null;
-    if (vm.noteMode && /^(?:section|ask|fill|cell|row|addrow|confirm)$/.test(a.do)) vmStopNotes();       // going to another box or section ends the notes
+    if (vm.noteMode && /^(?:section|ask|fill|cell|row|addrow|confirm|done)$/.test(a.do)) vmStopNotes();       // going to another box or section, or finishing the section, ends the notes
     switch (a.do) {
       case 'cmd':
         if (a.cmd && vmCur && ((a.cmd.type === 'undo' && !SAID_UNDO.test(vmCur.text)) || (a.cmd.type === 'clear' && !SAID_CLEAR.test(vmCur.text)))) { vmLog('did not ' + a.cmd.type + ': the words were not said'); return; }   // undo and clear destroy work, so the line has to ask for them
         if (a.cmd && a.cmd.type === 'confirmAll' && vmCur && !SAID_ALL_OK.test(vmCur.text)) { vmLog('did not confirm everything: the words were not said'); return; }
         vmLog('command: ' + (a.cmd && a.cmd.type)); return vmCommand(a.cmd);
       case 'section': return vmOpenSection(a.section);
+      case 'done': return vmDone(a);
       case 'empty':
         if (vmCur && !SAID_CLEAR.test(vmCur.text)) { vmLog('did not empty a box: the words were not said'); return; }
         return vmEmpty(a);
@@ -1457,6 +1481,9 @@
   function vmRun(actions) {
     if (vm.run) actions = actions.filter(function (a) { return !(/^(?:fill|confirm|cell)$/.test(a.do) && a.field === vm.run.box); });   // the number being said owns its box until it is complete
     if (vm.erun) actions = actions.filter(function (a) { return !(/^(?:fill|confirm|cell)$/.test(a.do) && a.field === vm.erun.box); });   // and so does an email address
+    actions.forEach(function (a, i) {                            // a section that is finished is followed by the next one, unless the same line goes somewhere else itself
+      if (a.do === 'done') a.stay = actions.slice(i + 1).some(function (b) { return /^(?:section|ask|fill|cell|row|addrow|confirm)$/.test(b.do) || (b.do === 'cmd' && b.cmd && /^(?:goto|nextSection|prevSection)$/.test(b.cmd.type)); });
+    });
     var k = -1;                                                  // "remove everything" ends the line for now: the rest waits for the answer
     actions.forEach(function (a, i) { if (k < 0 && a.do === 'cmd' && a.cmd && a.cmd.type === 'clearAll') k = i; });
     var now = k < 0 ? actions : actions.slice(0, k + 1);
@@ -1474,6 +1501,7 @@
     return vmAsk('auto', text, 'The page is taking notes now: what is said goes into the notes box "' + (nb.blkTitle || nb.label) + '" of the section "' + vmSecTitle(nb.sec) + '" until the notes end. Decide for this line: ' +
       '(1) it is more to note about that topic, or small talk: answer with "note" actions in point form and nothing else. ' +
       '(2) it asks about another part of the form, moves on to it, or states a fact that belongs in another box (for example notes about the medical aid, then "do you have gap cover?" or "gap cover with Stratum"): the notes end, so answer {"do":"cmd","cmd":"notesOff"} followed by what the line asks (section, ask, fill, row ...). ' +
+      '(3) it says the notes are finished, in any words ("I\'ve noted that, I\'ve completed those notes", "that\'s everything I wanted to note", "okay, that\'s the notes done"): answer {"do":"cmd","cmd":"notesOff"} and note nothing (what was said to end them is never itself noted). ' +
       'A line with both a thing to note and something that leaves the notes: the "note" actions first, then notesOff, then the rest. Never switch the notes on again.').then(function (r) {
       return vmRun(r && r.kind === 'actions' && r.actions.length ? r.actions : pl.actions);
     });
@@ -1518,8 +1546,9 @@
     return id ? actions.filter(function (a) { return !(a.field === id && (a.do === 'ask' || a.do === 'confirm')); }).concat([{ do: 'confirm', field: id }]) : actions;
   }
   /* What the page itself makes of a line, in the state the form is in now. */
-  function vmPlanFor(text) {
-    var pl = V.plan(text, vidx, { cur: cur, noting: !!vm.noteMode, target: vm.target, answered: vm.answered, rows: function (key) { return state.l[key].map(function (r) { return r.d; }); }, curRow: vm.rowCur, value: function (id) { return state.f[id].v; }, visible: function (id) { var f = vmField(id); return !!f && vmVisible(f); } });
+  function vmPlanFor(text, entry) {
+    var ri = entry ? vm.recent.indexOf(entry) : -1, prev = ri > 0 ? vm.recent[ri - 1].text : (!entry && vm.recent.length > 1 ? vm.recent[vm.recent.length - 2].text : '');       // the line before this one: "no" answers it
+    var pl = V.plan(text, vidx, { cur: cur, prev: prev, noting: !!vm.noteMode, target: vm.target, answered: vm.answered, rows: function (key) { return state.l[key].map(function (r) { return r.d; }); }, curRow: vm.rowCur, value: function (id) { return state.f[id].v; }, visible: function (id) { var f = vmField(id); return !!f && vmVisible(f); } });
     pl.actions = vmGuardReadBack(pl.actions, text);
     return pl;
   }
@@ -1811,7 +1840,7 @@
   function vmQuickTry(text, entry) {
     if (vmEditParse(text) || vm.run || vm.erun) return null;
     if (!vmQuickOn() || !vmAIReady() || vm.wipe || vm.noteMode || vm.slow > 0 || text.split(/\s+/).length > 16) return null;
-    var acts = vmPlanFor(text).actions;
+    var acts = vmPlanFor(text, entry).actions;
     if (!acts.length || acts.length > 4 || !acts.some(function (a) { return a.do === 'fill'; })) return null;
     if (!acts.every(function (a) { var f = a.field && !vmCellRef(a.field) ? vmField(a.field) : null; return (a.do === 'fill' || a.do === 'ask') && !a.tentative && !!f && vmVisible(f); })) return null;
     var mark = vm.undo.length, was = vmCur;
@@ -1863,24 +1892,25 @@
       toast('Waiting for a yes or no: delete all data from the entire form?');
       return Promise.resolve();
     }
-    if (vm.noteMode) {                                                   // "Okay, so that's the end of noting that. Can we say there are no other debts?": the notes end, and the rest is read as a line
-      var endM = NOTES_LEADIN.exec(text);
-      if (endM) {
-        vmStopNotes(); vmLog('notes ended');
-        var rest = text.slice(endM[0].length).trim();
-        if (rest.split(/\s+/).filter(function (w) { return /\w/.test(w); }).length < 2) return Promise.resolve();
-        text = rest; if (entry) entry.call = null;
+    if (vm.noteMode) {                                                   // "He wants it for school fees. I've noted that, I've completed those notes. Let's talk about the children.": what comes before is the last of the notes, then the notes end, and the rest is read as a line
+      var endN = V.splitNotesEnd(text) || (NOTES_LEADIN.test(text) ? { before: [], rest: [text.replace(NOTES_LEADIN, '')] } : null);
+      if (endN) {
+        var lastNote = endN.before.join('. ').trim(), rest = endN.rest.join(' ').trim(), more = rest.split(/\s+/).filter(function (w) { return /\w/.test(w); }).length >= 2;
+        var closing = Promise.resolve(lastNote && V.pointForm(lastNote).length ? vmAddNote(lastNote) : null).then(function () { vmStopNotes(); vmLog('notes ended'); });
+        if (!more) return closing;
+        if (entry) entry.call = null;
+        return closing.then(function () { return vmProcessAuto(rest, entry); });
       }
     }
     if (entry && entry.quick) return vmCheckQuick(text, entry);
     if (vmEditDigits(text)) return Promise.resolve();                    // "add an 8 to the end"
     if (vmClearNamed(text)) return Promise.resolve();                    // "scratch the first name and the surname"
-    var pl = vmPlanFor(text);
+    var pl = vmPlanFor(text, entry);
     var startsNotes = pl.actions.some(function (a) { return a.do === 'cmd' && a.cmd && a.cmd.type === 'notes'; });   // this computer's guess that the notes begin is not trusted: "in the notes", "scratch all notes" and "deleting so stop notes" all looked like it, and the notes then took the next ten lines
-    var words = text.split(/\s+/).length, onlyCommand = pl.actions.length > 0 && pl.actions.every(function (a) { return a.do === 'cmd' && !(vmAIReady() && /^(?:undo|clear|clearAll)$/.test(a.cmd && a.cmd.type)); }) && words <= 8 && !startsNotes;   // undo and clear destroy work: with Claude available it decides, from the lines before, whether they were really asked for
+    var words = text.split(/\s+/).length, onlyCommand = pl.actions.length > 0 && pl.actions.every(function (a) { return (a.do === 'cmd' && !(vmAIReady() && /^(?:undo|clear|clearAll)$/.test(a.cmd && a.cmd.type))) || (a.do === 'done' && a.via === 'said'); }) && words <= 10 && !startsNotes;   // an adviser's "that concludes the debts" is plain enough to follow without asking Claude; undo and clear destroy work: with Claude available it decides, from the lines before, whether they were really asked for
     /* A bare "yes" or "correct" may agree to several boxes that were just read back: Claude decides which, from the lines before it. */
     var agree = words <= 2 && V.isConfirm(text, true) && !pl.actions.some(function (a) { return a.do === 'fill'; }) && vmAwaiting().awaiting.length > 0;
-    if (vm.noteMode && vmAIReady() && (startsNotes || (pl.actions.every(function (a) { return a.do === 'note'; }) && vmMayLeaveNotes(text)))) return vmAskInNotes(text, pl);
+    if (vm.noteMode && vmAIReady() && (startsNotes || (pl.actions.every(function (a) { return a.do === 'note'; }) && (vmMayLeaveNotes(text) || V.mentionsNotes(text) || V.mayEndNotes(text))))) return vmAskInNotes(text, pl);       // a line that talks about the notes may be ending them, in words this computer does not know
     if (vm.noteMode || onlyCommand || !vmAIReady()) return vmRun(pl.actions);  // every other line, however short, is read by Claude with the lines before it
     return vmDecide(text, entry).then(function (r) {
       vmTakeUnplaced(r);
@@ -1911,7 +1941,7 @@
      A fact that was said but never reached a box is kept in a list ("Heard but not placed") with the Fact Find until the adviser puts it in a box, adds it to the notes or dismisses it. Facts get there from Claude
      (it names facts it had no box for), from the page (a box that is not shown, a value that cannot be read as that box's answer, a volunteered fact that would overwrite a confirmed one) and from the catch-up check:
      the conversation read again against the form, when the talk leaves a section and when voice is switched off. The check fills only boxes that are empty, as amber "to verify", and never a box that was emptied on purpose. */
-  function vmFreshForm() { vm.unplacedSeen = {}; vm.noSweep = {}; vm.secAt = {}; vm.sweptAll = cv.all.length; clearTimeout(vm.sweepT); vm.sweepSecs = {}; }
+  function vmFreshForm() { vm.done = {}; vm.unplacedSeen = {}; vm.noSweep = {}; vm.secAt = {}; vm.sweptAll = cv.all.length; clearTimeout(vm.sweepT); vm.sweepSecs = {}; }
   function vmUnplace(item) {
     var it = store.addUnplaced(state, Object.assign({ sec: cur }, item), vm.unplacedSeen);
     if (!it) return null;
@@ -2111,7 +2141,7 @@
     entry.seq = ++vm.seq;
     vm.recent.push(entry); if (vm.recent.length > 12) vm.recent.shift();
     cvAdd(entry); cv.live = '';
-    var pl0 = null; try { pl0 = vmPlanFor(text); } catch (e) { pl0 = null; }
+    var pl0 = null; try { pl0 = vmPlanFor(text, entry); } catch (e) { pl0 = null; }
     try { quick = vmQuickTry(text, entry); } catch (e) { quick = null; }          // a clear answer is on the form already; Claude checks it in its turn below
     if (quick) { entry.quick = quick; entry.quickMs = Date.now() - t0; } else vm.slow++;
     try {
@@ -2125,7 +2155,7 @@
   }
   function vmToggle(on) {
     var drained = vm.queue;                                                                                    // lines still being put on the form finish before the final check
-    vm.on = on; vm.target = null; vm.answered = false; vm.secGlow = on; vm.noteMode = null; vm.rowCur = {}; vm.queue = Promise.resolve(); vm.slow = 0; vm.epoch++; vm.digits = null; vm.run = null; vm.erun = null; vm.eann = null; vm.paused = false; vm.pointed = null; vm.moveSeq = 0; vm.laneTarget = null; cv.live = ''; vmCur = null;
+    vm.done = {}; vm.on = on; vm.target = null; vm.answered = false; vm.secGlow = on; vm.noteMode = null; vm.rowCur = {}; vm.queue = Promise.resolve(); vm.slow = 0; vm.epoch++; vm.digits = null; vm.run = null; vm.erun = null; vm.eann = null; vm.paused = false; vm.pointed = null; vm.moveSeq = 0; vm.laneTarget = null; cv.live = ''; vmCur = null;
     if (vm.wipe) { vm.wipe = null; var wd = document.getElementById('wipe'); if (wd && wd.open) wd.close(); }   // switching Voice on or off never leaves the question hanging
     if (!on) listenStop();                                                                                       // no voice mode, nothing to listen for
     clearTimeout(vm.sweepT); vm.sweepSecs = {};

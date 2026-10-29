@@ -12,7 +12,7 @@ const fresh = () => store.blank();
 const set = (s, id, v) => store.setField(s, id, v);
 const show = (s, cond) => calc.showIf(cond, store.ctxFor(s));
 const sec = id => schema.sections.find(x => x.id === id);
-const PRI = schema.PRIORITY, NOT = schema.NOT_PRIORITY;
+const PRI = schema.PRIORITY, NOT = schema.NOT_PRIORITY, UNSURE = schema.UNSURE;
 const AREAS = ['life', 'ra', 'rgar', 'inv', 'egar', 'med', 'will', 'st'];
 
 test('the pages: risk cover, retirement funding, then one Client priorities page; the old advisor pages and the Advisor box are gone', () => {
@@ -38,8 +38,11 @@ test('personal risk first with joint life, then group risk with its own list and
   assert.deepStrictEqual(schema.lists.grp.cols.map(c => c.l), schema.lists.risk.cols.map((c, i) => i === 0 ? 'Provider / administrator' : c.l));
   assert.ok(schema.lists.grp.sum.spend);
   assert.ok(b[1].list === 'risk' && b[3].list === 'grp' && !b.some(x => (x.fields || []).some(f => /joint/.test(f.id)) && x.list === 'grp'));
-  assert.strictEqual(sec('retire').blocks[0].list, 'ret');
-  assert.ok(!sec('cover').blocks.some(x => x.list === 'ret'));
+  assert.deepStrictEqual(sec('retire').blocks.map(x => x.list || '-'), ['ret_ra', 'ret_pp', '-']);                      // retirement annuities, and pension and provident funds, are two lists
+  assert.deepStrictEqual(sec('retire').blocks.map(x => x.title || '-'), ['Retirement annuities', 'Pension and provident funds', '-']);
+  assert.ok(!schema.lists.ret && !sec('cover').blocks.some(x => /^ret/.test(x.list || '')));
+  assert.deepStrictEqual(schema.lists.ret_pp.cols[0].o, ['Pension fund', 'Provident fund']);
+  assert.ok(!schema.lists.ret_ra.cols.some(c => c.k === 'type'));
 });
 
 test('no personal risk cover greys out Joint life and the policies, with a message; no group greys the group policies', () => {
@@ -60,7 +63,7 @@ test('the priority areas, in order, each with a decision and a comments box; eve
   AREAS.forEach(id => {
     const p = schema.panelsById[id], dec = schema.fieldsById[p.dec], cm = schema.fieldsById[p.cm];
     assert.strictEqual(p.dec, 'pr_' + id); assert.strictEqual(p.cm, 'pr_' + id + '_cm');
-    assert.deepStrictEqual(dec.o, [PRI, NOT]); assert.strictEqual(cm.t, 'area');
+    assert.deepStrictEqual(dec.o, ['life', 'ra', 'inv'].includes(id) ? [PRI, UNSURE, NOT] : [PRI, NOT]); assert.strictEqual(cm.t, 'area');       // Life, RA and Invest also have "Client not sure, needs to think about it"
     assert.strictEqual(sec('prio').blocks.filter(b => b.pri === id && b.head).length, 1, id);
   });
   ['fna_req', 'fna_type', 'fna_ins', 'sf_req', 'n_calc', 'pref_spend', 'rgar_req', 'ret_age', 'ret_net', 'egar_req', 'ref_sti', 'ref_med', 'ref_will', 'lc_sa', 'pd_sa', 'dd_cover', 'ip_age', 'bs_req', 'cl_req', 'km_req', 'n_prio'].forEach(id => assert.ok(schema.fieldsById[id], id));
@@ -113,7 +116,7 @@ function sample() {
   set(s, 'has_risk', 'Yes'); set(s, 'joint', 'No'); store.addRow(s, 'risk', { prov: 'Liberty', spend: 'R 20 000.00', broker: 'Other broker' });
   set(s, 'has_group', 'Yes'); store.addRow(s, 'grp', { prov: 'Discovery', spend: 'R 1 450.00', broker: 'Through company' });
   store.addRow(s, 'debts', { type: 'Home loan', prov: 'Nedbank', cl: 'Yes', bal: 'R 1 200 000.00' }); store.addRow(s, 'debts', { type: 'Vehicle finance', prov: 'Wesbank', cl: 'No' });
-  store.addRow(s, 'ret', { type: 'Retirement annuity', prov: 'Allan Gray', val: 'R 16 000 000.00', contrib: 'R 50 000.00' }); store.addRow(s, 'ret', { type: 'Pension fund', prov: 'Old Mutual', val: 'R 3 200 000.00', contrib: 'R 8 000.00' });
+  store.addRow(s, 'ret_ra', { prov: 'Allan Gray', val: 'R 16 000 000.00', contrib: 'R 50 000.00' }); store.addRow(s, 'ret_pp', { type: 'Pension fund', prov: 'Old Mutual', val: 'R 3 200 000.00', contrib: 'R 8 000.00' });
   store.addRow(s, 'inv', { type: 'Unit trust', prov: 'Discovery Invest', val: 'R 11 000.00', prem: 'R 99.99' });
   store.addRow(s, 'kids', { name: 'Thandi', dob: '01/02/2014', stage: 'Primary', cost: 'R 20 000.00' });
   set(s, 'will', 'Yes'); set(s, 'will_where', 'Capital Legacy'); set(s, 'will_up', 'No'); set(s, 'ma', 'Medical aid'); set(s, 'ma_prov', 'Discovery Health'); set(s, 'gap', 'No'); set(s, 'sti', 'Yes'); set(s, 'sti_broker', 'Other broker');
@@ -138,9 +141,9 @@ test('an area\'s summary is written from that area\'s own boxes only', () => {
 
 test('plain points for each area, said the way the adviser needs them', () => {
   const s = sample(), L = id => S.local(s, id);
-  assert.deepStrictEqual(L('life'), ['Personal risk cover: Liberty, R 20 000 p.m., Other broker', 'Joint life with spouse: no', 'Group risk: Discovery, R 1 450 p.m., Through company', 'Credit life: Home loan (Nedbank): yes', 'Credit life: Vehicle finance (Wesbank): no', 'Quote asked for: FNA quote (new business)']);
-  assert.deepStrictEqual(L('ra'), ['Retirement annuity: Allan Gray, R 16 000 000, R 50 000 p.m., ', 'Pension fund: Old Mutual, R 3 200 000, R 8 000 p.m., ', 'Provident fund: none'].map(x => x.replace(/, $/, '')));
-  assert.deepStrictEqual(L('rgar').slice(0, 2), ['Total saved across all retirement funds: R 19 200 000', 'Total contributions: R 58 000 p.m.']);
+  assert.deepStrictEqual(L('life'), ['Personal risk cover: Liberty, R 20 000 p.m., Other broker', 'Joint life with spouse: no', 'Group risk: Discovery, R 1 450 p.m., Through company', 'Credit life: Home loan (Nedbank): yes', 'Credit life: Vehicle finance (Wesbank): no', 'Quote asked for: FNA quote (new business)', 'Total debt to be covered (balances): R 1 200 000', 'Total childcare cost to be covered, per month: R 20 000']);
+  assert.deepStrictEqual(L('ra'), ['Retirement annuity: Allan Gray, R 16 000 000, R 50 000 p.m.', 'Pension fund: Old Mutual, R 3 200 000, R 8 000 p.m.']);
+  assert.deepStrictEqual(L('rgar').slice(0, 2), ['Total saved across all retirement funds: R 19 200 000', 'Total monthly contributions to retirement funds: R 58 000 p.m.']);
   assert.ok(L('inv').includes('Tax-free savings: none') && L('inv').includes('Endowment: none') && L('inv').includes('Total invested: R 11 000'));
   assert.deepStrictEqual(L('will'), ['Has a will: held with Capital Legacy', 'Will is not up to date']);
   assert.deepStrictEqual(L('med'), ['Medical aid: Discovery Health', 'Gap cover: none']);
@@ -149,7 +152,7 @@ test('plain points for each area, said the way the adviser needs them', () => {
   set(e, 'will', 'No'); assert.deepStrictEqual(S.local(e, 'will'), ['No will in place']);
   set(e, 'has_risk', 'No'); set(e, 'has_group', 'No'); assert.deepStrictEqual(S.local(e, 'life'), ['No personal risk cover in place', 'No group risk through the employer']);
   assert.deepStrictEqual(S.local(e, 'egar').slice(0, 1), ['No children recorded, so no education to plan for']);
-  assert.deepStrictEqual(S.local(e, 'ra'), ['No retirement funds recorded']);
+  assert.deepStrictEqual(S.local(e, 'ra'), ['No retirement funds recorded yet']);
 });
 
 test('Claude\'s points are used only while the area still holds what it held when they were written', () => {
@@ -182,8 +185,8 @@ test('an area with nothing recorded sends nothing to claim "none" from, and the 
   const e = fresh(), sent = S.stale(e).life;
   assert.deepStrictEqual(sent.data, { facts: {}, lists: {} });                                  // empty lists are left out
   set(e, 'has_risk', 'No'); assert.deepStrictEqual(S.stale(e).life.data, { facts: { 'Has personal risk cover': 'No' }, lists: {} });
-  store.addRow(e, 'ret', { type: 'Retirement annuity', prov: 'Allan Gray' });
-  assert.deepStrictEqual(Object.keys(S.stale(e).ra.data.lists), ['Retirement funding']);
+  store.addRow(e, 'ret_ra', { prov: 'Allan Gray' });
+  assert.deepStrictEqual(Object.keys(S.stale(e).ra.data.lists), ['Retirement annuities']);
   assert.match(AI.SUMMARY_SYSTEM, /never write "No \.\.\. in place" or "none recorded" because something is missing/);
   assert.match(AI.SUMMARY_SYSTEM, /"Nothing recorded yet"/);
 });
@@ -201,7 +204,9 @@ test('voice: a plain yes makes an area a priority, a decline makes it not a prio
   ['yes', 'Yes, definitely', 'go ahead', 'that makes sense', 'yeah please do', 'ja'].forEach(t => assert.strictEqual(v(t), PRI, t));
   ['no', 'not now', "I'm not interested", 'no thanks', 'I cannot afford it at the moment', 'I already have that', 'not a priority', 'not at this stage'].forEach(t => assert.strictEqual(v(t), NOT, t));
   assert.strictEqual(v('yes but not now'), 'ERR:ambiguous');
-  assert.strictEqual(v('I am not sure'), 'ERR:unsure'); assert.strictEqual(v('maybe'), 'ERR:unsure');          // not guessed either way
+  ['I am not sure', 'maybe', 'let me think about it', "I'll need to speak to my wife first", 'I need some time to think this over'].forEach(t => assert.strictEqual(v(t), UNSURE, t));       // Life, RA and Invest have a third choice
+  assert.strictEqual(V.interpret(idx.byId.pr_will, 'I am not sure').error, 'unsure'); assert.strictEqual(V.interpret(idx.byId.pr_rgar, 'maybe').error, 'unsure');   // the others do not: not guessed either way
+  assert.strictEqual(V.interpret(idx.byId.pr_ra, 'let me think about it').value, UNSURE); assert.strictEqual(V.interpret(idx.byId.pr_inv, 'not sure yet').value, UNSURE);
   AREAS.forEach(id => { const r = V.interpret(idx.byId['pr_' + id], 'yes'); assert.strictEqual(r.value, PRI, id); });
   assert.ok(idx.byId.pr_ra_cm && idx.byId.pr_ra_cm.t === 'area' && !idx.byId.pr_ra_cm.notes);
 });
@@ -224,6 +229,60 @@ test('voice: the areas that are switched off are not asked about, and the priori
 test('Claude is told how the priority boxes work', () => {
   assert.match(AI.buildRequest(V.buildIndex(schema), { sectionId: 'prio', recent: [] }, 'auto', 'is life cover a priority?', 'm').system, /pr_life.*pr_st[\s\S]*Not a priority/);
   const body = JSON.parse(AI.buildRequest(V.buildIndex(schema), { sectionId: 'prio', recent: [] }, 'auto', 'x', 'm').messages[0].content);
-  assert.ok(body.fields.some(f => f.id === 'pr_life' && f.options.length === 2) && body.fields.some(f => f.id === 'pr_life_cm'));
+  assert.ok(body.fields.some(f => f.id === 'pr_life' && f.options.length === 3 && f.options[1] === UNSURE) && body.fields.some(f => f.id === 'pr_will' && f.options.length === 2) && body.fields.some(f => f.id === 'pr_life_cm'));
   assert.ok(body.lists.some(l => l.id === 'grp' && l.section === 'cover'));
+});
+
+test('"client not sure" is a third answer for Life, RA and Invest: the area stays open, with its own (yellow) state', () => {
+  const s = fresh();
+  ['life', 'ra', 'inv'].forEach(id => {
+    set(s, 'pr_' + id, UNSURE);
+    sec('prio').blocks.filter(b => b.pri === id).forEach(b => assert.ok(show(s, b.cond), id + ' ' + (b.title || '')));          // not switched off like "not a priority"
+  });
+  assert.ok(!schema.fieldsById.pr_will.o.includes(UNSURE) && !schema.fieldsById.pr_egar.o.includes(UNSURE));
+  assert.strictEqual(schema.UNSURE, 'Client not sure, needs to think about it');
+  assert.match(AI.SYSTEM, /Client not sure, needs to think about it/);
+});
+
+test('Life also gets the total debt and the total childcare to be covered, worked out by the page', () => {
+  const s = sample(); store.addRow(s, 'debts', { type: 'Credit card', bal: 'R 30 000.00', inst: 'R 1 500.00' }); store.addRow(s, 'kids', { name: 'Sipho', cost: 'R 5 000.00' }); set(s, 'has_risk', 'Yes');
+  const d = S.areaData(s, 'life');
+  assert.deepStrictEqual(d.totals, { 'Total debt to be covered (balances)': 'R 1 230 000', 'Total monthly debt repayments': 'R 1 500', 'Total childcare cost to be covered, per month': 'R 25 000' });
+  assert.deepStrictEqual(S.labelled(d).facts['Total debt to be covered (balances)'], 'R 1 230 000');                       // sent to Claude as given: it never adds up
+  assert.ok(S.local(s, 'life').includes('Total monthly debt repayments: R 1 500 p.m.') && S.local(s, 'life').includes('Total childcare cost to be covered, per month: R 25 000'));
+  assert.ok(!/Total debt|childcare/i.test(JSON.stringify(S.areaData(s, 'ra').totals) + JSON.stringify(S.areaData(s, 'will'))));   // only Life
+  const k1 = S.key(d); store.addRow(s, 'debts', { type: 'Personal loan', bal: 'R 10 000.00' }); assert.notStrictEqual(S.key(S.areaData(s, 'life')), k1);   // a new debt makes the summary out of date
+  assert.deepStrictEqual(S.areaData(fresh(), 'life').totals, {});                                                          // nothing under a total: no total
+  assert.match(AI.SUMMARY_SYSTEM, /starts with "Total"/);
+});
+
+test('Business assurance has a summary of the policies the client already has, and says it does not apply to a client with no business', () => {
+  const s = fresh(), P = schema.panelsById.biz;
+  assert.ok(P.sum && P.src && schema.lists.bizpol && sec('occ').blocks.some(b => b.list === 'bizpol'));
+  assert.strictEqual(S.areaData(s, 'biz'), null);
+  assert.deepStrictEqual(S.linesFor(s, 'biz').lines, ['Not applicable: the client is not a business owner']);
+  assert.deepStrictEqual(S.stale(s, ['biz'], true), {});                                                                   // nothing is sent to Claude for it
+  set(s, 'bizowner', 'Yes'); assert.deepStrictEqual(S.linesFor(s, 'biz').lines, ['Nothing recorded yet about business assurance']);
+  set(s, 'biz_assur', 'Yes'); assert.deepStrictEqual(S.linesFor(s, 'biz').lines, ['Business assurance in place: yes, no policies recorded yet']);
+  store.addRow(s, 'bizpol', { type: 'Buy & sell', prov: 'Old Mutual', cover: 'R 2 000 000.00', prem: 'R 3 400.00', paid: 'The business' });
+  store.addRow(s, 'bizpol', { type: 'Keyman', prov: 'Discovery', cover: 'R 1 000 000.00' });
+  set(s, 'biz_partners', 'Yes'); set(s, 'biz_loans', 'Yes'); store.addRow(s, 'shares', { name: 'Thandi', pct: '40' });
+  assert.deepStrictEqual(S.linesFor(s, 'biz').lines, ['Buy & sell: Old Mutual, cover R 2 000 000, R 3 400 p.m., paid by business', 'Keyman: Discovery, cover R 1 000 000', 'Has partners or co-owners: Thandi 40%', 'Business loans or surety signed: yes']);
+  const sent = S.stale(s, ['biz'], true).biz;
+  assert.strictEqual(sent.area, 'Business assurance'); assert.strictEqual(sent.data.lists['Existing business assurance policies'].length, 2);
+  assert.ok(!/Example|Thandi Dlamini/.test(JSON.stringify(sent)));
+  set(s, 'biz_assur', 'No'); assert.ok(S.linesFor(s, 'biz').lines.includes('No business assurance in place') && !S.linesFor(s, 'biz').lines.some(l => /Old Mutual/.test(l)));        // no business assurance: its policies are left out
+  assert.match(AI.SUMMARY_SYSTEM, /Business assurance/);
+});
+
+test('an older file with one retirement list opens as two: retirement annuities, and pension and provident funds', () => {
+  const j = { app: 'wr-fact-find', f: {}, l: { ret: [
+    { d: { type: 'Retirement annuity', prov: 'Allan Gray', val: '100000', contrib: '2000', broker: 'Paul K' }, st: 'confirmed' },
+    { d: { type: 'Provident fund', prov: 'Old Mutual', val: '5000000' }, st: 'heard' },
+    { d: { type: 'Pension fund', prov: 'Sanlam' }, st: 'confirmed' }, { d: { type: '', prov: '' }, st: 'confirmed' }] } };
+  const back = store.fromJSON(JSON.stringify(j));
+  assert.deepStrictEqual(back.l.ret_ra.map(r => r.d.prov), ['Allan Gray']); assert.strictEqual(back.l.ret_ra[0].d.broker, 'Paul K'); assert.strictEqual(back.l.ret_ra[0].d.val, 'R 100 000.00');
+  assert.deepStrictEqual(back.l.ret_pp.map(r => [r.d.type, r.d.prov, r.st]), [['Provident fund', 'Old Mutual', 'heard'], ['Pension fund', 'Sanlam', 'confirmed']]);
+  assert.strictEqual(back.l.ret, undefined);
+  const again = store.fromJSON(store.toJSON(back)); assert.strictEqual(again.l.ret_ra.length, 1); assert.strictEqual(again.l.ret_pp.length, 2);
 });
