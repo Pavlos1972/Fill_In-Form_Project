@@ -312,7 +312,7 @@
         { id: 'pd_ccabi', l: 'Childcare ABI', t: 'txt', opt: 1, preset: '5%' }
       ]) },
       { title: 'Income protection / sickness benefit: fractured cover', protector: 1, fields: [
-        { id: 'ip_age', l: 'Income protection age', t: 'sel', o: ['65', '70'], opt: 1 },
+        { id: 'ip_age', l: 'Income protection age', t: 'sel', o: ['65', '70'], opt: 1, preset: '65' },
         { id: 'ip_amt', l: 'Insured amount (R p.m.)', t: 'txt', calc: 'ip_amt' },
         { id: 'ip_hh', l: 'Household needs (R p.m.)', t: 'txt', calc: 'ip_hh' },
         { id: 'ip_wait', l: 'Waiting period', t: 'sel', o: WAIT, opt: 1 },
@@ -342,7 +342,7 @@
         N('pd_cmt', 'Comments')
       ] },
       { title: 'Income protection / sickness benefit: standard', fields: [
-        { id: 'ips_age', l: 'Income protection age', t: 'sel', o: ['65', '70'], opt: 1 },
+        { id: 'ips_age', l: 'Income protection age', t: 'sel', o: ['65', '70'], opt: 1, preset: '65' },
         { id: 'ips_amt', money: 1, l: 'Insured amount (R p.m.)', t: 'txt', opt: 1 },
         { id: 'ips_wait', l: 'Waiting period', t: 'sel', o: WAIT, opt: 1 },
         { id: 'ips_aci', l: 'ACI', t: 'sel', o: ['Fixed', 'Age-rated', 'Other'], opt: 1, preset: 'Fixed' },
@@ -359,7 +359,7 @@
      that the area's summary is written from, and nothing else, so a summary only ever speaks about its own area. */
   /* sum.t: totals worked out by the page (never added up by Claude): [label, [[list, column], ...]]. */
   var panels = [
-    { id: 'life', title: 'Life', sub: 'Life cover, disability, dread disease, income protection', src: 'Personal risk cover, group risk cover, credit life, total debt and childcare to be covered',
+    { id: 'life', title: 'Personal Risk Covers', sub: 'Life cover, disability, dread disease, income protection', src: 'Personal risk cover, group risk cover, credit life, total debt and childcare to be covered',
       sum: { f: ['has_risk', 'joint', 'has_group', 'fna_req', 'fna_type', 'sf_req', 'sf_type'], l: { risk: 0, grp: 0, debts: ['type', 'prov', 'prov_other', 'desc', 'cl'], redq: 0 },
         t: [['Total debt to be covered (balances)', [['debts', 'bal']]], ['Total monthly debt repayments', [['debts', 'inst']]], ['Total childcare cost to be covered, per month', [['kids', 'cost']]]] } },
     { id: 'ra', title: 'RA', sub: 'Retirement annuity', src: 'Retirement funding: retirement annuities, pension and provident funds',
