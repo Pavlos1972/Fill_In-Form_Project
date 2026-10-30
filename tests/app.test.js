@@ -295,7 +295,7 @@ test('an ID number can be on the form once: spaces and dashes do not hide a repe
 
 test('a file that already repeats an ID number is flagged on both boxes', () => {
   const s = fresh();
-  set(s, 'idno', '7212095268086');
+  set(s, 'idno', '7212095268086'); set(s, 'bizowner', 'Yes'); set(s, 'biz_partners', 'Yes');      // the partners list is on show
   store.addRow(s, 'shares', { name: 'A', id: '7212095268086' }, 'confirmed');
   store.addRow(s, 'shares', { name: 'B', id: '8001015009087' }, 'confirmed');
   store.addRow(s, 'shares', { name: 'C', id: '8001015009087' }, 'confirmed');
