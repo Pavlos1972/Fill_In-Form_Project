@@ -311,23 +311,35 @@ const PS = ['risk', 'grp', 'ra', 'pp', 'inv'], CL = 'Requested from client in me
 test('each of the five sections that hold policies ends with a "Request Current Policy Schedule(s)" tick-box list and a small Other box', () => {
   PS.forEach(k => {
     const f = schema.fieldsById['ps_' + k], o = schema.fieldsById['ps_' + k + '_ot'], blk = schema.sections.reduce((a, s) => a.concat(s.blocks), []).find(b => (b.fields || []).some(x => x.id === 'ps_' + k));
-    assert.strictEqual(f.t, 'multi'); assert.strictEqual(blk.title, 'Request Current Policy Schedule(s)'); assert.ok(blk.grey && blk.condMsg);
+    assert.strictEqual(f.t, 'multi'); assert.strictEqual(blk.title, 'Request Current Policy Schedule(s)'); assert.ok(!blk.cond && !blk.grey && !blk.condMsg);        // never locked
     assert.deepStrictEqual(f.o, k === 'grp' ? [CL, 'Other'] : [CL, AS, 'Other'], k);                                      // group risk has no Astute; "Client does not agree" is gone from all
     assert.ok(!f.o.some(x => /agree/i.test(x)) && o.t === 'txt' && o.cond.has === 'Other' && o.grey);
   });
   assert.strictEqual(schema.sections.find(x => x.id === 'inv').blocks.slice(-2)[0].fields[0].id, 'ps_inv');            // the last item of the section, before its Notes
 });
 
-test('a schedule list is greyed while the client has no such policies, and a tick-box rule reads the ticks', () => {
+test('no schedule list is ever locked, whatever the client has or has not been asked; the box for "Other" opens with its tick', () => {
   const s = fresh(), blk = id => schema.sections.reduce((a, x) => a.concat(x.blocks), []).find(b => (b.fields || []).some(f => f.id === id));
-  assert.ok(show(s, blk('ps_risk').cond) && show(s, blk('ps_grp').cond) && !show(s, blk('ps_ra').cond) && !show(s, blk('ps_pp').cond) && !show(s, blk('ps_inv').cond));
-  set(s, 'has_risk', 'No'); assert.ok(!show(s, blk('ps_risk').cond)); set(s, 'has_group', 'Not sure'); assert.ok(!show(s, blk('ps_grp').cond));
-  store.addRow(s, 'ret_ra', { prov: 'Allan Gray' }); store.addRow(s, 'inv', { type: 'Unit trust' });
-  assert.ok(show(s, blk('ps_ra').cond) && show(s, blk('ps_inv').cond) && !show(s, blk('ps_pp').cond));
+  const open = () => PS.every(k => !blk('ps_' + k).cond && show(s, blk('ps_' + k).cond));
+  assert.ok(open());                                                                                                      // nothing recorded, nothing asked
+  set(s, 'has_risk', 'No'); set(s, 'has_group', 'Not sure'); assert.ok(open());                                          // even when the answer is No or Not sure
+  store.addRow(s, 'ret_ra', { prov: 'Allan Gray' }); assert.ok(open());
   const other = schema.fieldsById.ps_ra_ot;
   assert.ok(!show(s, other.cond));
   set(s, 'ps_ra', CL + '; Other'); assert.ok(show(s, other.cond));
   set(s, 'ps_ra_ot', 'Bring them next week'); set(s, 'ps_ra', CL); assert.strictEqual(s.f.ps_ra_ot.v, '');        // Other is not ticked any more: what was typed goes
+});
+
+test('the action points follow a schedule choice that was made, with or without a recorded policy; "not asked yet" is chased only where the client has the policies', () => {
+  const s = fresh(); set(s, 'fname', 'Thandi');
+  assert.deepStrictEqual(A.local(s), ['Set up a follow-up appointment with Thandi (date to be agreed).']);              // nothing asked, nothing known: nothing to chase
+  set(s, 'ps_ra', CL);                                                                                                    // ticked before the retirement annuity was typed in
+  assert.ok(A.local(s).includes('Follow up with Thandi for the current policy schedules, asked for in the meeting, for the retirement annuities.'));
+  set(s, 'ps_inv', AS); set(s, 'loa', 'Yes'); assert.ok(A.local(s).some(l => /^Draw the current policy schedules for the investments from Astute/.test(l)));
+  set(s, 'has_risk', 'No'); set(s, 'ps_risk', CL); assert.ok(A.local(s).some(l => /personal risk policies/.test(l)));  // a choice made on purpose counts
+  set(s, 'ps_risk', ''); assert.ok(!A.local(s).some(l => /personal risk policies/.test(l)));                              // unticked and not a policy the client has: nothing
+  set(s, 'has_risk', 'Yes'); assert.ok(A.local(s).includes('Ask Thandi how the current policy schedules for the personal risk policies will be provided.'));
+  store.addRow(s, 'ret_pp', { prov: 'Sanlam' }); assert.ok(A.local(s).includes('Ask Thandi how the current policy schedules for the pension and provident funds (Sanlam) will be provided.'));
 });
 
 test('the LOA question comes first on the Personal & group risk cover page, with Yes, No and Not now', () => {
