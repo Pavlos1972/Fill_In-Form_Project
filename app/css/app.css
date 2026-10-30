@@ -157,6 +157,7 @@ tfoot td { background: var(--surface-2); font-weight: 600; font-variant-numeric:
 .len[hidden] { display: none; }
 .f.has-warn input, .f.has-warn select { border-color: var(--warn); }
 .help { font-size: 13px; color: var(--muted); margin: 0 0 12px; max-width: 70ch; }
+.blocknote { font-size: 12.5px; font-style: italic; color: var(--muted); margin: 8px 0 0; }
 .checks { display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
 .checks button { text-align: left; background: var(--warn-soft); color: var(--warn); border: 0; border-radius: 6px; padding: 6px 9px; cursor: pointer; }
 .checks .ok { color: var(--ok); }

@@ -8,7 +8,7 @@
                 grey (a box whose cond is false stays on screen, greyed out, instead of going away),
                 sl (the label shown on screen, when it is shorter than the label voice uses), vl (the label voice and Claude use, when the two kinds of life quote need telling apart),
                 t 'multi' (tick boxes; multi: 'ins' makes it a list of insurers; nona: no "(not asked yet)" row).
-   Block keys:  title, fields, list, cond (show only when true), condMsg, help (guidance shown on screen only),
+   Block keys:  title, fields, list, note (a line under the block's boxes, shown on screen and printed), cond (show only when true), condMsg, help (guidance shown on screen only),
                 grey (when cond is false the block stays on screen greyed out, under condMsg, instead of going away), nomsg (no condMsg above a greyed block), own (the block's own cond, apart from its area being switched off: a block with its own condMsg is hidden when that rule fails, but greyed when only its area is off),
                 pri (the priority area of the Client priorities page the block belongs to), head (the block holding that area's decision and comments boxes),
                 lane ('br' BrightRock Fractured or 'std' Standard) and row ('fna', 'sf', 'red'): where a life quote block sits in the two-column grid of the Life area, sqd and sq (a row of the standard quote details table, and which boxes make it up),
@@ -43,6 +43,8 @@
   var FNA_ON = { f: 'fna_req', nin: ['Not required', 'No FNA done'] }, SF_ON = { f: 'sf_req', nin: ['Not required'] };      // a quote that is not required has no type or insurer: those boxes go
   var BF_FNA_ON = { f: 'bf_fna_req', nin: ['Not required', 'No FNA done'] }, BF_SF_ON = { f: 'bf_sf_req', nin: ['Not required'] };      // the same for the BrightRock Fractured quotes (no insurer: it is always BrightRock)
   var FNA_REQ = ['Request a quote', 'Not required', 'No FNA done'];
+  /* What each BrightRock Fractured quote is based on: a note under its block on Client priorities, and the words the action points use when that quote is asked for. */
+  var BR_BASIS = { fna: 'BR FNA Quote based on Fact Find', sf: 'BR Shortfall Quote based on BR NA minus Group Risk', red: 'BR Reduced Quote based on Shortfall Quote' };
   var NO_GROUP = 'No Group exists for a Shortfall Quote to be compiled. (Group risk through employer, on the Personal & group risk cover page, is No or Not sure.)';
 
   /* The first block of a priority area: the client's decision (empty until discussed) and the box for the reason or the adviser's instructions. */
@@ -199,9 +201,10 @@
     { id: 'retire', title: 'Retirement funding', blocks: [
       { title: 'Retirement annuities', fields: [{ id: 'has_ra', l: 'Has retirement annuities', t: 'sel', o: YN }] },
       { title: 'Existing retirement annuities', list: 'ret_ra', cond: HAS_RA, grey: 1, condMsg: 'No retirement annuity is in place, so there is none to record.' },
+      PS('ra'),
       { title: 'Pension and provident funds', fields: [{ id: 'has_pp', l: 'Has pension or provident funds', t: 'sel', o: YN }] },
       { title: 'Existing pension and provident funds', list: 'ret_pp', cond: HAS_PP, grey: 1, condMsg: 'No pension or provident fund is in place, so there is none to record.' },
-      PS('ra'),                                                                                  // one request for the retirement annuities and the pension and provident funds
+      PS('pp'),
       { fields: [N('n_retire')] }
     ] },
 
@@ -269,7 +272,7 @@
       HEAD('life'),
       /* The two kinds of quote, side by side: BrightRock Fractured (built on the BrightRock Risk Calculation page, so BrightRock is the only insurer) and Standard (any insurer, BrightRock too). Each has the same three rows,
          FNA, Shortfall and Reduced. lane / row place a block in that grid; vl is the label voice and Claude use, so the two kinds of the same quote are told apart. */
-      { pri: 'life', lane: 'br', row: 'fna', title: 'FNA quote', layout: 'g12', fields: [
+      { pri: 'life', lane: 'br', row: 'fna', title: 'FNA quote', note: BR_BASIS.fna, layout: 'g12', fields: [
         { id: 'bf_fna_req', l: 'FNA quote', vl: 'BrightRock Fractured FNA quote', t: 'sel', o: FNA_REQ, s: 6 },
         { id: 'bf_fna_type', l: 'Type of quote', vl: 'BrightRock Fractured FNA type of quote', t: 'sel', o: QTYPE, cond: BF_FNA_ON, s: 6 }
       ] },
@@ -278,7 +281,7 @@
         { id: 'fna_type', l: 'Type of quote', vl: 'Standard FNA type of quote', t: 'sel', o: QTYPE, cond: FNA_ON, s: 6 },
         { id: 'fna_ins', l: 'Insurer(s)', vl: 'Standard FNA insurers', t: 'multi', multi: 'ins', o: INS_STD, nona: 1, cond: FNA_ON, s: 12 }
       ] },
-      { pri: 'life', lane: 'br', row: 'sf', title: 'Shortfall quote', cond: HAS_GROUP, condMsg: NO_GROUP, pdfMsg: 1, layout: 'g12', fields: [
+      { pri: 'life', lane: 'br', row: 'sf', title: 'Shortfall quote', note: BR_BASIS.sf, cond: HAS_GROUP, condMsg: NO_GROUP, pdfMsg: 1, layout: 'g12', fields: [
         { id: 'bf_sf_req', l: 'Shortfall quote', vl: 'BrightRock Fractured shortfall quote', t: 'sel', o: REQ, s: 6 },
         { id: 'bf_sf_type', l: 'Type of quote', vl: 'BrightRock Fractured shortfall type of quote', t: 'sel', o: QTYPE, cond: BF_SF_ON, s: 6 }
       ] },
@@ -287,7 +290,7 @@
         { id: 'sf_type', l: 'Type of quote', vl: 'Standard shortfall type of quote', t: 'sel', o: QTYPE, cond: SF_ON, s: 6 },
         { id: 'sf_ins', l: 'Insurer(s)', vl: 'Standard shortfall insurers', t: 'multi', multi: 'ins', o: INS_STD, nona: 1, cond: SF_ON, s: 12 }
       ] },
-      { pri: 'life', lane: 'br', row: 'red', title: 'Reduced quotes', list: 'bfred' },
+      { pri: 'life', lane: 'br', row: 'red', title: 'Reduced quotes', note: BR_BASIS.red, list: 'bfred' },
       { pri: 'life', lane: 'std', row: 'red', title: 'Reduced quotes', list: 'redq' },
       /* What to ask for in a standard quote (it used to be the second half of the Risk Calculation page): shown as one table, a row for each cover (sqd groups the four blocks). */
       { pri: 'life', sqd: 'lc', sq: { name: 'Life cover', amt: 'lc_sa', term: ['lc_term', 'lc_termv'], aci: ['lc_aci', 'lc_aciv'], abi: 'lc_abiv', cmt: 'lc_cmt' }, title: 'Life cover: standard', fields: [
@@ -385,7 +388,7 @@
         { id: 'ip_age', l: 'Income protection age', t: 'sel', o: ['65', '70'], opt: 1, preset: '65' },
         { id: 'ip_amt', l: 'Insured amount (R p.m.)', t: 'txt', calc: 'ip_amt' },
         { id: 'ip_hh', l: 'Household needs (R p.m.)', t: 'txt', calc: 'ip_hh' },
-        { id: 'ip_wait', l: 'Waiting period', t: 'sel', o: WAIT, opt: 1, s: 3 },
+        { id: 'ip_wait', l: 'Waiting period', t: 'sel', o: WAIT, opt: 1, preset: '1 month', s: 3 },
         { id: 'ip_aci', l: 'ACI', t: 'sel', o: ['Fixed', 'Age-rated', 'Other'], opt: 1, preset: 'Fixed', s: 3 },
         { id: 'ip_aciv', l: 'ACI value', t: 'txt', opt: 1, preset: '?', s: 3 },
         { id: 'ip_abiv', l: 'ABI', t: 'txt', opt: 1, preset: '5%', s: 3 },
@@ -514,5 +517,5 @@
   var byId = {};
   sections.forEach(function (s) { s.blocks.forEach(function (b) { (b.fields || []).forEach(function (f) { byId[f.id] = f; }); }); });
 
-  return { version: '3.0', released: 'October 2026', sections: sections, lists: lists, panels: panels, panelsById: panelsById, advisor: ADVISOR, PRIORITY: PRIORITY, NOT_PRIORITY: NOT_PRIORITY, UNSURE: UNSURE, BUDGET: BUDGET, fieldsById: byId };
+  return { version: '3.0', released: 'October 2026', sections: sections, lists: lists, panels: panels, panelsById: panelsById, advisor: ADVISOR, brBasis: BR_BASIS, PRIORITY: PRIORITY, NOT_PRIORITY: NOT_PRIORITY, UNSURE: UNSURE, BUDGET: BUDGET, fieldsById: byId };
 });

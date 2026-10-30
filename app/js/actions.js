@@ -12,7 +12,8 @@
   }); });
   var CLIENT = 'Requested from client in meeting', ASTUTE = 'Draw from Astute (with signed LOA)', OTHER = 'Other';
   /* the policy schedule lists: box, its "Other" box, what to call the policies, and the list they are in */
-  var SCHEDS = [['ps_risk', 'ps_risk_ot', 'personal risk policies', 'risk'], ['ps_grp', 'ps_grp_ot', 'group risk benefits', 'grp'], ['ps_ra', 'ps_ra_ot', 'retirement annuities and pension and provident funds', ['ret_ra', 'ret_pp']], ['ps_inv', 'ps_inv_ot', 'investments', 'inv']];
+  var SCHEDS = [['ps_risk', 'ps_risk_ot', 'personal risk policies', 'risk'], ['ps_grp', 'ps_grp_ot', 'group risk benefits', 'grp'], ['ps_ra', 'ps_ra_ot', 'retirement annuities', 'ret_ra'],
+    ['ps_pp', 'ps_pp_ot', 'pension and provident funds', 'ret_pp'], ['ps_inv', 'ps_inv_ot', 'investments', 'inv']];
 
   function clean(o) { var r = {}; Object.keys(o).forEach(function (k) { if (o[k] != null && String(o[k]).trim() !== '') r[k] = o[k]; }); return r; }
   function amt(v) { return String(v == null ? '' : v).replace(/\.00$/, '').trim(); }
@@ -42,9 +43,9 @@
       out.credit_life.push({ debt: String(d.type === 'Other' || !d.type ? d.desc || 'debt' : d.type).toLowerCase(), lender: d.prov || '', credit_life: cl === 'Yes' ? 'Yes' : 'not asked yet' });
     });
 
-    if (shows('bf_fna_req') && v('bf_fna_req') === 'Request a quote') out.quotes.push(clean({ quote: 'FNA quote', kind: BR, type: shows('bf_fna_type') ? v('bf_fna_type') : '' }));
-    if (shows('bf_sf_req') && v('bf_sf_req') === 'Request a quote') out.quotes.push(clean({ quote: 'Shortfall quote', kind: BR, type: shows('bf_sf_type') ? v('bf_sf_type') : '' }));
-    if (listOn('bfred')) (state.l.bfred || []).forEach(function (r) { if (r.d.req === 'Request a quote') out.quotes.push(clean({ quote: 'Reduced quote', kind: BR, type: r.d.type, monthly_amount: amt(r.d.amt) })); });
+    if (shows('bf_fna_req') && v('bf_fna_req') === 'Request a quote') out.quotes.push(clean({ quote: 'FNA quote', kind: BR, type: shows('bf_fna_type') ? v('bf_fna_type') : '', basis: schema.brBasis.fna }));
+    if (shows('bf_sf_req') && v('bf_sf_req') === 'Request a quote') out.quotes.push(clean({ quote: 'Shortfall quote', kind: BR, type: shows('bf_sf_type') ? v('bf_sf_type') : '', basis: schema.brBasis.sf }));
+    if (listOn('bfred')) (state.l.bfred || []).forEach(function (r) { if (r.d.req === 'Request a quote') out.quotes.push(clean({ quote: 'Reduced quote', kind: BR, type: r.d.type, monthly_amount: amt(r.d.amt), basis: schema.brBasis.red })); });
     if (shows('fna_req') && v('fna_req') === 'Request a quote') out.quotes.push(clean({ quote: 'FNA quote', kind: STD, type: shows('fna_type') ? v('fna_type') : '', insurers: shows('fna_ins') ? parts(v('fna_ins')) : [] }));
     if (shows('sf_req') && v('sf_req') === 'Request a quote') out.quotes.push(clean({ quote: 'Shortfall quote', kind: STD, type: shows('sf_type') ? v('sf_type') : '', insurers: shows('sf_ins') ? parts(v('sf_ins')) : [] }));
     if (listOn('redq')) (state.l.redq || []).forEach(function (r) { if (r.d.req === 'Request a quote') out.quotes.push(clean({ quote: 'Reduced quote', kind: STD, type: r.d.type, insurers: parts(r.d.ins), monthly_amount: amt(r.d.amt) })); });
@@ -105,7 +106,7 @@
         var what = n === 'FNA quote' ? 'FNA' : n.replace(/ quote$/, '').toLowerCase(), ins = q.insurers || [], extra = [];
         if (q.type) extra.push(q.type);
         var tail = (extra.length ? ' (' + extra.join(', ') + ')' : '') + (q.monthly_amount ? ' for ' + q.monthly_amount + ' p.m.' : '');
-        if (q.kind === BR) pts.push(fin('Request a BrightRock Fractured ' + what + ' quote' + tail));
+        if (q.kind === BR) pts.push(fin('Request a BrightRock Fractured ' + what + ' quote' + tail + (q.basis ? ': ' + q.basis : '')));
         else pts.push(fin('Request ' + (ins.length > 1 ? 'standard ' + what + ' quotes' : 'a standard ' + what + ' quote') + (ins.length ? ' from ' + andList(ins) : '') + (extra.length ? ' (' + extra.join(', ') + ')' : '') + (ins.length ? '' : ' (insurer still to be chosen)') + (q.monthly_amount ? ' for ' + q.monthly_amount + ' p.m.' : '')));
         return;
       }

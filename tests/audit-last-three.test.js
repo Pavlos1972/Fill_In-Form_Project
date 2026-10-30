@@ -58,33 +58,11 @@ test('the Letter of Authority is on the Admin page, in the narrow column with th
   assert.ok(A.local(s).some(l => /Send Thandi the LOA to sign/.test(l)));                                           // the action points read the same box
 });
 
-test('the retirement annuities and the pension and provident funds have one schedule request', () => {
-  assert.ok(!schema.fieldsById.ps_pp && !schema.fieldsById.ps_pp_ot);
-  assert.strictEqual(sec('retire').blocks.filter(b => b.title === 'Request Current Policy Schedule(s)').length, 1);
-  const blocks = sec('retire').blocks, at = blocks.findIndex(b => ids(b).includes('ps_ra'));
-  assert.ok(at > blocks.findIndex(b => b.list === 'ret_pp'));                                                        // after both lists
-  const s = fresh(); set(s, 'fname', 'Thandi'); set(s, 'ps_ra', 'Requested from client in meeting'); store.addRow(s, 'ret_ra', { prov: 'Allan Gray' }); store.addRow(s, 'ret_pp', { prov: 'Sanlam', type: 'Pension fund' });
-  const sched = A.facts(s).schedules; assert.strictEqual(sched.length, 1);
-  assert.deepStrictEqual([sched[0].what, sched[0].held], ['retirement annuities and pension and provident funds', ['Allan Gray', 'Sanlam']]);
-});
-
-test('an older file with a request for each retirement list opens with one request holding both', () => {
-  const s = reopen(j => {
-    j.f.ps_ra = { v: 'Draw from Astute (with signed LOA); Other', st: 'confirmed' }; j.f.ps_ra_ot = { v: 'Bring the RA letter', st: 'confirmed' };
-    j.f.ps_pp = { v: 'Requested from client in meeting; Other', st: 'confirmed' }; j.f.ps_pp_ot = { v: 'Employer HR sends it', st: 'confirmed' };
-  });
-  assert.strictEqual(s.f.ps_ra.v, 'Draw from Astute (with signed LOA); Other; Requested from client in meeting');
-  assert.strictEqual(s.f.ps_ra_ot.v, 'Bring the RA letter; Employer HR sends it');
-  const only = reopen(j => { j.f.ps_pp = { v: 'Requested from client in meeting', st: 'heard' }; });
-  assert.deepStrictEqual([only.f.ps_ra.v, only.f.ps_ra.st], ['Requested from client in meeting', 'heard']);
-  const none = reopen(j => { j.f.ps_pp = { v: '(not asked yet)', st: 'empty' }; });
-  assert.strictEqual(none.f.ps_ra.v, '');
-  assert.ok(!('ps_pp' in JSON.parse(store.toJSON(s)).f));                                                            // saved again, the old box is gone
-});
-
-test('the retirement schedule request is not counted only when there is neither a retirement annuity nor a pension or provident fund', () => {
-  const s = fresh(), t0 = store.counts(s, sec('retire')).tot;
-  set(s, 'has_ra', 'No'); const a = store.counts(s, sec('retire')).tot;                                              // the annuity list goes; the pension list and the request stay
-  set(s, 'has_pp', 'No'); const b = store.counts(s, sec('retire')).tot;
-  assert.deepStrictEqual([t0 - a, a - b], [1, 2]);                                                                   // the second No takes the pension list and the schedule request
+test('the retirement annuities and the pension and provident funds each keep their own schedule request, under their own list', () => {
+  const blocks = sec('retire').blocks, at = id => blocks.findIndex(b => ids(b).includes(id));
+  assert.ok(schema.fieldsById.ps_ra && schema.fieldsById.ps_pp && schema.fieldsById.ps_ra_ot && schema.fieldsById.ps_pp_ot);
+  assert.strictEqual(at('ps_ra'), blocks.findIndex(b => b.list === 'ret_ra') + 1);
+  assert.strictEqual(at('ps_pp'), blocks.findIndex(b => b.list === 'ret_pp') + 1);
+  const s = fresh(); set(s, 'ps_ra', 'Requested from client in meeting'); set(s, 'ps_pp', 'Draw from Astute (with signed LOA)');
+  const back = store.fromJSON(store.toJSON(s)); assert.deepStrictEqual([back.f.ps_ra.v, back.f.ps_pp.v], ['Requested from client in meeting', 'Draw from Astute (with signed LOA)']);   // opening a file does not join them
 });
