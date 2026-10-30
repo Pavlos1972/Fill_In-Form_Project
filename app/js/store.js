@@ -50,7 +50,7 @@
   var NOT_REQUIRED = { fna_req: { vals: ['Not required', 'No FNA done'], clear: ['fna_type', 'fna_ins'] }, sf_req: { vals: ['Not required'], clear: ['sf_type', 'sf_ins'] },
     bf_fna_req: { vals: ['Not required', 'No FNA done'], clear: ['bf_fna_type'] }, bf_sf_req: { vals: ['Not required'], clear: ['bf_sf_type'] } };
   /* "Other" in a policy schedule list opens its small box: when Other is not ticked any more, what was typed there goes. */
-  var PS_OTHER_BOX = { ps_risk: 'ps_risk_ot', ps_grp: 'ps_grp_ot', ps_ra: 'ps_ra_ot', ps_inv: 'ps_inv_ot' };
+  var PS_OTHER_BOX = { ps_risk: 'ps_risk_ot', ps_grp: 'ps_grp_ot', ps_ra: 'ps_ra_ot', ps_pp: 'ps_pp_ot', ps_inv: 'ps_inv_ot' };
   function setField(state, id, v, st) {
     var was = id === 'sname' || id === 'gender' ? fatherSurname(state) : null;
     state.f[id] = { v: v, st: st || (v === '' ? 'empty' : 'confirmed') };
@@ -135,7 +135,6 @@
     brightRockLane(s, j);
     listGates(s);
     referralFacts(s);
-    scheduleRequests(s, j);
     s.sum = cleanSum(j.sum);
     s.pa = cleanPa(j.pa);
     legacyNotes(s, j);
@@ -175,16 +174,6 @@
   var LIST_GATES = [['has_debts', 'debts'], ['has_kids', 'kids'], ['has_inv', 'inv'], ['has_ra', 'ret_ra'], ['has_pp', 'ret_pp']];
   function listGates(s) {
     LIST_GATES.forEach(function (g) { if (s.f[g[0]] && s.f[g[0]].v === '' && s.l[g[1]].some(rowFilled)) s.f[g[0]] = { v: 'Yes', st: 'confirmed' }; });
-  }
-  /* Files saved when the retirement annuities and the pension and provident funds each had a "Request Current Policy Schedule(s)" box: the two become one (the retirement annuities' box): what was ticked in either is ticked,
-     and what was written for "Other" in either is kept. */
-  function scheduleRequests(s, j) {
-    var pp = j.f && j.f.ps_pp; if (!pp) return;
-    var choices = function (v) { return String(v == null ? '' : v).split(';').map(function (x) { return x.trim(); }).filter(function (x) { return x && x !== '(not asked yet)'; }); };
-    var merged = choices(s.f.ps_ra.v); choices(pp.v).forEach(function (c) { if (merged.indexOf(c) < 0) merged.push(c); });
-    if (merged.length) s.f.ps_ra = { v: merged.join('; '), st: s.f.ps_ra.v ? s.f.ps_ra.st : (pp.st || 'confirmed') };
-    var ot = [s.f.ps_ra_ot.v, j.f.ps_pp_ot && j.f.ps_pp_ot.v].map(function (x) { return String(x == null ? '' : x).trim(); }).filter(Boolean);
-    if (ot.length && merged.indexOf('Other') >= 0) s.f.ps_ra_ot = { v: ot.filter(function (x, i) { return ot.indexOf(x) === i; }).join('; '), st: 'confirmed' };
   }
   /* The referral boxes no longer have the choices that only said what is asked elsewhere on the page: "Client has own broker" is the short-term broker box (Other broker) and "Has updated will" is the will boxes. A file that holds
      one of them keeps the fact in its own box (when that box is empty) and the referral says Not interested, which is what the action points already did with it. */
@@ -276,7 +265,7 @@
   function toJSON(state) { state.modified = new Date().toISOString(); return JSON.stringify(state, null, 2); }
 
   /* A policy schedule request is not an answer to count when the Yes/No above it says there is nothing to ask for. */
-  var PS_GATE = { ps_risk: [['has_risk', 'No']], ps_grp: [['has_group', 'No']], ps_ra: [['has_ra', 'No'], ['has_pp', 'No']], ps_inv: [['has_inv', 'No']] };      // every Yes/No listed says No
+  var PS_GATE = { ps_risk: [['has_risk', 'No']], ps_grp: [['has_group', 'No']], ps_ra: [['has_ra', 'No']], ps_pp: [['has_pp', 'No']], ps_inv: [['has_inv', 'No']] };      // every Yes/No listed says No
   function rowFilled(r) { return Object.keys(r.d || {}).some(function (k) { return String(r.d[k] == null ? '' : r.d[k]).trim() !== ''; }); }
   /* Progress for a section: how many answers are filled out of those that count. A row of a list counts when something is in it; a list that is on show and empty is one answer still to give; the seven duties boxes
      are one answer (they add up to 100%). */

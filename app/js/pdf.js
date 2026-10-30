@@ -152,7 +152,8 @@
     function lanesPdf(blocks) {
       var pick = function (lane, row) { return blocks.filter(function (b) { return b.lane === lane && b.row === row; })[0]; };
       var gone = function (x) { return x && x.condMsg && !calc.showIf(x.cond, ctx) && !calc.showIf('own' in x ? x.own : x.cond, ctx); };
-      function cell(b) {
+      function cell(b) { return cellBody(b) + (b.note ? '\n' + b.note : ''); }                       // a note under the block's boxes is printed under them
+      function cellBody(b) {
         if (b.list) {
           var L = schema.lists[b.list], rows = state.l[b.list];
           if (!rows.length) return 'None recorded.';

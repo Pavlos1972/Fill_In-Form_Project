@@ -24,9 +24,8 @@ srv.listen(0, async () => {
   await p.selectOption('[data-f="loa"]', 'Yes'); ok(await p.evaluate(() => FF.app.state.f.loa.v === 'Yes'), 'the LOA can be answered on Admin');
 
   await nav('retire');
-  ok((await p.evaluate(() => document.querySelectorAll('[data-f="ps_ra"], [data-msb="ps_ra"]').length)) >= 1 && !(await has('[data-f="ps_pp"], [data-msb="ps_pp"]')), 'Retirement has one schedule request');
   const heads = await p.evaluate(() => [...document.querySelectorAll('.block-title')].filter(e => /Request Current Policy Schedule/.test(e.textContent)).length);
-  ok(heads === 1, 'and one heading for it: ' + heads);
+  ok(heads === 2 && (await has('[data-msb="ps_ra"]')) && (await has('[data-msb="ps_pp"]')), 'Retirement has a schedule request under each list: ' + heads);
 
   await nav('kids'); await p.selectOption('[data-f="has_kids"]', 'Yes'); await p.click('button[data-add="kids"]'); await p.waitForTimeout(200);
   ok(await p.evaluate(() => /Childcare \(R p\.m\.\)/.test(document.body.innerText) && /Childcare costs only/.test(document.body.innerText)), 'Children shows Childcare (R p.m.) and says what goes in it');

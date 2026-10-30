@@ -327,6 +327,7 @@
     if (b.help) inner += '<p class="help">' + esc(b.help) + '</p>';
     if (b.protector) inner += protectorHTML(b, c); else if (b.actions) inner += paHTML(b, c); else if (b.fields) inner += gridHTML(b, c);
     if (b.list) { if (!b.title && !notitle && schema.lists[b.list].title !== sec.title) inner += '<div class="block-title">' + esc(schema.lists[b.list].title) + '</div>'; inner += listHTML(b.list); }
+    if (b.note) inner += '<p class="blocknote">' + esc(b.note) + '</p>';
     return h + (ok ? inner : '<div class="off" inert>' + inner + '</div>');
   }
   /* The Life area's quotes: BrightRock Fractured and Standard side by side, the same three rows (FNA, Shortfall, Reduced) in each. A row whose rule is not met in both (no group, for the shortfall) says so once across the two. */
