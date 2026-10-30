@@ -188,6 +188,8 @@
   var ALIASES = {
     consent: ['consent', 'okay to record', 'record this', 'record that', 'record it', 'record the call', 'record our', 'record the conversation', 'recording', 'recorded', 'transcribe', 'go ahead and record', 'happy for us to record', 'happy for me to record', 'happy to be recorded', 'permission to record', 'mind if we record'],
     ref: ['referred', 'referral', 'who referred', 'how did you hear', 'where did you hear'],
+    lc_term: ['life cover term', 'standard life cover term', 'term of the life cover', 'term for the life cover'], lc_termv: ['life cover term value', 'standard life cover term value'],
+    lc_aci: ['life cover aci', 'standard life cover aci', 'aci for the life cover'], lc_aciv: ['life cover aci value', 'standard life cover aci value'], lc_abiv: ['life cover abi', 'standard life cover abi', 'abi for the life cover'],
     fna_type: TYPE_Q('fna'), sf_type: TYPE_Q('shortfall'), 'redq.type': TYPE_Q('reduced'), bf_fna_type: TYPE_Q('fna'), bf_sf_type: TYPE_Q('shortfall'), 'bfred.type': TYPE_Q('reduced'),
     fname: ['first name', 'full name', 'your name', 'my name', 'christian name', 'given name', 'name and surname'],
     sname: ['surname', 'last name', 'family name', 'second name'],

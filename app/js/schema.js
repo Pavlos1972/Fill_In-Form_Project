@@ -399,6 +399,14 @@
     ] }
   ];
 
+  /* The standard quote details are on a page that voice reads, so voice fills them: each box has a label of its own ("Standard life cover: sum assured (R)") so the four covers are told apart, and the
+     comments boxes are typed only (they are not the page's notes box, which is where "let me make a note" goes). */
+  var SQ_VOICE = { lc: 'Standard life cover: ', pd: 'Standard permanent disability: ', ip: 'Standard income protection: ', dd: 'Standard dread disease: ' };
+  sections.forEach(function (sec) { sec.blocks.forEach(function (b) {
+    if (!b.sqd) return;
+    b.fields.forEach(function (f) { if (f.t === 'area') { f.nonotes = 1; return; } f.voice = 1; f.vl = SQ_VOICE[b.sqd] + f.l; });
+  }); });
+
   /* The areas of the Client priorities page. dec / cm are the ids of the area's decision and comments boxes (made below). sum: the boxes (f) and lists (l, with the columns used, or 0 for all)
      that the area's summary is written from, and nothing else, so a summary only ever speaks about its own area. */
   /* sum.t: totals worked out by the page (never added up by Claude): [label, [[list, column], ...]]. */
