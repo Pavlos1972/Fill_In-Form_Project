@@ -151,3 +151,8 @@ test('the Medical, will & short-term page keeps every box and notes box, two blo
   assert.ok(o.blocks.every(b => b.layout === 'g12') && o.blocks.every(b => b.fields.every(f => f.id.startsWith('n_') || f.s)) && !o.roomy);
   ['n_ma', 'n_gap', 'n_will', 'n_sti'].forEach(id => assert.strictEqual(schema.fieldsById[id].rows, 2));                                           // each notes box starts two lines high
 });
+
+test('the RGAR area says what the report needs', () => {
+  const b = sec('prio').blocks.find(x => x.pri === 'rgar' && !x.head);
+  assert.match(b.help, /current or paid-up retirement annuities/); assert.match(b.help, /pension and\/or provident fund\(s\)/); assert.match(b.help, /proof of income where there is a pension and\/or provident fund/);
+});
