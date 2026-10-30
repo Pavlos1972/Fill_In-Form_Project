@@ -12,8 +12,7 @@
   }); });
   var CLIENT = 'Requested from client in meeting', ASTUTE = 'Draw from Astute (with signed LOA)', OTHER = 'Other';
   /* the policy schedule lists: box, its "Other" box, what to call the policies, and the list they are in */
-  var SCHEDS = [['ps_risk', 'ps_risk_ot', 'personal risk policies', 'risk'], ['ps_grp', 'ps_grp_ot', 'group risk benefits', 'grp'], ['ps_ra', 'ps_ra_ot', 'retirement annuities', 'ret_ra'],
-    ['ps_pp', 'ps_pp_ot', 'pension and provident funds', 'ret_pp'], ['ps_inv', 'ps_inv_ot', 'investments', 'inv']];
+  var SCHEDS = [['ps_risk', 'ps_risk_ot', 'personal risk policies', 'risk'], ['ps_grp', 'ps_grp_ot', 'group risk benefits', 'grp'], ['ps_ra', 'ps_ra_ot', 'retirement annuities and pension and provident funds', ['ret_ra', 'ret_pp']], ['ps_inv', 'ps_inv_ot', 'investments', 'inv']];
 
   function clean(o) { var r = {}; Object.keys(o).forEach(function (k) { if (o[k] != null && String(o[k]).trim() !== '') r[k] = o[k]; }); return r; }
   function amt(v) { return String(v == null ? '' : v).replace(/\.00$/, '').trim(); }
@@ -31,7 +30,7 @@
 
     SCHEDS.forEach(function (c) {
       if (!shows(c[0])) return;
-      var rows = state.l[c[3]] || [], held = rows.map(function (r) { return String(r.d.prov || '').trim(); }).filter(Boolean), choice = v(c[0]).split(';').map(function (x) { return x.trim(); }).filter(Boolean);
+      var rows = [].concat(c[3]).reduce(function (a, k) { return a.concat(state.l[k] || []); }, []), held = rows.map(function (r) { return String(r.d.prov || '').trim(); }).filter(Boolean), choice = v(c[0]).split(';').map(function (x) { return x.trim(); }).filter(Boolean);
       var known = rows.length || (c[0] === 'ps_risk' && v('has_risk') === 'Yes') || (c[0] === 'ps_grp' && v('has_group') === 'Yes');
       if (!choice.length && !known) return;                                                      // a choice that was made always counts; "not asked yet" is chased only where the client is known to have the policies (a Yes, or a policy recorded)
       out.schedules.push({ what: c[2], held: held, requested: choice.length ? choice : ['not asked yet'], other: choice.indexOf(OTHER) >= 0 ? v(c[1]) : '' });

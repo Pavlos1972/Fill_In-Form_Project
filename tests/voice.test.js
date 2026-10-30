@@ -498,7 +498,8 @@ test('a box of a row is asked about and filled in the right row', () => {
   assert.strictEqual(briefL(planL('the child name is Sipho', thandi)), 'fill:kids:0:name=Sipho');
   assert.strictEqual(briefL(planL('a girl', { target: 'kids:0:gender', answered: false })), 'fill:kids:0:gender=Female');
   assert.strictEqual(briefL(planL('He is a boy', { target: 'kids:0:gender', answered: false })), 'fill:kids:0:gender=Male');
-  assert.strictEqual(briefL(planL('school fees are R2 500 a month', thandi)), 'fill:kids:0:cost=R 2 500.00');
+  assert.strictEqual(briefL(planL('childcare is R2 500 a month', thandi)), 'fill:kids:0:cost=R 2 500.00');
+  assert.ok(!/fill:kids:0:cost/.test(briefL(planL('school fees are R2 500 a month', thandi))));                  // school fees are not childcare: they do not come off the take-home income
   assert.strictEqual(briefL(planL('what is your date of birth', Object.assign({ cur: 'info' }, thandi))), 'ask:dob');     // "your" is the client, not the child
 });
 test('another child, one more policy, another one: each adds a row and asks its first box', () => {
