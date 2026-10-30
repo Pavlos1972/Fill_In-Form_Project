@@ -62,6 +62,7 @@
     var d = {};
     schema.lists[key].cols.forEach(function (c) { d[c.k] = (data && data[c.k]) || ''; });
     if (key === 'kids' && !d.sname) d.sname = fatherSurname(state);
+    if (key === 'invq' && !d.req) d.req = 'Request a quote';                                         // a row in the investment quotes is a quote asked for until it says otherwise
     var r = { d: d, st: st || 'confirmed' };
     state.l[key].push(r);
     LIST_GATES.forEach(function (g) { if (g[1] === key && state.f[g[0]] && state.f[g[0]].v !== 'Yes') state.f[g[0]] = { v: 'Yes', st: 'confirmed' }; });      // a row added is a Yes to "Has debts", "Has children" and the like
@@ -120,6 +121,7 @@
         var d = {}; schema.lists[k].cols.forEach(function (c) { d[c.k] = (r.d && r.d[c.k]) || ''; });
         if (k === 'debts' && r.d && r.d.prov_other && (!d.prov || d.prov === 'Other')) d.prov = r.d.prov_other;        // the bank used to be a pick-list with an "Other" box beside it: now one box, pick or type
         else if (k === 'debts' && d.prov === 'Other') d.prov = '';
+        if (k === 'invq' && !d.req && Object.keys(d).some(function (c) { return d[c]; })) d.req = 'Request a quote';        // before the Request column, any investment quote with something in it was a request
         if (k === 'kids' && r.d && r.d.sname === undefined && d.name) {                         // saved when a child had one "Name & surname" box: split it
           var sp = util.splitFullName(d.name, j.f && j.f.sname && j.f.sname.v);
           d.name = sp.first; d.sname = sp.last;

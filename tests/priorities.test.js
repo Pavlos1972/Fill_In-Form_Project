@@ -147,7 +147,7 @@ test('plain points for each area, said the way the adviser needs them', () => {
   const s = sample(), L = id => S.local(s, id);
   assert.deepStrictEqual(L('life'), ['Personal risk cover: Liberty, R 20 000 p.m., Other broker', 'Joint life with spouse: no', 'Group risk: Discovery, R 1 450 p.m., Through company', 'Credit life: Home loan (Nedbank): yes', 'Credit life: Vehicle finance (Wesbank): no', 'Standard quote asked for: FNA quote (new business)', 'Total debt to be covered (balances): R 1 200 000', 'Total childcare cost to be covered, per month: R 20 000']);
   assert.deepStrictEqual(L('ra'), ['Retirement annuity: Allan Gray, R 16 000 000, R 50 000 p.m.', 'Pension fund: Old Mutual, R 3 200 000, R 8 000 p.m.']);
-  assert.deepStrictEqual(L('rgar').slice(0, 2), ['Total saved across all retirement funds: R 19 200 000', 'Total monthly contributions to retirement funds: R 58 000 p.m.']);
+  assert.deepStrictEqual(L('rgar').slice(0, 2), ['Total saved across all retirement funds (including living annuities): R 19 200 000', 'Total monthly contributions to retirement funds: R 58 000 p.m.']);
   assert.ok(L('inv').includes('Tax-free savings: none') && L('inv').includes('Endowment: none') && L('inv').includes('Total invested: R 11 000'));
   assert.deepStrictEqual(L('will'), ['Has a will: held with Capital Legacy', 'Will is not up to date']);
   assert.deepStrictEqual(L('med'), ['Medical aid: Discovery Health', 'Gap cover: none']);

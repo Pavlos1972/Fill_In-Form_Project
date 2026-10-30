@@ -106,6 +106,7 @@
       });
       body.push([{ content: 'Total instalments protected', colSpan: 2, styles: { fontStyle: 'bold' } }, { content: t(util.money(sp.total) + ' p.m.'), styles: { halign: 'right', fontStyle: 'bold' } }]);
       if (sp.all > sp.total) body.push([{ content: 'Not protected (switched off)', colSpan: 2, styles: { textColor: MUTED } }, { content: t(util.money(sp.all - sp.total) + ' p.m.'), styles: { halign: 'right', textColor: MUTED } }]);
+      if (sp.elsewhere) body.push([{ content: 'Paid by someone else, left out (' + sp.elsewhere + (sp.elsewhere === 1 ? ' debt' : ' debts') + ')', colSpan: 2, styles: { textColor: MUTED } }, { content: t(util.money(sp.elsewhereTotal) + ' p.m.'), styles: { halign: 'right', textColor: MUTED } }]);
       noteText('Instalment protector: ' + (!sp.count ? 'no debt with an instalment recorded.' : sp.on === sp.count ? 'all debts protected.' : sp.on === 0 ? 'no debt protected.' : sp.on + ' of ' + sp.count + ' debts protected.'));
       ensure(Math.min(body.length * 7 + 12, 60));
       table({ head: [[{ content: 'Instalment Protector' }, { content: 'Protected' }, { content: 'Instalment (R p.m.)', styles: R }]], body: sp.rows.length ? body : [[{ content: 'No debt with an instalment recorded.', colSpan: 3, styles: { textColor: MUTED, fontStyle: 'italic' } }]], columnStyles: { 0: { cellWidth: CW - 90 }, 1: { cellWidth: 40 }, 2: { cellWidth: 50 } } });

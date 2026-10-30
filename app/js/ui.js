@@ -307,6 +307,7 @@
     return '<div class="ipgrid"><div class="ipleft">' + fieldHTML(f.ip_age, false) + fieldHTML(f.ip_amt, false) + '</div>' +
       '<div class="protector"><div class="phead"><h5>Instalment Protector</h5>' + master + '</div>' + (rows ? '<div class="prows">' + rows + '</div><div class="sumline"><span>Total instalments protected</span><b>' + esc(util.money(sp.total)) + ' p.m.</b></div>' +
         (notp > 0 ? '<div class="sumline"><span>Not protected (switched off)</span><b>' + esc(util.money(notp)) + ' p.m.</b></div>' : '') : '<p class="help">No debt with an instalment on the Debts page yet.</p>') +
+      (sp.elsewhere ? '<div class="sumline"><span>Paid by someone else, left out (' + sp.elsewhere + (sp.elsewhere === 1 ? ' debt' : ' debts') + ')</span><b>' + esc(util.money(sp.elsewhereTotal)) + ' p.m.</b></div>' : '') +
       '<div class="household"><h5>Household needs</h5>' + hh + '</div></div></div>' + quote +
       gridHTML({ layout: b.layout, fields: b.fields.filter(function (x) { return !/^ip_(?:age|amt|hh)$/.test(x.id); }) }, c);
   }

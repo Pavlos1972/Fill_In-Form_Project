@@ -434,7 +434,7 @@ test('a marriage date that is only a year is accepted, and one in the future is 
 
 test('income protection (fractured cover): the insured amount is split into the instalment protector, one line for each debt with an instalment, and household needs', () => {
   const s = fresh(), c = () => store.ctxFor(s);
-  assert.deepStrictEqual(calc.ipSplit(c()), { insured: null, rows: [], total: 0, all: 0, on: 0, count: 0, rest: null, over: false });     // nothing known yet
+  assert.deepStrictEqual(calc.ipSplit(c()), { insured: null, rows: [], total: 0, all: 0, on: 0, count: 0, rest: null, over: false, elsewhere: 0, elsewhereTotal: 0 });     // nothing known yet
   assert.strictEqual(calc.field('ip_hh', c()), '');
   set(s, 'net', 'R 60 000.00');
   [['Home loan', 'Nedbank', 10000], ['Vehicle finance', 'Wesbank', 10000], ['Credit card', 'Discovery Bank', 5000], ['Personal loan', 'Capitec', 5000]].forEach(d => store.addRow(s, 'debts', { type: d[0], prov: d[1], inst: 'R ' + d[2] + '.00' }));

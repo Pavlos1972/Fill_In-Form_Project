@@ -14,19 +14,25 @@
   }
   function sumRows(ctx, key, col) { return ctx.rows(key).reduce(function (a, r) { return a + util.num(r.d[col]); }, 0); }
 
+  /* A debt comes off the client's take-home income when the client pays it: the Payer is Client, or not set yet. Debts paid by the spouse, jointly, by the business or by an ex-spouse or partner are somebody
+     else's repayments: they are left out of the household needs and of the instalment protector. */
+  function paidByClient(r) { var p = String(r.d.payer || '').trim(); return p === '' || p === 'Client'; }
+  function debtSum(ctx, others) { return ctx.rows('debts').reduce(function (a, r) { return a + (paidByClient(r) !== !!others ? util.num(r.d.inst) : 0); }, 0); }
   /* The income protection insured amount split for the quote: the take-home income (Insured amount), the debts the client is paying off (one line each, from the Debts page: what each instalment is) that get an
      instalment protector ceded to the bank, and what is left for the household. Each debt can be switched off (row.off on the debt, see store.setProtect): it is then not protected and not in the total.
-     -> { insured (null until the take-home income is known), rows: [{ i (the debt's place in the Debts list), label, prov, inst, on }], total (of the debts switched on), all (of every debt), on (how many are on), count, rest, over }. */
+     -> { insured (null until the take-home income is known), rows: [{ i (the debt's place in the Debts list), label, prov, inst, on }], total (of the debts switched on), all (of every debt the client pays), on (how many are on), count, rest, over,
+        elsewhere (how many debts with an instalment are paid by someone else: left out), elsewhereTotal }. */
   var IP_NAMES = { 'Home loan': 'Bond repayments', 'Vehicle finance': 'Car', 'Credit card': 'Credit card', 'Personal loan': 'Personal loan', 'Revolving credit': 'Revolving credit' };
   function ipSplit(ctx) {
-    var insured = ctx.v('net') ? ctx.n('net') : null, rows = [], total = 0, all = 0, on = 0;
+    var insured = ctx.v('net') ? ctx.n('net') : null, rows = [], total = 0, all = 0, on = 0, elsewhere = 0, elsewhereTotal = 0;
     ctx.rows('debts').forEach(function (r, i) {
       var inst = util.num(r.d.inst); if (!(inst > 0)) return;
+      if (!paidByClient(r)) { elsewhere++; elsewhereTotal += inst; return; }
       var prot = r.off !== true;
       rows.push({ i: i, label: IP_NAMES[r.d.type] || (r.d.type === 'Other' && r.d.desc) || r.d.desc || (r.d.type === 'Other' ? 'Other debt' : r.d.type) || 'Debt', prov: r.d.prov || '', inst: inst, on: prot });
       all += inst; if (prot) { total += inst; on++; }
     });
-    return { insured: insured, rows: rows, total: total, all: all, on: on, count: rows.length, rest: insured == null ? null : insured - total, over: insured != null && total > insured + 0.004 };
+    return { insured: insured, rows: rows, total: total, all: all, on: on, count: rows.length, rest: insured == null ? null : insured - total, over: insured != null && total > insured + 0.004, elsewhere: elsewhere, elsewhereTotal: elsewhereTotal };
   }
 
   var fieldCalcs = {
@@ -55,8 +61,8 @@
     /* Household needs: the insured amount less the debt instalments that are protected for the bank (negative when the instalments are more, which the checks flag). */
     ip_hh: function (ctx) { var sp = ipSplit(ctx); return sp.rest == null ? '' : util.money(sp.rest); },
     cc: function (ctx) { return ctx.rows('kids').length ? util.money(sumRows(ctx, 'kids', 'cost')) : ''; },
-    dr: function (ctx) { return ctx.rows('debts').length ? util.money(sumRows(ctx, 'debts', 'inst')) : ''; },
-    need: function (ctx) { return ctx.v('net') ? util.money(ctx.n('net') - sumRows(ctx, 'kids', 'cost') - sumRows(ctx, 'debts', 'inst')) : ''; }
+    dr: function (ctx) { return ctx.rows('debts').length ? util.money(debtSum(ctx)) : ''; },
+    need: function (ctx) { return ctx.v('net') ? util.money(ctx.n('net') - sumRows(ctx, 'kids', 'cost') - debtSum(ctx)) : ''; }
   };
 
   var rowCalcs = {
@@ -99,5 +105,5 @@
     return cond.f ? [cond.f] : [];
   }
 
-  return { ipSplit: ipSplit, field: field, rowCalc: rowCalc, showIf: showIf, condFields: condFields, clientAge: clientAge, meetingDate: meetingDate, DUTY_IDS: DUTY_IDS };
+  return { paidByClient: paidByClient, ipSplit: ipSplit, field: field, rowCalc: rowCalc, showIf: showIf, condFields: condFields, clientAge: clientAge, meetingDate: meetingDate, DUTY_IDS: DUTY_IDS };
 });
