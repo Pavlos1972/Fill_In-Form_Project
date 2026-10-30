@@ -92,7 +92,7 @@ test('the catch-up check sees only the boxes and lists that are showing, and its
 
 test('a Next appointment date sits on the Admin page (not Client priorities) and can be said', () => {
   const blocks = schema.sections.find(x => x.id === 'admin').blocks;
-  assert.strictEqual(blocks[0].title, 'Next appointment'); assert.strictEqual(blocks[0].fields[0].id, 'next_appt');
+  const appt = blocks.find(b => b.title === 'Next appointment'); assert.strictEqual(appt.fields[0].id, 'next_appt');
   assert.ok(!schema.sections.find(x => x.id === 'prio').blocks.some(b => b.title === 'Next appointment'));
   const f = schema.fieldsById.next_appt;
   assert.ok(f.date && f.cal && idx.byId.next_appt);

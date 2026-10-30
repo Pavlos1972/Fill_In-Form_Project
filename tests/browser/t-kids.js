@@ -19,7 +19,7 @@ srv.listen(0, async () => {
   ok(await v(0, 'age') === years(3, 1, 2009) + ' years', 'age appears next to the date of birth: ' + await v(0, 'age') + ' (expected ' + years(3, 1, 2009) + ' years)');
   ok(await p.evaluate(s => document.querySelector(s).readOnly || document.querySelector(s).disabled, cell(0, 'age')), 'and it cannot be typed over');
   const order = await p.evaluate(() => [...document.querySelectorAll('.rowcard')[0].querySelectorAll('.f .l span')].map(e => e.textContent.trim()));
-  ok(order.join('|') === 'Name|Surname|Gender|Date of birth|Age|Education stage|Monthly cost (R)', 'order of the boxes: ' + order.join(' | '));
+  ok(order.join('|') === 'Name|Surname|Gender|Date of birth|Age|Education stage|Childcare (R p.m.)', 'order of the boxes: ' + order.join(' | '));
   const geom = () => p.evaluate(() => { const card = document.querySelector('.rowcard').getBoundingClientRect(), fs = [...document.querySelectorAll('.rowcard')[0].querySelectorAll('.f')].map(e => e.getBoundingClientRect()); return { rows: new Set(fs.map(r => Math.round(r.top))).size, inside: fs.every(r => r.left >= card.left - 1 && r.right <= card.right + 1), cardW: Math.round(card.width), w: window.innerWidth }; });
   let g = await geom();
   ok(g.inside, 'at ' + g.w + ' px wide every box stays inside its card (' + g.rows + ' rows, card ' + g.cardW + ' px)');

@@ -16,7 +16,7 @@ const PRI = schema.PRIORITY, NOT = schema.NOT_PRIORITY, UNSURE = schema.UNSURE, 
 const AREAS = ['life', 'ra', 'rgar', 'inv', 'egar', 'med', 'will', 'st'];
 
 test('the pages: risk cover, retirement funding, then one Client priorities page; the old advisor pages and the Advisor box are gone', () => {
-  assert.deepStrictEqual(schema.sections.map(s => s.id), ['info', 'occ', 'income', 'cover', 'retire', 'inv', 'other', 'debts', 'kids', 'health', 'prio', 'calc', 'admin']);
+  assert.deepStrictEqual(schema.sections.map(s => s.id), ['info', 'occ', 'income', 'debts', 'kids', 'cover', 'retire', 'inv', 'other', 'health', 'prio', 'calc', 'admin']);
   assert.strictEqual(sec('cover').title, 'Personal & group risk cover');
   assert.strictEqual(sec('retire').title, 'Retirement funding');
   assert.ok(sec('prio').adv && sec('prio').title === 'Client priorities and quotes needed');
@@ -32,23 +32,23 @@ test('the pages: risk cover, retirement funding, then one Client priorities page
 
 test('personal risk first with joint life, then group risk with its own list and no joint life', () => {
   const b = sec('cover').blocks;
-  assert.deepStrictEqual(b.map(x => x.title || '-'), ['-', 'Personal risk cover', 'Existing personal risk policies', 'Request Current Policy Schedule(s)', 'Group risk cover', 'Existing group risk policies', 'Request Current Policy Schedule(s)', '-']);
-  assert.deepStrictEqual(b[0].fields.map(f => f.id), ['loa']);                                                            // the LOA question comes first, before Personal risk cover
-  assert.deepStrictEqual(b[1].fields.map(f => f.id), ['has_risk', 'joint']);
+  assert.deepStrictEqual(b.map(x => x.title || '-'), ['Personal risk cover', 'Existing personal risk policies', 'Request Current Policy Schedule(s)', 'Group risk cover', 'Existing group risk policies', 'Request Current Policy Schedule(s)', '-']);
+  assert.ok(!b.some(x => (x.fields || []).some(f => f.id === 'loa')));                                                    // the LOA question is on the Admin page now
+  assert.deepStrictEqual(b[0].fields.map(f => f.id), ['has_risk', 'joint']);
   assert.strictEqual(schema.fieldsById.joint.l, 'Joint life with spouse');
-  assert.deepStrictEqual(b[4].fields.map(f => f.id), ['has_group']);
+  assert.deepStrictEqual(b[3].fields.map(f => f.id), ['has_group']);
   assert.deepStrictEqual(schema.lists.grp.cols.map(c => c.l), schema.lists.risk.cols.map((c, i) => i === 0 ? 'Provider / administrator' : c.l));
   assert.ok(schema.lists.grp.sum.spend);
-  assert.ok(b[2].list === 'risk' && b[5].list === 'grp' && !b.some(x => (x.fields || []).some(f => /joint/.test(f.id)) && x.list === 'grp'));
-  assert.deepStrictEqual(sec('retire').blocks.map(x => x.list || '-'), ['-', 'ret_ra', '-', '-', 'ret_pp', '-', '-']);                      // retirement annuities, and pension and provident funds, are two lists, each followed by its policy schedule box
-  assert.deepStrictEqual(sec('retire').blocks.map(x => x.title || '-'), ['Retirement annuities', 'Existing retirement annuities', 'Request Current Policy Schedule(s)', 'Pension and provident funds', 'Existing pension and provident funds', 'Request Current Policy Schedule(s)', '-']);
+  assert.ok(b[1].list === 'risk' && b[4].list === 'grp' && !b.some(x => (x.fields || []).some(f => /joint/.test(f.id)) && x.list === 'grp'));
+  assert.deepStrictEqual(sec('retire').blocks.map(x => x.list || '-'), ['-', 'ret_ra', '-', 'ret_pp', '-', '-']);                      // retirement annuities, and pension and provident funds, are two lists, each opened by its own Yes/No, with one policy schedule box for both
+  assert.deepStrictEqual(sec('retire').blocks.map(x => x.title || '-'), ['Retirement annuities', 'Existing retirement annuities', 'Pension and provident funds', 'Existing pension and provident funds', 'Request Current Policy Schedule(s)', '-']);
   assert.ok(!schema.lists.ret && !sec('cover').blocks.some(x => /^ret/.test(x.list || '')));
   assert.deepStrictEqual(schema.lists.ret_pp.cols[0].o, ['Pension fund', 'Provident fund']);
   assert.ok(!schema.lists.ret_ra.cols.some(c => c.k === 'type'));
 });
 
 test('no personal risk cover greys out Joint life and the policies, with a message; no group greys the group policies', () => {
-  const s = fresh(), [, , polBlock, , , grpBlock] = sec('cover').blocks, joint = schema.fieldsById.joint;
+  const s = fresh(), [, polBlock, , , grpBlock] = sec('cover').blocks, joint = schema.fieldsById.joint;
   assert.ok(polBlock.grey && grpBlock.grey && joint.grey && polBlock.condMsg && grpBlock.condMsg);
   assert.match(polBlock.condMsg, /No personal risk cover is in place/);
   assert.match(grpBlock.condMsg, /No group risk cover is in place/);
@@ -308,9 +308,9 @@ test('the Life area is headed "Personal Risk Covers", with the same words under 
 
 /* ---------- Request Current Policy Schedule(s), the LOA question and the Admin page ---------- */
 const A = require('../app/js/actions.js');
-const PS = ['risk', 'grp', 'ra', 'pp', 'inv'], CL = 'Requested from client in meeting', AS = 'Draw from Astute (with signed LOA)';
+const PS = ['risk', 'grp', 'ra', 'inv'], CL = 'Requested from client in meeting', AS = 'Draw from Astute (with signed LOA)';
 
-test('each of the five sections that hold policies ends with a "Request Current Policy Schedule(s)" tick-box list and a small Other box', () => {
+test('each of the four places that hold policies (personal risk, group risk, retirement, investments) ends with a "Request Current Policy Schedule(s)" tick-box list and a small Other box', () => {
   PS.forEach(k => {
     const f = schema.fieldsById['ps_' + k], o = schema.fieldsById['ps_' + k + '_ot'], blk = schema.sections.reduce((a, s) => a.concat(s.blocks), []).find(b => (b.fields || []).some(x => x.id === 'ps_' + k));
     assert.strictEqual(f.t, 'multi'); assert.strictEqual(blk.title, 'Request Current Policy Schedule(s)'); assert.ok(!blk.cond && !blk.grey && !blk.condMsg);        // never locked
@@ -336,12 +336,12 @@ test('the action points follow a schedule choice that was made, with or without 
   const s = fresh(); set(s, 'fname', 'Thandi');
   assert.deepStrictEqual(A.local(s), ['Set up a follow-up appointment with Thandi (date to be agreed).']);              // nothing asked, nothing known: nothing to chase
   set(s, 'ps_ra', CL);                                                                                                    // ticked before the retirement annuity was typed in
-  assert.ok(A.local(s).includes('Follow up with Thandi for the current policy schedules, asked for in the meeting, for the retirement annuities.'));
+  assert.ok(A.local(s).includes('Follow up with Thandi for the current policy schedules, asked for in the meeting, for the retirement annuities and pension and provident funds.'));
   set(s, 'ps_inv', AS); set(s, 'loa', 'Yes'); assert.ok(A.local(s).some(l => /^Draw the current policy schedules for the investments from Astute/.test(l)));
   set(s, 'has_risk', 'No'); set(s, 'ps_risk', CL); assert.ok(A.local(s).some(l => /personal risk policies/.test(l)));  // a choice made on purpose counts
   set(s, 'ps_risk', ''); assert.ok(!A.local(s).some(l => /personal risk policies/.test(l)));                              // unticked and not a policy the client has: nothing
   set(s, 'has_risk', 'Yes'); assert.ok(A.local(s).includes('Ask Thandi how the current policy schedules for the personal risk policies will be provided.'));
-  store.addRow(s, 'ret_pp', { prov: 'Sanlam' }); assert.ok(A.local(s).includes('Ask Thandi how the current policy schedules for the pension and provident funds (Sanlam) will be provided.'));
+  set(s, 'ps_ra', ''); store.addRow(s, 'ret_pp', { prov: 'Sanlam' }); assert.ok(A.local(s).includes('Ask Thandi how the current policy schedules for the retirement annuities and pension and provident funds (Sanlam) will be provided.'));      // one request for both retirement lists
 });
 
 test('the LOA question comes first on the Personal & group risk cover page, with Yes, No and Not now', () => {
@@ -365,10 +365,11 @@ test('the tick-box lists are said any way, and more said later adds to what is t
   assert.match(AI.SYSTEM, /Policy schedules/);
 });
 
-test('Next appointment and the action points are on the Admin page, which is the last page and has no notes box', () => {
+test('The Letter of Authority, the next appointment and the action points are on the Admin page, which is the last page and has no notes box', () => {
   const admin = sec('admin'), idx = V.buildIndex(schema);
   assert.ok(admin.adv && admin.title === 'Admin' && schema.sections[schema.sections.length - 1] === admin);
-  assert.deepStrictEqual(admin.blocks.map(b => b.title), ['Next appointment', 'Action Points for Personal Assistant']);
+  assert.deepStrictEqual(admin.blocks.map(b => b.title), ['Letter of Authority', 'Next appointment', 'Action Points for Personal Assistant']);
+  assert.strictEqual(admin.blocks[0].fields[0].id, 'loa'); assert.ok(admin.blocks[0].left && admin.blocks[1].left && !admin.blocks[2].left);        // the LOA and the appointment are stacked in the narrow column
   assert.ok(!idx.notes.some(n => n.sec === 'admin') && !idx.byId.pa_actions);                                              // voice never writes in the action points
   assert.strictEqual(V.parseCommand('go to admin', idx).sec, 'admin');
   assert.ok(!sec('prio').blocks.some(b => b.title === 'Next appointment'));
@@ -398,8 +399,7 @@ test('the action points: what is still to get, quotes, who contacts the client, 
     'Follow up with Thandi for the current policy schedules, asked for in the meeting, for the personal risk policies (Liberty, Discovery).',
     'Follow up with Thandi for the current policy schedules, asked for in the meeting, for the group risk benefits (Old Mutual).',
     'Current policy schedules for the group risk benefits (Old Mutual): Employer HR to send the benefit summary.',
-    'Draw the current policy schedules for the retirement annuities (Allan Gray) from Astute once the signed LOA is back.',
-    'Ask Thandi how the current policy schedules for the pension and provident funds (Sanlam) will be provided.',
+    'Draw the current policy schedules for the retirement annuities and pension and provident funds (Allan Gray, Sanlam) from Astute once the signed LOA is back.',
     'Ask Thandi for the credit life details with Nedbank on the home loan.',
     'Ask Thandi whether there is credit life with Discovery Bank on the credit card.',
     'Request a BrightRock Fractured FNA quote (New Business).',
@@ -414,7 +414,7 @@ test('the action points: what is still to get, quotes, who contacts the client, 
 });
 test('the action points follow the schedule choices, the LOA answer, the credit life answers and the quotes that are switched off', () => {
   const s = pa(); set(s, 'loa', 'No');
-  assert.ok(A.local(s).includes('There is no signed LOA: ask Thandi to send the current policy schedules for the retirement annuities (Allan Gray) directly.'));      // Astute chosen, no signed LOA: ask the client directly
+  assert.ok(A.local(s).includes('There is no signed LOA: ask Thandi to send the current policy schedules for the retirement annuities and pension and provident funds (Allan Gray, Sanlam) directly.'));      // Astute chosen, no signed LOA: ask the client directly
   assert.ok(!A.local(s).some(l => /^Send Thandi the LOA/.test(l)));
   set(s, 'loa', 'Not now'); assert.ok(A.local(s).includes('Do not send the LOA yet: Thandi is not ready to sign. Raise it again at the follow-up appointment.'));
   set(s, 'ps_ra', ''); set(s, 'ps_risk', ''); assert.ok(A.local(s).includes('Ask Thandi how the current policy schedules for the personal risk policies (Liberty, Discovery) will be provided.'));   // not asked yet
