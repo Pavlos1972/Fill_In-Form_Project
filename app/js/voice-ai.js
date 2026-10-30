@@ -97,6 +97,11 @@
     '- "position.concluded" (when present) lists the sections already finished. The client or adviser adding something to one of them ("oh wait, there is one more debt, a car loan with Wesbank", "I forgot, I also have a policy with Sanlam") reopens it: give a "section" action for it and the row or the fills. A bare "no", "okay" or "that\'s all" after a section was finished is small talk: give {"actions": []}.',
     '- "Okay, that\'s the notes done, now the children" is [notesOff, section kids]. While notes are being taken (see below) any wording that says the notes are finished ("I\'ve noted that, I\'ve completed those notes", "that\'s everything I wanted to note", "okay, that\'s the notes") is notesOff and is never itself noted.',
     '',
+    'Policy schedules. The boxes ps_risk, ps_grp, ps_ra, ps_pp and ps_inv ("Request Current Policy Schedule(s)" for the personal risk policies, group risk, retirement annuities, pension and provident funds, investments) are tick-box boxes (marked "multi": true):',
+    'they take one or more of their options, given joined with "; " ("Requested from client in meeting; Draw from Astute (with signed LOA)"), and are empty while it has not been asked. "The client will send them" is "Requested from client in meeting";',
+    '"we will get them from Astute", "through Astute" is "Draw from Astute (with signed LOA)" (group risk has no Astute option); something else ("her employer will email it") is "Other", with the words in the box ps_..._ot (ps_risk_ot, ps_grp_ot and so on).',
+    'Only ever give the options that were said; a later "and Astute as well" adds to what is there. "Can we send you a LOA to sign?" is the box loa (Yes, No, Not now: "not now", "maybe later" is "Not now").',
+    '',
     'Facts with no box. When the newest line states a fact about the client\'s situation that belongs on the form (an amount, a name, a date, a product, a plan, a reason) but you cannot put it in any box or list column of "fields" and "lists" (there is no such box, or you cannot tell which one),',
     'add it to the reply as {"actions": [...], "unplaced": [{"text": "short point in plain words, the figures as said", "section": "<id of the section it belongs in, if you can tell>"}]} so the adviser can see it. Give one entry per fact.',
     'Never put in "unplaced" small talk, a question, an acknowledgement, a remark about the software, something you already gave as an action, or a value that is already in "filled". Leave "unplaced" out when there is nothing.',
@@ -233,6 +238,7 @@
       if (f.none) o.none_box = true;
       if (f.options) o.options = f.options;
       if (f.options && f.free) o.free = true;
+      if (f.multi) o.multi = true;
       return o;
     });
     var filled = {};
@@ -520,7 +526,7 @@
     var idx = opts.idx, priv = function (id) { return !share && V.PRIVATE_IDS.indexOf(id) >= 0; };
     var hid = opts.hidden || {};
     var fields = idx.fields.filter(function (f) { return !f.list && !priv(f.id) && !hid[f.id]; }).map(function (f) {
-      var o = { id: f.id, label: f.label, section: f.sec }; if (f.options) o.options = f.options; if (f.options && f.free) o.free = true; return o;
+      var o = { id: f.id, label: f.label, section: f.sec }; if (f.options) o.options = f.options; if (f.options && f.free) o.free = true; if (f.multi) o.multi = true; return o;
     });
     var filled = {}; Object.keys(opts.filled || {}).forEach(function (id) { if (!priv(id)) filled[id] = scrub(String(opts.filled[id])).slice(0, 160); });
     var body = {
@@ -555,8 +561,8 @@
   /* The summaries on the Client priorities page. Claude is given, for each area, only what the form holds about that one area, and writes a few short points about what the client HAS there.
      opts: { apiKey | ask, model, areas: { id: { area, data: { facts, lists } } }, fetchImpl } -> Promise of { id: [points] } for the areas asked about (an area it did not answer is left out). */
   var SUMMARY_SYSTEM = [
-    'You help a financial adviser who is meeting a client. The Fact Find form has a page of areas (Personal Risk Covers, which is life cover, disability, dread disease and income protection; RA, RGAR, Invest, EGAR, Medical Aid, Will, Short Term) where the adviser recommends what the client should do.',
-    'For each area you receive JSON "areas": { "<id>": { "area": "<name>", "data": { "facts": { "<box>": "<value>" }, "lists": { "<list>": [ { "<column>": "<value>" } ] } } } }. The areas are Personal Risk Covers, RA, RGAR, Invest, EGAR, Medical Aid, Will, Short Term and Business assurance (for a business owner).',
+    'You help a financial adviser who is meeting a client. The Fact Find form has a page of areas (Personal Risk Covers, which is life cover, disability, dread disease and income protection; Retirement Planning, which is retirement annuities; RGAR; Investment Planning, which is investments; EGAR; Medical Aid; Will; Short Term) where the adviser recommends what the client should do.',
+    'For each area you receive JSON "areas": { "<id>": { "area": "<name>", "data": { "facts": { "<box>": "<value>" }, "lists": { "<list>": [ { "<column>": "<value>" } ] } } } }. The areas are Personal Risk Covers, Retirement Planning, RGAR, Investment Planning, EGAR, Medical Aid, Will, Short Term and Business assurance (for a business owner).',
     'Write a very brief point-form summary of what the client HAS in that area, so the adviser can see at a glance what is in place and what is missing before advising.',
     'Rules:',
     '- Use only the data given for that area. Never mention anything that is not in it and never bring in another area: no income, family, health or marital details unless they are in that area\'s data.',
@@ -590,5 +596,31 @@
     });
   }
 
-  return { summarise: summarise, SUMMARY_SYSTEM: SUMMARY_SYSTEM, decide: decide, sweep: sweep, sweepRequest: sweepRequest, SWEEP_SYSTEM: SWEEP_SYSTEM, points: points, warm: warm, reconcile: reconcile, setShare: setShare, sharing: sharing, thinkingFor: thinkingFor, prepare: prepare, buildRequest: buildRequest, cachedRequest: cachedRequest, normalize: normalize, extractJson: extractJson, scrub: scrub, shield: shield, SYSTEM: SYSTEM };
+  /* The action points for the personal assistant (Admin page). Claude is given only what the form holds for them (actions.js, facts) and writes short points for Sitamah Nathoo, the adviser's personal assistant.
+     opts: { apiKey | ask, model, facts, fetchImpl } -> Promise of an array of points (maybe empty). */
+  var ACTIONS_SYSTEM = [
+    'You help a financial adviser, Paul Kafentzis. After a meeting with a client you write the action points for his personal assistant, Sitamah Nathoo, who does what is needed next.',
+    'You receive JSON "facts" taken from the client\'s Fact Find: "client" (first name), "letter_of_authority" (the answer to "Can we send you a LOA to sign?": Yes, No, Not now or not asked yet),',
+    '"schedules" (for each kind of policy the client has: what it is, who it is with ("held"), and how the current policy schedule is to be got ("requested": "Requested from client in meeting", "Draw from Astute (with signed LOA)", "Other" with the words in "other", or "not asked yet")),',
+    '"credit_life" (debts with credit life through the lender: "Yes", or "not asked yet" when it is not known), "quotes" (quotes and analyses the adviser must have requested), "referrals" (who must contact the client), "undecided" (areas where the client needs time),',
+    '"instructions" (the adviser\'s own notes on an area) and "appointment" (the date of the next appointment, empty when none is set).',
+    'Write the points Sitamah must act on, and nothing else:',
+    '- Information still to get from the client: the current policy schedules, and the LOA. "Requested from client in meeting": follow up with the client for them. "Draw from Astute (with signed LOA)": draw them from Astute once the signed LOA is back; when the LOA is "No" there will be no signed LOA, so ask the client for the schedules directly. "Other": say what the arrangement is.',
+    '  "not asked yet": ask the client how the schedules will be provided. Letter of authority "Yes": send it to the client to sign; "Not now": do not send it yet, raise it again later. Credit life "Yes": ask the client for the credit life details with that lender; "not asked yet": ask whether there is credit life on that debt.',
+    '- New quotes: one point for each quote or analysis in "quotes", with what is needed (type, insurer, amounts as given). Contact: one point for each "referrals" entry, asking that person to contact the client about it.',
+    '- Anything in "undecided" or "instructions" that needs action (follow up after the client has checked the budget, an instruction from the adviser). Leave out an instruction that is only a remark.',
+    '- Last, the follow-up appointment: set one up for the date in "appointment", or say the date is still to be agreed when it is empty.',
+    'Rules: every point is a clear, complete action in plain words, starting with a verb, one action each, in point form. Use only the facts given: never invent a name, a date, an amount or a task. Use the client\'s first name, never "he", "she", "his" or "her".',
+    'Keep names, amounts and dates exactly as given. Leave out anything that is not an action for the assistant: no summary of what the client has, no advice, no repeating of the form. Where the facts hold nothing for a kind of point, write nothing for it.',
+    'Keep the order above (LOA and schedules, credit life, quotes, referrals, follow-ups, then the appointment). Reply with ONE JSON object and nothing else: {"points": ["...", "..."]}.'
+  ].join('\n');
+  function actionPoints(opts) {
+    var req = withThinking({ model: opts.model, max_tokens: 1400, output_config: { effort: 'low' }, system: ACTIONS_SYSTEM, messages: [{ role: 'user', content: JSON.stringify({ facts: scrubData(opts.facts) }) }] });
+    return callModel(opts, req).then(function (text) {
+      var raw = extractJson(text), list = raw && Array.isArray(raw.points) ? raw.points : [];
+      return list.map(function (p) { return String(p == null ? '' : p).replace(/^[\s\-•*]+/, '').replace(/\s+/g, ' ').trim().slice(0, 300); }).filter(Boolean).slice(0, 40);
+    });
+  }
+
+  return { actionPoints: actionPoints, ACTIONS_SYSTEM: ACTIONS_SYSTEM, summarise: summarise, SUMMARY_SYSTEM: SUMMARY_SYSTEM, decide: decide, sweep: sweep, sweepRequest: sweepRequest, SWEEP_SYSTEM: SWEEP_SYSTEM, points: points, warm: warm, reconcile: reconcile, setShare: setShare, sharing: sharing, thinkingFor: thinkingFor, prepare: prepare, buildRequest: buildRequest, cachedRequest: cachedRequest, normalize: normalize, extractJson: extractJson, scrub: scrub, shield: shield, SYSTEM: SYSTEM };
 });

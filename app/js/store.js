@@ -14,8 +14,16 @@
     Object.keys(o).forEach(function (k) { if (t && +t[k] > 0 && isFinite(+t[k])) o[k] = +t[k]; });
     return o;
   }
+  /* The action points on the Admin page: what they were written from (key), when (at), by what ('claude' or 'form'), and whether the adviser has typed in the box since (edited): after that they no longer follow the form until Refresh. */
+  function blankPa() { return { key: '', at: '', by: '', edited: false }; }
+  function cleanPa(x) {
+    var o = blankPa(); if (!x || typeof x !== 'object') return o;
+    o.key = String(x.key || '').slice(0, 40); o.at = String(x.at || '').slice(0, 40); o.by = x.by === 'claude' || x.by === 'form' ? x.by : ''; o.edited = x.edited === true;
+    return o;
+  }
+  function setPa(state, key, by) { state.pa = { key: String(key || ''), at: new Date().toISOString(), by: by === 'claude' ? 'claude' : 'form', edited: false }; }
   function blank() {
-    var s = { app: APP_ID, schema: schema.version, created: new Date().toISOString(), modified: null, f: {}, l: {}, sum: {}, unplaced: [], claude: blankTally() };
+    var s = { app: APP_ID, schema: schema.version, created: new Date().toISOString(), modified: null, f: {}, l: {}, sum: {}, pa: blankPa(), unplaced: [], claude: blankTally() };
     Object.keys(schema.fieldsById).forEach(function (id) {
       var d = schema.fieldsById[id], p = d.preset === '@today' ? util.todayDMY() : d.preset;
       s.f[id] = p ? { v: p, st: 'preset' } : { v: '', st: 'empty' };
@@ -40,9 +48,12 @@
   }
   /* A quote that is not required has no type and no insurer: when it is set to not required they are cleared, so nothing is left behind (the boxes themselves go away, see schema.js). */
   var NOT_REQUIRED = { fna_req: { vals: ['Not required', 'No FNA done'], clear: ['fna_type', 'fna_ins'] }, sf_req: { vals: ['Not required'], clear: ['sf_type', 'sf_ins'] } };
+  /* "Other" in a policy schedule list opens its small box: when Other is not ticked any more, what was typed there goes. */
+  var PS_OTHER_BOX = { ps_risk: 'ps_risk_ot', ps_grp: 'ps_grp_ot', ps_ra: 'ps_ra_ot', ps_pp: 'ps_pp_ot', ps_inv: 'ps_inv_ot' };
   function setField(state, id, v, st) {
     var was = id === 'sname' || id === 'gender' ? fatherSurname(state) : null;
     state.f[id] = { v: v, st: st || (v === '' ? 'empty' : 'confirmed') };
+    if (PS_OTHER_BOX[id] && state.f[PS_OTHER_BOX[id]] && String(v).split(';').map(function (x) { return x.trim(); }).indexOf('Other') < 0) state.f[PS_OTHER_BOX[id]] = { v: '', st: 'empty' };
     if (NOT_REQUIRED[id] && NOT_REQUIRED[id].vals.indexOf(v) >= 0) NOT_REQUIRED[id].clear.forEach(function (d) { if (state.f[d]) state.f[d] = { v: '', st: 'empty' }; });
     if (id === 'sname' || id === 'gender') followFather(state, was);
   }
@@ -111,6 +122,7 @@
     });
     splitRetirement(s, j);
     s.sum = cleanSum(j.sum);
+    s.pa = cleanPa(j.pa);
     legacyNotes(s, j);
     s.unplaced = (Array.isArray(j.unplaced) ? j.unplaced : []).map(cleanUnplaced).filter(Boolean).slice(0, 60);
     s.claude = tallyFrom(j.claude);
@@ -229,5 +241,5 @@
     return { tot: tot, fill: fill, ver: ver };
   }
 
-  return { setSum: setSum, cleanSum: cleanSum, addUnplaced: addUnplaced, closeUnplaced: closeUnplaced, unplacedKey: unplacedKey, blank: blank, blankTally: blankTally, ctxFor: ctxFor, setField: setField, addRow: addRow, delRow: delRow, setCell: setCell, accept: accept, clientName: clientName, idClash: idClash, idKey: idKey, fatherSurname: fatherSurname, baseFileName: baseFileName, pdfFileName: pdfFileName, fromJSON: fromJSON, toJSON: toJSON, counts: counts };
+  return { setPa: setPa, blankPa: blankPa, cleanPa: cleanPa, setSum: setSum, cleanSum: cleanSum, addUnplaced: addUnplaced, closeUnplaced: closeUnplaced, unplacedKey: unplacedKey, blank: blank, blankTally: blankTally, ctxFor: ctxFor, setField: setField, addRow: addRow, delRow: delRow, setCell: setCell, accept: accept, clientName: clientName, idClash: idClash, idKey: idKey, fatherSurname: fatherSurname, baseFileName: baseFileName, pdfFileName: pdfFileName, fromJSON: fromJSON, toJSON: toJSON, counts: counts };
 });

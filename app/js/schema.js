@@ -63,6 +63,15 @@
       N(p + '_cmt', 'Comments')
     ];
   }
+  /* "Request Current Policy Schedule(s)": the last item of each section that holds policies. A tick-box dropdown (t: 'multi', the choices ticked are kept as one text joined with "; ", empty = not asked yet) and, beside it,
+     a small box for "Other". The block is greyed out while the client has no such policies (cond); group risk has no Astute choice. */
+  var PS_CLIENT = 'Requested from client in meeting', PS_ASTUTE = 'Draw from Astute (with signed LOA)', PS_OTHER = 'Other';
+  function PS(id, cond, msg, group) {
+    return { title: 'Request Current Policy Schedule(s)', layout: 'g12', cond: cond, grey: 1, condMsg: msg, fields: [
+      { id: 'ps_' + id, l: 'Schedule(s) requested', t: 'multi', o: group ? [PS_CLIENT, PS_OTHER] : [PS_CLIENT, PS_ASTUTE, PS_OTHER], s: 7 },
+      { id: 'ps_' + id + '_ot', l: 'Other schedule arrangement', t: 'txt', opt: 1, voice: 1, cond: { f: 'ps_' + id, has: PS_OTHER }, grey: 1, s: 5 }
+    ] };
+  }
   var WAIT = ['7 days', '14 days', '1 month', '3 months', 'Other'];
 
   var sections = [
@@ -158,26 +167,34 @@
     ] },
 
     { id: 'cover', title: 'Personal & group risk cover', blocks: [
+      { help: 'The Letter of Authority (LOA) lets us get the policy schedules through Astute.', fields: [
+        { id: 'loa', l: 'Can we send you a LOA to sign?', t: 'sel', o: ['Yes', 'No', 'Not now'] }
+      ] },
       { title: 'Personal risk cover', fields: [
         { id: 'has_risk', l: 'Has personal risk cover', t: 'sel', o: YN },
         { id: 'joint', l: 'Joint life with spouse', t: 'sel', o: YN, cond: HAS_RISK, grey: 1 }
       ] },
       { title: 'Existing personal risk policies', list: 'risk', cond: HAS_RISK, grey: 1, condMsg: 'No personal risk cover is in place, so there are no policies to record.' },
+      PS('risk', HAS_RISK, 'No personal risk cover is in place, so there is no policy schedule to ask for.'),
       { title: 'Group risk cover', fields: [
         { id: 'has_group', l: 'Group risk through employer', t: 'sel', o: ['Yes', 'No', 'Not sure'] }
       ] },
       { title: 'Existing group risk policies', list: 'grp', cond: HAS_GROUP, grey: 1, condMsg: 'No group risk cover is in place (Group risk through employer is No or Not sure), so there are no policies to record.' },
+      PS('grp', HAS_GROUP, 'No group risk cover is in place, so there is no policy schedule to ask for.', true),
       { fields: [N('n_cover')] }
     ] },
 
     { id: 'retire', title: 'Retirement funding', blocks: [
       { title: 'Retirement annuities', list: 'ret_ra' },
+      PS('ra', { rows: 'ret_ra' }, 'No retirement annuity is recorded, so there is no policy schedule to ask for.'),
       { title: 'Pension and provident funds', list: 'ret_pp' },
+      PS('pp', { rows: 'ret_pp' }, 'No pension or provident fund is recorded, so there is no policy schedule to ask for.'),
       { fields: [N('n_retire')] }
     ] },
 
     { id: 'inv', title: 'Investments', blocks: [
       { list: 'inv' },
+      PS('inv', { rows: 'inv' }, 'No investment is recorded, so there is no policy schedule to ask for.'),
       { fields: [N('n_inv')] }
     ] },
 
@@ -292,7 +309,6 @@
         { id: 'km_amt', money: 1, l: 'Cover amount (R)', t: 'txt' },
         { id: 'km_basis', l: 'Basis of cover amount', t: 'sel', o: ['Multiple of salary', 'Profit contribution', 'Replacement cost', 'Other'] }
       ] },
-      { title: 'Next appointment', fields: [{ id: 'next_appt', l: 'Next appointment (date)', t: 'txt', date: 1, cal: 1, hint: 'e.g. 05/11/2026' }] },
       { fields: [N('n_prio')] }
     ] },
 
@@ -352,6 +368,13 @@
       ] },
       { title: 'Dread disease: standard', fields: dread('dds') },
       { fields: [N('n_calc')] }
+    ] },
+
+    /* Admin: the next appointment (moved here from Client priorities) on the left and, on the right, the action points for the personal assistant (what is still to be asked for, quotes to request, who must contact the client, the follow-up
+       appointment), written from the rest of the form (see actions.js). */
+    { id: 'admin', adv: 1, layout: 'admin', title: 'Admin', blocks: [
+      { title: 'Next appointment', fields: [{ id: 'next_appt', l: 'Next appointment (date)', t: 'txt', date: 1, cal: 1, hint: 'e.g. 05/11/2026' }] },
+      { title: 'Action Points for Personal Assistant', actions: 1, fields: [{ id: 'pa_actions', l: 'Action points for Sitamah Nathoo (personal assistant)', t: 'area', wide: 1, opt: 1, nonotes: 1, rows: 16 }] }
     ] }
   ];
 
@@ -362,11 +385,11 @@
     { id: 'life', title: 'Personal Risk Covers', sub: 'Life cover, disability, dread disease, income protection', src: 'Personal risk cover, group risk cover, credit life, total debt and childcare to be covered',
       sum: { f: ['has_risk', 'joint', 'has_group', 'fna_req', 'fna_type', 'sf_req', 'sf_type'], l: { risk: 0, grp: 0, debts: ['type', 'prov', 'prov_other', 'desc', 'cl'], redq: 0 },
         t: [['Total debt to be covered (balances)', [['debts', 'bal']]], ['Total monthly debt repayments', [['debts', 'inst']]], ['Total childcare cost to be covered, per month', [['kids', 'cost']]]] } },
-    { id: 'ra', title: 'RA', sub: 'Retirement annuity', src: 'Retirement funding: retirement annuities, pension and provident funds',
+    { id: 'ra', title: 'Retirement Planning', sub: 'Retirement Annuities', src: 'Retirement funding: retirement annuities, pension and provident funds',
       sum: { f: [], l: { ret_ra: 0, ret_pp: 0, raq: 0 } } },
     { id: 'rgar', title: 'RGAR', sub: 'Retirement goal analysis', src: 'Retirement funding totals, retirement age and income goal',
       sum: { f: ['rgar_req', 'ret_age', 'ret_net'], l: {}, t: [['Total saved across all retirement funds', [['ret_ra', 'val'], ['ret_pp', 'val']]], ['Total monthly contributions to retirement funds', [['ret_ra', 'contrib'], ['ret_pp', 'contrib']]]] } },
-    { id: 'inv', title: 'Invest', sub: 'Investments', src: 'Investments',
+    { id: 'inv', title: 'Investment Planning', sub: 'Investments', src: 'Investments',
       sum: { f: [], l: { inv: 0, invq: 0 } } },
     { id: 'egar', title: 'EGAR', sub: 'Education goal analysis', src: 'Children (education stage and cost)',
       sum: { f: ['egar_req'], l: { kids: ['age', 'stage', 'cost'] } } },

@@ -79,11 +79,13 @@
   function field(name, ctx) { return fieldCalcs[name](ctx); }
   function rowCalc(name, row, ctx) { return rowCalcs[name](row, ctx); }
 
-  /* cond: { f, eq } | { f, in } | { f, nin } | { all: [cond, ...] } */
+  /* cond: { f, eq } | { f, in } | { f, nin } | { f, has } (a tick-box box holds that choice) | { rows: list } (the list has a row) | { all: [cond, ...] } */
   function showIf(cond, ctx) {
     if (!cond) return true;
     if (cond.all) return cond.all.every(function (c) { return showIf(c, ctx); });
+    if ('rows' in cond) return ctx.rows(cond.rows).length > 0;                                          // a list has at least one row
     var v = ctx.v(cond.f);
+    if ('has' in cond) return v.split(';').map(function (x) { return x.trim(); }).indexOf(cond.has) >= 0;     // a tick-box box holds this choice
     if ('eq' in cond) return v === cond.eq;
     if ('in' in cond) return cond.in.indexOf(v) !== -1;
     if ('nin' in cond) return cond.nin.indexOf(v) === -1;
@@ -92,7 +94,7 @@
   function condFields(cond) {
     if (!cond) return [];
     if (cond.all) return cond.all.reduce(function (a, c) { return a.concat(condFields(c)); }, []);
-    return [cond.f];
+    return cond.f ? [cond.f] : [];
   }
 
   return { ipSplit: ipSplit, field: field, rowCalc: rowCalc, showIf: showIf, condFields: condFields, clientAge: clientAge, meetingDate: meetingDate, DUTY_IDS: DUTY_IDS };
