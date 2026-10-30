@@ -318,7 +318,7 @@
       HEAD('ra'),
       { pri: 'ra', title: 'Retirement annuity quotes', list: 'raq' },
       HEAD('rgar'),
-      { pri: 'rgar', title: 'Retirement goal analysis (RGAR)', layout: 'g12', fields: [
+      { pri: 'rgar', title: 'Retirement goal analysis (RGAR)', help: 'To generate the RGAR report you need the client\'s current or paid-up retirement annuities, pension and/or provident fund(s), and proof of income where there is a pension and/or provident fund.', layout: 'g12', fields: [
         { id: 'rgar_req', l: 'RGAR', t: 'sel', o: ['Request an RGAR', 'Not required'], s: 4 },
         { id: 'ret_age', l: 'Retirement age', t: 'sel', o: ['50', '55', '60', '65', '70'], s: 4 },
         { id: 'ret_net', money: 1, l: 'Net amount (today\'s terms) (R)', t: 'txt', s: 4 }
