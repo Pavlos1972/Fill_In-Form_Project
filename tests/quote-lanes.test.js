@@ -156,3 +156,20 @@ test('the RGAR area says what the report needs', () => {
   const b = sec('prio').blocks.find(x => x.pri === 'rgar' && !x.head);
   assert.match(b.help, /current or paid-up retirement annuities/); assert.match(b.help, /pension and\/or provident fund\(s\)/); assert.match(b.help, /proof of income where there is a pension and\/or provident fund/);
 });
+
+test('voice reads the standard quote details, each cover under its own label, and "make a note" goes to the page\'s notes box', () => {
+  const ids = ['lc_sa', 'lc_term', 'lc_termv', 'lc_aci', 'lc_aciv', 'lc_abiv', 'pd_sa', 'pd_term', 'pd_abiv', 'ips_age', 'ips_amt', 'ips_wait', 'ips_abiv', 'dds_cover', 'dds_term', 'dds_abiv'];
+  ids.forEach(id => assert.ok(idx.byId[id] && idx.byId[id].sec === 'prio', id));
+  assert.deepStrictEqual(new Set(ids.map(id => idx.byId[id].label)).size, ids.length);                                                         // no two the same for Claude
+  assert.strictEqual(idx.byId.lc_sa.label, 'Standard life cover: Sum assured (R)');
+  assert.deepStrictEqual(idx.notes.filter(n => n.sec === 'prio').map(n => n.id), ['n_prio']);                                                  // the comments boxes of the table are typed only
+  ['lc_cmt', 'pd_cmt', 'ips_cmt', 'dds_cmt'].forEach(id => assert.ok(!idx.byId[id] && !idx.noteById[id], id));
+  const ask = t => { const r = V.matchQuestion(t, idx, { cur: 'prio', isEmpty: () => true }); return r && r.id; };
+  assert.strictEqual(ask('What is the sum assured for the permanent disability?'), 'pd_sa');
+  assert.strictEqual(ask('What is the sum assured for the life cover?'), 'lc_sa');
+  assert.strictEqual(ask('What is the standard life cover term?'), 'lc_term');
+  assert.strictEqual(V.interpret(idx.byId.lc_sa, 'two million rand').value, 'R 2 000 000.00');
+  const s = fresh(), c = store.ctxFor(s);
+  assert.ok(calc.showIf(idx.byId.lc_sa.cond, c)); set(s, 'pr_life', schema.NOT_PRIORITY); assert.ok(!calc.showIf(idx.byId.lc_sa.cond, c));      // switched off with the area
+  assert.ok(!idx.fields.some(f => f.sec === 'calc'));                                                                                          // BrightRock Risk Calculation has no box voice reads
+});
