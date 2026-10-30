@@ -11,7 +11,7 @@
    Block keys:  title, fields, list, cond (show only when true), condMsg, help (guidance shown on screen only),
                 grey (when cond is false the block stays on screen greyed out, under condMsg, instead of going away), nomsg (no condMsg above a greyed block), own (the block's own cond, apart from its area being switched off: a block with its own condMsg is hidden when that rule fails, but greyed when only its area is off),
                 pri (the priority area of the Client priorities page the block belongs to), head (the block holding that area's decision and comments boxes),
-                lane ('br' BrightRock Fractured or 'std' Standard) and row ('fna', 'sf', 'red'): where a life quote block sits in the two-column grid of the Life area, sqd (a row of the standard quote details table),
+                lane ('br' BrightRock Fractured or 'std' Standard) and row ('fna', 'sf', 'red'): where a life quote block sits in the two-column grid of the Life area, sqd and sq (a row of the standard quote details table, and which boxes make it up),
                 strip (the line at the top of the BrightRock Risk Calculation page), half (two blocks side by side), protector / actions (their own layouts).
    List keys:   dense (one short row for each quote instead of a card). Panel keys: inline (the area's decision, referral or request and comments are in one row). */
 (function (root, factory) {
@@ -286,7 +286,7 @@
       { pri: 'life', lane: 'br', row: 'red', title: 'Reduced quotes', list: 'bfred' },
       { pri: 'life', lane: 'std', row: 'red', title: 'Reduced quotes', list: 'redq' },
       /* What to ask for in a standard quote (it used to be the second half of the Risk Calculation page): shown as one table, a row for each cover (sqd groups the four blocks). */
-      { pri: 'life', sqd: 'lc', title: 'Life cover: standard', fields: [
+      { pri: 'life', sqd: 'lc', sq: { name: 'Life cover', amt: 'lc_sa', term: ['lc_term', 'lc_termv'], aci: ['lc_aci', 'lc_aciv'], abi: 'lc_abiv', cmt: 'lc_cmt' }, title: 'Life cover: standard', fields: [
         { id: 'lc_sa', money: 1, l: 'Sum assured (R)', t: 'txt', opt: 1 },
         { id: 'lc_term', l: 'Term', t: 'sel', o: ['WOL', 'Fixed term', 'Other'], opt: 1 },
         { id: 'lc_termv', l: 'Term value', t: 'txt', opt: 1 },
@@ -295,7 +295,7 @@
         { id: 'lc_abiv', l: 'ABI', t: 'txt', opt: 1 },
         N('lc_cmt', 'Comments')
       ] },
-      { pri: 'life', sqd: 'pd', title: 'Permanent disability: standard', fields: [
+      { pri: 'life', sqd: 'pd', sq: { name: 'Permanent disability', amt: 'pd_sa', term: ['pd_term', 'pd_termv'], aci: ['pd_aci', 'pd_aciv'], abi: 'pd_abiv', cmt: 'pd_cmt' }, title: 'Permanent disability: standard', fields: [
         { id: 'pd_sa', money: 1, l: 'Sum assured (R)', t: 'txt', opt: 1 },
         { id: 'pd_term', l: 'Term', t: 'sel', o: ['To age 65', 'To age 70', 'Fixed term', 'Other'], opt: 1 },
         { id: 'pd_termv', l: 'Term value', t: 'txt', opt: 1 },
@@ -304,7 +304,7 @@
         { id: 'pd_abiv', l: 'ABI', t: 'txt', opt: 1 },
         N('pd_cmt', 'Comments')
       ] },
-      { pri: 'life', sqd: 'ip', title: 'Income protection / sickness benefit: standard', fields: [
+      { pri: 'life', sqd: 'ip', sq: { name: 'Income protection / sickness benefit', amt: 'ips_amt', term: ['ips_age'], aci: ['ips_aci', 'ips_aciv'], abi: 'ips_abiv', wait: 'ips_wait', cmt: 'ips_cmt' }, title: 'Income protection / sickness benefit: standard', fields: [
         { id: 'ips_age', l: 'Income protection age', t: 'sel', o: ['65', '70'], opt: 1, preset: '65' },
         { id: 'ips_amt', money: 1, l: 'Insured amount (R p.m.)', t: 'txt', opt: 1 },
         { id: 'ips_wait', l: 'Waiting period', t: 'sel', o: WAIT, opt: 1 },
@@ -313,7 +313,7 @@
         { id: 'ips_abiv', l: 'ABI', t: 'txt', opt: 1, preset: '5%' },
         N('ips_cmt', 'Comments')
       ] },
-      { pri: 'life', sqd: 'dd', title: 'Dread disease: standard', fields: dread('dds') },
+      { pri: 'life', sqd: 'dd', sq: { name: 'Dread disease', amt: 'dds_cover', term: ['dds_term', 'dds_termv'], aci: ['dds_aci', 'dds_aciv'], abi: 'dds_abiv', cmt: 'dds_cmt' }, title: 'Dread disease: standard', fields: dread('dds') },
       { pri: 'life', fields: [{ id: 'pref_spend', money: 1, l: 'Preferred monthly spend (R)', t: 'txt', opt: 1, voice: 1 }] },
       HEAD('ra'),
       { pri: 'ra', title: 'Retirement annuity quotes', list: 'raq' },
