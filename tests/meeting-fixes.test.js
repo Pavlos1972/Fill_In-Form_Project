@@ -90,9 +90,10 @@ test('the catch-up check sees only the boxes and lists that are showing, and its
   assert.match(AI.SWEEP_SYSTEM, /when no name was said, leave the box empty/);
 });
 
-test('a Next appointment date sits on the Client priorities page and can be said', () => {
-  const blocks = schema.sections.find(x => x.id === 'prio').blocks, i = blocks.findIndex(b => b.title === 'Next appointment');
-  assert.ok(i > 0 && blocks[i + 1].fields[0].id === 'n_prio');
+test('a Next appointment date sits on the Admin page (not Client priorities) and can be said', () => {
+  const blocks = schema.sections.find(x => x.id === 'admin').blocks;
+  assert.strictEqual(blocks[0].title, 'Next appointment'); assert.strictEqual(blocks[0].fields[0].id, 'next_appt');
+  assert.ok(!schema.sections.find(x => x.id === 'prio').blocks.some(b => b.title === 'Next appointment'));
   const f = schema.fieldsById.next_appt;
   assert.ok(f.date && f.cal && idx.byId.next_appt);
   const r = V.interpret(idx.byId.next_appt, 'the fifth of November 2026');
@@ -128,7 +129,7 @@ test('a part of a page that holds several topics does not finish the page', () =
 test('"no" to "any more ...?" is the end of the list: the section when the list is all of it, only the list when the section has several', () => {
   assert.deepStrictEqual(wrap('No.', 'Mr client, do you have any more debts?'), { sec: 'debts', list: 'debts', via: 'declined' });
   assert.deepStrictEqual(wrap('No, that is all', 'Do you have any other children?', 'kids'), { sec: 'kids', list: 'kids', via: 'declined' });
-  assert.deepStrictEqual(wrap('Nothing else', 'Anything else on the investments?', 'inv'), { sec: 'inv', list: 'inv', via: 'declined' });
+  assert.deepStrictEqual(wrap('Nothing else', 'Anything else on the investments?', 'inv'), { sec: null, list: 'inv', via: 'declined' });          // the policy schedule box still follows the investments: the page is not finished
   assert.deepStrictEqual(wrap('Nope, that is all', 'Do you have any more policies?', 'cover'), { sec: null, list: 'risk', via: 'declined' });          // personal and group policies share a page
   assert.deepStrictEqual(wrap('That is everything', 'Is that everything?', 'income'), { sec: 'income', list: null, via: 'declined' });
   // not an end: a different answer, a box that exists, no question before it
