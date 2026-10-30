@@ -293,6 +293,11 @@
     has_risk: ['personal risk cover', 'life cover', 'risk cover', 'life insurance', 'any cover', 'cover in place', 'existing cover'],
     joint: ['joint life', 'joint cover', 'joint with spouse', 'joint with your spouse'],
     has_group: ['group risk', 'group cover', 'cover through your employer', 'employer cover', 'group life', 'death benefit through work'],
+    has_debts: ['any debts', 'do you have debts', 'have debts', 'any loans', 'any debt', 'do you owe anything'],
+    has_kids: ['any children', 'do you have children', 'have children', 'any kids', 'do you have kids', 'dependants', 'dependents'],
+    has_inv: ['any investments', 'do you have investments', 'have investments', 'existing investments'],
+    has_ra: ['do you have a retirement annuity', 'have a retirement annuity', 'any retirement annuities', 'do you have an ra'],
+    has_pp: ['has pension or provident funds', 'do you have a pension', 'any pension or provident fund', 'do you belong to a pension fund'],
     ma: ['medical aid', 'hospital plan', 'medical scheme'],
     ma_prov: ['medical aid provider', 'which medical aid', 'which scheme', 'who is your medical aid', 'medical scheme'],
     ma_plan: ['which plan', 'medical aid plan', 'what plan', 'plan option', 'which option'],
@@ -395,6 +400,7 @@
   var LIST_VID = { 'kids.name': 'sp_name', 'kids.sname': 'sname', 'shares.name': 'sp_name', 'kids.dob': 'dob', 'shares.cell': 'cell', 'shares.id': 'idno', 'shares.pct': 'biz_pct' };
   function vid(f) { return f.vid || f.id; }
   /* The words that say which list is meant ("the child's date of birth", "the loan balance", "the second policy"). */
+  var LIST_GATES = { has_debts: 1, has_kids: 1, has_inv: 1, has_ra: 1, has_pp: 1 };                 // the Yes/No answers that open a list
   var LIST_NOUNS = {
     kids: ['child', 'children', 'kid', 'kids', 'son', 'sons', 'daughter', 'daughters', 'dependant', 'dependants', 'dependent', 'dependents'],
     debts: ['debt', 'debts', 'loan', 'loans', 'bond', 'bonds', 'mortgage', 'home loan', 'credit card', 'vehicle finance', 'car finance', 'car loan', 'overdraft', 'liability', 'liabilities', 'finance'],
@@ -527,7 +533,7 @@
       var sh = !named ? sectionHit(pn, idx) : null;
       if (sh && isPartial(sh)) return { sec: null, list: null, part: sh.id, via: 'declined' };
       var lsec = named && idx.lists[named] ? idx.lists[named].sec : (sh ? sh.id : o.cur || null);
-      var one = lsec && Object.keys(idx.lists).filter(function (k) { return idx.lists[k].sec === lsec; }).length === 1 && !idx.fields.some(function (f) { return f.sec === lsec && !f.list; });
+      var one = lsec && Object.keys(idx.lists).filter(function (k) { return idx.lists[k].sec === lsec; }).length === 1 && !idx.fields.some(function (f) { return f.sec === lsec && !f.list && !LIST_GATES[f.id]; });       // the Yes/No that opens the list is not another box to ask
       if (named && !one) return { sec: null, list: named, via: 'declined' };                    // one list of several: that list has no more, the section is not over
       return lsec ? { sec: lsec, list: named, via: 'declined' } : null;
     }
@@ -634,6 +640,7 @@
     var fr = /\b(?:fractured|brightrock|bright rock)\b/.test(tn), sd = /\bstandard\b/.test(tn);
     var tw = tn.replace(/\b(?:fractured|standard|brightrock|bright rock)\b/g, ' ').replace(/\s+/g, ' ').trim(), tk = tw ? tw.split(' ') : [];       // the words that name the kind of quote are not part of what is asked about ("type of fractured FNA quote")
     idx.fields.forEach(function (f) {
+      if (LIST_GATES[f.id] && /\bhow many\b/.test(tn)) return;                                           // "how many children do you have?" is about the list: the count is asked
       var s = scoreField(f, tw, tk);
       if (f.lane && s > 0) {                                                                       // "the fractured FNA" / "the BrightRock quote" is the BrightRock Fractured one, "the standard FNA" the standard one; a plain "FNA quote" is the standard one
         if (f.lane === 'br') { if (fr && !sd) s += 3; } else if (sd || !fr) s += sd ? 3 : 0.05;

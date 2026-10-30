@@ -25,12 +25,19 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Run the tests (nothing is published when one fails)
+        run: npm test
       - uses: actions/configure-pages@v5
       - name: Make the browser fetch the new scripts after an update
         run: |
           v="${GITHUB_SHA::10}"
           sed -i -E "s/(\.(js|css))\?v=[0-9a-z]+\"/\1?v=${v}\"/g" app/index.html
           grep -c "?v=${v}" app/index.html
+      - name: Leave the files that start the Fact Find on a computer off the website
+        run: rm -f "app/Start Fact Find.bat" app/FactFindServer.ps1
       - uses: actions/upload-pages-artifact@v3
         with:
           path: app

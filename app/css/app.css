@@ -31,8 +31,6 @@ button, select, input, textarea { font: inherit; color: inherit; }
 .top { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px; padding: 10px 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
 .top h1 { font-size: 16px; font-weight: 600; }
 .grow { flex: 1 1 auto; }
-.pill { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; padding: 3px 9px; border-radius: 99px; background: var(--calc-soft); color: var(--calc); white-space: nowrap; }
-.pill.ok { background: var(--ok-soft); color: var(--ok); }
 
 .app { display: grid; grid-template-columns: 210px minmax(0, 1fr) 320px; gap: 14px; margin-top: 14px; align-items: start; }
 @media (max-width: 1080px) { .app { grid-template-columns: 190px minmax(0, 1fr); } .side { grid-column: 1 / -1; } }
@@ -90,7 +88,6 @@ button, select, input, textarea { font: inherit; color: inherit; }
 .badge.confirmed { background: var(--ok-soft); color: var(--ok); }
 .badge.calc, .badge.preset { background: var(--calc-soft); color: var(--calc); }
 .badge.suggest { background: var(--accent); color: var(--accent-ink); cursor: pointer; }
-.badge.newcol { background: var(--new); color: var(--surface); }
 
 .tablewrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 6px; }
 table { width: 100%; border-collapse: collapse; min-width: 640px; }
@@ -259,8 +256,6 @@ dialog .f input, dialog .f select { padding-right: 9px; background: var(--surfac
 .heard { flex: 1 0 100%; display: flex; align-items: center; gap: 10px; padding: 6px 10px; border-radius: 6px; background: var(--surface-2); border: 1px solid var(--line); font-size: 13px; color: var(--muted); min-width: 0; }
 .heard[hidden] { display: none; }
 .heard b { color: var(--ink); font-weight: 500; min-width: 0; overflow-wrap: anywhere; }
-.heard.heard-warn { background: var(--warn-soft); border-color: transparent; color: var(--warn); }
-.heard.heard-bad { background: var(--bad-soft); border-color: transparent; color: var(--bad); }
 .lvlw { flex: none; display: flex; align-items: center; gap: 6px; }
 .lvlw[hidden] { display: none; }
 .lvlt { font-size: 12px; color: var(--muted); white-space: nowrap; }
@@ -403,10 +398,6 @@ table.sqt .dash { color: var(--muted); display: inline-block; padding-top: 7px; 
 .half .block-title:first-child { margin-top: 18px; }
 
 /* Risk Calculation & Quotes: the two parts, and the income protection block with its instalment protector. */
-.partband { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px; margin: 26px 0 2px; padding: 10px 14px; background: var(--accent-soft); color: var(--accent); border-radius: 8px; }
-.partband:first-child { margin-top: 6px; }
-.partband h3 { font-size: 16px; font-weight: 650; }
-.partband .sub { color: var(--muted); font-size: 12.5px; }
 .ipgrid { display: grid; grid-template-columns: minmax(190px, 260px) minmax(0, 1fr); gap: 14px 28px; align-items: start; margin-bottom: 14px; }
 @media (max-width: 720px) { .ipgrid { grid-template-columns: minmax(0, 1fr); } }
 .ipleft { display: flex; flex-direction: column; gap: 14px; }

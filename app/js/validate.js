@@ -43,6 +43,11 @@
   var GATES = [
     ['has_risk', ['No'], { lists: ['risk'] }, 'personal risk policies'],
     ['has_group', ['No'], { lists: ['grp'] }, 'group risk policies'],
+    ['has_debts', ['No'], { lists: ['debts'] }, 'debts'],
+    ['has_kids', ['No'], { lists: ['kids'] }, 'children'],
+    ['has_inv', ['No'], { lists: ['inv'] }, 'investments'],
+    ['has_ra', ['No'], { lists: ['ret_ra'] }, 'retirement annuities'],
+    ['has_pp', ['No'], { lists: ['ret_pp'] }, 'pension and provident funds'],
     ['biz_assur', ['No'], { lists: ['bizpol'] }, 'business assurance policies'],
     ['ma', ['None'], { ids: ['ma_prov', 'ma_plan', 'ma_broker'] }, 'medical aid details'],
     ['gap', ['No'], { ids: ['gap_prov', 'gap_broker'] }, 'gap cover details'],
@@ -95,6 +100,8 @@
     ['cell', 'work', 'home', 'sp_tel'].forEach(function (id) { if (v(id) && !phoneOk(v(id))) warn(id, 'Expected 10 digits, for example 082 555 0148.'); });
 
     if (v('gross') && v('net') && ctx.n('net') > ctx.n('gross')) warn('net', 'Take-home income is higher than gross income.');
+    var dn = calc.field('dnet', ctx), dnv = util.num(dn);                                          // the take-home typed, against the Direct Net Income worked out from the gross
+    if (v('gross') && v('net') && dnv > 0 && ctx.n('net') <= ctx.n('gross') && Math.abs(ctx.n('net') - dnv) / dnv > 0.2) warn('net', 'The take-home income is more than 20% away from the Direct Net Income (' + dn + ') worked out from the gross income. Check both amounts.');
 
     /* An amount box holds an amount: words are read as nothing, and a negative amount is never right. */
     moneyIds.forEach(function (id) {
@@ -201,7 +208,7 @@
       if (!String(r.d.ins || '').trim()) rowWarn('raq', i, 'RA quote: which insurer should it be asked of?');
     });
     rows('invq').forEach(function (r, i) {
-      if (!filled(r)) return;                                                                      // any row with something in it counts as a request
+      if (r.d.req !== REQUEST) return;
       if (!String(r.d.monthly || '').trim() && !String(r.d.lump || '').trim()) rowWarn('invq', i, 'Investment quote: enter a monthly amount or a lump sum.');
       if (!String(r.d.ins || '').trim()) rowWarn('invq', i, 'Investment quote: which insurer should it be asked of?');
     });
@@ -214,6 +221,11 @@
       if (!ctx.rows('kids').length) warn('egar_req', 'An EGAR is asked for, but no children are listed on the Children page.');
       else ctx.rows('kids').forEach(function (r, i) { if (!String(r.d.dob || '').trim()) rowWarn('kids', i, 'An EGAR is asked for: this child\'s date of birth is needed.'); });
     }
+    var brAsked = bfFna || bfSf || rows('bfred').some(function (r) { return r.d.req === REQUEST; }), stdAsked = asked('fna_req') || asked('sf_req') || rows('redq').some(function (r) { return r.d.req === REQUEST; });
+    [[brAsked, [['lc_f_aciv', 'Life cover'], ['pd_f_aciv', 'Permanent disability'], ['ip_aciv', 'Income protection'], ['dd_aciv', 'Dread disease']], 'BrightRock Fractured'],
+      [stdAsked, [['lc_aciv', 'Life cover'], ['pd_aciv', 'Permanent disability'], ['ips_aciv', 'Income protection'], ['dds_aciv', 'Dread disease']], 'standard']].forEach(function (g) {
+      if (g[0]) g[1].forEach(function (c) { if (schema.fieldsById[c[0]] && v(c[0]) === '?') warn(c[0], c[1] + ' (' + g[2] + ' quote): the ACI value is still “?”. Type the real value.'); });
+    });
     if (asked('bs_req') && !ctx.rows('shares').length) warn('bs_req', 'A Buy & Sell quote needs the partners: add them to the Partners and shareholders list on the Occupation page.');
     if (asked('cl_req')) {
       if (!v('cl_lender')) warn('cl_lender', 'A Contingent liability quote is asked for: the lender is needed.');
@@ -233,7 +245,7 @@
       life: function () { return ['bf_fna_req', 'bf_sf_req', 'fna_req', 'sf_req'].some(function (id) { return asked(id); }) || reqRows('bfred') || reqRows('redq'); },
       ra: function () { return reqRows('raq'); },
       rgar: function () { return asked('rgar_req', 'Request an RGAR'); },
-      inv: function () { return listShown(ctx, 'invq') && ctx.rows('invq').some(filled); },
+      inv: function () { return reqRows('invq'); },
       egar: function () { return asked('egar_req', 'Request an EGAR'); },
       med: function () { return shown(ctx, 'ref_med') && /^Valerie/.test(v('ref_med')); },
       will: function () { return shown(ctx, 'ref_will') && /^Capital Legacy/.test(v('ref_will')); },

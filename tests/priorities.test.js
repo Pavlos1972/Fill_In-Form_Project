@@ -40,8 +40,8 @@ test('personal risk first with joint life, then group risk with its own list and
   assert.deepStrictEqual(schema.lists.grp.cols.map(c => c.l), schema.lists.risk.cols.map((c, i) => i === 0 ? 'Provider / administrator' : c.l));
   assert.ok(schema.lists.grp.sum.spend);
   assert.ok(b[2].list === 'risk' && b[5].list === 'grp' && !b.some(x => (x.fields || []).some(f => /joint/.test(f.id)) && x.list === 'grp'));
-  assert.deepStrictEqual(sec('retire').blocks.map(x => x.list || '-'), ['ret_ra', '-', 'ret_pp', '-', '-']);                      // retirement annuities, and pension and provident funds, are two lists, each followed by its policy schedule box
-  assert.deepStrictEqual(sec('retire').blocks.map(x => x.title || '-'), ['Retirement annuities', 'Request Current Policy Schedule(s)', 'Pension and provident funds', 'Request Current Policy Schedule(s)', '-']);
+  assert.deepStrictEqual(sec('retire').blocks.map(x => x.list || '-'), ['-', 'ret_ra', '-', '-', 'ret_pp', '-', '-']);                      // retirement annuities, and pension and provident funds, are two lists, each followed by its policy schedule box
+  assert.deepStrictEqual(sec('retire').blocks.map(x => x.title || '-'), ['Retirement annuities', 'Existing retirement annuities', 'Request Current Policy Schedule(s)', 'Pension and provident funds', 'Existing pension and provident funds', 'Request Current Policy Schedule(s)', '-']);
   assert.ok(!schema.lists.ret && !sec('cover').blocks.some(x => /^ret/.test(x.list || '')));
   assert.deepStrictEqual(schema.lists.ret_pp.cols[0].o, ['Pension fund', 'Provident fund']);
   assert.ok(!schema.lists.ret_ra.cols.some(c => c.k === 'type'));
@@ -147,7 +147,7 @@ test('plain points for each area, said the way the adviser needs them', () => {
   const s = sample(), L = id => S.local(s, id);
   assert.deepStrictEqual(L('life'), ['Personal risk cover: Liberty, R 20 000 p.m., Other broker', 'Joint life with spouse: no', 'Group risk: Discovery, R 1 450 p.m., Through company', 'Credit life: Home loan (Nedbank): yes', 'Credit life: Vehicle finance (Wesbank): no', 'Standard quote asked for: FNA quote (new business)', 'Total debt to be covered (balances): R 1 200 000', 'Total childcare cost to be covered, per month: R 20 000']);
   assert.deepStrictEqual(L('ra'), ['Retirement annuity: Allan Gray, R 16 000 000, R 50 000 p.m.', 'Pension fund: Old Mutual, R 3 200 000, R 8 000 p.m.']);
-  assert.deepStrictEqual(L('rgar').slice(0, 2), ['Total saved across all retirement funds: R 19 200 000', 'Total monthly contributions to retirement funds: R 58 000 p.m.']);
+  assert.deepStrictEqual(L('rgar').slice(0, 2), ['Total saved across all retirement funds (including living annuities): R 19 200 000', 'Total monthly contributions to retirement funds: R 58 000 p.m.']);
   assert.ok(L('inv').includes('Tax-free savings: none') && L('inv').includes('Endowment: none') && L('inv').includes('Total invested: R 11 000'));
   assert.deepStrictEqual(L('will'), ['Has a will: held with Capital Legacy', 'Will is not up to date']);
   assert.deepStrictEqual(L('med'), ['Medical aid: Discovery Health', 'Gap cover: none']);
@@ -430,7 +430,7 @@ test('the action points request: only the facts go to Claude, with rules for wha
   let sent = null;
   const out = await AI.actionPoints({ ask: (system, content) => { sent = { system, content: JSON.parse(content) }; return Promise.resolve('{"points": ["- Send Thandi the LOA to sign.", "  Ask Valerie to contact Thandi about medical aid.  ", "", 5]}'); }, model: 'm', facts: f });
   assert.deepStrictEqual(out, ['Send Thandi the LOA to sign.', 'Ask Valerie to contact Thandi about medical aid.', '5']);
-  assert.deepStrictEqual(Object.keys(sent.content.facts).sort(), ['appointment', 'client', 'credit_life', 'instructions', 'letter_of_authority', 'quotes', 'referrals', 'schedules', 'undecided']);
+  assert.deepStrictEqual(Object.keys(sent.content.facts).sort(), ['appointment', 'client', 'credit_life', 'instructions', 'letter_of_authority', 'preferred_monthly_spend', 'quotes', 'referrals', 'schedules', 'undecided']);
   assert.match(sent.system, /Sitamah Nathoo/); assert.match(sent.system, /point form/); assert.match(sent.system, /never "he", "she", "his" or "her"/); assert.match(sent.system, /no signed LOA/);
   await assert.rejects(AI.actionPoints({ ask: () => Promise.reject(new Error('no connection')), model: 'm', facts: f }), /no connection/);
 });

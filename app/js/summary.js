@@ -39,7 +39,7 @@
     });
     (P.sum.t || []).forEach(function (t) {
       var n = 0, any = false;
-      t[1].forEach(function (lc) { (state.l[lc[0]] || []).forEach(function (r) { if (String(r.d[lc[1]] == null ? '' : r.d[lc[1]]).trim() !== '') { any = true; n += util.num(r.d[lc[1]]); } }); });
+      t[1].forEach(function (lc) { (state.l[lc[0]] || []).forEach(function (r) { if (lc[2] && r.d[lc[2]] !== lc[3]) return; if (String(r.d[lc[1]] == null ? '' : r.d[lc[1]]).trim() !== '') { any = true; n += util.num(r.d[lc[1]]); } }); });
       if (any) out.totals[t[0]] = amt(util.money(n));
     });
     return out;
@@ -82,7 +82,7 @@
       if (d.has_group === 'No') out.push('No group risk through the employer');
       else if (d.has_group === 'Not sure') out.push('Not sure whether there is group risk');
       else if (d.has_group === 'Yes') { if (grp.length) grp.forEach(function (r) { out.push('Group risk: ' + parts(r.prov, pm(r.spend), r.broker, r.notes)); }); else out.push('Group risk through the employer: yes, no details recorded yet'); }
-      (L.debts || []).filter(function (r) { return r.cl; }).forEach(function (r) { out.push('Credit life: ' + parts(r.type || r.desc, (r.prov || r.prov_other) && '(' + (r.prov || r.prov_other) + ')').replace(', (', ' (') + ': ' + lower(r.cl)); });
+      (L.debts || []).filter(function (r) { return r.cl; }).forEach(function (r) { out.push('Credit life: ' + parts(r.type || r.desc, r.prov && '(' + r.prov + ')').replace(', (', ' (') + ': ' + lower(r.cl)); });
       var br = [], std = [], ins = function (v) { var a = String(v || '').split(';').map(function (x) { return x.trim(); }).filter(Boolean); return a.length ? ' from ' + a.join(', ') : ''; };
       if (d.bf_fna_req === 'Request a quote') br.push('FNA quote' + (d.bf_fna_type && d.bf_fna_type !== 'N/A' ? ' (' + lower(d.bf_fna_type) + ')' : ''));
       if (d.bf_sf_req === 'Request a quote') br.push('shortfall quote' + (d.bf_sf_type && d.bf_sf_type !== 'N/A' ? ' (' + lower(d.bf_sf_type) + ')' : ''));
@@ -90,6 +90,7 @@
       if (d.fna_req === 'Request a quote') std.push('FNA quote' + (d.fna_type && d.fna_type !== 'N/A' ? ' (' + lower(d.fna_type) + ')' : '') + ins(d.fna_ins));
       if (d.sf_req === 'Request a quote') std.push('shortfall quote' + (d.sf_type && d.sf_type !== 'N/A' ? ' (' + lower(d.sf_type) + ')' : '') + ins(d.sf_ins));
       (L.redq || []).filter(function (r) { return r.req === 'Request a quote'; }).forEach(function (r) { std.push('reduced quote' + (r.amt ? ' ' + pm(r.amt) : '') + ins(r.ins)); });
+      if (d.pref_spend) out.push('Preferred monthly spend on life cover: ' + amt(d.pref_spend) + ' p.m.');
       if (br.length) out.push('BrightRock Fractured quote asked for: ' + br.join(', '));
       if (std.length) out.push('Standard quote asked for: ' + std.join(', '));
       Object.keys(T).forEach(function (l) { out.push(l + ': ' + T[l] + (/monthly/.test(l) ? ' p.m.' : '')); });
@@ -126,7 +127,7 @@
         ['Tax-free savings', 'Endowment'].forEach(function (t) { if (!inv.some(function (r) { return r.type === t; })) out.push(t + ': none'); });
         out.push('Total invested: ' + money(total(inv, 'val')));
       }
-      (L.invq || []).forEach(function (r) { out.push('Quote asked for: ' + parts(r.product, r.ins, pm(r.monthly), r.lump && amt(r.lump) + ' lump sum', r.purpose && '(' + lower(r.purpose) + ')').replace(', (', ' (')); });
+      (L.invq || []).filter(function (r) { return r.req === 'Request a quote'; }).forEach(function (r) { out.push('Quote asked for: ' + parts(r.product, r.ins, pm(r.monthly), r.lump && amt(r.lump) + ' lump sum', r.purpose && '(' + lower(r.purpose) + ')').replace(', (', ' (')); });
       return out;
     },
     egar: function (d, L) {
