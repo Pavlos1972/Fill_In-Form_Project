@@ -44,7 +44,7 @@
   var BF_FNA_ON = { f: 'bf_fna_req', nin: ['Not required', 'No FNA done'] }, BF_SF_ON = { f: 'bf_sf_req', nin: ['Not required'] };      // the same for the BrightRock Fractured quotes (no insurer: it is always BrightRock)
   var FNA_REQ = ['Request a quote', 'Not required', 'No FNA done'];
   /* What each BrightRock Fractured quote is based on: a note under its block on Client priorities, and the words the action points use when that quote is asked for. */
-  var BR_BASIS = { fna: 'BR FNA Quote based on Fact Find', sf: 'BR Shortfall Quote based on BR NA minus Group Risk', red: 'BR Reduced Quote based on Shortfall Quote' };
+  var BR_BASIS = { fna: 'BR FNA Quote based on Fact Find', sf: 'BR Shortfall Quote based on BR FNA Quote minus Group Risk', red: 'BR Reduced Quote based on BR Shortfall Quote' };
   var NO_GROUP = 'No Group exists for a Shortfall Quote to be compiled. (Group risk through employer, on the Personal & group risk cover page, is No or Not sure.)';
 
   /* The first block of a priority area: the client's decision (empty until discussed) and the box for the reason or the adviser's instructions. */

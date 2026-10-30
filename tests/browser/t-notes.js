@@ -18,11 +18,11 @@ srv.listen(0, async () => {
   // 2-4. the notes under the BrightRock quotes
   await set('pr_life', 'Priority: client agrees'); await set('has_group', 'Yes'); await p.evaluate(() => FF.app.redraw()); await nav('prio'); await p.waitForTimeout(200);
   const notes = await p.evaluate(() => [...document.querySelectorAll('.lc.br .blocknote')].map(e => e.textContent));
-  ok(notes.join('|') === 'BR FNA Quote based on Fact Find|BR Shortfall Quote based on BR NA minus Group Risk|BR Reduced Quote based on Shortfall Quote', 'the three BrightRock notes are under their blocks: ' + JSON.stringify(notes));
+  ok(notes.join('|') === 'BR FNA Quote based on Fact Find|BR Shortfall Quote based on BR FNA Quote minus Group Risk|BR Reduced Quote based on BR Shortfall Quote', 'the three BrightRock notes are under their blocks: ' + JSON.stringify(notes));
   ok(await p.evaluate(() => document.querySelectorAll('.lc.std .blocknote').length === 0), 'the standard side has no note');
   ok(await p.evaluate(() => { const n = document.querySelector('.lc.br .blocknote'), f = document.querySelector('.lc.br [data-f="bf_fna_req"]'); return n && f && n.getBoundingClientRect().top > f.getBoundingClientRect().bottom - 2; }), 'the FNA note is below the boxes');
   await set('has_group', 'No'); await p.evaluate(() => FF.app.redraw()); await nav('prio');
-  ok(await p.evaluate(() => ![...document.querySelectorAll('.blocknote')].some(e => /BR Shortfall Quote based on BR NA/.test(e.textContent))), 'with no group risk the shortfall block, and its note, go');
+  ok(await p.evaluate(() => ![...document.querySelectorAll('.blocknote')].some(e => /BR Shortfall Quote based on BR FNA/.test(e.textContent))), 'with no group risk the shortfall block, and its note, go');
 
   // 5. the action points
   await set('has_group', 'Yes'); await set('fname', 'Thandi'); await set('bf_fna_req', 'Request a quote'); await p.evaluate(() => FF.app.redraw()); await nav('admin'); await p.waitForTimeout(900);

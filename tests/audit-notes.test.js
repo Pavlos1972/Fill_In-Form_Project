@@ -13,9 +13,9 @@ const points = s => { set(s, 'fname', 'Thandi'); return A.local(s); };
 
 test('each BrightRock Fractured quote block has a note under it saying what it is based on; the standard blocks have none', () => {
   const br = life().filter(b => b.lane === 'br'), std = life().filter(b => b.lane === 'std');
-  assert.deepStrictEqual(br.map(b => [b.row, b.note]), [['fna', 'BR FNA Quote based on Fact Find'], ['sf', 'BR Shortfall Quote based on BR NA minus Group Risk'], ['red', 'BR Reduced Quote based on Shortfall Quote']]);
+  assert.deepStrictEqual(br.map(b => [b.row, b.note]), [['fna', 'BR FNA Quote based on Fact Find'], ['sf', 'BR Shortfall Quote based on BR FNA Quote minus Group Risk'], ['red', 'BR Reduced Quote based on BR Shortfall Quote']]);
   assert.ok(std.every(b => !b.note));
-  assert.deepStrictEqual(schema.brBasis, { fna: 'BR FNA Quote based on Fact Find', sf: 'BR Shortfall Quote based on BR NA minus Group Risk', red: 'BR Reduced Quote based on Shortfall Quote' });
+  assert.deepStrictEqual(schema.brBasis, { fna: 'BR FNA Quote based on Fact Find', sf: 'BR Shortfall Quote based on BR FNA Quote minus Group Risk', red: 'BR Reduced Quote based on BR Shortfall Quote' });
 });
 
 test('the action points state the basis of a BrightRock quote only when that quote is requested', () => {
@@ -23,8 +23,8 @@ test('the action points state the basis of a BrightRock quote only when that quo
   assert.ok(!points(s).some(p => /BR /.test(p)));                                                    // nothing asked for: no basis anywhere
   set(s, 'bf_fna_req', REQ); assert.ok(points(s).includes('Request a BrightRock Fractured FNA quote: BR FNA Quote based on Fact Find.'));
   assert.ok(!points(s).some(p => /Shortfall Quote based|Reduced Quote based/.test(p)));              // the other two are not asked for
-  set(s, 'has_group', 'Yes'); set(s, 'bf_sf_req', REQ); assert.ok(points(s).some(p => /BR Shortfall Quote based on BR NA minus Group Risk\.$/.test(p)));
-  store.addRow(s, 'bfred', { req: REQ, amt: 'R 1 000.00' }); assert.ok(points(s).some(p => /BR Reduced Quote based on Shortfall Quote\.$/.test(p)));
+  set(s, 'has_group', 'Yes'); set(s, 'bf_sf_req', REQ); assert.ok(points(s).some(p => /BR Shortfall Quote based on BR FNA Quote minus Group Risk\.$/.test(p)));
+  store.addRow(s, 'bfred', { req: REQ, amt: 'R 1 000.00' }); assert.ok(points(s).some(p => /BR Reduced Quote based on BR Shortfall Quote\.$/.test(p)));
   set(s, 'bf_fna_req', 'Not required'); assert.ok(!points(s).some(p => /BR FNA Quote based on Fact Find/.test(p)));
   const std = fresh(); set(std, 'fna_req', REQ); set(std, 'fna_ins', 'Old Mutual'); assert.ok(!points(std).some(p => /BR /.test(p)));        // a standard quote has no BR basis
 });

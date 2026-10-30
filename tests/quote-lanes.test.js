@@ -121,8 +121,8 @@ test('the summary and the action points name the kind of quote', () => {
   store.addRow(s, 'redq', { req: 'Request a quote', ins: 'Old Mutual', amt: 'R 2 500.00' });
   assert.deepStrictEqual(A.local(s).filter(l => /quote|appointment/.test(l)), [
     'Request a BrightRock Fractured FNA quote (New Business): BR FNA Quote based on Fact Find.',
-    'Request a BrightRock Fractured shortfall quote: BR Shortfall Quote based on BR NA minus Group Risk.',
-    'Request a BrightRock Fractured reduced quote (New Business) for R 2 500 p.m.: BR Reduced Quote based on Shortfall Quote.',
+    'Request a BrightRock Fractured shortfall quote: BR Shortfall Quote based on BR FNA Quote minus Group Risk.',
+    'Request a BrightRock Fractured reduced quote (New Business) for R 2 500 p.m.: BR Reduced Quote based on BR Shortfall Quote.',
     'Request standard FNA quotes from Old Mutual and Discovery (New Business).',
     'Request a standard shortfall quote from Sanlam.',
     'Request a standard reduced quote from Old Mutual for R 2 500 p.m.',
