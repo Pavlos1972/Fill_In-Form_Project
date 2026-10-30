@@ -98,7 +98,7 @@ test('Claude is told about every list of the form, with its section; private col
   const rows = { shares: [{ name: 'Sipho Dlamini', id: '8001015800087', cell: '0825550148', pct: '40' }], kids: [{ name: 'Thandi', dob: '22/08/2019' }] };
   const req = AI.buildRequest(idx, { sectionId: 'occ', targetId: null, recent: [], listRows: k => rows[k] || [] }, 'auto', 'my partner owns forty percent', 'm');
   const body = JSON.parse(req.messages[0].content), s = JSON.stringify(body);
-  assert.deepStrictEqual(body.lists.map(l => l.id).sort(), ['bizpol', 'debts', 'grp', 'inv', 'invq', 'kids', 'raq', 'redq', 'ret_pp', 'ret_ra', 'risk', 'shares']);
+  assert.deepStrictEqual(body.lists.map(l => l.id).sort(), ['bfred', 'bizpol', 'debts', 'grp', 'inv', 'invq', 'kids', 'raq', 'redq', 'ret_pp', 'ret_ra', 'risk', 'shares']);
   const shares = body.lists.find(l => l.id === 'shares'), inv = body.lists.find(l => l.id === 'inv');
   assert.strictEqual(shares.section, 'occ'); assert.strictEqual(inv.section, 'inv');
   assert.deepStrictEqual(shares.columns.map(c => c.id + (c.private ? '(private)' : '')), ['name', 'id(private)', 'cell(private)', 'pct']);

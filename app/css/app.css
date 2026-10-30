@@ -290,9 +290,9 @@ div.off { pointer-events: none; }
   --haze-maybe: color-mix(in srgb, var(--maybe) var(--hz), var(--surface)); --haze-maybe-head: color-mix(in srgb, var(--maybe) var(--hz-head), var(--surface)); }
 .main.priorities { container-type: inline-size; }
 .main.roomy.priorities { padding: 24px 22px 32px; }
-.prio { border: 1px solid var(--line); border-radius: 10px; margin-top: 18px; overflow: hidden; background: var(--surface); transition: background .4s, border-color .4s; }
-.prio > header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; padding: 10px 16px; background: var(--surface-2); border-bottom: 1px solid var(--line); }
-.prio h3 { font-size: 17px; font-weight: 650; }
+.prio { border: 1px solid var(--line); border-radius: 10px; margin-top: 10px; overflow: hidden; background: var(--surface); transition: background .4s, border-color .4s; }
+.prio > header { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 12px; padding: 6px 12px; background: var(--surface-2); border-bottom: 1px solid var(--line); }
+.prio h3 { font-size: 15.5px; font-weight: 650; }
 .prio .sub { color: var(--muted); font-size: 12.5px; flex: 1 1 auto; }
 .prio .chip { font-size: 12px; padding: 3px 10px; border-radius: 99px; background: var(--calc-soft); color: var(--calc); white-space: nowrap; }
 .prio.p1 { background: var(--haze-ok); border: 2px solid var(--go); }
@@ -304,30 +304,102 @@ div.off { pointer-events: none; }
 .prio.p1 .chip { background: var(--surface); border: 1px solid var(--ok); color: var(--ok); font-weight: 600; }
 .prio.p3 .chip { background: var(--surface); border: 1px solid var(--maybe); color: var(--maybe-ink); font-weight: 600; }
 .prio.p2 .chip { background: var(--surface); border: 1px solid var(--bad); color: var(--bad); font-weight: 600; }
-.pbody { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 18px; padding: 16px; }
-@container (max-width: 600px) { .pbody { grid-template-columns: minmax(0, 1fr); } }
-.pl { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.pbody { display: grid; grid-template-columns: minmax(0, 1fr) minmax(180px, 225px); gap: 10px 14px; padding: 10px 12px 12px; align-items: start; }
+.pbody > .pl { grid-column: 1; }
+.pbody > .sum { grid-column: 2; grid-row: 1 / span 2; }
+.pbody > .area { grid-column: 1; }
+.pbody.wideq > .sum { grid-row: 1; }
+.pbody.wideq > .area { grid-column: 1 / -1; }
+@container (max-width: 640px) { .pbody { grid-template-columns: minmax(0, 1fr); } .pbody > .sum, .pbody.wideq > .sum { grid-column: 1; grid-row: auto; } .pbody > .area, .pbody.wideq > .area { grid-column: 1; } }
+.pl { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .pl > .note { margin-bottom: 0; }
-.prio .grid, .roomy .prio .grid { grid-template-columns: repeat(auto-fill, minmax(165px, 1fr)); gap: 14px 18px; }
-.prio .f { gap: 5px; }
+.prio .grid, .roomy .prio .grid { grid-template-columns: repeat(auto-fill, minmax(165px, 1fr)); gap: 8px 14px; }
+.prio .grid.g12 { grid-template-columns: repeat(12, minmax(0, 1fr)); }
+.prio .f { gap: 3px; }
+.prio .f input, .prio .f select { min-height: 32px; padding-top: 5px; padding-bottom: 5px; }
 .prio .f.wide { grid-column: 1 / -1; }
-.prio .f textarea { min-height: 64px; height: 64px; }
+.prio .f textarea { min-height: 52px; }
+/* in an area the status tags that say nothing ("not asked", "confirmed") are left off: the dashed box says not asked, and the room goes to the answer */
+.prio .f.s-empty .st, .prio .f.s-confirmed .st, .prio .f.s-preset .st, .prio .f > span.l .badge.empty, .prio .f > span.l .badge.confirmed { display: none; }
+.prio .f.s-empty input:not([list]), .prio .f.s-confirmed input:not([list]), .prio .f.s-preset input:not([list]) { padding-right: 9px; }
+.prio .f.s-empty select, .prio .f.s-confirmed select, .prio .f.s-preset select { padding-right: 26px; }
+.prio .f.s-empty .msb, .prio .f.s-confirmed .msb { padding-right: 26px; }
+.prio .f > span.l { min-height: 0; }
+/* the box of a life quote's request has the block's title for its label */
+.lc .f[data-field$="_req"] > span.l { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .prio .block-title { margin: 14px 0 8px; }
 .prio .block-title:first-child { margin-top: 0; }
-.prio .area { display: flex; flex-direction: column; gap: 4px; padding: 6px 14px 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+.prio .area { display: flex; flex-direction: column; gap: 4px; padding: 6px 10px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); min-width: 0; }
+.prio .area.flat { padding: 0; border: 0; background: none; }
+.dempty { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; color: var(--muted); font-size: 13px; }
+.dempty .addrow, .drow ~ .addrow, .prio .addrow { margin: 4px 0 2px; width: auto; align-self: flex-start; }
+.prio .lc .addrow { margin-bottom: 2px; }
 .prio.p1 .area, .prio.p2 .area, .prio.p3 .area, .prio.p1 .sum, .prio.p2 .sum, .prio.p3 .sum { background: color-mix(in srgb, var(--surface) 60%, transparent); }
 .prio .tablewrap { overflow-x: auto; }
-.sum { display: flex; flex-direction: column; gap: 6px; padding: 12px 14px; border-radius: 8px; background: var(--accent-soft); min-width: 0; align-self: start; }
+.sum { display: flex; flex-direction: column; gap: 4px; padding: 7px 10px 8px; border-radius: 8px; background: var(--accent-soft); min-width: 0; align-self: start; font-size: 12.5px; }
 .sum .sh { display: flex; align-items: center; gap: 8px; font-size: 11.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); font-weight: 600; }
+.sum .info { display: inline-grid; place-items: center; width: 15px; height: 15px; border-radius: 50%; border: 1px solid var(--muted); color: var(--muted); font: 600 9.5px var(--font); cursor: help; text-transform: none; letter-spacing: 0; }
 .sum .sh .link-btn { margin-left: auto; background: none; border: 0; cursor: pointer; font-size: 12px; text-transform: none; letter-spacing: 0; }
 .sum .sh .link-btn:disabled { opacity: .5; cursor: default; }
 .prio.p1 .sum .sh, .prio.p2 .sum .sh, .prio.p3 .sum .sh { color: var(--ink); }
 .sum ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 3px; }
 .sum li.none { color: var(--muted); list-style: none; margin-left: -18px; }
-.sum .src { color: var(--muted); font-size: 11.5px; padding-top: 6px; border-top: 1px solid var(--line); }
-.sum .when { color: var(--muted); font-size: 11.5px; }
-.prio .calc-link { margin: 14px 0 4px; color: var(--muted); font-size: 13px; }
-.prio .calc-link .btn { margin-left: 6px; }
+.sum .src, .sum .when { color: var(--muted); font-size: 11px; }
+.sum .src { padding-top: 4px; border-top: 1px solid var(--line); }
+/* a business assurance area that does not apply is one grey line */
+.prio.na { border-style: dashed; background: var(--surface-2); }
+.prio.na > header { background: none; border-bottom: 0; }
+.prio.na .sub { font-size: 12.5px; }
+
+/* the Life quotes: BrightRock Fractured and Standard side by side, the same three rows in each */
+.lanes { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); border: 1px solid var(--line); border-radius: 8px; background: var(--surface); margin: 2px 0 6px; }
+.lanes > div { padding: 8px 10px; min-width: 0; border-top: 1px solid var(--line); }
+.lanes > .lh { border-top: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 3px; background: var(--surface-2); }
+.lanes > .lh.br { background: var(--accent-soft); border-radius: 7px 0 0 0; }
+.lanes > .lh.std { border-left: 1px solid var(--line); border-radius: 0 7px 0 0; }
+.lh b { font-size: 14px; } .lh.br b { color: var(--accent); }
+.lh span { font-size: 12px; color: var(--muted); }
+.lh .btn { font-size: 12.5px; padding: 3px 9px; margin-top: 2px; }
+.lanes > .lc.std { border-left: 1px solid var(--line); }
+.lanes > .lc.both { grid-column: 1 / -1; }
+.lc .block-title { margin: 0 0 6px; }
+.lc .note { margin-bottom: 0; }
+.lc .rowcard { margin-bottom: 6px; }
+@container (max-width: 640px) { .lanes { grid-template-columns: minmax(0, 1fr); } .lanes > .lc.std { border-left: 0; } .lanes > .lc.br::before, .lanes > .lc.std::before { display: block; font: 600 11px var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--accent); margin-bottom: 4px; } .lanes > .lc.br::before { content: 'BrightRock: Fractured'; } .lanes > .lc.std::before { content: 'Standard'; } .lanes > .lh.std { border-left: 0; border-top: 1px solid var(--line); border-radius: 0; } .lanes > .lh.br { border-radius: 7px 7px 0 0; } }
+
+/* a quote list: one short row for each quote, its boxes side by side and wrapping */
+.rowcard.drow { display: flex; gap: 8px; align-items: flex-start; padding: 6px 8px 8px; border-left-width: 3px; }
+.drow .dcells { flex: 1; min-width: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(104px, 1fr)); gap: 6px 8px; }
+.drow .dtools { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; padding-top: 18px; }
+.drow .dtools .x { padding: 4px 8px; }
+.drow .f input, .drow .f select { min-height: 32px; padding-top: 5px; padding-bottom: 5px; }
+.drow .f > span.l { min-height: 0; }
+
+/* what to ask for in a standard quote: one table */
+details.sqd { border: 1px solid var(--line); border-radius: 8px; background: var(--surface); margin: 4px 0 6px; }
+details.sqd > summary { cursor: pointer; padding: 7px 12px; font-weight: 600; font-size: 13.5px; }
+details.sqd[open] > summary { border-bottom: 1px solid var(--line); }
+details.sqd .tablewrap { border: 0; border-radius: 0; padding: 6px 8px 8px; }
+table.sqt { border-collapse: collapse; width: 100%; min-width: 760px; }
+table.sqt th, table.sqt td { text-align: left; padding: 3px 4px; vertical-align: top; }
+table.sqt thead th { font: 500 10.5px var(--mono); text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+table.sqt tbody th { font: 600 13px var(--font); letter-spacing: 0; text-transform: none; color: var(--ink); background: none; white-space: nowrap; padding-top: 9px; }
+table.sqt .pair { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 4px; }
+table.sqt .pair > .f:only-child { grid-column: 1 / -1; }
+table.sqt .f input, table.sqt .f select { min-height: 30px; padding: 3px 6px; font-size: 13px; }
+table.sqt .dash { color: var(--muted); display: inline-block; padding-top: 7px; }
+
+/* the top of the BrightRock Risk Calculation page */
+.brstrip { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; padding: 8px 12px; border-radius: 8px; background: var(--accent-soft); font-size: 13px; margin-bottom: 4px; }
+.brstrip b { color: var(--accent); }
+.brstrip .grow { flex: 1; }
+.brstrip .btn { font-size: 12.5px; padding: 3px 9px; }
+
+/* Medical, will & short-term: two blocks side by side */
+.halves { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 26px; margin-top: 8px; }
+@media (max-width: 860px) { .halves { grid-template-columns: minmax(0, 1fr); } }
+.half { min-width: 0; }
+.half .block-title:first-child { margin-top: 18px; }
 
 /* Risk Calculation & Quotes: the two parts, and the income protection block with its instalment protector. */
 .partband { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px; margin: 26px 0 2px; padding: 10px 14px; background: var(--accent-soft); color: var(--accent); border-radius: 8px; }
@@ -353,6 +425,7 @@ div.off { pointer-events: none; }
 .msb { width: 100%; text-align: left; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 8px 30px 8px 10px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; position: relative; min-height: 36px; }
 .msb::after { content: "▾"; position: absolute; right: 10px; top: 50%; transform: translateY(-50%); color: var(--muted); }
 .msb.open { border-color: var(--accent); }
+.msb.ph { color: var(--muted); }
 .msb:disabled { cursor: default; background: var(--calc-soft); color: var(--calc); }
 .f.s-empty .msb { background: var(--surface-2); border-style: dashed; color: var(--muted); }
 .msp { position: absolute; z-index: 30; left: 0; min-width: 100%; width: max-content; max-width: min(460px, 90vw); top: calc(100% + 4px); background: var(--surface); border: 1px solid var(--accent); border-radius: 8px; padding: 6px; box-shadow: 0 10px 28px rgba(16, 58, 86, .22); display: flex; flex-direction: column; gap: 2px; }

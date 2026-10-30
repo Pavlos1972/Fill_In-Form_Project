@@ -5,10 +5,15 @@
                 opt (optional, left out of the progress count), wide (full width), link ([text, url]), hint,
                 cal (a calendar button beside a date box), cond (show the box only when true, same form as a block's),
                 lookup (a box with a look-up button: the id of the box holding the name to search for, or 'client'), lookupBtn (the button's words), nopdf (left off the PDF), rows (lines of a text box), len (shows a live digit count: see validate.lengthState).
-                grey (a box whose cond is false stays on screen, greyed out, instead of going away).
+                grey (a box whose cond is false stays on screen, greyed out, instead of going away),
+                sl (the label shown on screen, when it is shorter than the label voice uses), vl (the label voice and Claude use, when the two kinds of life quote need telling apart),
+                t 'multi' (tick boxes; multi: 'ins' makes it a list of insurers; nona: no "(not asked yet)" row).
    Block keys:  title, fields, list, cond (show only when true), condMsg, help (guidance shown on screen only),
                 grey (when cond is false the block stays on screen greyed out, under condMsg, instead of going away), nomsg (no condMsg above a greyed block), own (the block's own cond, apart from its area being switched off: a block with its own condMsg is hidden when that rule fails, but greyed when only its area is off),
-                pri (the priority area of the Client priorities page the block belongs to), head (the block holding that area's decision and comments boxes). */
+                pri (the priority area of the Client priorities page the block belongs to), head (the block holding that area's decision and comments boxes),
+                lane ('br' BrightRock Fractured or 'std' Standard) and row ('fna', 'sf', 'red'): where a life quote block sits in the two-column grid of the Life area, sqd (a row of the standard quote details table),
+                strip (the line at the top of the BrightRock Risk Calculation page), half (two blocks side by side), protector / actions (their own layouts).
+   List keys:   dense (one short row for each quote instead of a card). Panel keys: inline (the area's decision, referral or request and comments are in one row). */
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
   else { root.FF = root.FF || {}; root.FF.schema = factory(); }
@@ -16,11 +21,12 @@
   var YN = ['Yes', 'No'], BROKER = ['Paul K', 'Other broker', 'Through company', 'None'];
   var QTYPE = ['New Business', 'Servicing', 'N/A'];                         // what kind of quote it is
   var INS = ['Old Mutual', 'Momentum', 'Liberty', 'Sanlam', 'Discovery', 'BrightRock', 'Hollard', 'Assupol', 'Clientele', 'Other'];
+  var INS_STD = ['Old Mutual', 'Momentum', 'Liberty', 'Sanlam', 'Discovery', 'Hollard', 'Assupol', 'Clientele', 'BrightRock (standard)', 'Other'];     // the insurers a standard quote can be asked of (BrightRock too: it does standard as well as fractured)
   var BANKS = ['Nedbank', 'FNB', 'Investec', 'Standard Bank', 'ABSA', 'Discovery Bank', 'Capitec', 'Wesbank', 'Other'];
   var WHO = ['Client', 'Spouse', 'Joint', 'Business', 'Ex-Spouse/Partner'];
   var ACI = ['Fixed', 'CPI', 'None'], REQ = ['Request a quote', 'Not required'];
   var MA_BROKER = ['Through company', 'Privately paid, no broker', 'Privately paid, other broker', 'Paul K'];
-  var N = function (id, l) { return { id: id, l: l || 'Notes', t: 'area', wide: 1, opt: 1 }; };
+  var N = function (id, l, rows) { var f = { id: id, l: l || 'Notes', t: 'area', wide: 1, opt: 1 }; if (rows) f.rows = rows; return f; };
   var BIZ = { f: 'bizowner', eq: 'Yes' }, HAS_BIZPOL = { all: [BIZ, { f: 'biz_assur', nin: ['No'] }] };
   var MED_SCHEMES = ['Discovery Health', 'Momentum Medical Scheme', 'Bonitas Medical Fund', 'Bestmed Medical Scheme', 'Fedhealth Medical Scheme', 'Medihelp Medical Scheme', 'KeyHealth Medical Scheme', 'Medshield Medical Scheme', 'CompCare Medical Scheme', 'GEMS (Government Employees Medical Scheme)', 'POLMED (SA Police Service)', 'SAMWUMED (Municipal Workers)', 'Transmed (Transport industry)', 'LA Health (Local Authorities)', 'Bankmed (Banking sector)', 'Sizwe Hosmed Medical Scheme', 'Profmed (Professionals only)', 'Anglovaal Group Medical Scheme (AGMS)', 'Sasolmed', 'Cape Medical Plan (Cape Medical Scheme)', 'Hosmed Medical Scheme', 'Genesis Medical Scheme', 'Suremed Health', 'Resolution Health Medical Scheme', 'Makoti Medical Scheme', 'BMW Medical Aid Scheme', 'Anglo Medical Scheme', 'Other'];
   var GAP_PROVIDERS = ['TRA (Total Risk Administrators)', 'Turnberry', 'Ambledown Financial Services', 'Stratum Benefits', 'Kaelo', 'Zestlife', 'GapCover', 'Oneplan', 'Discovery', 'Momentum', 'Sanlam', 'Old Mutual', 'Dis-Chem Health', 'NetcarePlus', 'Other'];
@@ -32,35 +38,38 @@
   var UNSURE = 'Client not sure, needs to think about it', BUDGET = 'Client needs to check their budget', CAN_THINK = { life: 1, ra: 1, inv: 1 };        // two more answers (both yellow) for the areas where a client often wants time
   var HAS_RISK = { f: 'has_risk', nin: ['No'] }, HAS_GROUP = { f: 'has_group', nin: ['No', 'Not sure'] };
   var FNA_ON = { f: 'fna_req', nin: ['Not required', 'No FNA done'] }, SF_ON = { f: 'sf_req', nin: ['Not required'] };      // a quote that is not required has no type or insurer: those boxes go
+  var BF_FNA_ON = { f: 'bf_fna_req', nin: ['Not required', 'No FNA done'] }, BF_SF_ON = { f: 'bf_sf_req', nin: ['Not required'] };      // the same for the BrightRock Fractured quotes (no insurer: it is always BrightRock)
+  var FNA_REQ = ['Request a quote', 'Not required', 'No FNA done'];
+  var NO_GROUP = 'No Group exists for a Shortfall Quote to be compiled. (Group risk through employer, on the Personal & group risk cover page, is No or Not sure.)';
 
   /* The first block of a priority area: the client's decision (empty until discussed) and the box for the reason or the adviser's instructions. */
   var TITLES = { life: 'Life', ra: 'RA', rgar: 'RGAR', inv: 'Invest', egar: 'EGAR', med: 'Medical Aid', will: 'Will', st: 'Short Term' };
   function HEAD(id) {
-    return { pri: id, head: 1, fields: [
-      { id: 'pr_' + id, l: TITLES[id] + ': client decision', t: 'sel', o: CAN_THINK[id] ? [PRIORITY, UNSURE, BUDGET, NOT_PRIORITY] : [PRIORITY, NOT_PRIORITY], wide: 1 },
-      { id: 'pr_' + id + '_cm', l: TITLES[id] + ': comments (the reason, or your instructions)', t: 'area', wide: 1, rows: 2 }
+    return { pri: id, head: 1, layout: 'g12', fields: [
+      { id: 'pr_' + id, l: TITLES[id] + ': client decision', sl: 'Client decision', t: 'sel', o: CAN_THINK[id] ? [PRIORITY, UNSURE, BUDGET, NOT_PRIORITY] : [PRIORITY, NOT_PRIORITY], s: 6 },
+      { id: 'pr_' + id + '_cm', l: TITLES[id] + ': comments (the reason, or your instructions)', sl: 'Comments (reason or instructions)', t: 'area', rows: 2, s: 6 }
     ] };
   }
 
   function riskCalc(p) {
     return [
-      { id: p + '_hh', l: 'Household net income (R)', t: 'txt', calc: 'hh' },
-      { id: p + '_cc', l: 'Minus childcare costs (R)', t: 'txt', calc: 'cc' },
-      { id: p + '_dr', l: 'Minus debt repayments (R)', t: 'txt', calc: 'dr' },
-      { id: p + '_need', l: 'Total household income needed (R)', t: 'txt', calc: 'need' }
+      { id: p + '_hh', l: 'Household net income (R)', t: 'txt', calc: 'hh', s: 3 },
+      { id: p + '_cc', l: 'Minus childcare costs (R)', t: 'txt', calc: 'cc', s: 3 },
+      { id: p + '_dr', l: 'Minus debt repayments (R)', t: 'txt', calc: 'dr', s: 3 },
+      { id: p + '_need', l: 'Total household income needed (R)', t: 'txt', calc: 'need', s: 3 }
     ];
   }
 
   /* Dread disease cover starts at R 500 000.00 with a term of WOL (typed over when different); p is the prefix of the ids (dd: fractured cover, dds: standard quote). */
   function dread(p) {
     return [
-      { id: p + '_cover', money: 1, l: 'Dread disease cover (R)', t: 'txt', opt: 1, preset: 'R 500 000.00' },
-      { id: p + '_term', l: 'Term', t: 'sel', o: ['WOL', 'Specified Age', 'Other'], opt: 1, preset: 'WOL' },
-      { id: p + '_termv', l: 'Term value', t: 'txt', opt: 1 },
-      { id: p + '_aci', l: 'ACI', t: 'sel', o: ['Fixed', 'Age-rated', 'Other'], opt: 1, preset: 'Fixed' },
-      { id: p + '_aciv', l: 'ACI value', t: 'txt', opt: 1, preset: '?' },
-      { id: p + '_abiv', l: 'ABI', t: 'txt', opt: 1, preset: '3%' },
-      N(p + '_cmt', 'Comments')
+      { id: p + '_cover', money: 1, l: 'Dread disease cover (R)', t: 'txt', opt: 1, preset: 'R 500 000.00', s: 3 },
+      { id: p + '_term', l: 'Term', t: 'sel', o: ['WOL', 'Specified Age', 'Other'], opt: 1, preset: 'WOL', s: 3 },
+      { id: p + '_termv', l: 'Term value', t: 'txt', opt: 1, s: 3 },
+      { id: p + '_aci', l: 'ACI', t: 'sel', o: ['Fixed', 'Age-rated', 'Other'], opt: 1, preset: 'Fixed', s: 3 },
+      { id: p + '_aciv', l: 'ACI value', t: 'txt', opt: 1, preset: '?', s: 3 },
+      { id: p + '_abiv', l: 'ABI', t: 'txt', opt: 1, preset: '3%', s: 3 },
+      N(p + '_cmt', 'Comments', 1)
     ];
   }
   /* "Request Current Policy Schedule(s)": the last item of each section that holds policies. A tick-box dropdown (t: 'multi', the choices ticked are kept as one text joined with "; ", empty = not asked yet) and, beside it,
@@ -198,39 +207,40 @@
       { fields: [N('n_inv')] }
     ] },
 
-    { id: 'other', roomy: 1, title: 'Medical, will & short-term', blocks: [
-      { title: 'Medical aid', fields: [
-        { id: 'ma', l: 'Medical aid', t: 'sel', o: ['Medical aid', 'Hospital plan', 'None'] },
-        { id: 'ma_prov', l: 'Medical aid provider', t: 'sel', free: 1, o: MED_SCHEMES },
-        { id: 'ma_plan', l: 'Plan', t: 'txt', risky: 1 },
-        { id: 'ma_broker', l: 'Medical aid broker', t: 'sel', o: MA_BROKER },
-        N('n_ma')
+    /* Medical, will & short-term: the same boxes and the same four notes boxes, laid out in rows (half: two blocks side by side). */
+    { id: 'other', title: 'Medical, will & short-term', blocks: [
+      { title: 'Medical aid', half: 1, layout: 'g12', fields: [
+        { id: 'ma', l: 'Medical aid', t: 'sel', o: ['Medical aid', 'Hospital plan', 'None'], s: 6 },
+        { id: 'ma_prov', l: 'Medical aid provider', t: 'sel', free: 1, o: MED_SCHEMES, s: 6 },
+        { id: 'ma_plan', l: 'Plan', t: 'txt', risky: 1, s: 6 },
+        { id: 'ma_broker', l: 'Medical aid broker', t: 'sel', o: MA_BROKER, s: 6 },
+        N('n_ma', 'Notes', 2)
       ] },
-      { title: 'Gap cover', fields: [
-        { id: 'gap', l: 'Gap cover', t: 'sel', o: ['Yes', 'No', 'Not sure'] },
-        { id: 'gap_prov', l: 'Gap cover provider', t: 'sel', free: 1, o: GAP_PROVIDERS },
-        { id: 'gap_broker', l: 'Gap cover broker', t: 'sel', o: MA_BROKER },
-        N('n_gap')
+      { title: 'Gap cover', half: 1, layout: 'g12', fields: [
+        { id: 'gap', l: 'Gap cover', t: 'sel', o: ['Yes', 'No', 'Not sure'], s: 6 },
+        { id: 'gap_prov', l: 'Gap cover provider', t: 'sel', free: 1, o: GAP_PROVIDERS, s: 6 },
+        { id: 'gap_broker', l: 'Gap cover broker', t: 'sel', o: MA_BROKER, s: 6 },
+        N('n_gap', 'Notes', 2)
       ] },
-      { title: 'Will', fields: [
-        { id: 'will', l: 'Has a will', t: 'sel', o: YN },
-        { id: 'will_up', l: 'Will is up to date', t: 'sel', o: YN },
-        { id: 'will_where', l: 'Held with', t: 'sel', o: ['Capital Legacy', 'Other provider'] },
-        { id: 'will_where_other', l: 'Other', t: 'txt' },
-        { id: 'will_broker', l: 'Will broker', t: 'sel', o: ['Paul K', 'Other broker', 'None'] },
-        { id: 'will_date', l: 'Last updated', t: 'txt', date: 1 },
-        N('n_will')
+      { title: 'Will', layout: 'g12', fields: [
+        { id: 'will', l: 'Has a will', t: 'sel', o: YN, s: 4 },
+        { id: 'will_up', l: 'Will is up to date', t: 'sel', o: YN, s: 4 },
+        { id: 'will_where', l: 'Held with', t: 'sel', o: ['Capital Legacy', 'Other provider'], s: 4 },
+        { id: 'will_where_other', l: 'Other', t: 'txt', s: 4 },
+        { id: 'will_broker', l: 'Will broker', t: 'sel', o: ['Paul K', 'Other broker', 'None'], s: 4 },
+        { id: 'will_date', l: 'Last updated', t: 'txt', date: 1, s: 4 },
+        N('n_will', 'Notes', 2)
       ] },
-      { title: 'Short-term insurance', fields: [
-        { id: 'sti', l: 'Has short-term insurance', t: 'sel', o: ['Yes', 'No', 'Handled by spouse'] },
-        { id: 'sti_broker', l: 'Short-term broker', t: 'sel', o: ['Cameron Maritz', 'Other broker'] },
-        { id: 'sti_car', l: 'Car', t: 'sel', o: YN },
-        { id: 'sti_house', l: 'Household contents', t: 'sel', o: YN },
-        { id: 'sti_struct', l: 'Structural', t: 'sel', o: YN },
-        { id: 'sti_personal', l: 'Total personal spend (R)', t: 'txt', money: 1 },
-        { id: 'sti_biz', l: 'Business', t: 'sel', o: YN },
-        { id: 'sti_biz_spend', l: 'Total business spend (R)', t: 'txt', money: 1 },
-        N('n_sti')
+      { title: 'Short-term insurance', layout: 'g12', fields: [
+        { id: 'sti', l: 'Has short-term insurance', t: 'sel', o: ['Yes', 'No', 'Handled by spouse'], s: 3 },
+        { id: 'sti_broker', l: 'Short-term broker', t: 'sel', o: ['Cameron Maritz', 'Other broker'], s: 3 },
+        { id: 'sti_car', l: 'Car', t: 'sel', o: YN, s: 3 },
+        { id: 'sti_house', l: 'Household contents', t: 'sel', o: YN, s: 3 },
+        { id: 'sti_struct', l: 'Structural', t: 'sel', o: YN, s: 3 },
+        { id: 'sti_personal', l: 'Total personal spend (R)', t: 'txt', money: 1, s: 3 },
+        { id: 'sti_biz', l: 'Business', t: 'sel', o: YN, s: 3 },
+        { id: 'sti_biz_spend', l: 'Total business spend (R)', t: 'txt', money: 1, s: 3 },
+        N('n_sti', 'Notes', 2)
       ] }
     ] },
 
@@ -251,27 +261,67 @@
 
     /* Client priorities identified: what is recommended to the client, area by area. Each area has a decision (priority, or not a priority), a box for the reason or instructions,
        a short summary of what the client has now (written from the rest of the form, see summary.js) and the quotes and referrals that belong to it. The earlier advisor pages are merged in here. */
-    { id: 'prio', adv: 1, roomy: 1, title: 'Client priorities', intro: 'What we recommend to the client, area by area. Each area has a short summary of what the client has now, a decision for the client to agree or decline, and a box for the reason or your instructions. A priority turns the area green; not a priority turns it red.', blocks: [
+    { id: 'prio', adv: 1, title: 'Client priorities and quotes needed', intro: 'What the client decides, area by area, and what we need to quote or refer. A priority turns the area green, not a priority red, and "not sure" or "check the budget" yellow.', blocks: [
       HEAD('life'),
-      { pri: 'life', title: 'FNA quote', fields: [
-        { id: 'fna_req', l: 'FNA quote', t: 'sel', o: ['Request a quote', 'Not required', 'No FNA done'] },
-        { id: 'fna_type', l: 'Type of quote', t: 'sel', o: QTYPE, cond: FNA_ON },
-        { id: 'fna_ins', l: 'Insurer', t: 'sel', free: 1, o: INS, cond: FNA_ON }
+      /* The two kinds of quote, side by side: BrightRock Fractured (built on the BrightRock Risk Calculation page, so BrightRock is the only insurer) and Standard (any insurer, BrightRock too). Each has the same three rows,
+         FNA, Shortfall and Reduced. lane / row place a block in that grid; vl is the label voice and Claude use, so the two kinds of the same quote are told apart. */
+      { pri: 'life', lane: 'br', row: 'fna', title: 'FNA quote', layout: 'g12', fields: [
+        { id: 'bf_fna_req', l: 'FNA quote', vl: 'BrightRock Fractured FNA quote', t: 'sel', o: FNA_REQ, s: 6 },
+        { id: 'bf_fna_type', l: 'Type of quote', vl: 'BrightRock Fractured FNA type of quote', t: 'sel', o: QTYPE, cond: BF_FNA_ON, s: 6 }
       ] },
-      { pri: 'life', title: 'Shortfall quote', cond: HAS_GROUP, condMsg: 'No Group exists for a Shortfall Quote to be compiled. (Group risk through employer, on the Personal & group risk cover page, is No or Not sure.)', pdfMsg: 1, fields: [
-        { id: 'sf_req', l: 'Shortfall quote', t: 'sel', o: REQ },
-        { id: 'sf_type', l: 'Type of quote', t: 'sel', o: QTYPE, cond: SF_ON },
-        { id: 'sf_ins', l: 'Insurer', t: 'sel', free: 1, o: INS, cond: SF_ON }
+      { pri: 'life', lane: 'std', row: 'fna', title: 'FNA quote', layout: 'g12', fields: [
+        { id: 'fna_req', l: 'FNA quote', vl: 'Standard FNA quote', t: 'sel', o: FNA_REQ, s: 6 },
+        { id: 'fna_type', l: 'Type of quote', vl: 'Standard FNA type of quote', t: 'sel', o: QTYPE, cond: FNA_ON, s: 6 },
+        { id: 'fna_ins', l: 'Insurer(s)', vl: 'Standard FNA insurers', t: 'multi', multi: 'ins', o: INS_STD, nona: 1, cond: FNA_ON, s: 12 }
       ] },
-      { pri: 'life', title: 'Reduced quotes', list: 'redq' },
+      { pri: 'life', lane: 'br', row: 'sf', title: 'Shortfall quote', cond: HAS_GROUP, condMsg: NO_GROUP, pdfMsg: 1, layout: 'g12', fields: [
+        { id: 'bf_sf_req', l: 'Shortfall quote', vl: 'BrightRock Fractured shortfall quote', t: 'sel', o: REQ, s: 6 },
+        { id: 'bf_sf_type', l: 'Type of quote', vl: 'BrightRock Fractured shortfall type of quote', t: 'sel', o: QTYPE, cond: BF_SF_ON, s: 6 }
+      ] },
+      { pri: 'life', lane: 'std', row: 'sf', title: 'Shortfall quote', cond: HAS_GROUP, condMsg: NO_GROUP, layout: 'g12', fields: [
+        { id: 'sf_req', l: 'Shortfall quote', vl: 'Standard shortfall quote', t: 'sel', o: REQ, s: 6 },
+        { id: 'sf_type', l: 'Type of quote', vl: 'Standard shortfall type of quote', t: 'sel', o: QTYPE, cond: SF_ON, s: 6 },
+        { id: 'sf_ins', l: 'Insurer(s)', vl: 'Standard shortfall insurers', t: 'multi', multi: 'ins', o: INS_STD, nona: 1, cond: SF_ON, s: 12 }
+      ] },
+      { pri: 'life', lane: 'br', row: 'red', title: 'Reduced quotes', list: 'bfred' },
+      { pri: 'life', lane: 'std', row: 'red', title: 'Reduced quotes', list: 'redq' },
+      /* What to ask for in a standard quote (it used to be the second half of the Risk Calculation page): shown as one table, a row for each cover (sqd groups the four blocks). */
+      { pri: 'life', sqd: 'lc', title: 'Life cover: standard', fields: [
+        { id: 'lc_sa', money: 1, l: 'Sum assured (R)', t: 'txt', opt: 1 },
+        { id: 'lc_term', l: 'Term', t: 'sel', o: ['WOL', 'Fixed term', 'Other'], opt: 1 },
+        { id: 'lc_termv', l: 'Term value', t: 'txt', opt: 1 },
+        { id: 'lc_aci', l: 'ACI', t: 'sel', o: ACI, opt: 1 },
+        { id: 'lc_aciv', l: 'ACI value', t: 'txt', opt: 1 },
+        { id: 'lc_abiv', l: 'ABI', t: 'txt', opt: 1 },
+        N('lc_cmt', 'Comments')
+      ] },
+      { pri: 'life', sqd: 'pd', title: 'Permanent disability: standard', fields: [
+        { id: 'pd_sa', money: 1, l: 'Sum assured (R)', t: 'txt', opt: 1 },
+        { id: 'pd_term', l: 'Term', t: 'sel', o: ['To age 65', 'To age 70', 'Fixed term', 'Other'], opt: 1 },
+        { id: 'pd_termv', l: 'Term value', t: 'txt', opt: 1 },
+        { id: 'pd_aci', l: 'ACI', t: 'sel', o: ACI, opt: 1 },
+        { id: 'pd_aciv', l: 'ACI value', t: 'txt', opt: 1 },
+        { id: 'pd_abiv', l: 'ABI', t: 'txt', opt: 1 },
+        N('pd_cmt', 'Comments')
+      ] },
+      { pri: 'life', sqd: 'ip', title: 'Income protection / sickness benefit: standard', fields: [
+        { id: 'ips_age', l: 'Income protection age', t: 'sel', o: ['65', '70'], opt: 1, preset: '65' },
+        { id: 'ips_amt', money: 1, l: 'Insured amount (R p.m.)', t: 'txt', opt: 1 },
+        { id: 'ips_wait', l: 'Waiting period', t: 'sel', o: WAIT, opt: 1 },
+        { id: 'ips_aci', l: 'ACI', t: 'sel', o: ['Fixed', 'Age-rated', 'Other'], opt: 1, preset: 'Fixed' },
+        { id: 'ips_aciv', l: 'ACI value', t: 'txt', opt: 1, preset: '?' },
+        { id: 'ips_abiv', l: 'ABI', t: 'txt', opt: 1, preset: '5%' },
+        N('ips_cmt', 'Comments')
+      ] },
+      { pri: 'life', sqd: 'dd', title: 'Dread disease: standard', fields: dread('dds') },
       { pri: 'life', fields: [{ id: 'pref_spend', money: 1, l: 'Preferred monthly spend (R)', t: 'txt', opt: 1, voice: 1 }] },
       HEAD('ra'),
       { pri: 'ra', title: 'Retirement annuity quotes', list: 'raq' },
       HEAD('rgar'),
-      { pri: 'rgar', title: 'Retirement goal analysis (RGAR)', fields: [
-        { id: 'rgar_req', l: 'RGAR', t: 'sel', o: ['Request an RGAR', 'Not required'] },
-        { id: 'ret_age', l: 'Retirement age', t: 'sel', o: ['50', '55', '60', '65', '70'] },
-        { id: 'ret_net', money: 1, l: 'Net amount (today\'s terms) (R)', t: 'txt' }
+      { pri: 'rgar', title: 'Retirement goal analysis (RGAR)', layout: 'g12', fields: [
+        { id: 'rgar_req', l: 'RGAR', t: 'sel', o: ['Request an RGAR', 'Not required'], s: 4 },
+        { id: 'ret_age', l: 'Retirement age', t: 'sel', o: ['50', '55', '60', '65', '70'], s: 4 },
+        { id: 'ret_net', money: 1, l: 'Net amount (today\'s terms) (R)', t: 'txt', s: 4 }
       ] },
       HEAD('inv'),
       { pri: 'inv', title: 'Investment quotes', list: 'invq' },
@@ -312,62 +362,33 @@
       { fields: [N('n_prio')] }
     ] },
 
-    /* Risk Calculation & Quotes: always on its own page in the list (not tied to the Life area or to what cover the client has now), in two parts: the fractured covers (what the needs are built from)
-       and the standard quotes (the ordinary policy). Income protection (fractured) also splits the insured amount into the instalment protector, one box for each debt on the Debts page, and household needs. */
-    { id: 'calc', adv: 1, title: 'Risk Calculation & Quotes', blocks: [
-      { part: 'Fractured Covers', sub: 'the needs the cover is built from' },
-      { title: 'Life cover: fractured cover', fields: riskCalc('lc').concat([
-        { id: 'lc_f_aci', l: 'ACI', t: 'sel', o: ACI, opt: 1, preset: 'Fixed' },
-        { id: 'lc_f_aciv', l: 'ACI value', t: 'txt', opt: 1, preset: '?' },
-        { id: 'lc_wol', l: 'Life cover (WOL) ABI', t: 'txt', opt: 1, preset: '3%' },
-        { id: 'lc_ccabi', l: 'Childcare ABI', t: 'txt', opt: 1, preset: '5%' }
+    /* BrightRock Risk Calculation: always on its own page in the list (not tied to the Life area or to what cover the client has now). It is only how a BrightRock Fractured quote is built (the needs the cover is made from);
+       the standard quotes of every other insurer are asked for on Client priorities and quotes needed. Income protection also splits the insured amount into the instalment protector, one box for each debt on the Debts page, and household needs. */
+    { id: 'calc', adv: 1, title: 'BrightRock Risk Calculation', intro: 'How a BrightRock Fractured quote is built. This page is for BrightRock only: standard quotes (every other insurer, and BrightRock standard) are asked for, and described, on Client priorities and quotes needed.', blocks: [
+      { strip: 'br' },
+      { title: 'Life cover: fractured cover', layout: 'g12', fields: riskCalc('lc').concat([
+        { id: 'lc_f_aci', l: 'ACI', t: 'sel', o: ACI, opt: 1, preset: 'Fixed', s: 3 },
+        { id: 'lc_f_aciv', l: 'ACI value', t: 'txt', opt: 1, preset: '?', s: 3 },
+        { id: 'lc_wol', l: 'Life cover (WOL) ABI', t: 'txt', opt: 1, preset: '3%', s: 3 },
+        { id: 'lc_ccabi', l: 'Childcare ABI', t: 'txt', opt: 1, preset: '5%', s: 3 }
       ]) },
-      { title: 'Permanent disability: fractured cover', fields: riskCalc('pd').concat([
-        { id: 'pd_f_aci', l: 'ACI', t: 'sel', o: ACI, opt: 1, preset: 'Fixed' },
-        { id: 'pd_f_aciv', l: 'ACI value', t: 'txt', opt: 1, preset: '?' },
-        { id: 'pd_ccabi', l: 'Childcare ABI', t: 'txt', opt: 1, preset: '5%' }
+      { title: 'Permanent disability: fractured cover', layout: 'g12', fields: riskCalc('pd').concat([
+        { id: 'pd_f_aci', l: 'ACI', t: 'sel', o: ACI, opt: 1, preset: 'Fixed', s: 3 },
+        { id: 'pd_f_aciv', l: 'ACI value', t: 'txt', opt: 1, preset: '?', s: 3 },
+        { id: 'pd_ccabi', l: 'Childcare ABI', t: 'txt', opt: 1, preset: '5%', s: 3 }
       ]) },
-      { title: 'Income protection / sickness benefit: fractured cover', protector: 1, fields: [
+      { title: 'Income protection / sickness benefit: fractured cover', protector: 1, layout: 'g12', fields: [
         { id: 'ip_age', l: 'Income protection age', t: 'sel', o: ['65', '70'], opt: 1, preset: '65' },
         { id: 'ip_amt', l: 'Insured amount (R p.m.)', t: 'txt', calc: 'ip_amt' },
         { id: 'ip_hh', l: 'Household needs (R p.m.)', t: 'txt', calc: 'ip_hh' },
-        { id: 'ip_wait', l: 'Waiting period', t: 'sel', o: WAIT, opt: 1 },
-        { id: 'ip_aci', l: 'ACI', t: 'sel', o: ['Fixed', 'Age-rated', 'Other'], opt: 1, preset: 'Fixed' },
-        { id: 'ip_aciv', l: 'ACI value', t: 'txt', opt: 1, preset: '?' },
-        { id: 'ip_abiv', l: 'ABI', t: 'txt', opt: 1, preset: '5%' },
-        N('ip_cmt', 'Comments')
+        { id: 'ip_wait', l: 'Waiting period', t: 'sel', o: WAIT, opt: 1, s: 3 },
+        { id: 'ip_aci', l: 'ACI', t: 'sel', o: ['Fixed', 'Age-rated', 'Other'], opt: 1, preset: 'Fixed', s: 3 },
+        { id: 'ip_aciv', l: 'ACI value', t: 'txt', opt: 1, preset: '?', s: 3 },
+        { id: 'ip_abiv', l: 'ABI', t: 'txt', opt: 1, preset: '5%', s: 3 },
+        N('ip_cmt', 'Comments', 1)
       ] },
-      { title: 'Dread disease: fractured cover', fields: dread('dd') },
-      { part: 'Standard Quotes', sub: 'the ordinary policy the client could take instead' },
-      { title: 'Life cover: standard', fields: [
-        { id: 'lc_sa', money: 1, l: 'Sum assured (R)', t: 'txt', opt: 1 },
-        { id: 'lc_term', l: 'Term', t: 'sel', o: ['WOL', 'Fixed term', 'Other'], opt: 1 },
-        { id: 'lc_termv', l: 'Term value', t: 'txt', opt: 1 },
-        { id: 'lc_aci', l: 'ACI', t: 'sel', o: ACI, opt: 1 },
-        { id: 'lc_aciv', l: 'ACI value', t: 'txt', opt: 1 },
-        { id: 'lc_abiv', l: 'ABI', t: 'txt', opt: 1 },
-        N('lc_cmt', 'Comments')
-      ] },
-      { title: 'Permanent disability: standard', fields: [
-        { id: 'pd_sa', money: 1, l: 'Sum assured (R)', t: 'txt', opt: 1 },
-        { id: 'pd_term', l: 'Term', t: 'sel', o: ['To age 65', 'To age 70', 'Fixed term', 'Other'], opt: 1 },
-        { id: 'pd_termv', l: 'Term value', t: 'txt', opt: 1 },
-        { id: 'pd_aci', l: 'ACI', t: 'sel', o: ACI, opt: 1 },
-        { id: 'pd_aciv', l: 'ACI value', t: 'txt', opt: 1 },
-        { id: 'pd_abiv', l: 'ABI', t: 'txt', opt: 1 },
-        N('pd_cmt', 'Comments')
-      ] },
-      { title: 'Income protection / sickness benefit: standard', fields: [
-        { id: 'ips_age', l: 'Income protection age', t: 'sel', o: ['65', '70'], opt: 1, preset: '65' },
-        { id: 'ips_amt', money: 1, l: 'Insured amount (R p.m.)', t: 'txt', opt: 1 },
-        { id: 'ips_wait', l: 'Waiting period', t: 'sel', o: WAIT, opt: 1 },
-        { id: 'ips_aci', l: 'ACI', t: 'sel', o: ['Fixed', 'Age-rated', 'Other'], opt: 1, preset: 'Fixed' },
-        { id: 'ips_aciv', l: 'ACI value', t: 'txt', opt: 1, preset: '?' },
-        { id: 'ips_abiv', l: 'ABI', t: 'txt', opt: 1, preset: '5%' },
-        N('ips_cmt', 'Comments')
-      ] },
-      { title: 'Dread disease: standard', fields: dread('dds') },
-      { fields: [N('n_calc')] }
+      { title: 'Dread disease: fractured cover', layout: 'g12', fields: dread('dd') },
+      { fields: [N('n_calc', 'Notes', 2)] }
     ] },
 
     /* Admin: the next appointment (moved here from Client priorities) on the left and, on the right, the action points for the personal assistant (what is still to be asked for, quotes to request, who must contact the client, the follow-up
@@ -383,7 +404,7 @@
   /* sum.t: totals worked out by the page (never added up by Claude): [label, [[list, column], ...]]. */
   var panels = [
     { id: 'life', title: 'Personal Risk Covers', sub: 'Life cover, disability, dread disease, income protection', src: 'Personal risk cover, group risk cover, credit life, total debt and childcare to be covered',
-      sum: { f: ['has_risk', 'joint', 'has_group', 'fna_req', 'fna_type', 'sf_req', 'sf_type'], l: { risk: 0, grp: 0, debts: ['type', 'prov', 'prov_other', 'desc', 'cl'], redq: 0 },
+      sum: { f: ['has_risk', 'joint', 'has_group', 'bf_fna_req', 'bf_fna_type', 'bf_sf_req', 'bf_sf_type', 'fna_req', 'fna_type', 'fna_ins', 'sf_req', 'sf_type', 'sf_ins'], l: { risk: 0, grp: 0, debts: ['type', 'prov', 'prov_other', 'desc', 'cl'], bfred: 0, redq: 0 },
         t: [['Total debt to be covered (balances)', [['debts', 'bal']]], ['Total monthly debt repayments', [['debts', 'inst']]], ['Total childcare cost to be covered, per month', [['kids', 'cost']]]] } },
     { id: 'ra', title: 'Retirement Planning', sub: 'Retirement Annuities', src: 'Retirement funding: retirement annuities, pension and provident funds',
       sum: { f: [], l: { ret_ra: 0, ret_pp: 0, raq: 0 } } },
@@ -391,13 +412,13 @@
       sum: { f: ['rgar_req', 'ret_age', 'ret_net'], l: {}, t: [['Total saved across all retirement funds', [['ret_ra', 'val'], ['ret_pp', 'val']]], ['Total monthly contributions to retirement funds', [['ret_ra', 'contrib'], ['ret_pp', 'contrib']]]] } },
     { id: 'inv', title: 'Investment Planning', sub: 'Investments', src: 'Investments',
       sum: { f: [], l: { inv: 0, invq: 0 } } },
-    { id: 'egar', title: 'EGAR', sub: 'Education goal analysis', src: 'Children (education stage and cost)',
+    { id: 'egar', inline: 1, title: 'EGAR', sub: 'Education goal analysis', src: 'Children (education stage and cost)',
       sum: { f: ['egar_req'], l: { kids: ['age', 'stage', 'cost'] } } },
-    { id: 'med', title: 'Medical Aid', sub: 'Medical aid and gap cover', src: 'Medical aid and gap cover',
+    { id: 'med', inline: 1, title: 'Medical Aid', sub: 'Medical aid and gap cover', src: 'Medical aid and gap cover',
       sum: { f: ['ma', 'ma_prov', 'ma_plan', 'ma_broker', 'gap', 'gap_prov', 'gap_broker', 'ref_med'], l: {} } },
-    { id: 'will', title: 'Will', sub: 'Will and estate planning', src: 'Will',
+    { id: 'will', inline: 1, title: 'Will', sub: 'Will and estate planning', src: 'Will',
       sum: { f: ['will', 'will_up', 'will_where', 'will_where_other', 'will_broker', 'will_date', 'ref_will'], l: {} } },
-    { id: 'st', title: 'Short Term', sub: 'Short-term insurance', src: 'Short-term insurance',
+    { id: 'st', inline: 1, title: 'Short Term', sub: 'Short-term insurance', src: 'Short-term insurance',
       sum: { f: ['sti', 'sti_broker', 'sti_car', 'sti_house', 'sti_struct', 'sti_personal', 'sti_biz', 'sti_biz_spend', 'ref_sti'], l: {} } },
     { id: 'biz', title: 'Business assurance', sub: 'Buy & sell, contingent liability, keyman', src: 'Occupation: the business and its existing business assurance policies', nodec: 1, cond: BIZ, condMsg: 'Business assurance applies only when Business owner is set to Yes on the Occupation page.',
       sum: { f: ['biz_assur', 'biz_struct', 'biz_partners', 'biz_pct', 'biz_loans'], l: { bizpol: 0, shares: ['name', 'pct'] } } }
@@ -447,14 +468,17 @@
       { k: 'name', l: 'Name' }, { k: 'sname', l: 'Surname' }, { k: 'gender', l: 'Gender', o: ['Female', 'Male'] }, { k: 'dob', l: 'Date of birth', date: 1 }, { k: 'age', l: 'Age', calc: 'age' },
       { k: 'stage', l: 'Education stage', o: STAGES }, { k: 'cost', money: 1, l: 'Monthly cost (R)', num: 1 }
     ], sum: { cost: 'Total childcare' } },
-    redq: { cards: 'Reduced quote', title: 'Reduced quotes', add: 'Add reduced quote', cols: [
-      { k: 'req', l: 'Request', o: REQ }, { k: 'type', l: 'Type of quote', o: QTYPE }, { k: 'ins', l: 'Insurer', o: INS, free: 1 }, { k: 'amt', money: 1, l: 'Monthly amount (R p.m.)', num: 1 }
+    bfred: { dense: 1, cards: 'Reduced quote', title: 'Reduced quotes (BrightRock Fractured)', add: 'Add reduced quote', cols: [
+      { k: 'req', l: 'Request', o: REQ }, { k: 'type', l: 'Type of quote', o: QTYPE }, { k: 'amt', money: 1, l: 'Monthly amount (R p.m.)', num: 1 }
     ], sum: {} },
-    raq: { cards: 'RA quote', title: 'Retirement annuity quotes', add: 'Add RA quote', cols: [
+    redq: { dense: 1, cards: 'Reduced quote', title: 'Reduced quotes (Standard)', add: 'Add reduced quote', cols: [
+      { k: 'req', l: 'Request', o: REQ }, { k: 'type', l: 'Type of quote', o: QTYPE }, { k: 'ins', l: 'Insurer', o: INS_STD, free: 1 }, { k: 'amt', money: 1, l: 'Monthly amount (R p.m.)', num: 1 }
+    ], sum: {} },
+    raq: { dense: 1, cards: 'RA quote', title: 'Retirement annuity quotes', add: 'Add RA quote', cols: [
       { k: 'req', l: 'Request', o: ['Request a quote', 'Not required', 'Cannot afford now', 'Not interested'] }, { k: 'ins', l: 'Insurer', o: INS, free: 1 },
       { k: 'monthly', money: 1, l: 'Monthly amount (R p.m.)', num: 1 }, { k: 'lump', money: 1, l: 'Lump sum (R)', num: 1 }
     ], sum: {} },
-    invq: { cards: 'Investment quote', title: 'Investment quotes', add: 'Add investment quote', cols: [
+    invq: { dense: 1, cards: 'Investment quote', title: 'Investment quotes', add: 'Add investment quote', cols: [
       { k: 'purpose', l: 'Purpose', o: ['Children\'s education', 'General investing'] }, { k: 'product', l: 'Product', o: ['Tax-free savings', 'Endowment', 'Unit trust / voluntary funds', 'Other'] },
       { k: 'ins', l: 'Insurer', o: INS, free: 1 }, { k: 'monthly', money: 1, l: 'Monthly amount (R p.m.)', num: 1 }, { k: 'lump', money: 1, l: 'Lump sum (R)', num: 1 }
     ], sum: {} }
