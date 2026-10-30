@@ -10,7 +10,7 @@ const defId = id => String(id).replace(/^(\w+):\d+:(\w+)$/, '$1.$2');           
 const targetOf = f => f.list ? f.list + ':0:' + f.k : f.id;
 const nounOf = f => (f.list ? V.LIST_NOUNS[f.list][0] + ' ' : '');                    // "the child's date of birth"
 const theOrYour = f => f.list ? 'the ' + nounOf(f) : 'your ';
-const sameLabel = (a, b) => idx.byId[defId(a)] && idx.byId[defId(b)] && idx.byId[defId(a)].label === idx.byId[defId(b)].label;   // "Insurer" appears in two quotes: either is fine
+const sameLabel = (a, b) => idx.byId[defId(a)] && idx.byId[defId(b)] && idx.byId[defId(a)].lt.join(' ') === idx.byId[defId(b)].lt.join(' ');   // "Insurer" appears in several quotes: any is fine (the words matched on, not the longer label Claude is shown for the two kinds of life quote)
 
 const SAMPLE = f => {
   if (f.money) return 'R85 000';

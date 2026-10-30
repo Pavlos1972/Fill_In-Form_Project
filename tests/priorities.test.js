@@ -19,10 +19,10 @@ test('the pages: risk cover, retirement funding, then one Client priorities page
   assert.deepStrictEqual(schema.sections.map(s => s.id), ['info', 'occ', 'income', 'cover', 'retire', 'inv', 'other', 'debts', 'kids', 'health', 'prio', 'calc', 'admin']);
   assert.strictEqual(sec('cover').title, 'Personal & group risk cover');
   assert.strictEqual(sec('retire').title, 'Retirement funding');
-  assert.ok(sec('prio').adv && sec('prio').title === 'Client priorities');
-  assert.ok(sec('calc').adv && sec('calc').title === 'Risk Calculation & Quotes' && !sec('calc').cond);                       // its own page in the list, always there
-  assert.deepStrictEqual(sec('calc').blocks.map(b => b.part ? '## ' + b.part : b.title || '-'), ['## Fractured Covers', 'Life cover: fractured cover', 'Permanent disability: fractured cover', 'Income protection / sickness benefit: fractured cover', 'Dread disease: fractured cover',
-    '## Standard Quotes', 'Life cover: standard', 'Permanent disability: standard', 'Income protection / sickness benefit: standard', 'Dread disease: standard', '-']);
+  assert.ok(sec('prio').adv && sec('prio').title === 'Client priorities and quotes needed');
+  assert.ok(sec('calc').adv && sec('calc').title === 'BrightRock Risk Calculation' && !sec('calc').cond);                    // its own page in the list, always there, for BrightRock only
+  assert.deepStrictEqual(sec('calc').blocks.map(b => b.strip ? 'strip' : b.title || '-'), ['strip', 'Life cover: fractured cover', 'Permanent disability: fractured cover', 'Income protection / sickness benefit: fractured cover', 'Dread disease: fractured cover', '-']);
+  assert.ok(!sec('calc').blocks.some(b => /standard/i.test(b.title || '')) && !['lc_sa', 'pd_sa', 'ips_amt', 'dds_cover'].some(id => sec('calc').blocks.some(b => (b.fields || []).some(f => f.id === id))));    // no standard quote on the BrightRock page
   assert.ok(sec('calc').blocks.every(b => !b.cond && !b.pri));                                                          // not tied to the Life area, to its decision or to the cover the client has now
   assert.ok(!schema.fieldsById.advisor && schema.advisor === 'Paul Kafentzis');
   assert.ok(!('docs' in schema));
@@ -132,7 +132,7 @@ test('an area\'s summary is written from that area\'s own boxes only', () => {
   assert.ok(!/Customary|500 000|Example|0824541751|h_bp|Thandi/.test(all), 'no income, marital status, health, name or phone in any area');
   assert.deepStrictEqual(Object.keys(S.areaData(s, 'will').fields).sort(), ['will', 'will_up', 'will_where']);
   assert.deepStrictEqual(Object.keys(S.areaData(s, 'will').lists), []);
-  assert.deepStrictEqual(Object.keys(S.areaData(s, 'life').lists).sort(), ['debts', 'grp', 'redq', 'risk']);
+  assert.deepStrictEqual(Object.keys(S.areaData(s, 'life').lists).sort(), ['bfred', 'debts', 'grp', 'redq', 'risk']);
   assert.deepStrictEqual(S.areaData(s, 'life').lists.debts, [{ type: 'Home loan', prov: 'Nedbank', cl: 'Yes' }, { type: 'Vehicle finance', prov: 'Wesbank', cl: 'No' }]);   // credit life per debt, not the balance
   assert.deepStrictEqual(Object.keys(S.areaData(s, 'egar').lists.kids[0]).sort(), ['age', 'cost', 'stage']);                  // no child's name
   assert.ok(!/Allan Gray|Old Mutual/.test(flat('inv')) && !/Discovery Invest/.test(flat('ra')));
@@ -143,7 +143,7 @@ test('an area\'s summary is written from that area\'s own boxes only', () => {
 
 test('plain points for each area, said the way the adviser needs them', () => {
   const s = sample(), L = id => S.local(s, id);
-  assert.deepStrictEqual(L('life'), ['Personal risk cover: Liberty, R 20 000 p.m., Other broker', 'Joint life with spouse: no', 'Group risk: Discovery, R 1 450 p.m., Through company', 'Credit life: Home loan (Nedbank): yes', 'Credit life: Vehicle finance (Wesbank): no', 'Quote asked for: FNA quote (new business)', 'Total debt to be covered (balances): R 1 200 000', 'Total childcare cost to be covered, per month: R 20 000']);
+  assert.deepStrictEqual(L('life'), ['Personal risk cover: Liberty, R 20 000 p.m., Other broker', 'Joint life with spouse: no', 'Group risk: Discovery, R 1 450 p.m., Through company', 'Credit life: Home loan (Nedbank): yes', 'Credit life: Vehicle finance (Wesbank): no', 'Standard quote asked for: FNA quote (new business)', 'Total debt to be covered (balances): R 1 200 000', 'Total childcare cost to be covered, per month: R 20 000']);
   assert.deepStrictEqual(L('ra'), ['Retirement annuity: Allan Gray, R 16 000 000, R 50 000 p.m.', 'Pension fund: Old Mutual, R 3 200 000, R 8 000 p.m.']);
   assert.deepStrictEqual(L('rgar').slice(0, 2), ['Total saved across all retirement funds: R 19 200 000', 'Total monthly contributions to retirement funds: R 58 000 p.m.']);
   assert.ok(L('inv').includes('Tax-free savings: none') && L('inv').includes('Endowment: none') && L('inv').includes('Total invested: R 11 000'));
@@ -371,7 +371,7 @@ function pa() {
   set(s, 'has_group', 'Yes'); store.addRow(s, 'grp', { prov: 'Old Mutual' }); set(s, 'ps_grp', CL + '; Other'); set(s, 'ps_grp_ot', 'Employer HR to send the benefit summary.');
   store.addRow(s, 'ret_ra', { prov: 'Allan Gray' }); set(s, 'ps_ra', AS); store.addRow(s, 'ret_pp', { prov: 'Sanlam', type: 'Pension fund' });
   store.addRow(s, 'debts', { type: 'Home loan', prov: 'Nedbank', cl: 'Yes' }); store.addRow(s, 'debts', { type: 'Vehicle finance', prov: 'Wesbank', cl: 'No' }); store.addRow(s, 'debts', { type: 'Credit card', prov: 'Discovery Bank' });
-  set(s, 'fna_req', 'Request a quote'); set(s, 'fna_type', 'New Business'); set(s, 'fna_ins', 'BrightRock'); set(s, 'rgar_req', 'Request an RGAR'); set(s, 'ret_age', '65'); set(s, 'ret_net', 'R 60 000.00'); set(s, 'egar_req', 'Request an EGAR'); store.addRow(s, 'kids', { name: 'A' }); store.addRow(s, 'kids', { name: 'B' });
+  set(s, 'bf_fna_req', 'Request a quote'); set(s, 'bf_fna_type', 'New Business'); set(s, 'fna_req', 'Request a quote'); set(s, 'fna_type', 'New Business'); set(s, 'fna_ins', 'Old Mutual; Discovery'); set(s, 'rgar_req', 'Request an RGAR'); set(s, 'ret_age', '65'); set(s, 'ret_net', 'R 60 000.00'); set(s, 'egar_req', 'Request an EGAR'); store.addRow(s, 'kids', { name: 'A' }); store.addRow(s, 'kids', { name: 'B' });
   store.addRow(s, 'raq', { req: 'Request a quote', ins: 'Old Mutual', monthly: 'R 5 000.00' });
   set(s, 'ref_med', 'Valerie to contact for both'); set(s, 'ref_will', 'Capital Legacy to contact client'); set(s, 'ref_sti', 'Cameron to contact client');
   set(s, 'pr_life', schema.BUDGET); set(s, 'pr_life_cm', 'Revisit once the budget is checked.'); set(s, 'next_appt', '05/11/2026');
@@ -388,7 +388,8 @@ test('the action points: what is still to get, quotes, who contacts the client, 
     'Ask Thandi how the current policy schedules for the pension and provident funds (Sanlam) will be provided.',
     'Ask Thandi for the credit life details with Nedbank on the home loan.',
     'Ask Thandi whether there is credit life with Discovery Bank on the credit card.',
-    'Request an FNA quote (New Business) from BrightRock.',
+    'Request a BrightRock Fractured FNA quote (New Business).',
+    'Request standard FNA quotes from Old Mutual and Discovery (New Business).',
     'Request a retirement annuity quote from Old Mutual for R 5 000 p.m.',
     'Request a retirement goal analysis (RGAR): retire at 65 on R 60 000 p.m. net in today\'s terms.',
     'Request an education goal analysis (EGAR) for the 2 children.',

@@ -469,7 +469,7 @@ const briefL = p => p.actions.map(a => a.do + (a.list ? '(' + a.list + ')' : '')
 const thandi = { rows: { kids: [{ name: 'Thandi' }] }, curRow: { kids: 0 } };
 
 test('the lists are in the voice index, and a partner\'s ID and cell number are private', () => {
-  assert.deepStrictEqual(Object.keys(idx.lists).sort(), ['bizpol', 'debts', 'grp', 'inv', 'invq', 'kids', 'raq', 'redq', 'ret_pp', 'ret_ra', 'risk', 'shares']);
+  assert.deepStrictEqual(Object.keys(idx.lists).sort(), ['bfred', 'bizpol', 'debts', 'grp', 'inv', 'invq', 'kids', 'raq', 'redq', 'ret_pp', 'ret_ra', 'risk', 'shares']);
   assert.ok(idx.byId['kids.dob'].date && idx.byId['debts.bal'].money && idx.byId['risk.prov'].options);
   assert.ok(V.PRIVATE_IDS.includes('shares.id') && V.PRIVATE_IDS.includes('shares.cell'));
   assert.ok(!idx.byId['kids.cost'].none);
@@ -689,16 +689,15 @@ test('more ways of asking to make notes are understood, and what follows in the 
 });
 
 test('Type of quote: the FNA, shortfall and reduced quote each have one, with three choices', () => {
-  ['fna_type', 'sf_type', 'redq.type'].forEach(id => assert.deepStrictEqual(f(id).options, ['New Business', 'Servicing', 'N/A'], id));
+  ['fna_type', 'sf_type', 'redq.type', 'bf_fna_type', 'bf_sf_type', 'bfred.type'].forEach(id => assert.deepStrictEqual(f(id).options, ['New Business', 'Servicing', 'N/A'], id));
   const order = schema.sections.find(s => s.id === 'prio').blocks.filter(b => b.pri === 'life' && !b.head).map(b => (b.fields || []).map(x => x.id).join());
-  assert.strictEqual(order[0], 'fna_req,fna_type,fna_ins');
-  assert.strictEqual(order[1], 'sf_req,sf_type,sf_ins');
+  assert.deepStrictEqual(order.slice(0, 4), ['bf_fna_req,bf_fna_type', 'fna_req,fna_type,fna_ins', 'bf_sf_req,bf_sf_type', 'sf_req,sf_type,sf_ins']);      // the BrightRock Fractured one first, then the standard one, for each of the FNA and the shortfall
   assert.deepStrictEqual(schema.lists.redq.cols.map(c => c.k), ['req', 'type', 'ins', 'amt']);
 });
 
 test('Type of quote: answers in the words people use', () => {
   const v = (id, t) => { const r = V.interpret(f(id), t); return r && (r.error ? 'ERR:' + r.error : r.value); };
-  ['fna_type', 'sf_type', 'redq.type'].forEach(id => {
+  ['fna_type', 'sf_type', 'redq.type', 'bf_fna_type', 'bf_sf_type', 'bfred.type'].forEach(id => {
     assert.strictEqual(v(id, 'new business'), 'New Business', id);
     assert.strictEqual(v(id, "it's a new business quote"), 'New Business', id);
     assert.strictEqual(v(id, 'Servicing'), 'Servicing', id);

@@ -14,7 +14,7 @@
       .replace(/…/g, '...').replace(/[•‣◦⁃▪●]/g, '-').replace(/→/g, '->').replace(/←/g, '<-').replace(/↔/g, '<->').replace(/≥/g, '>=').replace(/≤/g, '<=').replace(/≈/g, '~')   // symbols the PDF's font has no shape for, as the plain text they stand for
       .replace(/[^\x09\x0a\x0d\x20-\x7e\xa1-\xff]/g, '?');
   }
-  function fieldValue(f, state, ctx) { return f.calc ? calc.field(f.calc, ctx) : (f.money ? util.formatMoney(state.f[f.id].v) : (f.t === 'multi' && !state.f[f.id].v ? '(not asked yet)' : state.f[f.id].v)); }
+  function fieldValue(f, state, ctx) { return f.calc ? calc.field(f.calc, ctx) : (f.money ? util.formatMoney(state.f[f.id].v) : (f.t === 'multi' && !f.nona && !state.f[f.id].v ? '(not asked yet)' : state.f[f.id].v)); }
 
   /* label/value pairs two to a row; wide boxes (notes) take a full row */
   function fieldRows(items) {
@@ -117,7 +117,7 @@
       }
       if (!calc.showIf(b.cond, ctx)) { if (b.pdfMsg && b.condMsg && !calc.showIf('own' in b ? b.own : b.cond, ctx)) { if (b.title) blockTitle(b.title); table({ body: [[{ content: t(b.condMsg), styles: { fontStyle: 'italic', textColor: MUTED } }]] }); } return; }    // a block that does not apply says so when it asks to
       if (b.fields && b.fields.length && b.fields.every(function (f) { return f.nopdf; })) return;     // a block of boxes that are left off the PDF has no heading either
-      if (b.title) blockTitle(b.title);
+      if (b.title) blockTitle(b.lane ? (b.lane === 'br' ? 'BrightRock Fractured: ' : 'Standard: ') + b.title : b.title);          // a life quote says which kind it is
       if (b.protector) protectorPdf(b); else if (b.fields) fieldsTable(b.fields);
       if (b.list) { if (!b.title && schema.lists[b.list].title !== sec.title) blockTitle(schema.lists[b.list].title); listBlock(b.list); }
     }

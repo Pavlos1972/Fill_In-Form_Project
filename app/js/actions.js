@@ -17,8 +17,12 @@
 
   function clean(o) { var r = {}; Object.keys(o).forEach(function (k) { if (o[k] != null && String(o[k]).trim() !== '') r[k] = o[k]; }); return r; }
   function amt(v) { return String(v == null ? '' : v).replace(/\.00$/, '').trim(); }
+  function parts(v) { return String(v == null ? '' : v).split(';').map(function (x) { return x.trim(); }).filter(Boolean); }
+  function andList(a) { return a.length < 2 ? a.join('') : a.slice(0, -1).join(', ') + ' and ' + a[a.length - 1]; }
+  var BR = 'BrightRock Fractured', STD = 'Standard';                                                    // the two kinds of life quote
 
-  /* What the form holds for the action points: { client, letter_of_authority, schedules, credit_life, quotes, referrals, undecided, instructions, appointment }. */
+  /* What the form holds for the action points: { client, letter_of_authority, schedules, credit_life, quotes, referrals, undecided, instructions, appointment }.
+     A life quote (FNA, Shortfall, Reduced) says which kind it is: "BrightRock Fractured" (insurer BrightRock, built on the calculation page) or "Standard" (one or more insurers). */
   function facts(state) {
     var ctx = store.ctxFor(state), v = function (id) { return String(state.f[id] && state.f[id].v != null ? state.f[id].v : '').trim(); };
     var shows = function (id) { var f = schema.fieldsById[id], b = blockOfField[id]; return !!f && (!b || calc.showIf(b.cond, ctx)) && calc.showIf(f.cond, ctx); };
@@ -37,9 +41,12 @@
       out.credit_life.push({ debt: String(d.type === 'Other' || !d.type ? d.desc || 'debt' : d.type).toLowerCase(), lender: (d.prov === 'Other' ? d.prov_other : d.prov) || d.prov_other || '', credit_life: cl === 'Yes' ? 'Yes' : 'not asked yet' });
     });
 
-    if (shows('fna_req') && v('fna_req') === 'Request a quote') out.quotes.push(clean({ quote: 'FNA quote', type: shows('fna_type') ? v('fna_type') : '', insurer: shows('fna_ins') ? v('fna_ins') : '' }));
-    if (shows('sf_req') && v('sf_req') === 'Request a quote') out.quotes.push(clean({ quote: 'Shortfall quote', type: shows('sf_type') ? v('sf_type') : '', insurer: shows('sf_ins') ? v('sf_ins') : '' }));
-    if (listOn('redq')) (state.l.redq || []).forEach(function (r) { if (r.d.req === 'Request a quote') out.quotes.push(clean({ quote: 'Reduced quote', type: r.d.type, insurer: r.d.ins, monthly_amount: amt(r.d.amt) })); });
+    if (shows('bf_fna_req') && v('bf_fna_req') === 'Request a quote') out.quotes.push(clean({ quote: 'FNA quote', kind: BR, type: shows('bf_fna_type') ? v('bf_fna_type') : '' }));
+    if (shows('bf_sf_req') && v('bf_sf_req') === 'Request a quote') out.quotes.push(clean({ quote: 'Shortfall quote', kind: BR, type: shows('bf_sf_type') ? v('bf_sf_type') : '' }));
+    if (listOn('bfred')) (state.l.bfred || []).forEach(function (r) { if (r.d.req === 'Request a quote') out.quotes.push(clean({ quote: 'Reduced quote', kind: BR, type: r.d.type, monthly_amount: amt(r.d.amt) })); });
+    if (shows('fna_req') && v('fna_req') === 'Request a quote') out.quotes.push(clean({ quote: 'FNA quote', kind: STD, type: shows('fna_type') ? v('fna_type') : '', insurers: shows('fna_ins') ? parts(v('fna_ins')) : [] }));
+    if (shows('sf_req') && v('sf_req') === 'Request a quote') out.quotes.push(clean({ quote: 'Shortfall quote', kind: STD, type: shows('sf_type') ? v('sf_type') : '', insurers: shows('sf_ins') ? parts(v('sf_ins')) : [] }));
+    if (listOn('redq')) (state.l.redq || []).forEach(function (r) { if (r.d.req === 'Request a quote') out.quotes.push(clean({ quote: 'Reduced quote', kind: STD, type: r.d.type, insurers: parts(r.d.ins), monthly_amount: amt(r.d.amt) })); });
     if (listOn('raq')) (state.l.raq || []).forEach(function (r) { if (r.d.req === 'Request a quote') out.quotes.push(clean({ quote: 'Retirement annuity quote', insurer: r.d.ins, monthly_amount: amt(r.d.monthly), lump_sum: amt(r.d.lump) })); });
     if (shows('rgar_req') && v('rgar_req') === 'Request an RGAR') out.quotes.push(clean({ quote: 'Retirement goal analysis (RGAR)', retire_at: v('ret_age'), net_income_wanted_per_month: amt(v('ret_net')) }));
     if (listOn('invq')) (state.l.invq || []).forEach(function (r) { if (r.d.req === 'Request a quote' || r.d.product || r.d.ins || r.d.monthly || r.d.lump) out.quotes.push(clean({ quote: 'Investment quote', purpose: r.d.purpose, product: r.d.product, insurer: r.d.ins, monthly_amount: amt(r.d.monthly), lump_sum: amt(r.d.lump) })); });
@@ -68,6 +75,7 @@
   }
 
   /* ---------- plain points, from the facts, for when Claude has not written them (yet) ---------- */
+  function fin(s) { return /[.?!]$/.test(s) ? s : s + '.'; }                                              // a full stop, even after a bracket
   function sentence(s) { return /[.?!)]$/.test(s) ? s : s + '.'; }
   function an(w) { return /^(?:FNA|[aeiou])/i.test(w) ? 'an ' : 'a '; }
   function names(held) { return held.length ? ' (' + held.join(', ') + ')' : ''; }
@@ -92,6 +100,14 @@
     });
     f.quotes.forEach(function (q) {
       var n = q.quote, bits = [];
+      if (q.kind === BR || q.kind === STD) {                                                         // a life quote: which kind it is comes first
+        var what = n === 'FNA quote' ? 'FNA' : n.replace(/ quote$/, '').toLowerCase(), ins = q.insurers || [], extra = [];
+        if (q.type) extra.push(q.type);
+        var tail = (extra.length ? ' (' + extra.join(', ') + ')' : '') + (q.monthly_amount ? ' for ' + q.monthly_amount + ' p.m.' : '');
+        if (q.kind === BR) pts.push(fin('Request a BrightRock Fractured ' + what + ' quote' + tail));
+        else pts.push(fin('Request ' + (ins.length > 1 ? 'standard ' + what + ' quotes' : 'a standard ' + what + ' quote') + (ins.length ? ' from ' + andList(ins) : '') + (extra.length ? ' (' + extra.join(', ') + ')' : '') + (ins.length ? '' : ' (insurer still to be chosen)') + (q.monthly_amount ? ' for ' + q.monthly_amount + ' p.m.' : '')));
+        return;
+      }
       if (/^Retirement goal/.test(n)) { pts.push('Request a retirement goal analysis (RGAR)' + (q.retire_at || q.net_income_wanted_per_month ? ': retire' + (q.retire_at ? ' at ' + q.retire_at : '') + (q.net_income_wanted_per_month ? ' on ' + q.net_income_wanted_per_month + ' p.m. net in today\'s terms' : '') : '') + '.'); return; }
       if (/^Education goal/.test(n)) { pts.push('Request an education goal analysis (EGAR)' + (q.children ? ' for ' + (q.children === 1 ? 'the child' : 'the ' + q.children + ' children') : '') + '.'); return; }
       var line = 'Request ' + an(n) + (/^(?:FNA|Buy)/.test(n) ? n : n.charAt(0).toLowerCase() + n.slice(1));
@@ -107,6 +123,12 @@
     return pts;
   }
   function text(lines) { return lines.map(function (l) { return '- ' + l; }).join('\n'); }
+  /* The BrightRock Fractured quotes asked for, short: ["FNA (New Business)", "Shortfall", "Reduced R 2 500 p.m."] (shown at the top of the BrightRock Risk Calculation page). */
+  function brightRockAsked(state) {
+    return facts(state).quotes.filter(function (q) { return q.kind === BR; }).map(function (q) {
+      return q.quote.replace(/ quote$/, '') + (q.type ? ' (' + q.type + ')' : '') + (q.monthly_amount ? ' ' + q.monthly_amount + ' p.m.' : '');
+    });
+  }
 
-  return { facts: facts, key: key, local: local, text: text };
+  return { facts: facts, key: key, local: local, text: text, brightRockAsked: brightRockAsked };
 });
