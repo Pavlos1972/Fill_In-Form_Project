@@ -1,0 +1,25 @@
+const { chromium } = require((process.argv[2]) + '/playwright');
+const dir = process.argv[3];
+(async () => {
+  const b = await chromium.launch({ executablePath: process.env.CHROMIUM || undefined, args: ['--no-sandbox'] });
+  const p = await (await b.newContext({ viewport: { width: 1500, height: 900 } })).newPage();
+  const errs = []; p.on('pageerror', e => errs.push(e.message));
+  await p.goto('file://' + dir + '/index.html');
+  await p.evaluate(() => { localStorage.setItem('wr-fact-find-settings', JSON.stringify({ apiKey: 'sk-ant-test', model: 'claude-opus-5-5', voiceModel: 'claude-sonnet-5-5', expires: '2026-11-15' })); });
+  await p.reload();
+  await p.evaluate(() => { window.fetch = (u, i) => { const r = JSON.parse(i.body); if (r.max_tokens === 0) return Promise.resolve(new Response('{"content":[],"usage":{}}', { status: 200 })); const parts = r.messages[0].content, body = JSON.parse(Array.isArray(parts) ? parts[1].text : parts), t = body.newest.text; let a = [];
+    if (/^one/.test(t)) a = [{ do: 'fill', field: 'employed', value: 'Yes' }, { do: 'fill', field: 'employer', value: 'Numo VDM' }, { do: 'fill', field: 'co_does', value: 'Coke machineries' }];
+    if (/^two/.test(t)) a = [{ do: 'fill', field: 'co_does', value: 'Processing equipment for the beverage industry', correction: true }];
+    if (/^three/.test(t)) a = [{ do: 'fill', field: 'co_does', value: 'Also exports' }];
+    return Promise.resolve(new Response(JSON.stringify({ content: [{ type: 'text', text: JSON.stringify({ actions: a }) }], usage: { input_tokens: 1, output_tokens: 1 } }), { status: 200 })); }; });
+  await p.click('#btnVoice'); await p.waitForTimeout(300);
+  const say = async t => { await p.evaluate(x => FF.app.voiceHear(x), t); await p.waitForTimeout(400); };
+  const v = () => p.evaluate(() => FF.app.state.f.co_does.v);
+  await say('one something'); await p.waitForTimeout(800); console.log('after one  :', JSON.stringify(await v()));
+  await say('two something'); console.log('after two  :', JSON.stringify(await v()));
+  await say('three something'); console.log('after three:', JSON.stringify(await v()));
+  console.log((await p.evaluate(() => FF.app.voiceLog().lines.map(l => l.heard + ' => ' + JSON.stringify(l.page_did)))).join('\n'));
+  console.log(JSON.stringify(await p.evaluate(() => ({e: FF.app.state.f.employed.v, em: FF.app.state.f.employer.v, sec: document.querySelector('.nav .on, .nav .active, nav .cur') && document.querySelector('.nav .on, .nav .active, nav .cur').textContent}))));
+  console.log('errors', JSON.stringify(errs));
+  await b.close();
+})();

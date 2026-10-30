@@ -9,7 +9,8 @@
   var ctx = function () { return store.ctxFor(state); };
 
   /* ---------- drafts and saving ---------- */
-  function saveDraft() { try { localStorage.setItem(DRAFT_KEY, store.toJSON(state)); localStorage.setItem(DRAFT_KEY + '-file', fileBase); localStorage.setItem(DRAFT_KEY + '-dirty', dirty ? '1' : '0'); } catch (e) { /* storage unavailable */ } }
+  var draftHold = false;                                                                          // while the question about the last unsaved Fact Find is open, its draft is not overwritten
+  function saveDraft() { if (draftHold) return; try { localStorage.setItem(DRAFT_KEY, store.toJSON(state)); localStorage.setItem(DRAFT_KEY + '-file', fileBase); localStorage.setItem(DRAFT_KEY + '-dirty', dirty ? '1' : '0'); } catch (e) { /* storage unavailable */ } }
   /* The file a client was last opened from or saved to is remembered, so Save writes back to it even after Chrome is closed. */
   function idb(fn) {
     return new Promise(function (resolve) {
@@ -318,7 +319,6 @@
   }
   function blockHTML(b, sec, c, notitle) {
     if (b.strip) return stripHTML();
-    if (b.part) return '<div class="partband"><h3>' + esc(b.part) + '</h3>' + (b.sub ? '<span class="sub">' + esc(b.sub) + '</span>' : '') + '</div>';
     var ok = calc.showIf(b.cond, c), own = calc.showIf('own' in b ? b.own : b.cond, c), h = '';
     if (!ok && !b.grey && !('own' in b && own)) return '<div class="block-title">' + esc(b.title) + '</div><div class="note">' + esc(b.condMsg) + '</div>';      // a block whose rule is not met says so and goes away (unless it is only its area that is off)
     if (b.title && !notitle) h += '<div class="block-title">' + esc(b.title) + '</div>';
@@ -788,6 +788,11 @@
   $('#keyState').addEventListener('click', openSettings);
   $('#keyState').addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openSettings(); } });
   $('#setCancel').addEventListener('click', function () { $('#settings').close(); });
+  $('#setForget').addEventListener('click', function () {                                           // both keys leave this browser at once; the other settings stay
+    $('#setKey').value = ''; $('#setOpenaiKey').value = '';
+    FF.lookup.saveSettings({ apiKey: '', model: $('#setModel').value, voiceModel: $('#setVoiceModel').value, expires: '', openaiKey: '', openaiModel: $('#setOpenaiModel').value });
+    $('#setExpires').value = ''; refreshKey(); $('#setResult').textContent = 'Both keys were removed from this browser.';
+  });
   $('#setSave').addEventListener('click', function () {
     FF.lookup.saveSettings({ apiKey: $('#setKey').value, model: $('#setModel').value, voiceModel: $('#setVoiceModel').value, expires: $('#setExpires').value, openaiKey: $('#setOpenaiKey').value, openaiModel: $('#setOpenaiModel').value });
     if ($('#setSpeech')) { try { localStorage.setItem(SPEECH_KEY, JSON.stringify({ engine: $('#setSpeech').value, model: $('#setWhisper').value, call: !!$('#setCall') && $('#setCall').value === '1' })); } catch (e) { /* storage unavailable */ } }
@@ -2472,16 +2477,29 @@
     }, 350);
   });
 
-  /* Open on a fresh page. The last client comes back only if it had unsaved changes. */
-  var restored = null;
+  /* Open on a fresh page. A last client with unsaved changes is offered back: the form stays blank, so one client's answers are never seen on the next client's form, until the adviser chooses. */
+  var restored = null, restoredBase = '';
   try { if (localStorage.getItem(DRAFT_KEY + '-dirty') === '1') restored = loadDraft(); } catch (e) { restored = null; }
-  state = restored || store.blank();
-  try { fileBase = restored ? (localStorage.getItem(DRAFT_KEY + '-file') || '') : ''; } catch (e) { fileBase = ''; }
-  if (restored) recallHandle().then(function (h) { if (h && fileBase) { fileHandle = h; } });
-  else rememberHandle(null);
-  dirty = !!restored;
+  try { restoredBase = restored ? (localStorage.getItem(DRAFT_KEY + '-file') || '') : ''; } catch (e) { restoredBase = ''; }
+  state = store.blank(); fileBase = ''; dirty = false;
+  if (restored) draftHold = true; else rememberHandle(null);
   layoutSetup(); convoRender();
   window.FF.app = { get state() { return state; }, redraw: redraw, setState: function (s) { state = s; redraw(); }, makePdf: makePdf, voiceHear: vmHear, voice: vm, voiceLog: convoLog };
   redraw();
-  if (restored) toast('Restored your unsaved changes for ' + (store.clientName(state) || 'the last client') + '.');
+  if (restored) {
+    var who = store.clientName(restored) || 'the last client', rd = document.createElement('dialog'); rd.id = 'restoreDraft';
+    rd.innerHTML = '<h2>Unsaved changes found</h2><p class="help">The last Fact Find, for ' + esc(who) + ', had changes that were not saved. Restore them, or start a new Fact Find? Starting a new one throws those changes away.</p>' +
+      '<div class="dlg-actions"><button class="btn ghost small" id="restoreNew" type="button">Start a new Fact Find</button><span class="grow"></span><button class="btn small" id="restoreYes" type="button">Restore ' + esc(who) + '</button></div>';
+    document.body.appendChild(rd);
+    rd.addEventListener('cancel', function (e) { e.preventDefault(); });                            // a choice is needed: Escape does not close it
+    rd.querySelector('#restoreYes').addEventListener('click', function () {
+      state = restored; fileBase = restoredBase; dirty = true; draftHold = false; rd.close(); rd.remove();
+      recallHandle().then(function (h) { if (h && fileBase) { fileHandle = h; } });
+      redraw(); toast('Restored your unsaved changes for ' + who + '.');
+    });
+    rd.querySelector('#restoreNew').addEventListener('click', function () {
+      draftHold = false; rd.close(); rd.remove(); rememberHandle(null); saveDraft(); redraw();
+    });
+    rd.showModal(); rd.querySelector('#restoreYes').focus();
+  }
 })();

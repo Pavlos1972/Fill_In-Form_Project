@@ -121,12 +121,6 @@
     }
     function lanePrefix(b) { return b.lane ? (b.lane === 'br' ? 'BrightRock Fractured: ' : 'Standard: ') : ''; }
     function blockPdf(b, sec, notitle) {
-      if (b.part) {                                                                  // a band over the blocks that follow
-        ensure(40);
-        doc.setFillColor.apply(doc, ACCENT_SOFT); doc.rect(M, y, CW, 7, 'F');
-        doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor.apply(doc, DEEP); doc.text(t(b.part), M + 2.5, y + 4.9);
-        y += 10; return;
-      }
       if (b.strip) {                                                                 // the top of the BrightRock Risk Calculation page: what was asked for
         var asked = FF.actions.brightRockAsked(state);
         table({ body: [[{ content: 'Asked for on Client priorities and quotes needed', styles: { textColor: DEEP, fontStyle: 'bold', fillColor: ACCENT_SOFT } }, { content: t(asked.length ? 'BrightRock Fractured: ' + asked.join(', ') : 'No BrightRock Fractured quote asked for yet.'), styles: { fillColor: ACCENT_SOFT } }]], columnStyles: { 0: { cellWidth: 62 }, 1: { cellWidth: CW - 62 } } });

@@ -9,7 +9,7 @@
   html { color-scheme: light; }
   body { margin: 0; font: 14px/1.45 system-ui, "Segoe UI", sans-serif; padding-inline: 16px; padding-block: 14px 40px; }
 </style>
-<link rel="stylesheet" href="css/app.css?v=20261030m">
+<link rel="stylesheet" href="css/app.css?v=20261030n">
 <style>
   @keyframes vwait { 0%, 100% { box-shadow: 0 0 0 3px #e5483a, 0 0 14px 3px rgba(255,176,32,.55); } 50% { box-shadow: 0 0 0 3px #f06a2b, 0 0 28px 9px rgba(255,176,32,.9); } }
   @keyframes vok { from { box-shadow: 0 0 0 3px #1f9d55, 0 0 28px 9px rgba(31,157,85,.75); } to { box-shadow: 0 0 0 3px rgba(31,157,85,0), 0 0 0 0 rgba(31,157,85,0); } }
@@ -106,29 +106,30 @@
   <p class="help">The Listen button in the top bar uses the microphone. Whisper keeps the sound on this computer: the speech model is downloaded once (about 40 MB for Tiny) and kept in this browser. Chrome's own recognition is instant, but Google hears the audio, so use it for practice talk only, never with a client. A change here applies the next time Listen is pressed.</p>
   <label class="f"><span class="l"><span>Key expires on</span></span><input id="setExpires" type="date"></label>
   <p class="help">Enter the date shown as "Expires" next to the key in the Anthropic console. The top bar then counts down the days. <a href="https://platform.claude.com/dashboard" target="_blank" rel="noopener">Open the console ↗</a></p>
+  <p class="help"><b>Keep the keys safe.</b> Both keys are saved in this browser, on this computer, as plain text, and this web address is shared with every page published under pavlos1972.github.io. Set a spending limit on each key in its console, and press <b>Remove saved keys</b> before leaving a shared or borrowed computer.</p>
   <p class="help" id="setResult"></p>
-  <div class="dlg-actions"><button class="btn ghost small" id="setTest" type="button">Test</button><span class="grow"></span><button class="btn ghost small" id="setCancel" type="button">Cancel</button><button class="btn small" id="setSave" type="button">Save</button></div>
+  <div class="dlg-actions"><button class="btn ghost small" id="setTest" type="button">Test</button><button class="btn ghost small" id="setForget" type="button">Remove saved keys</button><span class="grow"></span><button class="btn ghost small" id="setCancel" type="button">Cancel</button><button class="btn small" id="setSave" type="button">Save</button></div>
 </dialog>
 <div class="toast" id="toast" hidden></div>
 <input id="vdText" type="text" placeholder="Test line. Type a line (client: ... for the client), press Enter" autocomplete="off" hidden>
 
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jspdf.plugin.autotable.min.js"></script>
-<script src="js/util.js?v=20261030m"></script>
+<script src="js/util.js?v=20261030n"></script>
 <script src="js/tax.js?v=20261018p"></script>
-<script src="js/schema.js?v=20261030m"></script>
-<script src="js/calc.js?v=20261030m"></script>
-<script src="js/validate.js?v=20261030m"></script>
-<script src="js/store.js?v=20261030m"></script>
-<script src="js/summary.js?v=20261030m"></script>
-<script src="js/actions.js?v=20261030m"></script>
+<script src="js/schema.js?v=20261030n"></script>
+<script src="js/calc.js?v=20261030n"></script>
+<script src="js/validate.js?v=20261030n"></script>
+<script src="js/store.js?v=20261030n"></script>
+<script src="js/summary.js?v=20261030n"></script>
+<script src="js/actions.js?v=20261030n"></script>
 <script src="js/lookup.js?v=20261029c"></script>
 <script src="assets/logo.js?v=20261018p"></script>
-<script src="js/pdf.js?v=20261030m"></script>
-<script src="js/voice.js?v=20261030m"></script>
-<script src="js/voice-ai.js?v=20261030m"></script>
+<script src="js/pdf.js?v=20261030n"></script>
+<script src="js/voice.js?v=20261030n"></script>
+<script src="js/voice-ai.js?v=20261030n"></script>
 <script src="js/listen.js?v=20261019a"></script>
 <script src="js/timer.js?v=20261026a"></script>
-<script src="js/ui.js?v=20261030m"></script>
+<script src="js/ui.js?v=20261030n"></script>
 </body>
 </html>
