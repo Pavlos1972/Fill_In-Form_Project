@@ -754,6 +754,7 @@
       return null;
     },
     nat: function (t, raw) {
+      var NOT_A_NATIONALITY = /^(?:ok(?:ay)?|alright|all right|fine|good|great|cool|nice|perfect|right|correct|please|thanks?(?: you)?|thank you(?: very much)?|hello|hi|hey|good (?:morning|afternoon|evening|day)|(?:i )?(?:do not|don'?t|dont) know|not sure|unsure|no idea|maybe|perhaps|sorry|pardon|excuse me|what|sir|next|continue|go on|hold on|one (?:moment|second|sec)|just a (?:moment|second|sec)|let me think|so|and|anyway|um+|uh+|er+|erm|hmm+|mm+)(?:[\s,.!?]+(?:ok(?:ay)?|thanks?|thank you|please|sir|paul))*[\s.!?]*$/i;
       var s = ' ' + t + ' ', saWord = / (south african|south africa|saffer|sa|local) /.test(s);
       var notSa = / (not|isn't|never) (a |from )?(south african|south africa|saffer|sa) /.test(s) || / (am not|aren't|i'm not) /.test(s);
       if (saWord && !notSa) return 'South African';
@@ -762,6 +763,7 @@
       var c = tail.replace(/^\s*(?:i(?:'m| am) (?:a |an )?|it'?s |it is |from |i come from |i was born in |my nationality is |nationality is |citizen of |a |an )/i, '').replace(/[\s,;.!?]+$/, '').trim();
       c = c.replace(/\s+(?:citizen|national|by birth)$/i, '');
       if (/^(?:yes|yeah|yep|yup|ja|correct|right|sure|definitely)$/i.test(c)) c = '';
+      if (NOT_A_NATIONALITY.test(c) || /[\d@#$%^&*=+<>\/\\|{}\[\]]/.test(c) || c.split(/\s+/).length > 4) return null;      // "okay", "thank you", "I don't know" are not a nationality: leave the box for the adviser
       if (/^not\b/i.test(c)) return { error: 'ambiguous', note: 'not South African: which nationality?' };
       if (!c) return yesNo(t) === 'yes' ? 'South African' : null;
       if (/^(?:south african|south africa|saffer|sa)$/i.test(c)) return 'South African';
@@ -890,6 +892,12 @@
         var iu = -1; low.forEach(function (o, i) { if (/unsure|not sure/.test(o)) iu = i; });
         return iu >= 0 ? ok(opts[iu]) : { error: 'unsure', note: 'not sure: left empty' };
       }
+    }
+    var irq = -1, inr = -1; low.forEach(function (o, i) { if (/^request an? /.test(o)) irq = i; if (o === 'not required') inr = i; });
+    if (irq >= 0 && inr >= 0 && /^(?:(?:yes|yeah|yep|yup|ja|yebo|sure|definitely|absolutely|certainly|of course|please|thanks|thank you|no|nope|nah)\b[\s,.!]*)+$/.test(t)) {      // a quote Request box: a bare "yes please" asks for it, a bare "no" says it is not required
+      var yr = yesNo(t);
+      if (yr === 'yes') return ok(opts[irq]);
+      if (yr === 'no') return ok(opts[inr]);
     }
     if (opts.every(function (o) { return /^\d+$/.test(o); })) {
       var n = wordsToNumber(raw);

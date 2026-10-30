@@ -95,7 +95,9 @@ test('business assurance follows Business owner', () => {
   assert.strictEqual(biz.length, 3); assert.match(schema.panelsById.biz.condMsg, /applies only when Business owner is set to Yes/);
   assert.ok(biz.every(b => !show(s, b.cond) && b.grey));
   assert.ok(!sec('prio').blocks.find(b => b.title === 'Shortfall quote').grey);                       // the Shortfall quote keeps its own message and goes away, as before
-  set(s, 'bizowner', 'Yes'); assert.ok(biz.every(b => show(s, b.cond)));
+  set(s, 'bizowner', 'Yes'); assert.ok(biz.filter(b => b.title !== 'Buy & Sell').every(b => show(s, b.cond)));
+  assert.ok(!show(s, biz.find(b => b.title === 'Buy & Sell').cond));                                    // a Buy & Sell needs partners to buy and sell between
+  set(s, 'biz_partners', 'Yes'); assert.ok(biz.every(b => show(s, b.cond)));
 });
 
 test('an older file opens: the advisor name is ignored, the old notes boxes become the one Notes box, quotes and referrals are kept', () => {
