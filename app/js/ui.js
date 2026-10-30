@@ -327,10 +327,6 @@
     return h + '</div>';
   }
   /* What to ask for in a standard quote: one table, a row for each cover (Life cover, Permanent disability, Income protection, Dread disease). The boxes are the boxes of the four standard blocks, under their own ids. */
-  var SQ = { lc: { amt: 'lc_sa', term: ['lc_term', 'lc_termv'], aci: ['lc_aci', 'lc_aciv'], abi: 'lc_abiv', cmt: 'lc_cmt', name: 'Life cover' },
-    pd: { amt: 'pd_sa', term: ['pd_term', 'pd_termv'], aci: ['pd_aci', 'pd_aciv'], abi: 'pd_abiv', cmt: 'pd_cmt', name: 'Permanent disability' },
-    ip: { amt: 'ips_amt', term: ['ips_age'], aci: ['ips_aci', 'ips_aciv'], abi: 'ips_abiv', wait: 'ips_wait', cmt: 'ips_cmt', name: 'Income protection / sickness benefit' },
-    dd: { amt: 'dds_cover', term: ['dds_term', 'dds_termv'], aci: ['dds_aci', 'dds_aciv'], abi: 'dds_abiv', cmt: 'dds_cmt', name: 'Dread disease' } };
   var sqdOpen = null;
   function sqCell(id) {
     var f = schema.fieldsById[id], st = state.f[id].st, attrs = 'data-f="' + id + '" aria-label="' + esc(f.l) + '"';
@@ -339,7 +335,7 @@
   function sqdHTML(blocks, c) {
     var on = blocks.every(function (b) { return calc.showIf(b.cond, c); }), asked = state.f.fna_req.v === 'Request a quote' || state.f.sf_req.v === 'Request a quote' || state.l.redq.some(function (r) { return r.d.req === 'Request a quote'; });
     var open = sqdOpen === null ? asked : sqdOpen, r = blocks.map(function (b) {
-      var m = SQ[b.sqd];
+      var m = b.sq;
       return '<tr><th scope="row">' + esc(m.name) + '</th><td>' + sqCell(m.amt) + '</td><td><div class="pair">' + m.term.map(sqCell).join('') + '</div></td><td><div class="pair">' + m.aci.map(sqCell).join('') + '</div></td><td>' + sqCell(m.abi) + '</td><td>' + (m.wait ? sqCell(m.wait) : '<span class="dash">-</span>') + '</td><td>' + sqCell(m.cmt) + '</td></tr>';
     }).join('');
     return '<details class="sqd"' + (open ? ' open' : '') + '><summary>Standard quote details: what to quote</summary><div class="' + (on ? '' : 'off') + '"' + (on ? '' : ' inert') + '><div class="tablewrap"><table class="sqt"><thead><tr><th>Cover</th><th>Amount (R)</th><th>Term / age</th><th>ACI</th><th>ABI</th><th>Waiting</th><th>Comments</th></tr></thead><tbody>' + r + '</tbody></table></div></div></details>';
