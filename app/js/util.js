@@ -9,6 +9,7 @@
   function num(v) {
     if (v == null) return 0;
     var s = String(v).replace(/[R\s\xa0]/gi, '');
+    if (/^-?\d{1,3}(?:\.\d{3})+,\d{1,2}$/.test(s) || /^-?\d{1,3}(?:\.\d{3}){2,}$/.test(s)) s = s.replace(/\./g, '').replace(',', '.');        // "1.000,00" and "1.000.000": dots between thousands, a comma for the cents
     if (/,\d{1,2}$/.test(s) && s.indexOf('.') === -1) s = s.replace(/,(\d{1,2})$/, '.$1');
     s = s.replace(/,/g, '').replace(/[^0-9.\-]/g, '');
     var n = parseFloat(s);

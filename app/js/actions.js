@@ -36,9 +36,10 @@
       if (!choice.length && !known) return;                                                      // a choice that was made always counts; "not asked yet" is chased only where the client is known to have the policies (a Yes, or a policy recorded)
       out.schedules.push({ what: c[2], held: held, requested: choice.length ? choice : ['not asked yet'], other: choice.indexOf(OTHER) >= 0 ? v(c[1]) : '' });
     });
+    var lifeOff = v(schema.panelsById.life.dec) === schema.NOT_PRIORITY;                          // credit life is part of the Life area: when it is not a priority, nothing is chased
     (state.l.debts || []).forEach(function (r) {
       var d = r.d, cl = String(d.cl || '').trim();
-      if ((!d.type && !d.prov && !d.prov_other && !d.desc) || cl === 'No') return;
+      if (lifeOff || (!d.type && !d.prov && !d.prov_other && !d.desc) || cl === 'No') return;
       out.credit_life.push({ debt: String(d.type === 'Other' || !d.type ? d.desc || 'debt' : d.type).toLowerCase(), lender: (d.prov === 'Other' ? d.prov_other : d.prov) || d.prov_other || '', credit_life: cl === 'Yes' ? 'Yes' : 'not asked yet' });
     });
 

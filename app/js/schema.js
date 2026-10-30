@@ -36,6 +36,7 @@
   var ADVISOR = 'Paul Kafentzis';                                                                // printed in the PDF header; there is no Advisor box on the form
   var PRIORITY = 'Priority: client agrees', NOT_PRIORITY = 'Not a priority: client not interested';     // the answers of a priority's decision box (empty = not discussed yet)
   var UNSURE = 'Client not sure, needs to think about it', BUDGET = 'Client needs to check their budget', CAN_THINK = { life: 1, ra: 1, inv: 1 };        // two more answers (both yellow) for the areas where a client often wants time
+  var SPOUSE = { f: 'marital', nin: ['Single', 'Divorced', 'Widowed'] }, HAS_PARTNERS = { all: [BIZ, { f: 'biz_partners', eq: 'Yes' }] };      // a spouse or partner to ask about; business partners to ask about
   var HAS_RISK = { f: 'has_risk', nin: ['No'] }, HAS_GROUP = { f: 'has_group', nin: ['No', 'Not sure'] };
   var FNA_ON = { f: 'fna_req', nin: ['Not required', 'No FNA done'] }, SF_ON = { f: 'sf_req', nin: ['Not required'] };      // a quote that is not required has no type or insurer: those boxes go
   var BF_FNA_ON = { f: 'bf_fna_req', nin: ['Not required', 'No FNA done'] }, BF_SF_ON = { f: 'bf_sf_req', nin: ['Not required'] };      // the same for the BrightRock Fractured quotes (no insurer: it is always BrightRock)
@@ -142,7 +143,7 @@
         { id: 'biz_assur', l: 'Business assurance in place (buy & sell, keyman, contingent liability)', t: 'sel', o: ['Yes', 'No', 'Not sure'] }
       ] },
       { title: 'Existing business assurance policies', cond: HAS_BIZPOL, condMsg: 'Existing business assurance policies appear when Business owner = Yes and Business assurance in place is not No.', list: 'bizpol' },
-      { title: 'Partners and shareholders', cond: { all: [BIZ, { f: 'biz_partners', eq: 'Yes' }] }, condMsg: 'Partner and shareholder details appear when Business owner = Yes and Has partners = Yes.', list: 'shares' },
+      { title: 'Partners and shareholders', cond: HAS_PARTNERS, condMsg: 'Partner and shareholder details appear when Business owner = Yes and Has partners = Yes.', list: 'shares' },
       { title: 'Duties split', help: 'The percentages must add up to 100%.', fields: [
         { id: 'd_desk', l: 'Deskbound / office %', t: 'txt' },
         { id: 'd_supo', l: 'Supervising staff in office %', t: 'txt' },
@@ -167,7 +168,7 @@
         { id: 'marital', l: 'Marital status', t: 'sel', o: ['Single', 'Married in community of property', 'Married out of community (with accrual)', 'Married out of community (no accrual)', 'Customary marriage', 'Civil union', 'Life partner', 'Divorced', 'Widowed'] },
         { id: 'marr_date', l: 'Date of marriage', t: 'txt', date: 1, cal: 1, hint: 'e.g. 14/03/2010', cond: { f: 'marital', in: MARRIED } }
       ], help: 'Direct Net Income is gross income less PAYE and UIF, calculated from the SARS tables. It matches TaxTim\'s "Take-home pay" for a client under 65 with no pension contribution and no medical aid credits. Take-home net income is what the employer actually pays after all deductions.' },
-      { title: 'Spouse / partner', cond: { f: 'marital', nin: ['Single', 'Divorced', 'Widowed'] }, condMsg: 'Spouse details are not needed for this marital status.', fields: [
+      { title: 'Spouse / partner', cond: SPOUSE, condMsg: 'Spouse details are not needed for this marital status.', fields: [
         { id: 'sp_name', l: 'Spouse / partner name', t: 'txt', risky: 1 },
         { id: 'sp_tel', l: 'Spouse telephone number', t: 'txt', risky: 1 },
         { id: 'sp_occ', l: 'Spouse occupation', t: 'txt' }
@@ -181,7 +182,7 @@
       ] },
       { title: 'Personal risk cover', fields: [
         { id: 'has_risk', l: 'Has personal risk cover', t: 'sel', o: YN },
-        { id: 'joint', l: 'Joint life with spouse', t: 'sel', o: YN, cond: HAS_RISK, grey: 1 }
+        { id: 'joint', l: 'Joint life with spouse', t: 'sel', o: YN, cond: { all: [HAS_RISK, SPOUSE] }, grey: 1 }
       ] },
       { title: 'Existing personal risk policies', list: 'risk', cond: HAS_RISK, grey: 1, condMsg: 'No personal risk cover is in place, so there are no policies to record.' },
       PS('risk'),
@@ -339,7 +340,7 @@
       { pri: 'st', title: 'Referral', fields: [
         { id: 'ref_sti', l: 'Short-term (Cameron)', t: 'sel', o: ['Cameron to contact client', 'Must not contact client', 'Client has own broker', 'Not interested'] }
       ] },
-      { pri: 'biz', cond: BIZ, grey: 1, nomsg: 1, title: 'Buy & Sell', help: 'Partner names, ID numbers, cell numbers and shareholding % come from the Partners and shareholders list on the Occupation page.', fields: [
+      { pri: 'biz', cond: HAS_PARTNERS, grey: 1, nomsg: 1, title: 'Buy & Sell', help: 'Partner names, ID numbers, cell numbers and shareholding % come from the Partners and shareholders list on the Occupation page.', fields: [
         { id: 'bs_req', l: 'Buy & Sell quote', t: 'sel', o: REQ },
         { id: 'bs_ins', l: 'Insurer', t: 'sel', free: 1, o: INS },
         { id: 'bs_value', money: 1, l: 'Agreed cover value (R)', t: 'txt' },

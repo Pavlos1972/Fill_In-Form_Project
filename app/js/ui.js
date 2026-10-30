@@ -78,9 +78,14 @@
     var c = state.f[id]; el.value = c.v;
     var wrap = el.closest('.f'); if (wrap) { wrap.className = wrap.className.replace(/\bs-\w+/, 's-' + c.st); var b = wrap.querySelector('.st'), ab = wrap.querySelector('.rt > .badge'); if (b) b.innerHTML = badge(c.st, 'f:' + id); if (ab) ab.outerHTML = badge(c.st, 'f:' + id); }
   }
-  function toast(msg) {
+  function toast(msg, ms) {
     var t = $('#toast'); t.textContent = msg; t.hidden = false;
-    clearTimeout(toastTimer); toastTimer = setTimeout(function () { t.hidden = true; }, 3500);
+    clearTimeout(toastTimer); toastTimer = setTimeout(function () { t.hidden = true; }, ms || 3500);
+  }
+  /* Voice and Listen hear the meeting: say so when the client has not agreed to it being recorded and transcribed. */
+  function consentNote() {
+    var c = state.f.consent && String(state.f.consent.v || '').trim();
+    if (c !== 'Yes') toast('Consent to record and transcribe is ' + (c ? c : 'not answered') + '. Ask the client before the meeting is heard.', 7000);
   }
   /* The layout is adjusted from here, so index.html does not change: the version and tax tables sit small under the heading (the "This Fact Find" card is gone), and the right-hand pane
      can keep the live conversation in view (the pane is as tall as the page, so a card in it can stay put while the form scrolls). */
@@ -291,7 +296,7 @@
     var master = '<div class="pmaster">' + switchHTML(mstate, 'data-ipall="1"' + (sp.count ? '' : ' disabled'), 'Protect all debts') + '<span>' + (!sp.count ? 'Protect all debts' : mstate === 'on' ? 'All debts protected' : mstate === 'off' ? 'No debt protected' : sp.on + ' of ' + sp.count + ' debts protected') + '</span></div>';
     var rows = sp.rows.map(function (r) {
       return '<div class="prow' + (r.on ? '' : ' unprot') + '">' + switchHTML(r.on ? 'on' : 'off', 'data-ipt="' + r.i + '"', (r.on ? 'Protected: ' : 'Not protected: ') + r.label + (r.prov ? ' (' + r.prov + ')' : '')) +
-        '<div class="f s-calc"><span class="l"><span>' + esc(r.label) + '</span>' + (r.prov ? '<span class="rt">' + esc(r.prov) + '</span>' : '') + '</span><span class="box"><input value="' + esc(util.money(r.inst) + ' p.m.') + '" readonly tabindex="-1" autocomplete="off"></span></div></div>';
+        '<div class="f s-calc"><span class="l"><span>' + esc(r.label) + '</span>' + (r.prov ? '<span class="rt">' + esc(r.prov) + '</span>' : '') + '</span><span class="box"><input value="' + esc(util.money(r.inst) + ' p.m.') + '" readonly tabindex="-1" autocomplete="off" aria-label="' + esc('Instalment (R p.m.): ' + r.label + (r.prov ? ' (' + r.prov + ')' : '')) + '"></span></div></div>';
     }).join('');
     var hh = fieldHTML(f.ip_hh, false);
     if (sp.over) hh = hh.replace('class="f ', 'class="f neg ');
@@ -2344,6 +2349,7 @@
     var drained = vm.queue;                                                                                    // lines still being put on the form finish before the final check
     vm.done = {}; vm.on = on; vm.target = null; vm.answered = false; vm.secGlow = on; vm.noteMode = null; vm.rowCur = {}; vm.queue = Promise.resolve(); vm.slow = 0; vm.epoch++; vm.digits = null; vm.run = null; vm.erun = null; vm.eann = null; vm.paused = false; vm.pointed = null; vm.moveSeq = 0; vm.laneTarget = null; cv.live = ''; vmCur = null;
     if (vm.wipe) { vm.wipe = null; var wd = document.getElementById('wipe'); if (wd && wd.open) wd.close(); }   // switching Voice on or off never leaves the question hanging
+    if (on) consentNote();
     if (!on) listenStop();                                                                                       // no voice mode, nothing to listen for
     clearTimeout(vm.sweepT); vm.sweepSecs = {};
     if (!on && vmSweepMode() !== '0' && vmAIReady() && cv.all.length - vm.sweptAll >= 6) drained.then(function () { vmSweep({ sec: null, from: 0, why: 'end' }); });     // the end of the meeting: nothing said is left unchecked
@@ -2393,6 +2399,7 @@
   }
   function listenStart() {
     if (!FF.listen || lsn) return;
+    consentNote();
     if (meeting.fresh()) { meeting.start(); meetingRender(); }                                        // the meeting starts when Listen is first pressed
     if (!vm.on) vmToggle(true);
     var p = speechPrefs(), set = FF.lookup.getSettings(), status = '', kind = p.engine === 'chrome' ? 'warn' : '';
