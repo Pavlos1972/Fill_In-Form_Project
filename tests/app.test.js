@@ -429,7 +429,7 @@ test('a marriage date that is only a year is accepted, and one in the future is 
 
 test('income protection (fractured cover): the insured amount is split into the instalment protector, one line for each debt with an instalment, and household needs', () => {
   const s = fresh(), c = () => store.ctxFor(s);
-  assert.deepStrictEqual(calc.ipSplit(c()), { insured: null, rows: [], total: 0, rest: null, over: false });     // nothing known yet
+  assert.deepStrictEqual(calc.ipSplit(c()), { insured: null, rows: [], total: 0, all: 0, on: 0, count: 0, rest: null, over: false });     // nothing known yet
   assert.strictEqual(calc.field('ip_hh', c()), '');
   set(s, 'net', 'R 60 000.00');
   [['Home loan', 'Nedbank', 10000], ['Vehicle finance', 'Wesbank', 10000], ['Credit card', 'Discovery Bank', 5000], ['Personal loan', 'Capitec', 5000]].forEach(d => store.addRow(s, 'debts', { type: d[0], prov: d[1], inst: 'R ' + d[2] + '.00' }));
@@ -440,7 +440,7 @@ test('income protection (fractured cover): the insured amount is split into the 
   assert.strictEqual(calc.field('ip_amt', c()), 'R 60 000.00'); assert.strictEqual(calc.field('ip_hh', c()), 'R 30 000.00');
   assert.strictEqual(sp.rows.reduce((a, r) => a + r.inst, 0) + sp.rest, sp.insured);                                   // 10 000 + 10 000 + 5 000 + 5 000 + 30 000 = 60 000
   store.addRow(s, 'debts', { type: 'Other', desc: 'Boat loan', prov: 'Other', prov_other: 'Local bank', inst: 'R 3 000' });
-  assert.deepStrictEqual(calc.ipSplit(c()).rows.pop(), { label: 'Boat loan', prov: 'Local bank', inst: 3000 });
+  assert.deepStrictEqual(calc.ipSplit(c()).rows.pop(), { i: 5, label: 'Boat loan', prov: 'Local bank', inst: 3000, on: true });
   assert.strictEqual(calc.field('ip_hh', c()), 'R 27 000.00');
   assert.deepStrictEqual(validate.check(c()), []);
   store.addRow(s, 'debts', { type: 'Revolving credit', inst: 'R 40 000' });                                            // more than the insured amount
@@ -449,6 +449,31 @@ test('income protection (fractured cover): the insured amount is split into the 
   const blk = schema.sections.find(x => x.id === 'calc').blocks.find(b => b.protector);
   assert.deepStrictEqual(blk.fields.map(f => f.id).slice(0, 3), ['ip_age', 'ip_amt', 'ip_hh']);                         // the insured amount sits right under the age
   assert.strictEqual(blk.title, 'Income protection / sickness benefit: fractured cover');
+});
+test('the instalment protector: a switch for each debt and one for all, and household needs follows', () => {
+  const s = fresh(), c = () => store.ctxFor(s);
+  set(s, 'net', 'R 60 000.00');
+  [['Home loan', 'Nedbank', 10000], ['Vehicle finance', 'Wesbank', 10000], ['Credit card', 'Discovery Bank', 5000], ['Personal loan', 'Capitec', 5000]].forEach(d => store.addRow(s, 'debts', { type: d[0], prov: d[1], inst: 'R ' + d[2] + '.00' }));
+  const st = () => { const p = calc.ipSplit(c()); return [p.on, p.count, p.total, p.rest, calc.field('ip_hh', c())]; };
+  assert.deepStrictEqual(st(), [4, 4, 30000, 30000, 'R 30 000.00']);                                        // every debt is protected to begin with
+  store.setProtect(s, 2, false); store.setProtect(s, 3, false);                                             // credit card and personal loan off
+  assert.deepStrictEqual(st(), [2, 4, 20000, 40000, 'R 40 000.00']);
+  assert.strictEqual(calc.ipSplit(c()).all, 30000);
+  assert.deepStrictEqual(calc.ipSplit(c()).rows.map(r => r.on), [true, true, false, false]);
+  assert.strictEqual(s.l.debts[2].st, 'confirmed'); s.l.debts[2].st = 'verify'; store.setProtect(s, 2, false); assert.strictEqual(s.l.debts[2].st, 'verify');      // a switch does not touch the row's status
+  store.setProtectAll(s, false); assert.deepStrictEqual(st(), [0, 4, 0, 60000, 'R 60 000.00']);          // the master switch off: nothing protected, the whole insured amount is household needs
+  store.setProtectAll(s, true); assert.deepStrictEqual(st(), [4, 4, 30000, 30000, 'R 30 000.00']);
+  store.addRow(s, 'debts', { type: 'Revolving credit', inst: 'R 40 000' });                                  // a new debt starts switched on, and the warning counts only the protected ones
+  assert.strictEqual(calc.ipSplit(c()).over, true);
+  store.setProtect(s, 4, false); assert.strictEqual(calc.ipSplit(c()).over, false); assert.deepStrictEqual(validate.check(c()).filter(x => x.id === 'ip_hh'), []);
+  store.setProtect(s, 0, false); store.delRow(s, 'debts', 0);                                                // the switch goes with its debt
+  assert.deepStrictEqual(calc.ipSplit(c()).rows.map(r => r.label + ':' + r.on), ['Car:true', 'Credit card:true', 'Personal loan:true', 'Revolving credit:false']);
+  store.setProtect(s, 1, false);
+  const back = store.fromJSON(store.toJSON(s));                                                              // saved with the file
+  assert.deepStrictEqual(back.l.debts.map(r => r.off === true), [false, true, false, true]);
+  assert.deepStrictEqual(calc.ipSplit(store.ctxFor(back)).rows.map(r => r.on), [true, false, true, false]);
+  assert.ok(!('off' in store.fromJSON(JSON.stringify({ app: 'wr-fact-find', l: { debts: [{ d: { type: 'Home loan', inst: '1000' } }] } })).l.debts[0]));   // an older file: every debt protected
+  assert.ok(!schema.lists.debts.cols.some(c => c.k === 'off' || c.k === 'prot'));                            // not a box on the Debts page
 });
 test('the Standard Quotes have an income protection and a dread disease quote of their own, and an older file keeps its answers', () => {
   ['ips_age', 'ips_amt', 'ips_wait', 'ips_aci', 'ips_abiv', 'ips_cmt', 'dds_cover', 'dds_term', 'dds_termv', 'dds_aci', 'dds_abiv', 'dds_cmt'].forEach(id => assert.ok(schema.fieldsById[id], id));
