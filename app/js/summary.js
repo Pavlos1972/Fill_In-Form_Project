@@ -47,7 +47,7 @@
   /* The same, with the boxes named by their labels, as it is sent to Claude (lists with no rows are left out; the totals go in with the facts). */
   function labelled(data) {
     var out = { facts: {}, lists: {} };
-    Object.keys(data.fields).forEach(function (id) { out.facts[schema.fieldsById[id].l.replace(/^[^:]*: /, '')] = data.fields[id]; });
+    Object.keys(data.fields).forEach(function (id) { var f = schema.fieldsById[id]; out.facts[(f.vl || f.l).replace(/^[^:]*: /, '')] = data.fields[id]; });       // vl: the label that tells the two kinds of life quote apart
     Object.keys(data.totals || {}).forEach(function (l) { out.facts[l] = data.totals[l]; });
     Object.keys(data.lists).forEach(function (key) {
       var L = schema.lists[key];
@@ -83,11 +83,15 @@
       else if (d.has_group === 'Not sure') out.push('Not sure whether there is group risk');
       else if (d.has_group === 'Yes') { if (grp.length) grp.forEach(function (r) { out.push('Group risk: ' + parts(r.prov, pm(r.spend), r.broker, r.notes)); }); else out.push('Group risk through the employer: yes, no details recorded yet'); }
       (L.debts || []).filter(function (r) { return r.cl; }).forEach(function (r) { out.push('Credit life: ' + parts(r.type || r.desc, (r.prov || r.prov_other) && '(' + (r.prov || r.prov_other) + ')').replace(', (', ' (') + ': ' + lower(r.cl)); });
-      var q = [];
-      if (d.fna_req === 'Request a quote') q.push('FNA quote' + (d.fna_type && d.fna_type !== 'N/A' ? ' (' + lower(d.fna_type) + ')' : ''));
-      if (d.sf_req === 'Request a quote') q.push('shortfall quote');
-      (L.redq || []).filter(function (r) { return r.req === 'Request a quote'; }).forEach(function (r) { q.push('reduced quote' + (r.amt ? ' ' + pm(r.amt) : '')); });
-      if (q.length) out.push('Quote asked for: ' + q.join(', '));
+      var br = [], std = [], ins = function (v) { var a = String(v || '').split(';').map(function (x) { return x.trim(); }).filter(Boolean); return a.length ? ' from ' + a.join(', ') : ''; };
+      if (d.bf_fna_req === 'Request a quote') br.push('FNA quote' + (d.bf_fna_type && d.bf_fna_type !== 'N/A' ? ' (' + lower(d.bf_fna_type) + ')' : ''));
+      if (d.bf_sf_req === 'Request a quote') br.push('shortfall quote' + (d.bf_sf_type && d.bf_sf_type !== 'N/A' ? ' (' + lower(d.bf_sf_type) + ')' : ''));
+      (L.bfred || []).filter(function (r) { return r.req === 'Request a quote'; }).forEach(function (r) { br.push('reduced quote' + (r.amt ? ' ' + pm(r.amt) : '')); });
+      if (d.fna_req === 'Request a quote') std.push('FNA quote' + (d.fna_type && d.fna_type !== 'N/A' ? ' (' + lower(d.fna_type) + ')' : '') + ins(d.fna_ins));
+      if (d.sf_req === 'Request a quote') std.push('shortfall quote' + (d.sf_type && d.sf_type !== 'N/A' ? ' (' + lower(d.sf_type) + ')' : '') + ins(d.sf_ins));
+      (L.redq || []).filter(function (r) { return r.req === 'Request a quote'; }).forEach(function (r) { std.push('reduced quote' + (r.amt ? ' ' + pm(r.amt) : '') + ins(r.ins)); });
+      if (br.length) out.push('BrightRock Fractured quote asked for: ' + br.join(', '));
+      if (std.length) out.push('Standard quote asked for: ' + std.join(', '));
       Object.keys(T).forEach(function (l) { out.push(l + ': ' + T[l] + (/monthly/.test(l) ? ' p.m.' : '')); });
       return out;
     },

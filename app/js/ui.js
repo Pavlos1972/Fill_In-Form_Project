@@ -175,11 +175,14 @@
      until it is unticked; ticking a choice unticks it; unticking every choice goes back to it (once the list is closed). */
   var msOpen = '', msFree = {};
   function msParts(v) { return String(v == null ? '' : v).split(';').map(function (x) { return x.trim(); }).filter(Boolean); }
+  /* def.nona: a list with no "(not asked yet)" row (the insurers of a standard quote: nothing ticked is just "not chosen yet"); a value that is not one of the choices (an insurer typed in an older file, or said) is kept and listed ticked. */
+  function msExtra(def, sel) { return sel.filter(function (x) { return def.o.indexOf(x) < 0; }); }
   function multiHTML(def, v, disabled) {
-    var sel = msParts(v), open = msOpen === def.id, na = !sel.length && !msFree[def.id];
-    var rows = '<label' + (disabled ? ' class="dis"' : '') + '><input type="checkbox" data-ck="' + def.id + '|na"' + (na ? ' checked' : '') + (disabled ? ' disabled' : '') + '> (not asked yet)</label><hr>' +
-      def.o.map(function (o, i) { var dis = disabled || na; return '<label' + (dis ? ' class="dis"' : '') + '><input type="checkbox" data-ck="' + def.id + '|' + i + '"' + (sel.indexOf(o) >= 0 ? ' checked' : '') + (dis ? ' disabled' : '') + '> ' + esc(o) + '</label>'; }).join('');
-    return '<div class="ms" data-ms="' + def.id + '"><button type="button" class="msb' + (open ? ' open' : '') + '" data-msb="' + def.id + '" aria-expanded="' + open + '"' + (disabled ? ' disabled' : '') + '>' + esc(sel.length ? sel.join(' + ') : '(not asked yet)') + '</button>' + (open ? '<div class="msp">' + rows + '</div>' : '') + '</div>';
+    var sel = msParts(v), open = msOpen === def.id, na = !def.nona && !sel.length && !msFree[def.id], extra = msExtra(def, sel);
+    var rows = (def.nona ? '' : '<label' + (disabled ? ' class="dis"' : '') + '><input type="checkbox" data-ck="' + def.id + '|na"' + (na ? ' checked' : '') + (disabled ? ' disabled' : '') + '> (not asked yet)</label><hr>') +
+      def.o.map(function (o, i) { var dis = disabled || na; return '<label' + (dis ? ' class="dis"' : '') + '><input type="checkbox" data-ck="' + def.id + '|' + i + '"' + (sel.indexOf(o) >= 0 ? ' checked' : '') + (dis ? ' disabled' : '') + '> ' + esc(o) + '</label>'; }).join('') +
+      extra.map(function (o, i) { return '<label><input type="checkbox" data-ck="' + def.id + '|x' + i + '" checked> ' + esc(o) + '</label>'; }).join('');
+    return '<div class="ms" data-ms="' + def.id + '"><button type="button" class="msb' + (open ? ' open' : '') + (def.nona && !sel.length ? ' ph' : '') + '" data-msb="' + def.id + '" aria-expanded="' + open + '"' + (disabled ? ' disabled' : '') + '>' + esc(sel.length ? sel.join(def.nona ? ', ' : ' + ') : def.nona ? 'Choose insurer(s)' : '(not asked yet)') + '</button>' + (open ? '<div class="msp">' + rows + '</div>' : '') + '</div>';
   }
   function control(attrs, def, v, disabled) {
     if (def.t === 'multi') return multiHTML(def, v, disabled);
@@ -212,7 +215,7 @@
     var attrs = 'data-f="' + f.id + '"' + (f.hint ? ' placeholder="' + esc(f.hint) + '"' : '');
     var style = g12 ? ' style="--s:' + (f.wide ? 12 : (f.s || 4)) + '"' : '';
     var tag = f.t === 'multi' ? 'div' : 'label';
-    return '<' + tag + ' class="f s-' + st + (f.wide ? ' wide' : '') + '" data-field="' + f.id + '"' + style + '><span class="l"><span>' + esc(f.l) + '</span>' + (rt ? '<span class="rt">' + rt + '</span>' : '') + '</span>' +
+    return '<' + tag + ' class="f s-' + st + (f.wide ? ' wide' : '') + '" data-field="' + f.id + '"' + style + '><span class="l"><span>' + esc(f.sl || f.l) + '</span>' + (rt ? '<span class="rt">' + rt + '</span>' : '') + '</span>' +
       '<span class="box">' + control(attrs, f, v, !!f.calc || isNone) + (f.cal ? '<input type="date" class="calpick" data-calpick="' + f.id + '" tabindex="-1" aria-hidden="true">' : '') + (f.t === 'area' ? '' : '<span class="st">' + badge(st, 'f:' + f.id) + '</span>') + '</span>' +
       (f.len ? lenChip(f.id) : '') + '<span class="warn" data-warn="' + f.id + '" hidden></span></' + tag + '>';
   }
@@ -232,6 +235,14 @@
   function listHTML(key, hideTitle) {
     var L = schema.lists[key], rows = state.l[key], h = '';
     var hasSum = Object.keys(L.sum).length > 0;
+    if (L.dense) {                                                                                  // one short row for each quote: its boxes side by side, wrapping when the space is narrow
+      if (!rows.length) return '<div class="dempty"><span>None recorded yet.</span><button type="button" class="addrow" data-add="' + key + '">+ ' + esc(L.add) + '</button></div>';
+      rows.forEach(function (r, i) {
+        h += '<div class="rowcard drow rc-' + key + ' s-' + r.st + '"><div class="dcells">' + L.cols.map(function (c) { return cellHTML(key, i, c, r, true); }).join('') + '</div><div class="dtools">' +
+          ((r.st === 'heard' || r.st === 'verify') ? badge(r.st, 'r:' + key + ':' + i) : '') + '<button type="button" class="x" data-del="' + key + ':' + i + '" aria-label="Remove ' + esc(L.cards.toLowerCase()) + ' ' + (i + 1) + '">✕</button></div></div>';
+      });
+      return h + '<button type="button" class="addrow" data-add="' + key + '">+ ' + esc(L.add) + '</button>';
+    }
     if (L.cards) {
       if (!rows.length) h += '<div class="empty-list">None recorded yet.</div>';
       rows.forEach(function (r, i) {
@@ -282,47 +293,104 @@
     return '<div class="ipgrid"><div class="ipleft">' + fieldHTML(f.ip_age, false) + fieldHTML(f.ip_amt, false) + '</div>' +
       '<div class="protector"><h5>Instalment Protector</h5>' + (rows ? '<div class="prows">' + rows + '</div><div class="sumline"><span>Total instalments</span><b>' + esc(util.money(sp.total)) + ' p.m.</b></div>' : '<p class="help">No debt with an instalment on the Debts page yet.</p>') +
       '<div class="household"><h5>Household needs</h5>' + hh + '</div></div></div>' + quote +
-      gridHTML({ fields: b.fields.filter(function (x) { return !/^ip_(?:age|amt|hh)$/.test(x.id); }) }, c);
+      gridHTML({ layout: b.layout, fields: b.fields.filter(function (x) { return !/^ip_(?:age|amt|hh)$/.test(x.id); }) }, c);
   }
-  function blockHTML(b, sec, c) {
+  /* The top of the BrightRock Risk Calculation page: which BrightRock Fractured quotes were asked for on Client priorities and quotes needed. */
+  function stripHTML() {
+    var a = FF.actions.brightRockAsked(state);
+    return '<div class="brstrip"><b>Asked for on Client priorities and quotes needed</b><span>' + (a.length ? 'BrightRock Fractured: ' + esc(a.join(', ')) : 'No BrightRock Fractured quote asked for yet.') + '</span><span class="grow"></span><button type="button" class="btn ghost" data-sec="prio">&larr; Back to Client priorities and quotes needed</button></div>';
+  }
+  function blockHTML(b, sec, c, notitle) {
+    if (b.strip) return stripHTML();
     if (b.part) return '<div class="partband"><h3>' + esc(b.part) + '</h3>' + (b.sub ? '<span class="sub">' + esc(b.sub) + '</span>' : '') + '</div>';
     var ok = calc.showIf(b.cond, c), own = calc.showIf('own' in b ? b.own : b.cond, c), h = '';
     if (!ok && !b.grey && !('own' in b && own)) return '<div class="block-title">' + esc(b.title) + '</div><div class="note">' + esc(b.condMsg) + '</div>';      // a block whose rule is not met says so and goes away (unless it is only its area that is off)
-    if (b.title) h += '<div class="block-title">' + esc(b.title) + '</div>';
+    if (b.title && !notitle) h += '<div class="block-title">' + esc(b.title) + '</div>';
     if (!ok && !own && b.condMsg && !b.nomsg) h += '<div class="note">' + esc(b.condMsg) + '</div>';
     var inner = '';
     if (b.help) inner += '<p class="help">' + esc(b.help) + '</p>';
     if (b.protector) inner += protectorHTML(b, c); else if (b.actions) inner += paHTML(b, c); else if (b.fields) inner += gridHTML(b, c);
-    if (b.list) { if (!b.title && schema.lists[b.list].title !== sec.title) inner += '<div class="block-title">' + esc(schema.lists[b.list].title) + '</div>'; inner += listHTML(b.list); }
+    if (b.list) { if (!b.title && !notitle && schema.lists[b.list].title !== sec.title) inner += '<div class="block-title">' + esc(schema.lists[b.list].title) + '</div>'; inner += listHTML(b.list); }
     return h + (ok ? inner : '<div class="off" inert>' + inner + '</div>');
   }
-  /* One area of the Client priorities page: its decision and comments boxes on the left with its quotes and referrals, and a short summary of what the client has on the right.
-     The whole area takes a green haze when it is a priority, a red haze when it is not (its quotes are then greyed out; the comments box stays) and a yellow haze while the client is not sure or must check the budget (the quotes stay open). */
+  /* The Life area's quotes: BrightRock Fractured and Standard side by side, the same three rows (FNA, Shortfall, Reduced) in each. A row whose rule is not met in both (no group, for the shortfall) says so once across the two. */
+  function lanesHTML(blocks, sec, c) {
+    var pick = function (lane, row) { return blocks.filter(function (b) { return b.lane === lane && b.row === row; })[0]; };
+    var gone = function (x) { return x && x.condMsg && !calc.showIf(x.cond, c) && !calc.showIf('own' in x ? x.own : x.cond, c); };
+    var h = '<div class="lanes"><div class="lh br"><b>BrightRock: Fractured</b><span>built on the BrightRock Risk Calculation page</span><button type="button" class="btn ghost" data-sec="calc">Open BrightRock Risk Calculation &rarr;</button></div>' +
+      '<div class="lh std"><b>Standard</b><span>every other insurer (BrightRock too, when it is a standard quote)</span></div>';
+    ['fna', 'sf', 'red'].forEach(function (row) {
+      var a = pick('br', row), b = pick('std', row);
+      if (gone(a) && gone(b)) { h += '<div class="lc both"><div class="block-title">' + esc(a.title) + '</div><div class="note">' + esc(a.condMsg) + '</div></div>'; return; }
+      h += '<div class="lc br">' + blockHTML(a, sec, c) + '</div><div class="lc std">' + blockHTML(b, sec, c) + '</div>';
+    });
+    return h + '</div>';
+  }
+  /* What to ask for in a standard quote: one table, a row for each cover (Life cover, Permanent disability, Income protection, Dread disease). The boxes are the boxes of the four standard blocks, under their own ids. */
+  var SQ = { lc: { amt: 'lc_sa', term: ['lc_term', 'lc_termv'], aci: ['lc_aci', 'lc_aciv'], abi: 'lc_abiv', cmt: 'lc_cmt', name: 'Life cover' },
+    pd: { amt: 'pd_sa', term: ['pd_term', 'pd_termv'], aci: ['pd_aci', 'pd_aciv'], abi: 'pd_abiv', cmt: 'pd_cmt', name: 'Permanent disability' },
+    ip: { amt: 'ips_amt', term: ['ips_age'], aci: ['ips_aci', 'ips_aciv'], abi: 'ips_abiv', wait: 'ips_wait', cmt: 'ips_cmt', name: 'Income protection / sickness benefit' },
+    dd: { amt: 'dds_cover', term: ['dds_term', 'dds_termv'], aci: ['dds_aci', 'dds_aciv'], abi: 'dds_abiv', cmt: 'dds_cmt', name: 'Dread disease' } };
+  var sqdOpen = null;
+  function sqCell(id) {
+    var f = schema.fieldsById[id], st = state.f[id].st, attrs = 'data-f="' + id + '" aria-label="' + esc(f.l) + '"';
+    return '<span class="f s-' + st + '" data-field="' + id + '"><span class="box">' + control(attrs, f.t === 'area' ? { t: 'txt' } : f, state.f[id].v, false) + '</span><span class="warn" data-warn="' + id + '" hidden></span></span>';
+  }
+  function sqdHTML(blocks, c) {
+    var on = blocks.every(function (b) { return calc.showIf(b.cond, c); }), asked = state.f.fna_req.v === 'Request a quote' || state.f.sf_req.v === 'Request a quote' || state.l.redq.some(function (r) { return r.d.req === 'Request a quote'; });
+    var open = sqdOpen === null ? asked : sqdOpen, r = blocks.map(function (b) {
+      var m = SQ[b.sqd];
+      return '<tr><th scope="row">' + esc(m.name) + '</th><td>' + sqCell(m.amt) + '</td><td><div class="pair">' + m.term.map(sqCell).join('') + '</div></td><td><div class="pair">' + m.aci.map(sqCell).join('') + '</div></td><td>' + sqCell(m.abi) + '</td><td>' + (m.wait ? sqCell(m.wait) : '<span class="dash">-</span>') + '</td><td>' + sqCell(m.cmt) + '</td></tr>';
+    }).join('');
+    return '<details class="sqd"' + (open ? ' open' : '') + '><summary>Standard quote details: what to quote</summary><div class="' + (on ? '' : 'off') + '"' + (on ? '' : ' inert') + '><div class="tablewrap"><table class="sqt"><thead><tr><th>Cover</th><th>Amount (R)</th><th>Term / age</th><th>ACI</th><th>ABI</th><th>Waiting</th><th>Comments</th></tr></thead><tbody>' + r + '</tbody></table></div></div></details>';
+  }
+  function spanned(f, n, extra) { var o = {}; Object.keys(f).forEach(function (k) { o[k] = f[k]; }); o.s = n; Object.keys(extra || {}).forEach(function (k) { o[k] = extra[k]; }); return o; }
+  /* One area of the Client priorities and quotes needed page: the client's decision and the comments box (with, in a short area, its referral or request in the same row), a short summary beside them, and below the quotes that belong to it.
+     The whole area takes a green haze when it is a priority, a red haze when it is not (its quotes are then greyed out; the comments box stays) and a yellow haze while the client is not sure or must check the budget (the quotes stay open).
+     Business assurance is one grey line until the client is a business owner. */
   function panelHTML(sec, id) {
     var P = schema.panelsById[id], c = ctx(), v = P.dec ? state.f[P.dec].v : '', cls = v === schema.PRIORITY ? ' p1' : v === schema.NOT_PRIORITY ? ' p2' : (v === schema.UNSURE || v === schema.BUDGET) ? ' p3' : '';
     var applies = calc.showIf(P.cond, c);
     var chip = !P.dec ? (applies ? 'Business owner' : 'Not applicable') : cls === ' p1' ? 'Priority' : cls === ' p2' ? 'Not a priority' : cls === ' p3' ? (v === schema.BUDGET ? 'Needs to check budget' : 'Needs to think about it') : 'Not yet discussed';
-    var blocks = sec.blocks.filter(function (b) { return b.pri === id; }), head = blocks.filter(function (b) { return b.head; })[0];
-    var h = '<section class="prio' + cls + '" data-prio="' + id + '"><header><h3>' + esc(P.title) + '</h3><span class="sub">' + esc(P.sub) + '</span><span class="chip">' + chip + '</span></header><div class="pbody"><div class="pl">';
-    if (head) h += gridHTML(head, c);
-    if (!applies) h += '<div class="note warn">' + esc(P.condMsg) + ' <button type="button" class="btn ghost" data-sec="occ">Go to Occupation</button></div>';
+    var blocks = sec.blocks.filter(function (b) { return b.pri === id; }), head = blocks.filter(function (b) { return b.head; })[0], rest = blocks.filter(function (b) { return !b.head; });
+    var h = '<section class="prio' + cls + (applies ? '' : ' na') + '" data-prio="' + id + '"><header><h3>' + esc(P.title) + '</h3><span class="sub">' + esc(applies ? P.sub : P.condMsg) + '</span>' +
+      (applies ? '' : '<button type="button" class="btn ghost" data-sec="occ">Go to Occupation</button>') + '<span class="chip">' + chip + '</span></header>';
+    if (!applies) return h + '</section>';
+    var hb = head;
+    if (head && P.inline) {                                                                          // a short area: decision, referral or request and comments in one row
+      var inl = []; rest.forEach(function (b) { (b.fields || []).forEach(function (f) { inl.push(spanned(f, 4, { cond: b.cond, grey: 1 })); }); });
+      hb = { pri: id, head: 1, layout: 'g12', fields: [spanned(head.fields[0], 4)].concat(inl, [spanned(head.fields[1], 4)]) };       // the decision, the referral or request, the comments
+    }
+    h += '<div class="pbody' + (rest.some(function (b) { return b.lane; }) ? ' wideq' : '') + '"><div class="pl">' + (hb ? gridHTML(hb, c) : '');
     if (cls === ' p2') h += '<div class="note warn">The client said this is not a priority. The quote boxes are switched off. Use the comments box for the reason or your instructions.</div>';
-    h += '<div class="area">';
-    blocks.forEach(function (b) { if (!b.head) h += blockHTML(b, sec, c); });
-    if (id === 'life') h += '<p class="calc-link">The fractured covers and standard quotes (life, disability, income protection, dread disease) have their own page in the list. <button type="button" class="btn ghost" data-sec="calc">Open Risk Calculation &amp; Quotes</button></p>';
-    return h + '</div></div>' + (P.sum ? '<div class="sum" data-sum="' + id + '">' + sumInner(id) + '</div>' : '') + '</div></section>';
+    h += '</div>' + (P.sum ? '<div class="sum" data-sum="' + id + '">' + sumInner(id) + '</div>' : '');
+    if (!P.inline && rest.length) {
+      var doneL = false, doneS = false;
+      h += '<div class="area' + (rest.length === 1 ? ' flat' : '') + '">';
+      rest.forEach(function (b) {
+        if (b.lane) { if (!doneL) { doneL = true; h += lanesHTML(rest.filter(function (x) { return x.lane; }), sec, c); } return; }
+        if (b.sqd) { if (!doneS) { doneS = true; h += sqdHTML(rest.filter(function (x) { return x.sqd; }), c); } return; }
+        h += blockHTML(b, sec, c, rest.length === 1);
+      });
+      h += '</div>';
+    }
+    return h + '</div></section>';
   }
   function sectionHTML(sec) {
     var c = ctx();
     var h = '<header><h2>' + esc(sec.title) + '</h2>' + (sec.adv ? '' : '<span class="tier">Client answers</span>') + '</header>';
     if (!calc.showIf(sec.cond, c)) return h + '<div class="note">' + esc(sec.condMsg) + '</div>';
     if (sec.intro) h += '<p class="help">' + esc(sec.intro) + '</p>';
-    var seen = {}, cols = sec.layout === 'admin';
+    var seen = {}, cols = sec.layout === 'admin', pair = '';
+    var flush = function () { if (pair) { h += '<div class="halves">' + pair + '</div>'; pair = ''; } };           // blocks marked half sit two to a row
     if (cols) h += '<div class="admin">';
     sec.blocks.forEach(function (b) {
       if (b.pri) { if (!seen[b.pri]) { seen[b.pri] = 1; h += panelHTML(sec, b.pri); } return; }
+      if (b.half) { pair += '<div class="half">' + blockHTML(b, sec, c) + '</div>'; return; }
+      flush();
       h += cols ? '<div class="admcol">' + blockHTML(b, sec, c) + '</div>' : blockHTML(b, sec, c);
     });
+    flush();
     return h + (cols ? '</div>' : '');
   }
 
@@ -372,9 +440,8 @@
     var P = schema.panelsById[id], r = FF.summary.linesFor(state, id), busy = sumBusy[id], ready = vmAIReady();
     var when = r.by === 'claude' ? 'Written by Claude' + (r.at ? ', ' + new Date(r.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '')
       : busy ? 'Claude is writing this…' : ready ? 'Plain points from the form. Press Refresh for Claude to write them.' : 'Plain points from the form. Claude writes these when the Anthropic key is in Settings.';
-    return '<div class="sh">Summary<button type="button" class="link-btn" data-sumrefresh="' + id + '"' + (busy ? ' disabled' : '') + '>' + (busy ? 'Refreshing…' : 'Refresh') + '</button></div>' +
-      '<ul>' + (r.lines.length ? r.lines.map(function (l) { return '<li>' + esc(l) + '</li>'; }).join('') : '<li class="none">Nothing recorded yet</li>') + '</ul>' +
-      '<div class="src">Drawn from: ' + esc(P.src) + '</div><div class="when">' + esc(when) + '</div>';
+    return '<div class="sh">Summary<span class="info" tabindex="0" title="' + esc('Drawn from: ' + P.src + '. ' + when) + '">i</span><button type="button" class="link-btn" data-sumrefresh="' + id + '"' + (busy ? ' disabled' : '') + '>' + (busy ? 'Refreshing…' : 'Refresh') + '</button></div>' +
+      '<ul>' + (r.lines.length ? r.lines.map(function (l) { return '<li>' + esc(l) + '</li>'; }).join('') : '<li class="none">Nothing recorded yet</li>') + '</ul>';
   }
   function sumPaint(ids) { ids.forEach(function (id) { var el = document.querySelector('[data-sum="' + id + '"]'); if (el) el.innerHTML = sumInner(id); }); }
   /* Claude writes the points for every area that has none yet or whose facts have changed (all eight in one request). manual: the Refresh button, which rewrites the area. */
@@ -497,6 +564,7 @@
     }
   });
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape') msClose(); });
+  document.addEventListener('toggle', function (e) { if (e.target.classList && e.target.classList.contains('sqd')) sqdOpen = e.target.open; }, true);
   document.addEventListener('input', function (e) {                                                       // the first key typed in the action points makes them the adviser's own
     var t = e.target; if (!t.dataset || t.dataset.f !== 'pa_actions') return;
     state.pa.edited = t.value !== ''; paSure = false; var st = document.getElementById('paStatus'); if (st) st.textContent = paStatus();
@@ -505,13 +573,16 @@
     var t = e.target; if (!t.dataset || !t.dataset.ck) return;
     var at = t.dataset.ck.lastIndexOf('|'), id = t.dataset.ck.slice(0, at), which = t.dataset.ck.slice(at + 1), def = schema.fieldsById[id], have = msParts(state.f[id].v), val;
     if (which === 'na') { if (t.checked) { val = ''; msFree[id] = false; } else { msFree[id] = true; val = state.f[id].v; } }
-    else {
-      var o = def.o[+which], i = have.indexOf(o);
-      if (t.checked && i < 0) have.push(o); else if (!t.checked && i >= 0) have.splice(i, 1);
-      val = def.o.filter(function (x) { return have.indexOf(x) >= 0; }).join('; '); msFree[id] = !val;                  // everything unticked: the list stays open for another choice
-    }
+    else { msToggle(id, which.charAt(0) === 'x' ? msExtra(def, have)[+which.slice(1)] : def.o[+which], t.checked); return; }
     store.setField(state, id, val); vm.noSweep[id] = 1; touch(); redraw();
   });
+  /* Tick or untick one choice of a tick-box list (by hand, or from the list the voice mode opens). */
+  function msToggle(id, o, on) {
+    var def = schema.fieldsById[id], have = msParts(state.f[id].v), i = have.indexOf(o);
+    if (on && i < 0) have.push(o); else if (!on && i >= 0) have.splice(i, 1);
+    var val = def.o.filter(function (x) { return have.indexOf(x) >= 0; }).concat(msExtra(def, have)).join('; '); msFree[id] = !val;                  // everything unticked: the list stays open for another choice
+    store.setField(state, id, val); vm.noSweep[id] = 1; touch(); redraw();
+  }
   /* The calendar button: a hidden date picker opens on the date already typed (or today); the date chosen is written into the text box as day/month/year and saved like a typed one. */
   function openCalendar(id) {
     var pick = document.querySelector('[data-calpick="' + id + '"]'), box = document.querySelector('[data-f="' + id + '"]'); if (!pick || !box) return;
@@ -959,12 +1030,14 @@
     if (up) { vmPick.style.top = ''; vmPick.style.bottom = (vh - r.top + 3) + 'px'; } else { vmPick.style.bottom = ''; vmPick.style.top = (r.bottom + 3) + 'px'; }
   }
   function vmPickChoices(ctl) {
+    if (ctl.dataset && ctl.dataset.msb) return schema.fieldsById[ctl.dataset.msb].o.slice();
     if (ctl.tagName === 'SELECT') return [].map.call(ctl.options, function (o) { return o.value; }).filter(function (v) { return String(v).trim() !== ''; });
     var dl = ctl.getAttribute('list') && document.getElementById(ctl.getAttribute('list'));
     return dl ? [].map.call(dl.options, function (o) { return o.value; }) : [];
   }
   function vmSyncPick(el) {
     var ctl = el && el.querySelector ? el.querySelector('select, input[list]') : null, key = vm.target;
+    if (!ctl && el && el.querySelector) { var mb = el.querySelector('.msb[data-msb]'); if (mb && schema.fieldsById[mb.dataset.msb] && schema.fieldsById[mb.dataset.msb].nona) ctl = mb; }       // the insurers of a standard quote: a tick-box list opens too
     if (vmPickGone && vmPickGone !== key) vmPickGone = null;
     if (!ctl || ctl.disabled || ctl.readOnly || vmPickGone === key) { vmPickClose(); return; }
     var choices = vmPickChoices(ctl);
@@ -976,7 +1049,11 @@
     document.body.appendChild(vmPick); vmPickMark(); vmPickPlace();
     var on = vmPick.querySelector('.on'); if (on) vmPick.scrollTop = Math.max(0, on.offsetTop - 40);
   }
-  function vmPickMark() { if (!vmPick || !vmPickCtl) return; [].forEach.call(vmPick.querySelectorAll('button'), function (b) { b.classList.toggle('on', b.getAttribute('data-v') === vmPickCtl.value); }); }
+  function vmPickMark() {
+    if (!vmPick || !vmPickCtl) return;
+    var ticked = vmPickCtl.dataset && vmPickCtl.dataset.msb ? msParts(state.f[vmPickCtl.dataset.msb].v) : [vmPickCtl.value];
+    [].forEach.call(vmPick.querySelectorAll('button'), function (b) { b.classList.toggle('on', ticked.indexOf(b.getAttribute('data-v')) >= 0); });
+  }
   document.addEventListener('mousedown', function (e) {                                                  // a click on a choice keeps the focus where it is; a click anywhere else sends the list away
     if (!vmPick) return;
     if (vmPick.contains(e.target)) { e.preventDefault(); return; }
@@ -985,7 +1062,9 @@
   document.addEventListener('click', function (e) {
     var b = vmPick && e.target.closest ? e.target.closest('.vm-pick button') : null;
     if (!b || !vmPickCtl) return;
-    var ctl = vmPickCtl; ctl.value = b.getAttribute('data-v');
+    var ctl = vmPickCtl;
+    if (ctl.dataset && ctl.dataset.msb) { var id = ctl.dataset.msb, c = b.getAttribute('data-v'); msToggle(id, c, msParts(state.f[id].v).indexOf(c) < 0); return; }       // a tick-box list: the choice is ticked or unticked
+    ctl.value = b.getAttribute('data-v');
     ctl.dispatchEvent(new Event('input', { bubbles: true })); ctl.dispatchEvent(new Event('change', { bubbles: true }));   // the same path as a change by hand
   });
   document.addEventListener('change', function (e) {                                                      // a box filled by hand counts as answered: the glow and the list go

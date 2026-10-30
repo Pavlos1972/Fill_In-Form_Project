@@ -175,20 +175,20 @@
     debts: ['debts', 'debt', 'loans', 'liabilities'],
     kids: ['children', 'kids', 'dependants', 'dependents'],
     admin: ['admin', 'administration', 'action points', 'action points for personal assistant', 'personal assistant', 'actions for sitamah'],
-    calc: ['risk calculation and quotes', 'risk calculation', 'calculation', 'needs calculation', 'fractured covers', 'fractured cover', 'standard quotes'],
-    prio: ['client priorities identified', 'client priorities', 'priorities', 'what we recommend', 'recommendations', 'personal risk quotes', 'risk quotes', 'retirement and investment quotes', 'retirement quotes', 'investment quotes', 'referrals', 'business assurance', 'buy and sell', 'buy and sell agreement', 'key man', 'keyman', 'contingent liability']
+    calc: ['brightrock risk calculation', 'brightrock calculation', 'risk calculation and quotes', 'risk calculation', 'calculation', 'needs calculation', 'fractured covers', 'fractured cover', 'brightrock fractured covers'],
+    prio: ['client priorities and quotes needed', 'quotes needed', 'standard quotes', 'standard quote', 'client priorities identified', 'client priorities', 'priorities', 'what we recommend', 'recommendations', 'personal risk quotes', 'risk quotes', 'retirement and investment quotes', 'retirement quotes', 'investment quotes', 'referrals', 'business assurance', 'buy and sell', 'buy and sell agreement', 'key man', 'keyman', 'contingent liability']
   };
 
   /* What you might say when asking about each field. Fields without an entry are matched on their on-screen label. */
   /* "What type of quote is the shortfall?": the Type of quote box of the FNA, shortfall or reduced quote. The plain "type of quote" fits all three and the first one still empty is taken. */
   function TYPE_Q(w) {
-    return ['type of ' + w, w + ' type', w + ' quote type', 'type of ' + w + ' quote', 'type of quote for the ' + w, 'type of quote for ' + w, 'type of quote is the ' + w, 'type of quote is ' + w,
+    return [w + ' type of quote', 'type of ' + w, w + ' type', w + ' quote type', 'type of ' + w + ' quote', 'type of quote for the ' + w, 'type of quote for ' + w, 'type of quote is the ' + w, 'type of quote is ' + w,
       'type of quote', 'kind of quote', 'new business or servicing', 'servicing or new business', 'new business or a servicing', 'new or servicing'];
   }
   var ALIASES = {
     consent: ['consent', 'okay to record', 'record this', 'record that', 'record it', 'record the call', 'record our', 'record the conversation', 'recording', 'recorded', 'transcribe', 'go ahead and record', 'happy for us to record', 'happy for me to record', 'happy to be recorded', 'permission to record', 'mind if we record'],
     ref: ['referred', 'referral', 'who referred', 'how did you hear', 'where did you hear'],
-    fna_type: TYPE_Q('fna'), sf_type: TYPE_Q('shortfall'), 'redq.type': TYPE_Q('reduced'),
+    fna_type: TYPE_Q('fna'), sf_type: TYPE_Q('shortfall'), 'redq.type': TYPE_Q('reduced'), bf_fna_type: TYPE_Q('fna'), bf_sf_type: TYPE_Q('shortfall'), 'bfred.type': TYPE_Q('reduced'),
     fname: ['first name', 'full name', 'your name', 'my name', 'christian name', 'given name', 'name and surname'],
     sname: ['surname', 'last name', 'family name', 'second name'],
     dob: ['date of birth', 'birthday', 'birth date', 'when were you born', 'born'],
@@ -403,7 +403,8 @@
     bizpol: ['business policy', 'business policies', 'business assurance policy', 'business assurance policies', 'business assurance', 'business cover', 'keyman policy', 'key man policy', 'keyman cover', 'key man cover', 'buy and sell policy', 'buy and sell cover', 'contingent liability policy', 'contingent liability cover'],
     inv: ['investment', 'investments', 'unit trust', 'unit trusts', 'tax free', 'tax free investment', 'endowment', 'endowments'],
     shares: ['partner', 'partners', 'shareholder', 'shareholders', 'co owner', 'co owners', 'co director', 'co directors'],
-    redq: ['reduced quote', 'reduced quotes'],
+    redq: ['reduced quote', 'reduced quotes', 'standard reduced quote', 'standard reduced quotes'],
+    bfred: ['fractured reduced quote', 'fractured reduced quotes', 'brightrock reduced quote', 'brightrock reduced quotes', 'brightrock fractured reduced quote', 'brightrock fractured reduced quotes', 'reduced fractured quote'],
     raq: ['ra quote', 'ra quotes', 'retirement annuity quote', 'retirement annuity quotes'],
     invq: ['investment quote', 'investment quotes']
   };
@@ -430,7 +431,7 @@
             notes.push(ne); noteById[f.id] = ne; return;
           }
           if (f.calc || (f.opt && !f.voice) || (f.preset && !f.voice)) return;
-          var e = { id: f.id, label: f.l, sec: sec.id, blk: bi, blkTitle: b.title || '', cond: f.cond ? (b.cond ? { all: [b.cond, f.cond] } : f.cond) : b.cond, secCond: sec.cond, t: f.t === 'area' ? 'area' : (f.o ? 'sel' : 'txt'), multi: f.t === 'multi', options: f.o || null, free: !!f.free, money: !!f.money, none: !!f.none, lt: content(String(f.l).replace(/\([^)]*\)/g, ' ')), lx: bracketWords(f.l), bt: content(b.title || ''), order: fields.length };
+          var e = { id: f.id, label: f.vl || f.l, lane: b.lane || '', sec: sec.id, blk: bi, blkTitle: b.title || '', cond: f.cond ? (b.cond ? { all: [b.cond, f.cond] } : f.cond) : b.cond, secCond: sec.cond, t: f.t === 'area' ? 'area' : (f.o ? 'sel' : 'txt'), multi: f.t === 'multi', mk: typeof f.multi === 'string' ? f.multi : '', options: f.o || null, free: !!f.free, money: !!f.money, none: !!f.none, lt: content(String(f.l).replace(/\([^)]*\)/g, ' ')), lx: bracketWords(f.l), bt: content(b.title || ''), order: fields.length };
           fields.push(e); byId[f.id] = e;
         });
       });
@@ -444,7 +445,7 @@
         L.cols.forEach(function (c) {
           if (c.calc) return;
           var id = b.list + '.' + c.k;
-          var e = { id: id, list: b.list, k: c.k, label: c.l, sec: sec.id, blk: bi, blkTitle: b.title || '', cond: b.cond, secCond: sec.cond, t: c.t === 'area' ? 'area' : (c.o ? 'sel' : 'txt'),
+          var e = { id: id, list: b.list, k: c.k, label: c.l, lane: b.lane || '', sec: sec.id, blk: bi, blkTitle: b.title || '', cond: b.cond, secCond: sec.cond, t: c.t === 'area' ? 'area' : (c.o ? 'sel' : 'txt'),
             options: c.o || null, free: !!c.free, money: !!c.money, date: !!c.date, none: false, vid: LIST_VID[id] || null, lt: content(String(c.l).replace(/\([^)]*\)/g, ' ')), lx: bracketWords(c.l), bt: content(L.title), order: fields.length };
           fields.push(e); byId[id] = e; lists[b.list].cols.push(id);
         });
@@ -474,8 +475,7 @@
     cover: ['personal risk cover', 'group risk cover', 'group risk', 'group cover', 'existing policies'],
     retire: ['pension and provident', 'pension fund', 'provident fund', 'retirement annuities'],
     info: ['contact details', 'the client'],
-    calc: ['fractured covers', 'fractured cover', 'standard quotes'],
-    prio: ['personal risk quotes', 'risk quotes', 'retirement and investment quotes', 'retirement quotes', 'investment quotes', 'referrals', 'business assurance', 'buy and sell', 'buy and sell agreement', 'key man', 'keyman', 'contingent liability']
+    prio: ['standard quotes', 'standard quote', 'personal risk quotes', 'risk quotes', 'retirement and investment quotes', 'retirement quotes', 'investment quotes', 'referrals', 'business assurance', 'buy and sell', 'buy and sell agreement', 'key man', 'keyman', 'contingent liability']
   };
   function isPartial(hit) { return !!hit && (PARTIAL_WORDS[hit.id] || []).indexOf(hit.word) >= 0; }
   function isSectionName(textNorm, idx) {
@@ -627,10 +627,15 @@
   /* opts: { cur: current section id, isEmpty(id) } -> { id, score } or null. */
   function matchQuestion(text, idx, opts) {
     opts = opts || {};
-    var tn = norm(text), tk = tn ? tn.split(' ') : [], best = null, named = listsNamed(tn);
+    var tn = norm(text), best = null, named = listsNamed(tn);
     if (!tn) return null;
+    var fr = /\b(?:fractured|brightrock|bright rock)\b/.test(tn), sd = /\bstandard\b/.test(tn);
+    var tw = tn.replace(/\b(?:fractured|standard|brightrock|bright rock)\b/g, ' ').replace(/\s+/g, ' ').trim(), tk = tw ? tw.split(' ') : [];       // the words that name the kind of quote are not part of what is asked about ("type of fractured FNA quote")
     idx.fields.forEach(function (f) {
-      var s = scoreField(f, tn, tk);
+      var s = scoreField(f, tw, tk);
+      if (f.lane && s > 0) {                                                                       // "the fractured FNA" / "the BrightRock quote" is the BrightRock Fractured one, "the standard FNA" the standard one; a plain "FNA quote" is the standard one
+        if (f.lane === 'br') { if (fr && !sd) s += 3; } else if (sd || !fr) s += sd ? 3 : 0.05;
+      }
       if (f.list && s > 0) { if (opts.boost && opts.boost[f.list]) s += 2; if (named[f.list]) s += 2; else if (/\b(?:your|my)\b/.test(tn)) s -= 1.5; }   // "the child's name" is the list; "your name" is the client
       if (s < 2) return;
       var total = s + (f.sec === opts.cur ? 1.5 : 0) + (!opts.isEmpty || opts.isEmpty(f.id) ? 0.4 : 0) + (f.bt && f.bt.some(function (w) { return tk.indexOf(w) >= 0; }) ? 1 : 0) + (f.list && opts.curList === f.list ? 0.6 : 0);   // the list the talk is in now wins a tie ("the monthly contribution" after a pension fund)
@@ -835,7 +840,7 @@
   SPECIAL.loa = function (t) { return / (not now|not yet|not right now|not at the moment|maybe later|later|another time|next time|not today) /.test(' ' + t + ' ') ? 'Not now' : null; };
 
   /* Type of quote: "it's new business", "servicing", "not applicable" / "N/A". */
-  ['fna_type', 'sf_type', 'redq.type'].forEach(function (id) {
+  ['fna_type', 'sf_type', 'redq.type', 'bf_fna_type', 'bf_sf_type', 'bfred.type'].forEach(function (id) {
     SPECIAL[id] = function (t, raw) {
       var s = ' ' + t + ' ', r = ' ' + String(raw || '').toLowerCase() + ' ';
       var nb = / (new business|new policy|new quote|new) /.test(s), sv = / (servicing|serviced|service) /.test(s), na = / (n a|na|not applicable|none) /.test(s) || /\bn\s*\/\s*a\b/.test(r);
@@ -932,10 +937,18 @@
     var out = opts.filter(function (o) { return picked[o]; });
     return out.length ? { value: out.join('; '), status: 'heard', append: true } : { error: 'no-match' };
   }
-  /* What a tick-box box holds after more is said ("and through Astute as well"): the old choices and the new ones, in the order of the options. */
+  /* The insurers of a standard quote (a tick-box box, mk "ins"): every insurer in the options that is named ("Old Mutual and Discovery"). Others (FNB) are for Claude to add. */
+  function interpretInsurers(f, t) {
+    var s = ' ' + t + ' ', out = (f.options || []).filter(function (o) {
+      var base = norm(o.replace(/\(.*?\)/g, ' '));
+      return /^other$/i.test(o) ? / (?:other|another|someone else|something else|different insurer) /.test(s) : base && has(t, base);
+    });
+    return out.length ? { value: out.join('; '), status: 'heard', append: true } : { error: 'no-match' };
+  }
+  /* What a tick-box box holds after more is said ("and through Astute as well"): the old choices and the new ones, in the order of the options (a value that is not an option is kept, after them). */
   function mergeMulti(prev, next, options) {
-    var have = {}; String(prev || '').split(';').concat(String(next || '').split(';')).forEach(function (x) { x = x.trim(); if (x) have[x] = 1; });
-    return (options || []).filter(function (o) { return have[o]; }).join('; ');
+    var have = {}, order = []; String(prev || '').split(';').concat(String(next || '').split(';')).forEach(function (x) { x = x.trim(); if (x && !have[x]) { have[x] = 1; order.push(x); } });
+    return (options || []).filter(function (o) { return have[o]; }).concat(order.filter(function (x) { return (options || []).indexOf(x) < 0; })).join('; ');
   }
   function interpret(f, raw) {
     var id = vid(f);
@@ -943,7 +956,7 @@
     var t = norm(raw);
     if (!t) return null;
     if (f.none && yesNo(t) === 'no') return ok('None');
-    if (f.multi) return interpretMulti(f, t);
+    if (f.multi) return f.mk === 'ins' ? interpretInsurers(f, t) : interpretMulti(f, t);
     if (f.options) return pickOption(f, t, raw);
     if (f.money) {
       var amt = wordsToNumber(raw);
@@ -1021,7 +1034,7 @@
   /* What a sentence that introduces a row says about it: "a home loan with ABSA bank" -> type Home loan, provider ABSA; "a daughter called Thandi, born
      22 August 2019" -> name, gender, date of birth. Only what is clear is taken; leftover says how many words were not understood, so Claude can read the rest. */
   var INTERVIEW = { debts: ['type', 'prov', 'desc', 'inst', 'bal'], risk: ['prov', 'spend', 'broker'], grp: ['prov', 'spend', 'broker'], ret_ra: ['prov', 'val', 'contrib'], ret_pp: ['type', 'prov', 'val', 'contrib'], bizpol: ['type', 'prov', 'cover', 'prem'], inv: ['type', 'prov', 'val', 'prem'],
-    kids: ['name', 'sname', 'gender', 'dob', 'cost'], shares: ['name', 'pct'], redq: ['req', 'ins', 'amt'], raq: ['req', 'ins', 'monthly', 'lump'], invq: ['purpose', 'product', 'ins', 'monthly', 'lump'] };
+    kids: ['name', 'sname', 'gender', 'dob', 'cost'], shares: ['name', 'pct'], redq: ['req', 'ins', 'amt'], bfred: ['req', 'amt'], raq: ['req', 'ins', 'monthly', 'lump'], invq: ['purpose', 'product', 'ins', 'monthly', 'lump'] };
   var ROW_COLS = { debts: ['type', 'prov'], risk: ['prov'], grp: ['prov'], ret_ra: ['prov'], ret_pp: ['type', 'prov'], bizpol: ['type', 'prov'], inv: ['type', 'prov'] };
   var ROW_SYN = {
     'debts.type': { 'Home loan': ['bond', 'mortgage', 'house loan', 'home bond', 'property loan'], 'Vehicle finance': ['car finance', 'vehicle loan', 'car loan', 'car payment', 'vehicle'], 'Credit card': ['card'], 'Revolving credit': ['overdraft', 'revolving'] },

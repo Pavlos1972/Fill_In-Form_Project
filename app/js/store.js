@@ -47,7 +47,8 @@
     (state.l.kids || []).forEach(function (r) { if (!r.d.sname || (was && r.d.sname === was)) r.d.sname = now; });
   }
   /* A quote that is not required has no type and no insurer: when it is set to not required they are cleared, so nothing is left behind (the boxes themselves go away, see schema.js). */
-  var NOT_REQUIRED = { fna_req: { vals: ['Not required', 'No FNA done'], clear: ['fna_type', 'fna_ins'] }, sf_req: { vals: ['Not required'], clear: ['sf_type', 'sf_ins'] } };
+  var NOT_REQUIRED = { fna_req: { vals: ['Not required', 'No FNA done'], clear: ['fna_type', 'fna_ins'] }, sf_req: { vals: ['Not required'], clear: ['sf_type', 'sf_ins'] },
+    bf_fna_req: { vals: ['Not required', 'No FNA done'], clear: ['bf_fna_type'] }, bf_sf_req: { vals: ['Not required'], clear: ['bf_sf_type'] } };
   /* "Other" in a policy schedule list opens its small box: when Other is not ticked any more, what was typed there goes. */
   var PS_OTHER_BOX = { ps_risk: 'ps_risk_ot', ps_grp: 'ps_grp_ot', ps_ra: 'ps_ra_ot', ps_pp: 'ps_pp_ot', ps_inv: 'ps_inv_ot' };
   function setField(state, id, v, st) {
@@ -68,7 +69,7 @@
   function delRow(state, key, i) { state.l[key].splice(i, 1); }
   function setCell(state, key, i, k, v, st) {
     var r = state.l[key][i]; r.d[k] = v; r.st = st || 'confirmed';
-    if (key === 'redq' && k === 'req' && v === 'Not required') { r.d.type = ''; r.d.ins = ''; r.d.amt = ''; }        // a reduced quote that is not required keeps nothing
+    if ((key === 'redq' || key === 'bfred') && k === 'req' && v === 'Not required') { r.d.type = ''; r.d.amt = ''; if ('ins' in r.d) r.d.ins = ''; }        // a reduced quote that is not required keeps nothing
   }
   function accept(state, target) {
     if (target.list) state.l[target.list][target.i].st = 'confirmed';
@@ -121,6 +122,7 @@
       });
     });
     splitRetirement(s, j);
+    brightRockLane(s, j);
     s.sum = cleanSum(j.sum);
     s.pa = cleanPa(j.pa);
     legacyNotes(s, j);
@@ -138,6 +140,22 @@
       var d = r && r.d || {}, k = /pension|provident/i.test(d.type || '') ? 'ret_pp' : 'ret_ra', n = {};
       schema.lists[k].cols.forEach(function (c) { n[c.k] = d[c.k] || ''; });
       if (Object.keys(n).some(function (x) { return n[x]; })) s.l[k].push({ d: n, st: r.st || 'confirmed' });
+    });
+  }
+  /* Files saved before the BrightRock Fractured quotes had their own boxes: every FNA, Shortfall and Reduced quote the client was to get from BrightRock (the insurer box says BrightRock) moves to the BrightRock Fractured
+     boxes; the rest are the Standard quotes and stay where they were. A file saved since (it holds the BrightRock boxes) is left as it is. */
+  function brightRockLane(s, j) {
+    if (j.f && 'bf_fna_req' in j.f) return;
+    var isBR = function (v) { return /^\s*brightrock\s*$/i.test(String(v == null ? '' : v)); };
+    [['fna_req', 'fna_type', 'fna_ins', 'bf_fna_req', 'bf_fna_type'], ['sf_req', 'sf_type', 'sf_ins', 'bf_sf_req', 'bf_sf_type']].forEach(function (m) {
+      if (!isBR(s.f[m[2]].v) || !s.f[m[0]].v) return;
+      s.f[m[3]] = s.f[m[0]]; s.f[m[4]] = s.f[m[1]];
+      s.f[m[0]] = { v: '', st: 'empty' }; s.f[m[1]] = { v: '', st: 'empty' }; s.f[m[2]] = { v: '', st: 'empty' };
+    });
+    s.l.redq = s.l.redq.filter(function (r) {
+      if (!isBR(r.d.ins)) return true;
+      s.l.bfred.push({ d: { req: r.d.req, type: r.d.type, amt: r.d.amt }, st: r.st });
+      return false;
     });
   }
   /* The notes boxes of the old advisor pages (quotes, referrals, buy & sell) are now one notes box on the Client priorities page (the Risk calculation page keeps its own): what was written in them is kept there, each under its old heading. */
