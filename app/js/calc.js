@@ -23,7 +23,7 @@
     ctx.rows('debts').forEach(function (r, i) {
       var inst = util.num(r.d.inst); if (!(inst > 0)) return;
       var prot = r.off !== true;
-      rows.push({ i: i, label: IP_NAMES[r.d.type] || (r.d.type === 'Other' && r.d.desc) || r.d.desc || (r.d.type === 'Other' ? 'Other debt' : r.d.type) || 'Debt', prov: (r.d.prov === 'Other' ? r.d.prov_other : r.d.prov) || r.d.prov_other || '', inst: inst, on: prot });
+      rows.push({ i: i, label: IP_NAMES[r.d.type] || (r.d.type === 'Other' && r.d.desc) || r.d.desc || (r.d.type === 'Other' ? 'Other debt' : r.d.type) || 'Debt', prov: r.d.prov || '', inst: inst, on: prot });
       all += inst; if (prot) { total += inst; on++; }
     });
     return { insured: insured, rows: rows, total: total, all: all, on: on, count: rows.length, rest: insured == null ? null : insured - total, over: insured != null && total > insured + 0.004 };

@@ -21,13 +21,13 @@
   function andList(a) { return a.length < 2 ? a.join('') : a.slice(0, -1).join(', ') + ' and ' + a[a.length - 1]; }
   var BR = 'BrightRock Fractured', STD = 'Standard';                                                    // the two kinds of life quote
 
-  /* What the form holds for the action points: { client, letter_of_authority, schedules, credit_life, quotes, referrals, undecided, instructions, appointment }.
+  /* What the form holds for the action points: { client, letter_of_authority, schedules, credit_life, quotes, preferred_monthly_spend, referrals, undecided, instructions, appointment }.
      A life quote (FNA, Shortfall, Reduced) says which kind it is: "BrightRock Fractured" (insurer BrightRock, built on the calculation page) or "Standard" (one or more insurers). */
   function facts(state) {
     var ctx = store.ctxFor(state), v = function (id) { return String(state.f[id] && state.f[id].v != null ? state.f[id].v : '').trim(); };
     var shows = function (id) { var f = schema.fieldsById[id], b = blockOfField[id]; return !!f && (!b || calc.showIf(b.cond, ctx)) && calc.showIf(f.cond, ctx); };
     var listOn = function (key) { var b = blockOfList[key]; return !b || calc.showIf(b.cond, ctx); };
-    var out = { client: v('fname') || 'the client', letter_of_authority: v('loa') || 'not asked yet', schedules: [], credit_life: [], quotes: [], referrals: [], undecided: [], instructions: [], appointment: v('next_appt') };
+    var out = { client: v('fname') || 'the client', letter_of_authority: v('loa') || 'not asked yet', schedules: [], credit_life: [], quotes: [], referrals: [], undecided: [], instructions: [], appointment: v('next_appt'), preferred_monthly_spend: v('pref_spend') };
 
     SCHEDS.forEach(function (c) {
       if (!shows(c[0])) return;
@@ -39,8 +39,8 @@
     var lifeOff = v(schema.panelsById.life.dec) === schema.NOT_PRIORITY;                          // credit life is part of the Life area: when it is not a priority, nothing is chased
     (state.l.debts || []).forEach(function (r) {
       var d = r.d, cl = String(d.cl || '').trim();
-      if (lifeOff || (!d.type && !d.prov && !d.prov_other && !d.desc) || cl === 'No') return;
-      out.credit_life.push({ debt: String(d.type === 'Other' || !d.type ? d.desc || 'debt' : d.type).toLowerCase(), lender: (d.prov === 'Other' ? d.prov_other : d.prov) || d.prov_other || '', credit_life: cl === 'Yes' ? 'Yes' : 'not asked yet' });
+      if (lifeOff || !listOn('debts') || (!d.type && !d.prov && !d.desc) || cl === 'No') return;
+      out.credit_life.push({ debt: String(d.type === 'Other' || !d.type ? d.desc || 'debt' : d.type).toLowerCase(), lender: d.prov || '', credit_life: cl === 'Yes' ? 'Yes' : 'not asked yet' });
     });
 
     if (shows('bf_fna_req') && v('bf_fna_req') === 'Request a quote') out.quotes.push(clean({ quote: 'FNA quote', kind: BR, type: shows('bf_fna_type') ? v('bf_fna_type') : '' }));
@@ -119,6 +119,7 @@
       if (q.monthly_amount) line += ' for ' + q.monthly_amount + ' p.m.'; else if (q.lump_sum) line += ' for a lump sum of ' + q.lump_sum; else if (q.cover_amount) line += ' for cover of ' + q.cover_amount;
       pts.push(sentence(line.replace(/\.$/, '')));
     });
+    if (f.preferred_monthly_spend && f.quotes.some(function (q) { return q.kind === BR || q.kind === STD; })) pts.push('For the life quotes: ' + who + ' prefers to spend ' + amt(f.preferred_monthly_spend) + ' p.m.');
     f.referrals.forEach(function (r) { pts.push('Ask ' + r.who + ' to contact ' + who + ' about ' + r.about + '.'); });
     f.undecided.forEach(function (u) { pts.push('Follow up with ' + who + ' on ' + u.area + ': ' + u.answer + ' before deciding' + (u.comment ? ' (' + u.comment.replace(/[.\s]+$/, '') + ')' : '') + '.'); });
     pts.push(f.appointment ? 'Set up a follow-up appointment with ' + who + ' for ' + f.appointment + '.' : 'Set up a follow-up appointment with ' + who + ' (date to be agreed).');

@@ -64,6 +64,7 @@
     if (key === 'kids' && !d.sname) d.sname = fatherSurname(state);
     var r = { d: d, st: st || 'confirmed' };
     state.l[key].push(r);
+    LIST_GATES.forEach(function (g) { if (g[1] === key && state.f[g[0]] && state.f[g[0]].v !== 'Yes') state.f[g[0]] = { v: 'Yes', st: 'confirmed' }; });      // a row added is a Yes to "Has debts", "Has children" and the like
     return r;
   }
   function delRow(state, key, i) { state.l[key].splice(i, 1); }
@@ -117,6 +118,8 @@
       if (!schema.lists[k]) return;
       s.l[k] = (j.l[k] || []).map(function (r) {
         var d = {}; schema.lists[k].cols.forEach(function (c) { d[c.k] = (r.d && r.d[c.k]) || ''; });
+        if (k === 'debts' && r.d && r.d.prov_other && (!d.prov || d.prov === 'Other')) d.prov = r.d.prov_other;        // the bank used to be a pick-list with an "Other" box beside it: now one box, pick or type
+        else if (k === 'debts' && d.prov === 'Other') d.prov = '';
         if (k === 'kids' && r.d && r.d.sname === undefined && d.name) {                         // saved when a child had one "Name & surname" box: split it
           var sp = util.splitFullName(d.name, j.f && j.f.sname && j.f.sname.v);
           d.name = sp.first; d.sname = sp.last;
@@ -128,6 +131,7 @@
     });
     splitRetirement(s, j);
     brightRockLane(s, j);
+    listGates(s);
     s.sum = cleanSum(j.sum);
     s.pa = cleanPa(j.pa);
     legacyNotes(s, j);
@@ -162,6 +166,11 @@
       s.l.bfred.push({ d: { req: r.d.req, type: r.d.type, amt: r.d.amt }, st: r.st });
       return false;
     });
+  }
+  /* Files saved before a list had its Yes/No answer (has debts, has children, has investments, has retirement annuities, has a pension or provident fund): a list with rows in it was a Yes. */
+  var LIST_GATES = [['has_debts', 'debts'], ['has_kids', 'kids'], ['has_inv', 'inv'], ['has_ra', 'ret_ra'], ['has_pp', 'ret_pp']];
+  function listGates(s) {
+    LIST_GATES.forEach(function (g) { if (s.f[g[0]] && s.f[g[0]].v === '' && s.l[g[1]].some(rowFilled)) s.f[g[0]] = { v: 'Yes', st: 'confirmed' }; });
   }
   /* The notes boxes of the old advisor pages (quotes, referrals, buy & sell) are now one notes box on the Client priorities page (the Risk calculation page keeps its own): what was written in them is kept there, each under its old heading. */
   var LEGACY_NOTES = [['n_q_risk', 'Personal risk quotes'], ['n_q_ret', 'Retirement & investment quotes'], ['n_ref', 'Referrals'], ['n_bs', 'Buy & Sell']];
@@ -245,7 +254,11 @@
   }
   function toJSON(state) { state.modified = new Date().toISOString(); return JSON.stringify(state, null, 2); }
 
-  /* Progress for a section: how many answers are filled out of those that count. */
+  /* A policy schedule request is not an answer to count when the Yes/No above it says there is nothing to ask for. */
+  var PS_GATE = { ps_risk: ['has_risk', 'No'], ps_grp: ['has_group', 'No'], ps_ra: ['has_ra', 'No'], ps_pp: ['has_pp', 'No'], ps_inv: ['has_inv', 'No'] };
+  function rowFilled(r) { return Object.keys(r.d || {}).some(function (k) { return String(r.d[k] == null ? '' : r.d[k]).trim() !== ''; }); }
+  /* Progress for a section: how many answers are filled out of those that count. A row of a list counts when something is in it; a list that is on show and empty is one answer still to give; the seven duties boxes
+     are one answer (they add up to 100%). */
   function counts(state, sec) {
     var ctx = ctxFor(state), tot = 0, fill = 0, ver = 0;
     if (!calc.showIf(sec.cond, ctx)) return { tot: 0, fill: 0, ver: 0 };
@@ -253,12 +266,19 @@
       if (!calc.showIf(b.cond, ctx)) return;
       (b.fields || []).forEach(function (f) {
         if (f.calc || f.opt || f.preset || !calc.showIf(f.cond, ctx)) return;
-        var c = state.f[f.id];
+        var g = PS_GATE[f.id], c = state.f[f.id];
+        if (g && ctx.v(g[0]).trim() === g[1]) return;
+        if (calc.DUTY_IDS.indexOf(f.id) >= 0) {
+          if (f.id === calc.DUTY_IDS[0]) { tot++; if (Math.abs(calc.DUTY_IDS.reduce(function (a, id) { return a + ctx.n(id); }, 0) - 100) < 0.001) fill++; }
+          if (c.st === 'verify') ver++;
+          return;
+        }
         tot++; if (c.v !== '') fill++; if (c.st === 'verify') ver++;
       });
       if (b.list) {
-        var rows = state.l[b.list]; fill += rows.length; tot += rows.length;
-        rows.forEach(function (r) { if (r.st === 'verify') ver++; });
+        var rows = state.l[b.list];
+        rows.forEach(function (r) { tot++; if (rowFilled(r)) fill++; if (r.st === 'verify') ver++; });
+        if (!rows.length && schema.lists[b.list].need) tot++;
       }
     });
     return { tot: tot, fill: fill, ver: ver };

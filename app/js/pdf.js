@@ -14,7 +14,7 @@
       .replace(/…/g, '...').replace(/[•‣◦⁃▪●]/g, '-').replace(/→/g, '->').replace(/←/g, '<-').replace(/↔/g, '<->').replace(/≥/g, '>=').replace(/≤/g, '<=').replace(/≈/g, '~')   // symbols the PDF's font has no shape for, as the plain text they stand for
       .replace(/[^\x09\x0a\x0d\x20-\x7e\xa1-\xff]/g, '?');
   }
-  function fieldValue(f, state, ctx) { return f.calc ? calc.field(f.calc, ctx) : (f.money ? util.formatMoney(state.f[f.id].v) : (f.t === 'multi' && !f.nona && !state.f[f.id].v ? '(not asked yet)' : state.f[f.id].v)); }
+  function fieldValue(f, state, ctx) { return f.preset === '?' && String(state.f[f.id].v).trim() === '?' ? '' : f.calc ? calc.field(f.calc, ctx) : (f.money ? util.formatMoney(state.f[f.id].v) : (f.t === 'multi' && !f.nona && !state.f[f.id].v ? '(not asked yet)' : state.f[f.id].v)); }
 
   /* label/value pairs two to a row; wide boxes (notes) take a full row */
   function fieldRows(items) {

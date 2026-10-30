@@ -43,6 +43,11 @@
   var GATES = [
     ['has_risk', ['No'], { lists: ['risk'] }, 'personal risk policies'],
     ['has_group', ['No'], { lists: ['grp'] }, 'group risk policies'],
+    ['has_debts', ['No'], { lists: ['debts'] }, 'debts'],
+    ['has_kids', ['No'], { lists: ['kids'] }, 'children'],
+    ['has_inv', ['No'], { lists: ['inv'] }, 'investments'],
+    ['has_ra', ['No'], { lists: ['ret_ra'] }, 'retirement annuities'],
+    ['has_pp', ['No'], { lists: ['ret_pp'] }, 'pension and provident funds'],
     ['biz_assur', ['No'], { lists: ['bizpol'] }, 'business assurance policies'],
     ['ma', ['None'], { ids: ['ma_prov', 'ma_plan', 'ma_broker'] }, 'medical aid details'],
     ['gap', ['No'], { ids: ['gap_prov', 'gap_broker'] }, 'gap cover details'],
@@ -214,6 +219,11 @@
       if (!ctx.rows('kids').length) warn('egar_req', 'An EGAR is asked for, but no children are listed on the Children page.');
       else ctx.rows('kids').forEach(function (r, i) { if (!String(r.d.dob || '').trim()) rowWarn('kids', i, 'An EGAR is asked for: this child\'s date of birth is needed.'); });
     }
+    var brAsked = bfFna || bfSf || rows('bfred').some(function (r) { return r.d.req === REQUEST; }), stdAsked = asked('fna_req') || asked('sf_req') || rows('redq').some(function (r) { return r.d.req === REQUEST; });
+    [[brAsked, [['lc_f_aciv', 'Life cover'], ['pd_f_aciv', 'Permanent disability'], ['ip_aciv', 'Income protection'], ['dd_aciv', 'Dread disease']], 'BrightRock Fractured'],
+      [stdAsked, [['lc_aciv', 'Life cover'], ['pd_aciv', 'Permanent disability'], ['ips_aciv', 'Income protection'], ['dds_aciv', 'Dread disease']], 'standard']].forEach(function (g) {
+      if (g[0]) g[1].forEach(function (c) { if (schema.fieldsById[c[0]] && v(c[0]) === '?') warn(c[0], c[1] + ' (' + g[2] + ' quote): the ACI value is still “?”. Type the real value.'); });
+    });
     if (asked('bs_req') && !ctx.rows('shares').length) warn('bs_req', 'A Buy & Sell quote needs the partners: add them to the Partners and shareholders list on the Occupation page.');
     if (asked('cl_req')) {
       if (!v('cl_lender')) warn('cl_lender', 'A Contingent liability quote is asked for: the lender is needed.');

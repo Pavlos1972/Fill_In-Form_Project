@@ -113,13 +113,18 @@ test('the PDF is named "Fact Find (Voice to Text) - dd.mm.yy - (Name Surname)"',
   const e = fresh(); set(e, 'date', '17/10/2026'); assert.strictEqual(store.pdfFileName(e), 'Fact Find (Voice to Text) - 17.10.26 - (New client)');
   assert.strictEqual(store.baseFileName(s), 'Fact Find - 05.03.2027 - Thandi Dlamini TestCo');                                                        // the saved .json keeps its own name
 });
-test('each debt has an Other bank box and its own notes', () => {
+test('each debt has a bank box (pick one or type another) and its own notes', () => {
   const cols = schema.lists.debts.cols.map(c => c.k);
-  assert.ok(cols.includes('prov_other') && cols.includes('notes'));
-  const s = fresh(); store.addRow(s, 'debts', { prov: 'Other', prov_other: 'Bidvest Bank', notes: 'Settling early' });
+  assert.ok(!cols.includes('prov_other') && cols.includes('notes') && schema.lists.debts.cols.find(c => c.k === 'prov').free);
+  const s = fresh(); store.addRow(s, 'debts', { prov: 'Bidvest Bank', notes: 'Settling early' });
   const back = store.fromJSON(store.toJSON(s));
-  assert.strictEqual(back.l.debts[0].d.prov_other, 'Bidvest Bank');
+  assert.strictEqual(back.l.debts[0].d.prov, 'Bidvest Bank');
   assert.strictEqual(back.l.debts[0].d.notes, 'Settling early');
+  const old = JSON.parse(store.toJSON(fresh()));                                                    // a file saved when the bank was a pick-list with an Other box beside it
+  old.l.debts = [{ d: { type: 'Home loan', prov: 'Other', prov_other: 'Bidvest Bank' }, st: 'confirmed' }, { d: { type: 'Vehicle finance', prov: 'Other' }, st: 'confirmed' }, { d: { type: 'Credit card', prov: 'Nedbank' }, st: 'confirmed' }];
+  const o = store.fromJSON(JSON.stringify(old));
+  assert.deepStrictEqual(o.l.debts.map(r => r.d.prov), ['Bidvest Bank', '', 'Nedbank']);
+  assert.strictEqual(o.f.has_debts.v, 'Yes');                                                       // rows in an older file make "Has debts" a Yes
 });
 
 test('amounts saved as plain numbers by an earlier version are tidied when reopened', () => {
@@ -439,7 +444,7 @@ test('income protection (fractured cover): the insured amount is split into the 
   assert.strictEqual(sp.total, 30000); assert.strictEqual(sp.rest, 30000); assert.strictEqual(sp.over, false);
   assert.strictEqual(calc.field('ip_amt', c()), 'R 60 000.00'); assert.strictEqual(calc.field('ip_hh', c()), 'R 30 000.00');
   assert.strictEqual(sp.rows.reduce((a, r) => a + r.inst, 0) + sp.rest, sp.insured);                                   // 10 000 + 10 000 + 5 000 + 5 000 + 30 000 = 60 000
-  store.addRow(s, 'debts', { type: 'Other', desc: 'Boat loan', prov: 'Other', prov_other: 'Local bank', inst: 'R 3 000' });
+  store.addRow(s, 'debts', { type: 'Other', desc: 'Boat loan', prov: 'Local bank', inst: 'R 3 000' });
   assert.deepStrictEqual(calc.ipSplit(c()).rows.pop(), { i: 5, label: 'Boat loan', prov: 'Local bank', inst: 3000, on: true });
   assert.strictEqual(calc.field('ip_hh', c()), 'R 27 000.00');
   assert.deepStrictEqual(validate.check(c()), []);
