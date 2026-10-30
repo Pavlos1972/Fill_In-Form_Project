@@ -16,7 +16,7 @@ const PRI = schema.PRIORITY, NOT = schema.NOT_PRIORITY, UNSURE = schema.UNSURE, 
 const AREAS = ['life', 'ra', 'rgar', 'inv', 'egar', 'med', 'will', 'st'];
 
 test('the pages: risk cover, retirement funding, then one Client priorities page; the old advisor pages and the Advisor box are gone', () => {
-  assert.deepStrictEqual(schema.sections.map(s => s.id), ['info', 'occ', 'income', 'cover', 'retire', 'inv', 'other', 'debts', 'kids', 'health', 'prio', 'calc']);
+  assert.deepStrictEqual(schema.sections.map(s => s.id), ['info', 'occ', 'income', 'cover', 'retire', 'inv', 'other', 'debts', 'kids', 'health', 'prio', 'calc', 'admin']);
   assert.strictEqual(sec('cover').title, 'Personal & group risk cover');
   assert.strictEqual(sec('retire').title, 'Retirement funding');
   assert.ok(sec('prio').adv && sec('prio').title === 'Client priorities');
@@ -32,22 +32,23 @@ test('the pages: risk cover, retirement funding, then one Client priorities page
 
 test('personal risk first with joint life, then group risk with its own list and no joint life', () => {
   const b = sec('cover').blocks;
-  assert.deepStrictEqual(b.map(x => x.title || '-'), ['Personal risk cover', 'Existing personal risk policies', 'Group risk cover', 'Existing group risk policies', '-']);
-  assert.deepStrictEqual(b[0].fields.map(f => f.id), ['has_risk', 'joint']);
+  assert.deepStrictEqual(b.map(x => x.title || '-'), ['-', 'Personal risk cover', 'Existing personal risk policies', 'Request Current Policy Schedule(s)', 'Group risk cover', 'Existing group risk policies', 'Request Current Policy Schedule(s)', '-']);
+  assert.deepStrictEqual(b[0].fields.map(f => f.id), ['loa']);                                                            // the LOA question comes first, before Personal risk cover
+  assert.deepStrictEqual(b[1].fields.map(f => f.id), ['has_risk', 'joint']);
   assert.strictEqual(schema.fieldsById.joint.l, 'Joint life with spouse');
-  assert.deepStrictEqual(b[2].fields.map(f => f.id), ['has_group']);
+  assert.deepStrictEqual(b[4].fields.map(f => f.id), ['has_group']);
   assert.deepStrictEqual(schema.lists.grp.cols.map(c => c.l), schema.lists.risk.cols.map((c, i) => i === 0 ? 'Provider / administrator' : c.l));
   assert.ok(schema.lists.grp.sum.spend);
-  assert.ok(b[1].list === 'risk' && b[3].list === 'grp' && !b.some(x => (x.fields || []).some(f => /joint/.test(f.id)) && x.list === 'grp'));
-  assert.deepStrictEqual(sec('retire').blocks.map(x => x.list || '-'), ['ret_ra', 'ret_pp', '-']);                      // retirement annuities, and pension and provident funds, are two lists
-  assert.deepStrictEqual(sec('retire').blocks.map(x => x.title || '-'), ['Retirement annuities', 'Pension and provident funds', '-']);
+  assert.ok(b[2].list === 'risk' && b[5].list === 'grp' && !b.some(x => (x.fields || []).some(f => /joint/.test(f.id)) && x.list === 'grp'));
+  assert.deepStrictEqual(sec('retire').blocks.map(x => x.list || '-'), ['ret_ra', '-', 'ret_pp', '-', '-']);                      // retirement annuities, and pension and provident funds, are two lists, each followed by its policy schedule box
+  assert.deepStrictEqual(sec('retire').blocks.map(x => x.title || '-'), ['Retirement annuities', 'Request Current Policy Schedule(s)', 'Pension and provident funds', 'Request Current Policy Schedule(s)', '-']);
   assert.ok(!schema.lists.ret && !sec('cover').blocks.some(x => /^ret/.test(x.list || '')));
   assert.deepStrictEqual(schema.lists.ret_pp.cols[0].o, ['Pension fund', 'Provident fund']);
   assert.ok(!schema.lists.ret_ra.cols.some(c => c.k === 'type'));
 });
 
 test('no personal risk cover greys out Joint life and the policies, with a message; no group greys the group policies', () => {
-  const s = fresh(), [, polBlock, , grpBlock] = sec('cover').blocks, joint = schema.fieldsById.joint;
+  const s = fresh(), [, , polBlock, , , grpBlock] = sec('cover').blocks, joint = schema.fieldsById.joint;
   assert.ok(polBlock.grey && grpBlock.grey && joint.grey && polBlock.condMsg && grpBlock.condMsg);
   assert.match(polBlock.condMsg, /No personal risk cover is in place/);
   assert.match(grpBlock.condMsg, /No group risk cover is in place/);
@@ -301,4 +302,126 @@ test('"I need to check my budget" is the other yellow answer, for Life, RA and I
 test('the Life area is headed "Personal Risk Covers", with the same words under it', () => {
   const p = schema.panelsById.life;
   assert.strictEqual(p.title, 'Personal Risk Covers'); assert.strictEqual(p.sub, 'Life cover, disability, dread disease, income protection'); assert.strictEqual(p.dec, 'pr_life');       // only the heading changed
+});
+
+/* ---------- Request Current Policy Schedule(s), the LOA question and the Admin page ---------- */
+const A = require('../app/js/actions.js');
+const PS = ['risk', 'grp', 'ra', 'pp', 'inv'], CL = 'Requested from client in meeting', AS = 'Draw from Astute (with signed LOA)';
+
+test('each of the five sections that hold policies ends with a "Request Current Policy Schedule(s)" tick-box list and a small Other box', () => {
+  PS.forEach(k => {
+    const f = schema.fieldsById['ps_' + k], o = schema.fieldsById['ps_' + k + '_ot'], blk = schema.sections.reduce((a, s) => a.concat(s.blocks), []).find(b => (b.fields || []).some(x => x.id === 'ps_' + k));
+    assert.strictEqual(f.t, 'multi'); assert.strictEqual(blk.title, 'Request Current Policy Schedule(s)'); assert.ok(blk.grey && blk.condMsg);
+    assert.deepStrictEqual(f.o, k === 'grp' ? [CL, 'Other'] : [CL, AS, 'Other'], k);                                      // group risk has no Astute; "Client does not agree" is gone from all
+    assert.ok(!f.o.some(x => /agree/i.test(x)) && o.t === 'txt' && o.cond.has === 'Other' && o.grey);
+  });
+  assert.strictEqual(schema.sections.find(x => x.id === 'inv').blocks.slice(-2)[0].fields[0].id, 'ps_inv');            // the last item of the section, before its Notes
+});
+
+test('a schedule list is greyed while the client has no such policies, and a tick-box rule reads the ticks', () => {
+  const s = fresh(), blk = id => schema.sections.reduce((a, x) => a.concat(x.blocks), []).find(b => (b.fields || []).some(f => f.id === id));
+  assert.ok(show(s, blk('ps_risk').cond) && show(s, blk('ps_grp').cond) && !show(s, blk('ps_ra').cond) && !show(s, blk('ps_pp').cond) && !show(s, blk('ps_inv').cond));
+  set(s, 'has_risk', 'No'); assert.ok(!show(s, blk('ps_risk').cond)); set(s, 'has_group', 'Not sure'); assert.ok(!show(s, blk('ps_grp').cond));
+  store.addRow(s, 'ret_ra', { prov: 'Allan Gray' }); store.addRow(s, 'inv', { type: 'Unit trust' });
+  assert.ok(show(s, blk('ps_ra').cond) && show(s, blk('ps_inv').cond) && !show(s, blk('ps_pp').cond));
+  const other = schema.fieldsById.ps_ra_ot;
+  assert.ok(!show(s, other.cond));
+  set(s, 'ps_ra', CL + '; Other'); assert.ok(show(s, other.cond));
+  set(s, 'ps_ra_ot', 'Bring them next week'); set(s, 'ps_ra', CL); assert.strictEqual(s.f.ps_ra_ot.v, '');        // Other is not ticked any more: what was typed goes
+});
+
+test('the LOA question comes first on the Personal & group risk cover page, with Yes, No and Not now', () => {
+  const f = schema.fieldsById.loa, idx = V.buildIndex(schema);
+  assert.strictEqual(f.l, 'Can we send you a LOA to sign?'); assert.deepStrictEqual(f.o, ['Yes', 'No', 'Not now']);
+  const v = t => { const r = V.interpret(idx.byId.loa, t); return r && r.value; };
+  assert.strictEqual(v('yes please'), 'Yes'); assert.strictEqual(v('no'), 'No'); assert.strictEqual(v('not now'), 'Not now'); assert.strictEqual(v('maybe later'), 'Not now');
+  assert.strictEqual(V.matchQuestion('Can we send you a LOA to sign?', idx, { cur: 'cover' }).id, 'loa');
+});
+
+test('the tick-box lists are said any way, and more said later adds to what is ticked', () => {
+  const idx = V.buildIndex(schema), v = (id, t) => { const r = V.interpret(idx.byId[id], t); return r && (r.error ? 'ERR:' + r.error : r.value); };
+  assert.strictEqual(v('ps_risk', 'the client will send them'), CL); assert.strictEqual(v('ps_risk', 'we will get them through Astute'), AS);
+  assert.strictEqual(v('ps_risk', 'both'), CL + '; ' + AS); assert.strictEqual(v('ps_risk', 'not through Astute, she will send them'), CL);
+  assert.strictEqual(v('ps_risk', 'something else'), 'Other'); assert.strictEqual(v('ps_risk', 'blah'), 'ERR:no-match');
+  assert.strictEqual(v('ps_grp', 'through Astute'), 'ERR:no-match');                                                     // group risk has no Astute choice
+  assert.strictEqual(V.mergeMulti(CL, AS, idx.byId.ps_risk.options), CL + '; ' + AS);
+  assert.ok(idx.byId.ps_risk.multi && !idx.byId.loa.multi);
+  const body = JSON.parse(AI.buildRequest(idx, { sectionId: 'cover', recent: [] }, 'auto', 'x', 'm').messages[0].content);
+  assert.ok(body.fields.find(f => f.id === 'ps_risk').multi === true);
+  assert.match(AI.SYSTEM, /Policy schedules/);
+});
+
+test('Next appointment and the action points are on the Admin page, which is the last page and has no notes box', () => {
+  const admin = sec('admin'), idx = V.buildIndex(schema);
+  assert.ok(admin.adv && admin.title === 'Admin' && schema.sections[schema.sections.length - 1] === admin);
+  assert.deepStrictEqual(admin.blocks.map(b => b.title), ['Next appointment', 'Action Points for Personal Assistant']);
+  assert.ok(!idx.notes.some(n => n.sec === 'admin') && !idx.byId.pa_actions);                                              // voice never writes in the action points
+  assert.strictEqual(V.parseCommand('go to admin', idx).sec, 'admin');
+  assert.ok(!sec('prio').blocks.some(b => b.title === 'Next appointment'));
+});
+
+test('the Retirement Planning and Investment Planning areas have their new headings', () => {
+  assert.deepStrictEqual([schema.panelsById.ra.title, schema.panelsById.ra.sub], ['Retirement Planning', 'Retirement Annuities']);
+  assert.deepStrictEqual([schema.panelsById.inv.title, schema.panelsById.inv.sub], ['Investment Planning', 'Investments']);
+});
+
+function pa() {
+  const s = fresh();
+  set(s, 'fname', 'Thandi'); set(s, 'loa', 'Yes'); set(s, 'has_risk', 'Yes'); store.addRow(s, 'risk', { prov: 'Liberty' }); store.addRow(s, 'risk', { prov: 'Discovery' }); set(s, 'ps_risk', CL);
+  set(s, 'has_group', 'Yes'); store.addRow(s, 'grp', { prov: 'Old Mutual' }); set(s, 'ps_grp', CL + '; Other'); set(s, 'ps_grp_ot', 'Employer HR to send the benefit summary.');
+  store.addRow(s, 'ret_ra', { prov: 'Allan Gray' }); set(s, 'ps_ra', AS); store.addRow(s, 'ret_pp', { prov: 'Sanlam', type: 'Pension fund' });
+  store.addRow(s, 'debts', { type: 'Home loan', prov: 'Nedbank', cl: 'Yes' }); store.addRow(s, 'debts', { type: 'Vehicle finance', prov: 'Wesbank', cl: 'No' }); store.addRow(s, 'debts', { type: 'Credit card', prov: 'Discovery Bank' });
+  set(s, 'fna_req', 'Request a quote'); set(s, 'fna_type', 'New Business'); set(s, 'fna_ins', 'BrightRock'); set(s, 'rgar_req', 'Request an RGAR'); set(s, 'ret_age', '65'); set(s, 'ret_net', 'R 60 000.00'); set(s, 'egar_req', 'Request an EGAR'); store.addRow(s, 'kids', { name: 'A' }); store.addRow(s, 'kids', { name: 'B' });
+  store.addRow(s, 'raq', { req: 'Request a quote', ins: 'Old Mutual', monthly: 'R 5 000.00' });
+  set(s, 'ref_med', 'Valerie to contact for both'); set(s, 'ref_will', 'Capital Legacy to contact client'); set(s, 'ref_sti', 'Cameron to contact client');
+  set(s, 'pr_life', schema.BUDGET); set(s, 'pr_life_cm', 'Revisit once the budget is checked.'); set(s, 'next_appt', '05/11/2026');
+  return s;
+}
+test('the action points: what is still to get, quotes, who contacts the client, and the follow-up appointment, in point form for the assistant', () => {
+  const s = pa(), lines = A.local(s), text = A.text(lines);
+  assert.deepStrictEqual(lines, [
+    'Send Thandi the LOA to sign, so the policy schedules can be drawn from Astute.',
+    'Follow up with Thandi for the current policy schedules, asked for in the meeting, for the personal risk policies (Liberty, Discovery).',
+    'Follow up with Thandi for the current policy schedules, asked for in the meeting, for the group risk benefits (Old Mutual).',
+    'Current policy schedules for the group risk benefits (Old Mutual): Employer HR to send the benefit summary.',
+    'Draw the current policy schedules for the retirement annuities (Allan Gray) from Astute once the signed LOA is back.',
+    'Ask Thandi how the current policy schedules for the pension and provident funds (Sanlam) will be provided.',
+    'Ask Thandi for the credit life details with Nedbank on the home loan.',
+    'Ask Thandi whether there is credit life with Discovery Bank on the credit card.',
+    'Request an FNA quote (New Business) from BrightRock.',
+    'Request a retirement annuity quote from Old Mutual for R 5 000 p.m.',
+    'Request a retirement goal analysis (RGAR): retire at 65 on R 60 000 p.m. net in today\'s terms.',
+    'Request an education goal analysis (EGAR) for the 2 children.',
+    'Ask Valerie to contact Thandi about medical aid and gap cover.', 'Ask Capital Legacy to contact Thandi about the will.', 'Ask Cameron to contact Thandi about short-term insurance.',
+    'Follow up with Thandi on Personal Risk Covers: needs to check the budget before deciding (Revisit once the budget is checked).',
+    'Set up a follow-up appointment with Thandi for 05/11/2026.']);
+  assert.ok(text.split('\n').every(l => l.startsWith('- ')) && !/\b(?:he|she|his|her)\b/i.test(text));                   // point form, and no pronouns for the client
+});
+test('the action points follow the schedule choices, the LOA answer, the credit life answers and the quotes that are switched off', () => {
+  const s = pa(); set(s, 'loa', 'No');
+  assert.ok(A.local(s).includes('There is no signed LOA: ask Thandi to send the current policy schedules for the retirement annuities (Allan Gray) directly.'));      // Astute chosen, no signed LOA: ask the client directly
+  assert.ok(!A.local(s).some(l => /^Send Thandi the LOA/.test(l)));
+  set(s, 'loa', 'Not now'); assert.ok(A.local(s).includes('Do not send the LOA yet: Thandi is not ready to sign. Raise it again at the follow-up appointment.'));
+  set(s, 'ps_ra', ''); set(s, 'ps_risk', ''); assert.ok(A.local(s).includes('Ask Thandi how the current policy schedules for the personal risk policies (Liberty, Discovery) will be provided.'));   // not asked yet
+  set(s, 'pr_life', schema.NOT_PRIORITY); assert.ok(!A.local(s).some(l => /FNA/.test(l)) && !A.local(s).some(l => /Personal Risk Covers/.test(l)));      // a quote of an area that is not a priority is not asked for
+  set(s, 'next_appt', ''); assert.strictEqual(A.local(s).pop(), 'Set up a follow-up appointment with Thandi (date to be agreed).');
+  const e = fresh(); assert.deepStrictEqual(A.local(e), ['Set up a follow-up appointment with the client (date to be agreed).']);                            // cover not asked about, nothing recorded: nothing to chase
+  set(e, 'has_risk', 'Yes'); assert.strictEqual(A.local(e)[0], 'Ask the client how the current policy schedules for the personal risk policies will be provided.');   // cover said to exist, schedule not asked yet
+  const k1 = A.key(A.facts(pa())); set(s, 'fname', 'Sipho'); assert.notStrictEqual(A.key(A.facts(s)), k1);
+});
+test('the action points request: only the facts go to Claude, with rules for what to write, and the reply is tidied', async () => {
+  const s = pa(); store.setField(s, 'cell', '0824541751'); store.setField(s, 'sname', 'Dlamini');
+  const f = A.facts(s); assert.ok(!/0824541751|Dlamini/.test(JSON.stringify(f)));                                          // no private number, no surname
+  let sent = null;
+  const out = await AI.actionPoints({ ask: (system, content) => { sent = { system, content: JSON.parse(content) }; return Promise.resolve('{"points": ["- Send Thandi the LOA to sign.", "  Ask Valerie to contact Thandi about medical aid.  ", "", 5]}'); }, model: 'm', facts: f });
+  assert.deepStrictEqual(out, ['Send Thandi the LOA to sign.', 'Ask Valerie to contact Thandi about medical aid.', '5']);
+  assert.deepStrictEqual(Object.keys(sent.content.facts).sort(), ['appointment', 'client', 'credit_life', 'instructions', 'letter_of_authority', 'quotes', 'referrals', 'schedules', 'undecided']);
+  assert.match(sent.system, /Sitamah Nathoo/); assert.match(sent.system, /point form/); assert.match(sent.system, /never "he", "she", "his" or "her"/); assert.match(sent.system, /no signed LOA/);
+  await assert.rejects(AI.actionPoints({ ask: () => Promise.reject(new Error('no connection')), model: 'm', facts: f }), /no connection/);
+});
+test('the action points are saved with the file, and their state (written for what, by whom, typed over) with them', () => {
+  const s = pa(); store.setField(s, 'pa_actions', '- Something'); store.setPa(s, 'abc123', 'claude'); s.pa.edited = true;
+  const back = store.fromJSON(store.toJSON(s));
+  assert.deepStrictEqual([back.f.pa_actions.v, back.pa.key, back.pa.by, back.pa.edited], ['- Something', 'abc123', 'claude', true]);
+  assert.deepStrictEqual(store.fromJSON(JSON.stringify({ app: 'wr-fact-find' })).pa, { key: '', at: '', by: '', edited: false });         // an older file
 });

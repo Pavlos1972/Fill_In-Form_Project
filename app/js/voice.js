@@ -174,6 +174,7 @@
     health: ['health', 'health questions', 'medical history'],
     debts: ['debts', 'debt', 'loans', 'liabilities'],
     kids: ['children', 'kids', 'dependants', 'dependents'],
+    admin: ['admin', 'administration', 'action points', 'action points for personal assistant', 'personal assistant', 'actions for sitamah'],
     calc: ['risk calculation and quotes', 'risk calculation', 'calculation', 'needs calculation', 'fractured covers', 'fractured cover', 'standard quotes'],
     prio: ['client priorities identified', 'client priorities', 'priorities', 'what we recommend', 'recommendations', 'personal risk quotes', 'risk quotes', 'retirement and investment quotes', 'retirement quotes', 'investment quotes', 'referrals', 'business assurance', 'buy and sell', 'buy and sell agreement', 'key man', 'keyman', 'contingent liability']
   };
@@ -240,6 +241,12 @@
     'shares.id': ['partner id', 'partner id number'],
     'shares.cell': ['partner cell', 'partner cell number'],
     'shares.pct': ['shareholding', 'percentage', 'how much of the business', 'what percentage'],
+    loa: ['loa', 'letter of authority', 'send you a loa', 'sign a loa', 'sign the loa', 'authority form', 'can we send you a loa'],
+    ps_risk: ['personal policy schedules', 'schedules for your personal policies', 'personal risk policy schedules', 'policy schedules for the personal risk', 'schedules for the risk policies', 'policy schedules', 'policy schedule', 'through astute', 'from astute', 'send us the schedules'],
+    ps_grp: ['group policy schedules', 'group risk schedule', 'group risk schedules', 'schedules for the group risk', 'schedules for the group policies', 'policy schedules', 'policy schedule', 'through astute', 'from astute', 'send us the schedules'],
+    ps_ra: ['retirement annuity schedules', 'schedules for the retirement annuity', 'schedules for your retirement annuities', 'ra schedules', 'schedule for the ra', 'policy schedules', 'policy schedule', 'through astute', 'from astute', 'send us the schedules'],
+    ps_pp: ['pension schedules', 'provident fund schedules', 'pension and provident schedules', 'schedules for the pension', 'schedules for the provident fund', 'policy schedules', 'policy schedule', 'through astute', 'from astute', 'send us the schedules'],
+    ps_inv: ['investment schedules', 'schedules for the investments', 'schedule for your investments', 'schedules for your investment', 'policy schedules', 'policy schedule', 'through astute', 'from astute', 'send us the schedules'],
     ref_will: ['will referral', 'referral for the will', 'capital legacy', 'about your will', 'your will', 'wills'],
     idtype: ['id or passport', 'passport or id', 'do you have an id', 'identity document', 'id document', 'id book', 'id card', 'smart card', 'green id book', 'passport'],
     idno: ['id number', 'identity number', 'id no', 'passport number', 'your id', 'my id', 'id', 'identity', 'sa id'],
@@ -418,12 +425,12 @@
     schema.sections.forEach(function (sec) {
       sec.blocks.forEach(function (b, bi) {
         (b.fields || []).forEach(function (f) {
-          if (f.opt && f.t === 'area' && !f.lookup) {            // a notes box: not asked about, but "let me take some notes" goes there (a box with a look-up button is not one)
+          if (f.opt && f.t === 'area' && !f.lookup && !f.nonotes) {            // a notes box: not asked about, but "let me take some notes" goes there (a box with a look-up button is not one)
             var ne = { id: f.id, label: f.l, sec: sec.id, blk: bi, blkTitle: b.title || '', cond: b.cond, secCond: sec.cond, t: 'area', options: null, notes: true, lt: [] };
             notes.push(ne); noteById[f.id] = ne; return;
           }
           if (f.calc || (f.opt && !f.voice) || (f.preset && !f.voice)) return;
-          var e = { id: f.id, label: f.l, sec: sec.id, blk: bi, blkTitle: b.title || '', cond: f.cond ? (b.cond ? { all: [b.cond, f.cond] } : f.cond) : b.cond, secCond: sec.cond, t: f.t === 'area' ? 'area' : (f.o ? 'sel' : 'txt'), options: f.o || null, free: !!f.free, money: !!f.money, none: !!f.none, lt: content(String(f.l).replace(/\([^)]*\)/g, ' ')), lx: bracketWords(f.l), bt: content(b.title || ''), order: fields.length };
+          var e = { id: f.id, label: f.l, sec: sec.id, blk: bi, blkTitle: b.title || '', cond: f.cond ? (b.cond ? { all: [b.cond, f.cond] } : f.cond) : b.cond, secCond: sec.cond, t: f.t === 'area' ? 'area' : (f.o ? 'sel' : 'txt'), multi: f.t === 'multi', options: f.o || null, free: !!f.free, money: !!f.money, none: !!f.none, lt: content(String(f.l).replace(/\([^)]*\)/g, ' ')), lx: bracketWords(f.l), bt: content(b.title || ''), order: fields.length };
           fields.push(e); byId[f.id] = e;
         });
       });
@@ -824,6 +831,9 @@
     };
   });
 
+  /* Can we send you a LOA to sign?: "not now", "maybe later" is its own answer, and not a no. */
+  SPECIAL.loa = function (t) { return / (not now|not yet|not right now|not at the moment|maybe later|later|another time|next time|not today) /.test(' ' + t + ' ') ? 'Not now' : null; };
+
   /* Type of quote: "it's new business", "servicing", "not applicable" / "N/A". */
   ['fna_type', 'sf_type', 'redq.type'].forEach(function (id) {
     SPECIAL[id] = function (t, raw) {
@@ -907,12 +917,33 @@
   }
 
   /* One answer for one field -> { value, status, extra?, append? } | { error, note? } | null. */
+  /* A tick-box box (the policy schedule lists): one or more of its options, said any way ("the client will send them", "through Astute", "both", "something else"). -> { value: choices joined with "; ", status, append } or { error }. */
+  var MULTI_CLIENT = / (?:requested from client|client sends|client will send|client to send|clients to send|will send them|will send it|will send us|to send them|send them|send it through|send us|sends them|bring them|brings them|bring it|email them|emails them|email it|from the client|from client|ask the client|asked the client|the client|(?:she|he|they|client) will send|(?:she|he|they|client)'ll send|(?:she|he|they|client) can send|(?:she|he|they|client) to send) /;
+  function interpretMulti(f, t) {
+    var s = ' ' + t + ' ', opts = f.options || [], picked = {}, hasAstute = opts.some(function (o) { return /astute/i.test(o); });
+    var both = / both /.test(s) && hasAstute, astuteNo = /\b(?:not|no|dont|don't|without|cannot|can't)\b[^.]{0,24}\bastute\b/.test(s);
+    opts.forEach(function (o) {
+      var on = norm(o.replace(/\(.*?\)/g, ' ')), hit = false;
+      if (/astute/i.test(o)) hit = (/ astute /.test(s) && !astuteNo) || both || has(t, on);
+      else if (/client/i.test(o)) hit = both || has(t, on) || MULTI_CLIENT.test(s);
+      else if (/^other$/i.test(o)) hit = / (?:other|something else|some other|another way) /.test(s);
+      if (hit) picked[o] = 1;
+    });
+    var out = opts.filter(function (o) { return picked[o]; });
+    return out.length ? { value: out.join('; '), status: 'heard', append: true } : { error: 'no-match' };
+  }
+  /* What a tick-box box holds after more is said ("and through Astute as well"): the old choices and the new ones, in the order of the options. */
+  function mergeMulti(prev, next, options) {
+    var have = {}; String(prev || '').split(';').concat(String(next || '').split(';')).forEach(function (x) { x = x.trim(); if (x) have[x] = 1; });
+    return (options || []).filter(function (o) { return have[o]; }).join('; ');
+  }
   function interpret(f, raw) {
     var id = vid(f);
     if (TYPED_IDS.indexOf(id) >= 0 || NAME_IDS.indexOf(id) >= 0 || f.date) raw = afterCorrection(raw);      // "011 555 1234, no sorry, 011 555 4321" is the last number, not a "no"
     var t = norm(raw);
     if (!t) return null;
     if (f.none && yesNo(t) === 'no') return ok('None');
+    if (f.multi) return interpretMulti(f, t);
     if (f.options) return pickOption(f, t, raw);
     if (f.money) {
       var amt = wordsToNumber(raw);
@@ -1194,6 +1225,7 @@
       var wr = wrapUp(seg, idx, { cur: st.cur, prev: ci ? segs[ci - 1] : st.prev });                  // "that concludes the debts", or "no" to "any more debts?": the section is over, which is not small talk
       if (wr) { noting = false; actions.push({ do: 'done', section: wr.sec, list: wr.list, part: wr.part || null, via: wr.via }); target = null; answered = false; return; }
       var core = seg.replace(LEADWORDS, '').trim(), isQ = /\?\s*["')]*$/.test(core), words = seg.split(/\s+/).length;
+      if (!core && target && !answered && /^(?:yes|yeah|yep|yup|ja|no|nope|nah)[,.!\s]*$/i.test(seg)) core = seg.replace(/[,.!\s]+$/, '');         // "Yes." or "No." said to the box that waits is its answer, with the full stop or not
       if (!core) return;
       near.boost = namedRows(core); near.curList = cellParts(target) ? cellParts(target).list : null;
       var cmd = parseCommand(core, idx);
@@ -1364,7 +1396,7 @@
 
   return {
     norm: norm, wordsToNumber: wordsToNumber, spokenDigits: spokenDigits, spokenDate: spokenDate, spokenEmail: spokenEmail, yesNo: yesNo,
-    buildIndex: buildIndex, parseCommand: parseCommand, wrapUp: wrapUp, endsNotes: endsNotes, splitNotesEnd: splitNotesEnd, mentionsNotes: mentionsNotes, mayEndNotes: mayEndNotes, wipeAnswer: wipeAnswer, looksLikeQuestion: looksLikeQuestion, isChatter: isChatter, plan: plan, pointForm: pointForm, LIST_NOUNS: LIST_NOUNS, matchQuestion: matchQuestion, interpret: interpret, titleCase: titleCase,
+    buildIndex: buildIndex, parseCommand: parseCommand, wrapUp: wrapUp, mergeMulti: mergeMulti, endsNotes: endsNotes, splitNotesEnd: splitNotesEnd, mentionsNotes: mentionsNotes, mayEndNotes: mayEndNotes, wipeAnswer: wipeAnswer, looksLikeQuestion: looksLikeQuestion, isChatter: isChatter, plan: plan, pointForm: pointForm, LIST_NOUNS: LIST_NOUNS, matchQuestion: matchQuestion, interpret: interpret, titleCase: titleCase,
     isConfirm: isConfirm, answerFor: answerFor, clauses: clauses, PRIVATE_IDS: PRIVATE_IDS, yearsValue: yearsValue
   };
 });

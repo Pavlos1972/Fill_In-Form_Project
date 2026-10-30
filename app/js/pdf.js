@@ -14,7 +14,7 @@
       .replace(/…/g, '...').replace(/[•‣◦⁃▪●]/g, '-').replace(/→/g, '->').replace(/←/g, '<-').replace(/↔/g, '<->').replace(/≥/g, '>=').replace(/≤/g, '<=').replace(/≈/g, '~')   // symbols the PDF's font has no shape for, as the plain text they stand for
       .replace(/[^\x09\x0a\x0d\x20-\x7e\xa1-\xff]/g, '?');
   }
-  function fieldValue(f, state, ctx) { return f.calc ? calc.field(f.calc, ctx) : (f.money ? util.formatMoney(state.f[f.id].v) : state.f[f.id].v); }
+  function fieldValue(f, state, ctx) { return f.calc ? calc.field(f.calc, ctx) : (f.money ? util.formatMoney(state.f[f.id].v) : (f.t === 'multi' && !state.f[f.id].v ? '(not asked yet)' : state.f[f.id].v)); }
 
   /* label/value pairs two to a row; wide boxes (notes) take a full row */
   function fieldRows(items) {
@@ -141,7 +141,7 @@
     }
     schema.sections.forEach(function (sec) {
       if (!calc.showIf(sec.cond, ctx)) return;
-      if (sec.adv && firstAdvisor) { firstAdvisor = false; doc.addPage(); y = 22; doc.setFont('helvetica', 'bold'); doc.setFontSize(14); doc.setTextColor.apply(doc, INK); doc.text('CLIENT PRIORITIES IDENTIFIED', M, y + 3); y += 10; }
+      if (sec.adv && firstAdvisor) { firstAdvisor = false; doc.addPage(); y = 22; }                  // the pages after the client's answers start on a new page
       sectionHeading(sec.title);
       var done = {};
       sec.blocks.forEach(function (b) {

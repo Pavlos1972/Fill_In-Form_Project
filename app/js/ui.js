@@ -24,7 +24,7 @@
   function rememberHandle(h) { return idb(function (st, done) { var r = h ? st.put(h, 'current') : st.delete('current'); r.onsuccess = function () { done(true); }; r.onerror = function () { done(null); }; }); }
   function recallHandle() { return idb(function (st, done) { var r = st.get('current'); r.onsuccess = function () { done(r.result || null); }; r.onerror = function () { done(null); }; }); }
   function loadDraft() { try { var t = localStorage.getItem(DRAFT_KEY); return t ? store.fromJSON(t) : null; } catch (e) { return null; } }
-  function touch() { dirty = true; saveDraft(); refreshChrome(); }
+  function touch() { dirty = true; saveDraft(); refreshChrome(); if (cur === 'admin' && typeof paSoon === 'function') paSoon(); }
   /* A South African ID number holds the date of birth (YYMMDD), and the date of birth always follows it: when the ID number is entered or changed,
      the date goes into the date of birth box, replacing whatever was there (a date entered before the ID, or the date of the previous ID), and a note says so.
      A date typed or said after the ID is left as it is (the Checks panel warns when it does not match). The date takes the status of the ID number:
@@ -171,7 +171,18 @@
   function optionsHTML(o, v) {
     return '<option value="">&nbsp;</option>' + o.map(function (x) { return '<option' + (x === v ? ' selected' : '') + '>' + esc(x) + '</option>'; }).join('');
   }
+  /* A tick-box dropdown (the policy schedule lists): the choices ticked are kept as one text joined with "; ", and an empty box is "(not asked yet)". "(not asked yet)" is ticked and the choices are greyed out
+     until it is unticked; ticking a choice unticks it; unticking every choice goes back to it (once the list is closed). */
+  var msOpen = '', msFree = {};
+  function msParts(v) { return String(v == null ? '' : v).split(';').map(function (x) { return x.trim(); }).filter(Boolean); }
+  function multiHTML(def, v, disabled) {
+    var sel = msParts(v), open = msOpen === def.id, na = !sel.length && !msFree[def.id];
+    var rows = '<label' + (disabled ? ' class="dis"' : '') + '><input type="checkbox" data-ck="' + def.id + '|na"' + (na ? ' checked' : '') + (disabled ? ' disabled' : '') + '> (not asked yet)</label><hr>' +
+      def.o.map(function (o, i) { var dis = disabled || na; return '<label' + (dis ? ' class="dis"' : '') + '><input type="checkbox" data-ck="' + def.id + '|' + i + '"' + (sel.indexOf(o) >= 0 ? ' checked' : '') + (dis ? ' disabled' : '') + '> ' + esc(o) + '</label>'; }).join('');
+    return '<div class="ms" data-ms="' + def.id + '"><button type="button" class="msb' + (open ? ' open' : '') + '" data-msb="' + def.id + '" aria-expanded="' + open + '"' + (disabled ? ' disabled' : '') + '>' + esc(sel.length ? sel.join(' + ') : '(not asked yet)') + '</button>' + (open ? '<div class="msp">' + rows + '</div>' : '') + '</div>';
+  }
   function control(attrs, def, v, disabled) {
+    if (def.t === 'multi') return multiHTML(def, v, disabled);
     if ((def.t === 'sel' || def.o) && def.free) {
       var lid = 'dl-' + (attrs.replace(/[^a-z0-9]+/gi, '-'));
       return '<input ' + attrs + ' list="' + lid + '" value="' + esc(v) + '" autocomplete="off"><datalist id="' + lid + '">' + def.o.map(function (x) { return '<option value="' + esc(x) + '">'; }).join('') + '</datalist>';
@@ -200,9 +211,10 @@
     if (f.t === 'area' && !f.opt) rt += badge(st, 'f:' + f.id);
     var attrs = 'data-f="' + f.id + '"' + (f.hint ? ' placeholder="' + esc(f.hint) + '"' : '');
     var style = g12 ? ' style="--s:' + (f.wide ? 12 : (f.s || 4)) + '"' : '';
-    return '<label class="f s-' + st + (f.wide ? ' wide' : '') + '" data-field="' + f.id + '"' + style + '><span class="l"><span>' + esc(f.l) + '</span>' + (rt ? '<span class="rt">' + rt + '</span>' : '') + '</span>' +
+    var tag = f.t === 'multi' ? 'div' : 'label';
+    return '<' + tag + ' class="f s-' + st + (f.wide ? ' wide' : '') + '" data-field="' + f.id + '"' + style + '><span class="l"><span>' + esc(f.l) + '</span>' + (rt ? '<span class="rt">' + rt + '</span>' : '') + '</span>' +
       '<span class="box">' + control(attrs, f, v, !!f.calc || isNone) + (f.cal ? '<input type="date" class="calpick" data-calpick="' + f.id + '" tabindex="-1" aria-hidden="true">' : '') + (f.t === 'area' ? '' : '<span class="st">' + badge(st, 'f:' + f.id) + '</span>') + '</span>' +
-      (f.len ? lenChip(f.id) : '') + '<span class="warn" data-warn="' + f.id + '" hidden></span></label>';
+      (f.len ? lenChip(f.id) : '') + '<span class="warn" data-warn="' + f.id + '" hidden></span></' + tag + '>';
   }
   function cellHTML(key, i, c, r, card) {
     var L = schema.lists[key], v = c.calc ? FF.calc.rowCalc(c.calc, r, ctx()) : r.d[c.k];
@@ -245,7 +257,7 @@
     return h + '</table></div><button type="button" class="addrow" data-add="' + key + '">+ ' + esc(L.add) + '</button>';
   }
   /* A greyed-out box or block (its rule is not met) stays on screen, but nothing in it can be used until the rule is met. */
-  function greyed(html) { return html.replace(/^<label class="f /, '<label inert class="f off '); }
+  function greyed(html) { return html.replace(/^<(label|div) class="f /, '<$1 inert class="f off '); }
   function gridHTML(b, c) {
     var g12 = b.layout === 'g12';
     var cells = b.fields.map(function (f) {
@@ -280,7 +292,7 @@
     if (!ok && !own && b.condMsg && !b.nomsg) h += '<div class="note">' + esc(b.condMsg) + '</div>';
     var inner = '';
     if (b.help) inner += '<p class="help">' + esc(b.help) + '</p>';
-    if (b.protector) inner += protectorHTML(b, c); else if (b.fields) inner += gridHTML(b, c);
+    if (b.protector) inner += protectorHTML(b, c); else if (b.actions) inner += paHTML(b, c); else if (b.fields) inner += gridHTML(b, c);
     if (b.list) { if (!b.title && schema.lists[b.list].title !== sec.title) inner += '<div class="block-title">' + esc(schema.lists[b.list].title) + '</div>'; inner += listHTML(b.list); }
     return h + (ok ? inner : '<div class="off" inert>' + inner + '</div>');
   }
@@ -302,16 +314,57 @@
   }
   function sectionHTML(sec) {
     var c = ctx();
-    var h = '<header><h2>' + esc(sec.title) + '</h2><span class="tier ' + (sec.adv ? 'c' : '') + '">' + (sec.adv ? 'Client priorities identified' : 'Client answers') + '</span></header>';
+    var h = '<header><h2>' + esc(sec.title) + '</h2>' + (sec.adv ? '' : '<span class="tier">Client answers</span>') + '</header>';
     if (!calc.showIf(sec.cond, c)) return h + '<div class="note">' + esc(sec.condMsg) + '</div>';
     if (sec.intro) h += '<p class="help">' + esc(sec.intro) + '</p>';
-    var seen = {};
+    var seen = {}, cols = sec.layout === 'admin';
+    if (cols) h += '<div class="admin">';
     sec.blocks.forEach(function (b) {
       if (b.pri) { if (!seen[b.pri]) { seen[b.pri] = 1; h += panelHTML(sec, b.pri); } return; }
-      h += blockHTML(b, sec, c);
+      h += cols ? '<div class="admcol">' + blockHTML(b, sec, c) + '</div>' : blockHTML(b, sec, c);
     });
-    return h;
+    return h + (cols ? '</div>' : '');
   }
+
+  /* ---------- the action points on the Admin page ----------
+     The box holds the points for the personal assistant. They are written from the rest of the form (actions.js): at once as plain points, then by Claude when it can be reached, for as long as the adviser has not typed in the box.
+     Typing in it makes the points the adviser's own: they no longer follow the form, until Refresh writes them again (a second tap, as that replaces what was typed). */
+  var paBusy = false, paTimer = null, paSure = false;
+  function paStatus() {
+    var pa = state.pa || {}, ready = vmAIReady();
+    if (paBusy) return 'Claude is writing these points…';
+    if (pa.edited) return 'Edited by you: these points no longer follow the form. Refresh writes them again.';
+    if (pa.by === 'claude') return 'Written by Claude' + (pa.at ? ', ' + new Date(pa.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '') + ', from the form. They follow the form until you type in the box.';
+    return ready ? 'Plain points from the form. Refresh for Claude to write them.' : 'Plain points from the form. Claude writes these when the Anthropic key is in Settings.';
+  }
+  function paHTML(b, c) {
+    var f = b.fields[0];
+    return fieldHTML(f, false) + '<div class="apstatus"><span id="paStatus">' + esc(paStatus()) + '</span><button type="button" class="link-btn" id="paRefresh"' + (paBusy ? ' disabled' : '') + '>' + (paSure ? 'Replace what I typed' : 'Refresh') + '</button></div>';
+  }
+  function paPaint() {
+    var st = document.getElementById('paStatus'), ta = document.querySelector('[data-f="pa_actions"]'), bt = document.getElementById('paRefresh');
+    if (st) st.textContent = paStatus(); if (bt) { bt.disabled = paBusy; bt.textContent = paSure ? 'Replace what I typed' : 'Refresh'; }
+    if (ta && ta.value !== state.f.pa_actions.v && !(document.activeElement === ta && state.pa.edited)) ta.value = state.f.pa_actions.v;     // never over what is being typed
+  }
+  function paWrite(lines, key, by) {
+    store.setField(state, 'pa_actions', FF.actions.text(lines)); store.setPa(state, key, by);
+    touch(); paPaint();
+  }
+  /* manual: the Refresh button. Otherwise only while the points are the form's own (not typed over) and the form has changed since they were written. */
+  function paRefresh(manual) {
+    if (!FF.actions) return;
+    var f = FF.actions.facts(state), key = FF.actions.key(f);
+    if (!manual && (state.pa.edited || (state.pa.key === key && state.f.pa_actions.v))) return;
+    paWrite(FF.actions.local(state), key, 'form');
+    if (!VAI || !VAI.actionPoints || !vmAIReady()) { if (manual) toast('Claude writes these points: put the Anthropic key in Settings. Plain points were written from the form.'); return; }
+    paBusy = true; paPaint();
+    var set = FF.lookup.getSettings();
+    VAI.actionPoints({ apiKey: set.apiKey, ask: !set.apiKey && FF.voiceBackend && FF.voiceBackend.available ? FF.voiceBackend.ask : null, model: set.voiceModel, facts: f, fetchImpl: meteredFetch }).then(function (lines) {
+      paBusy = false;
+      if (lines.length && (manual || (!state.pa.edited && state.pa.key === key))) paWrite(lines, key, 'claude'); else paPaint();
+    }, function (e) { paBusy = false; paPaint(); if (manual) toast('Claude could not write the points (' + ((e && e.message) || 'no answer') + '). Plain points were written from the form.'); });
+  }
+  function paSoon() { clearTimeout(paTimer); paTimer = setTimeout(function () { if (cur === 'admin') paRefresh(false); }, 600); }
 
   /* ---------- the summaries on the Client priorities page ---------- */
   var sumBusy = {}, sumTimer = null;
@@ -353,6 +406,7 @@
     main.className = 'main' + (sec.roomy ? ' roomy' : '') + (sec.fit ? ' fit' : '') + (sec.adv ? ' priorities' : '');
     main.innerHTML = sectionHTML(sec);
     if (cur === 'prio' && drawn !== 'prio') sumSoon();                                       // Claude writes the summaries when the page is opened
+    if (cur === 'admin') paSoon();                                                           // and the action points, while the box is not the adviser's own
     drawn = cur;
     refreshChrome(); refreshWarnings();
     if (vm.on) vmMarkWait();
@@ -364,9 +418,8 @@
     }
   }
   function renderNav() {
-    var nav = '<div class="sep">Client answers</div>', adv = false;
+    var nav = '<div class="sep">Client answers</div>';
     schema.sections.forEach(function (s) {
-      if (s.adv && !adv) { nav += '<div class="sep">Client Priorities identified</div>'; adv = true; }
       var c = store.counts(state, s);
       nav += '<button type="button" data-sec="' + s.id + '"' + (s.id === cur ? ' aria-current="true"' : '') + '><span>' + esc(s.title) + (vm.done[s.id] ? ' <span class="ck" title="Finished: said in the conversation">✓</span>' : '') + '</span><span class="n" data-count="' + s.id + '">' + (s.adv ? '' : c.fill + '/' + c.tot) + '</span></button>';
     });
@@ -432,6 +485,33 @@
   function sectionOfList(key) { var r = ''; schema.sections.forEach(function (s) { s.blocks.forEach(function (b) { if (b.list === key) r = s.id; }); }); return r; }
 
   /* ---------- events ---------- */
+  /* The tick-box dropdown opens and closes with its button, and closes on a tap anywhere else. */
+  function msClose() { if (msOpen) { msOpen = ''; msFree = {}; redraw(); } }
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest && e.target.closest('[data-msb]');
+    if (b) { var id = b.dataset.msb; msOpen = msOpen === id ? '' : id; msFree = {}; redraw(); return; }
+    if (msOpen && !(e.composedPath ? e.composedPath() : []).some(function (n) { return n.classList && n.classList.contains('ms'); })) msClose();       // the path was taken before the list was redrawn
+    if (e.target.id === 'paRefresh') {
+      if (state.pa.edited && !paSure) { paSure = true; paPaint(); setTimeout(function () { if (paSure) { paSure = false; paPaint(); } }, 4000); return; }
+      paSure = false; paRefresh(true);
+    }
+  });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') msClose(); });
+  document.addEventListener('input', function (e) {                                                       // the first key typed in the action points makes them the adviser's own
+    var t = e.target; if (!t.dataset || t.dataset.f !== 'pa_actions') return;
+    state.pa.edited = t.value !== ''; paSure = false; var st = document.getElementById('paStatus'); if (st) st.textContent = paStatus();
+  });
+  document.addEventListener('change', function (e) {
+    var t = e.target; if (!t.dataset || !t.dataset.ck) return;
+    var at = t.dataset.ck.lastIndexOf('|'), id = t.dataset.ck.slice(0, at), which = t.dataset.ck.slice(at + 1), def = schema.fieldsById[id], have = msParts(state.f[id].v), val;
+    if (which === 'na') { if (t.checked) { val = ''; msFree[id] = false; } else { msFree[id] = true; val = state.f[id].v; } }
+    else {
+      var o = def.o[+which], i = have.indexOf(o);
+      if (t.checked && i < 0) have.push(o); else if (!t.checked && i >= 0) have.splice(i, 1);
+      val = def.o.filter(function (x) { return have.indexOf(x) >= 0; }).join('; '); msFree[id] = !val;                  // everything unticked: the list stays open for another choice
+    }
+    store.setField(state, id, val); vm.noSweep[id] = 1; touch(); redraw();
+  });
   /* The calendar button: a hidden date picker opens on the date already typed (or today); the date chosen is written into the text box as day/month/year and saved like a typed one. */
   function openCalendar(id) {
     var pick = document.querySelector('[data-calpick="' + id + '"]'), box = document.querySelector('[data-f="' + id + '"]'); if (!pick || !box) return;
@@ -485,6 +565,7 @@
       if (t.dataset.f === 'idno' && val) { var clashMsg = idClashMsg(val, { id: 'idno' }); if (clashMsg) { t.value = state.f.idno.v; toast(clashMsg); return; } }     // the box goes back to what it held
       if (def && def.money) { val = util.formatMoney(val); t.value = val; }
       if (def && def.date) { var pd = util.parseDate(val); if (pd) { val = util.formatDate(pd); t.value = val; } }
+      if (t.dataset.f === 'pa_actions') { state.pa.edited = val !== ''; paSure = false; }                  // typed over: the points are the adviser's own until Refresh
       store.setField(state, t.dataset.f, val);
       var dobSet = (t.dataset.f === 'idno' || t.dataset.f === 'idtype') && autoDob();        // the date of birth follows the ID number (and the ID type going back to ID)
       var sexSet = (t.dataset.f === 'idno' || t.dataset.f === 'idtype') && autoGender();      // and so does an empty gender box
@@ -1264,7 +1345,9 @@
       if (id === 'idno') { var dobAgreed = autoDob(); if (dobAgreed) { entry.extras.push({ id: 'dob', prev: dobAgreed }); extraIds.push('dob'); } }   // the date of birth that came from this ID is agreed to with it
     } else {
       var value = res.value;
-      if (res.append && cell.v && (cell.st === 'heard' || cell.st === 'verify')) value = cell.v + ' ' + value;
+      var multi = schema.fieldsById[id] && schema.fieldsById[id].t === 'multi';
+      if (multi) { if (res.append && cell.v) value = V.mergeMulti(cell.v, value, schema.fieldsById[id].o); }                 // "and through Astute as well" adds to the ticks
+      else if (res.append && cell.v && (cell.st === 'heard' || cell.st === 'verify')) value = cell.v + ' ' + value;
       store.setField(state, id, value, res.status);
       (res.extra || []).forEach(function (x) { var c2 = state.f[x.id]; entry.extras.push({ id: x.id, prev: { v: c2.v, st: c2.st } }); store.setField(state, x.id, x.value, x.status); extraIds.push(x.id); });
       if (id === 'idno') { var dobWas = autoDob(); if (dobWas) { entry.extras.push({ id: 'dob', prev: dobWas }); extraIds.push('dob'); } var sexWas = autoGender(); if (sexWas) { entry.extras.push({ id: 'gender', prev: sexWas }); extraIds.push('gender'); } }   // the date of birth and an empty gender come from the ID number
