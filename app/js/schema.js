@@ -73,10 +73,10 @@
     ];
   }
   /* "Request Current Policy Schedule(s)": the last item of each section that holds policies. A tick-box dropdown (t: 'multi', the choices ticked are kept as one text joined with "; ", empty = not asked yet) and, beside it,
-     a small box for "Other". The block is greyed out while the client has no such policies (cond); group risk has no Astute choice. */
+     a small box for "Other". The block is always open (it is never locked: a client may mention a policy before it is typed in); group risk has no Astute choice. */
   var PS_CLIENT = 'Requested from client in meeting', PS_ASTUTE = 'Draw from Astute (with signed LOA)', PS_OTHER = 'Other';
-  function PS(id, cond, msg, group) {
-    return { title: 'Request Current Policy Schedule(s)', layout: 'g12', cond: cond, grey: 1, condMsg: msg, fields: [
+  function PS(id, group) {
+    return { title: 'Request Current Policy Schedule(s)', layout: 'g12', fields: [
       { id: 'ps_' + id, l: 'Schedule(s) requested', t: 'multi', o: group ? [PS_CLIENT, PS_OTHER] : [PS_CLIENT, PS_ASTUTE, PS_OTHER], s: 7 },
       { id: 'ps_' + id + '_ot', l: 'Other schedule arrangement', t: 'txt', opt: 1, voice: 1, cond: { f: 'ps_' + id, has: PS_OTHER }, grey: 1, s: 5 }
     ] };
@@ -184,26 +184,26 @@
         { id: 'joint', l: 'Joint life with spouse', t: 'sel', o: YN, cond: HAS_RISK, grey: 1 }
       ] },
       { title: 'Existing personal risk policies', list: 'risk', cond: HAS_RISK, grey: 1, condMsg: 'No personal risk cover is in place, so there are no policies to record.' },
-      PS('risk', HAS_RISK, 'No personal risk cover is in place, so there is no policy schedule to ask for.'),
+      PS('risk'),
       { title: 'Group risk cover', fields: [
         { id: 'has_group', l: 'Group risk through employer', t: 'sel', o: ['Yes', 'No', 'Not sure'] }
       ] },
       { title: 'Existing group risk policies', list: 'grp', cond: HAS_GROUP, grey: 1, condMsg: 'No group risk cover is in place (Group risk through employer is No or Not sure), so there are no policies to record.' },
-      PS('grp', HAS_GROUP, 'No group risk cover is in place, so there is no policy schedule to ask for.', true),
+      PS('grp', true),
       { fields: [N('n_cover')] }
     ] },
 
     { id: 'retire', title: 'Retirement funding', blocks: [
       { title: 'Retirement annuities', list: 'ret_ra' },
-      PS('ra', { rows: 'ret_ra' }, 'No retirement annuity is recorded, so there is no policy schedule to ask for.'),
+      PS('ra'),
       { title: 'Pension and provident funds', list: 'ret_pp' },
-      PS('pp', { rows: 'ret_pp' }, 'No pension or provident fund is recorded, so there is no policy schedule to ask for.'),
+      PS('pp'),
       { fields: [N('n_retire')] }
     ] },
 
     { id: 'inv', title: 'Investments', blocks: [
       { list: 'inv' },
-      PS('inv', { rows: 'inv' }, 'No investment is recorded, so there is no policy schedule to ask for.'),
+      PS('inv'),
       { fields: [N('n_inv')] }
     ] },
 

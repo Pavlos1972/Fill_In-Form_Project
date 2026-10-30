@@ -32,7 +32,8 @@
     SCHEDS.forEach(function (c) {
       if (!shows(c[0])) return;
       var rows = state.l[c[3]] || [], held = rows.map(function (r) { return String(r.d.prov || '').trim(); }).filter(Boolean), choice = v(c[0]).split(';').map(function (x) { return x.trim(); }).filter(Boolean);
-      if (!rows.length && !(c[0] === 'ps_risk' && v('has_risk') === 'Yes') && !(c[0] === 'ps_grp' && v('has_group') === 'Yes')) return;        // only for policies the client has (a Yes, or a policy recorded): not for cover that has not been asked about
+      var known = rows.length || (c[0] === 'ps_risk' && v('has_risk') === 'Yes') || (c[0] === 'ps_grp' && v('has_group') === 'Yes');
+      if (!choice.length && !known) return;                                                      // a choice that was made always counts; "not asked yet" is chased only where the client is known to have the policies (a Yes, or a policy recorded)
       out.schedules.push({ what: c[2], held: held, requested: choice.length ? choice : ['not asked yet'], other: choice.indexOf(OTHER) >= 0 ? v(c[1]) : '' });
     });
     (state.l.debts || []).forEach(function (r) {
