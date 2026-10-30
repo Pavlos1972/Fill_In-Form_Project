@@ -70,6 +70,7 @@ test('every heading, list and note of the screen is in the PDF', () => {
     sec.blocks.forEach(b => {
       if (!calc.showIf(b.cond, ctx) || b.sqd || (b.fields && b.fields.length && b.fields.every(f => f.nopdf))) return;                 // a block left off the PDF has no heading either
       if (b.help && !text.includes(norm(b.help))) misses.push('note: ' + b.help.slice(0, 60));
+      if (b.note && !text.includes(norm(b.note))) misses.push('block note: ' + b.note.slice(0, 60));
       if (b.title && !b.head && !(b.pri && pri[b.pri] === 1) && !text.includes(norm(b.title))) misses.push('heading ' + b.title);               // an area with one block shows no heading for it, on the screen either
     });
   });
