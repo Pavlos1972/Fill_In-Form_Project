@@ -114,3 +114,12 @@ test('Medical aid and Gap cover are printed side by side, with all four notes bo
   ['Medical aid', 'Gap cover', 'Will', 'Short-term insurance'].forEach(x => assert.ok(rec.join(' | ').includes(x), x));
   ['n_ma', 'n_gap', 'n_will', 'n_sti'].forEach(id => assert.ok(text.includes(norm('Sample ' + id)), id));
 });
+
+test('the instalment protector prints which debts are protected, the total of those that are, and what is switched off', () => {
+  const s = filled(); set(s, 'net', 'R 60 000.00');
+  store.addRow(s, 'debts', { type: 'Credit card', prov: 'Discovery Bank', inst: 'R 5 000.00' }); store.setProtect(s, s.l.debts.length - 1, false);
+  pdf(s); const all = rec.join(' | ');
+  assert.ok(all.includes('Instalment Protector') && all.includes('Protected') && all.includes('Not protected') && all.includes('Total instalments protected') && all.includes('Not protected (switched off)'));
+  assert.ok(all.includes('Instalment protector: ') && /\d of \d debts protected/.test(all));
+  store.setProtectAll(s, true); pdf(s); assert.ok(rec.join(' | ').includes('Instalment protector: all debts protected.') && !rec.join(' | ').includes('Not protected (switched off)'));
+});

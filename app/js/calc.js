@@ -15,16 +15,18 @@
   function sumRows(ctx, key, col) { return ctx.rows(key).reduce(function (a, r) { return a + util.num(r.d[col]); }, 0); }
 
   /* The income protection insured amount split for the quote: the take-home income (Insured amount), the debts the client is paying off (one line each, from the Debts page: what each instalment is) that get an
-     instalment protector ceded to the bank, and what is left for the household. -> { insured (null until the take-home income is known), rows: [{ label, prov, inst }], total, rest, over }. */
+     instalment protector ceded to the bank, and what is left for the household. Each debt can be switched off (row.off on the debt, see store.setProtect): it is then not protected and not in the total.
+     -> { insured (null until the take-home income is known), rows: [{ i (the debt's place in the Debts list), label, prov, inst, on }], total (of the debts switched on), all (of every debt), on (how many are on), count, rest, over }. */
   var IP_NAMES = { 'Home loan': 'Bond repayments', 'Vehicle finance': 'Car', 'Credit card': 'Credit card', 'Personal loan': 'Personal loan', 'Revolving credit': 'Revolving credit' };
   function ipSplit(ctx) {
-    var insured = ctx.v('net') ? ctx.n('net') : null, rows = [], total = 0;
-    ctx.rows('debts').forEach(function (r) {
+    var insured = ctx.v('net') ? ctx.n('net') : null, rows = [], total = 0, all = 0, on = 0;
+    ctx.rows('debts').forEach(function (r, i) {
       var inst = util.num(r.d.inst); if (!(inst > 0)) return;
-      rows.push({ label: IP_NAMES[r.d.type] || (r.d.type === 'Other' && r.d.desc) || r.d.desc || (r.d.type === 'Other' ? 'Other debt' : r.d.type) || 'Debt', prov: (r.d.prov === 'Other' ? r.d.prov_other : r.d.prov) || r.d.prov_other || '', inst: inst });
-      total += inst;
+      var prot = r.off !== true;
+      rows.push({ i: i, label: IP_NAMES[r.d.type] || (r.d.type === 'Other' && r.d.desc) || r.d.desc || (r.d.type === 'Other' ? 'Other debt' : r.d.type) || 'Debt', prov: (r.d.prov === 'Other' ? r.d.prov_other : r.d.prov) || r.d.prov_other || '', inst: inst, on: prot });
+      all += inst; if (prot) { total += inst; on++; }
     });
-    return { insured: insured, rows: rows, total: total, rest: insured == null ? null : insured - total, over: insured != null && total > insured + 0.004 };
+    return { insured: insured, rows: rows, total: total, all: all, on: on, count: rows.length, rest: insured == null ? null : insured - total, over: insured != null && total > insured + 0.004 };
   }
 
   var fieldCalcs = {

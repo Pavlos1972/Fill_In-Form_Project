@@ -67,6 +67,9 @@
     return r;
   }
   function delRow(state, key, i) { state.l[key].splice(i, 1); }
+  /* The instalment protector (BrightRock Risk Calculation): a debt is protected unless it is switched off (row.off). The switch is kept on the debt itself, so it goes with the row; a status such as "verify" is not touched. */
+  function setProtect(state, i, on) { var r = state.l.debts[i]; if (!r) return; if (on) delete r.off; else r.off = true; }
+  function setProtectAll(state, on) { (state.l.debts || []).forEach(function (r, i) { setProtect(state, i, on); }); }
   function setCell(state, key, i, k, v, st) {
     var r = state.l[key][i]; r.d[k] = v; r.st = st || 'confirmed';
     if ((key === 'redq' || key === 'bfred') && k === 'req' && v === 'Not required') { r.d.type = ''; r.d.amt = ''; if ('ins' in r.d) r.d.ins = ''; }        // a reduced quote that is not required keeps nothing
@@ -118,7 +121,9 @@
           var sp = util.splitFullName(d.name, j.f && j.f.sname && j.f.sname.v);
           d.name = sp.first; d.sname = sp.last;
         }
-        return { d: d, st: r.st || 'confirmed' };
+        var row = { d: d, st: r.st || 'confirmed' };
+        if (k === 'debts' && r.off === true) row.off = true;                                    // a debt the instalment protector was switched off for
+        return row;
       });
     });
     splitRetirement(s, j);
@@ -259,5 +264,5 @@
     return { tot: tot, fill: fill, ver: ver };
   }
 
-  return { setPa: setPa, blankPa: blankPa, cleanPa: cleanPa, setSum: setSum, cleanSum: cleanSum, addUnplaced: addUnplaced, closeUnplaced: closeUnplaced, unplacedKey: unplacedKey, blank: blank, blankTally: blankTally, ctxFor: ctxFor, setField: setField, addRow: addRow, delRow: delRow, setCell: setCell, accept: accept, clientName: clientName, idClash: idClash, idKey: idKey, fatherSurname: fatherSurname, baseFileName: baseFileName, pdfFileName: pdfFileName, fromJSON: fromJSON, toJSON: toJSON, counts: counts };
+  return { setProtect: setProtect, setProtectAll: setProtectAll, setPa: setPa, blankPa: blankPa, cleanPa: cleanPa, setSum: setSum, cleanSum: cleanSum, addUnplaced: addUnplaced, closeUnplaced: closeUnplaced, unplacedKey: unplacedKey, blank: blank, blankTally: blankTally, ctxFor: ctxFor, setField: setField, addRow: addRow, delRow: delRow, setCell: setCell, accept: accept, clientName: clientName, idClash: idClash, idKey: idKey, fatherSurname: fatherSurname, baseFileName: baseFileName, pdfFileName: pdfFileName, fromJSON: fromJSON, toJSON: toJSON, counts: counts };
 });

@@ -412,7 +412,24 @@ table.sqt .dash { color: var(--muted); display: inline-block; padding-top: 7px; 
 .ipleft { display: flex; flex-direction: column; gap: 14px; }
 .protector { display: flex; flex-direction: column; gap: 10px; border-left: 3px solid var(--brand); padding-left: 16px; min-width: 0; }
 .protector h5, .household h5 { margin: 0; font: 600 11.5px var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--accent); }
-.prows { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px 14px; }
+.prows { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px 14px; }
+.protector .phead { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 14px; }
+.pmaster { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; }
+.prow { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px; align-items: end; }
+.prow .tgl { margin-bottom: 7px; }
+.prow .f input { padding-right: 9px; }
+.prow.unprot .f .box input { text-decoration: line-through; opacity: .55; }
+.prow.unprot .f > span.l { opacity: .6; }
+/* a switch: green when on (protected), grey when off, amber when some are on */
+.tgl { position: relative; flex: none; width: 40px; height: 22px; padding: 0; border: 0; border-radius: 99px; background: var(--line); cursor: pointer; transition: background .15s; }
+.tgl::after { content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0, 0, 0, .3); transition: left .15s; }
+.tgl.on { background: var(--go); }
+.tgl.on::after { left: 21px; }
+.tgl.mixed { background: var(--maybe); }
+.tgl.mixed::after { left: 12px; }
+.tgl:disabled { opacity: .5; cursor: default; }
+.tgl:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { .tgl, .tgl::after { transition: none; } }
 .protector .sumline { display: flex; justify-content: space-between; gap: 10px; font-size: 12.5px; color: var(--muted); border-top: 1px solid var(--line); padding-top: 8px; font-variant-numeric: tabular-nums; }
 .protector .sumline b { color: var(--ink); }
 .household { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
