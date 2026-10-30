@@ -331,6 +331,7 @@ div.off { pointer-events: none; }
 .prio .block-title:first-child { margin-top: 0; }
 .prio .area { display: flex; flex-direction: column; gap: 4px; padding: 6px 10px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); min-width: 0; }
 .prio .area.flat { padding: 0; border: 0; background: none; }
+.prio .help { color: var(--ink); background: var(--accent-soft); border-left: 3px solid var(--brand); border-radius: 6px; padding: 7px 10px; font-size: 13px; margin: 0 0 6px; }
 .dempty { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; color: var(--muted); font-size: 13px; }
 .dempty .addrow, .drow ~ .addrow, .prio .addrow { margin: 4px 0 2px; width: auto; align-self: flex-start; }
 .prio .lc .addrow { margin-bottom: 2px; }
