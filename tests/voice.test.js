@@ -475,7 +475,7 @@ test('the lists are in the voice index, and a partner\'s ID and cell number are 
   assert.ok(!idx.byId['kids.cost'].none);
 });
 test('"do you have any children?" waits for how many, and the answer adds that many rows', () => {
-  assert.strictEqual(briefL(planL('Do you have any children?')), 'ask:count:kids');
+  assert.strictEqual(briefL(planL('Do you have any children?')), 'ask:has_kids');                       // the Yes/No that opens the list; "yes" or a number of children then add the rows
   assert.strictEqual(briefL(planL('How many children do you have?')), 'ask:count:kids');
   const w = { target: 'count:kids', answered: false };
   assert.strictEqual(briefL(planL('two', w)), 'addrow(kids) addrow(kids) ask:kids:0:name');
@@ -483,8 +483,10 @@ test('"do you have any children?" waits for how many, and the answer adds that m
   assert.strictEqual(briefL(planL('we have three', w)), 'addrow(kids) addrow(kids) addrow(kids) ask:kids:0:name');
   assert.strictEqual(briefL(planL('no', w)), '');
   assert.strictEqual(briefL(planL("we don't have any", w)), '');
+  assert.strictEqual(briefL(planL('yes', { target: 'has_kids', answered: false })), 'fill:has_kids=Yes');
+  assert.strictEqual(briefL(planL('no', { target: 'has_kids', answered: false })), 'fill:has_kids=No');
   assert.strictEqual(briefL(planL('I have two children')), 'addrow(kids) addrow(kids) ask:kids:0:name');
-  assert.strictEqual(briefL(planL('Do you have any debts?', { cur: 'debts' })), 'ask:count:debts');
+  assert.strictEqual(briefL(planL('Do you have any debts?', { cur: 'debts' })), 'ask:has_debts');
   assert.strictEqual(briefL(planL('Do you have any existing policies?', { cur: 'cover' })), 'ask:count:risk');
 });
 test('a box of a row is asked about and filled in the right row', () => {
@@ -526,7 +528,7 @@ test('a sentence that introduces a row fills what it says about it', () => {
   assert.strictEqual(d('I have a car loan with Wesbank'), 'addrow(debts) fill:debts:0:type=Vehicle finance fill:debts:0:prov=Wesbank ask:debts:0:desc');
   assert.strictEqual(d('I have a credit card with Capitec'), 'addrow(debts) fill:debts:0:type=Credit card fill:debts:0:prov=Capitec ask:debts:0:desc');
   assert.strictEqual(d('I have a home loan'), 'addrow(debts) fill:debts:0:type=Home loan ask:debts:0:prov');
-  assert.strictEqual(d('I have a home loan with Bank of Athens'), 'addrow(debts) fill:debts:0:type=Home loan fill:debts:0:prov=Other fill:debts:0:prov_other=Bank of Athens ask:debts:0:desc');
+  assert.strictEqual(d('I have a home loan with Bank of Athens'), 'addrow(debts) fill:debts:0:type=Home loan fill:debts:0:prov=Bank of Athens ask:debts:0:desc');      // the bank is one box, pick or type
   assert.strictEqual(d('my home loan is with FNB', { rows: { debts: [{ type: 'Home loan' }] }, curRow: { debts: 0 } }), 'fill:debts:0:type=Home loan fill:debts:0:prov=FNB ask:debts:0:desc');
 });
 test('two items in one breath become two rows', () => {
@@ -557,7 +559,7 @@ test('a statement about a box elsewhere is not turned into a new debt', () => {
   assert.strictEqual(briefL(planL('my loan account balance is R85 000', { cur: 'q_biz' })), 'fill:cl_bal=R 85 000.00');
   assert.strictEqual(briefL(planL('the balance on the home loan is R450 000', { cur: 'debts', rows: { debts: [{ type: 'Home loan', prov: 'ABSA' }, { type: 'Vehicle finance' }] }, curRow: { debts: 1 } })), 'fill:debts:0:bal=R 450 000.00');
   assert.strictEqual(V.parseCommand('add a debt', idx).type, 'addrow');
-  assert.deepStrictEqual(require('../app/js/schema.js').lists.debts.cols.map(c => c.k).slice(0, 3), ['type', 'prov', 'prov_other']);   // Type comes before the loan provider
+  assert.deepStrictEqual(require('../app/js/schema.js').lists.debts.cols.map(c => c.k).slice(0, 3), ['type', 'prov', 'desc']);   // Type comes before the loan provider
 });
 
 /* ---- ID numbers, passports and whole names said in one breath ---- */

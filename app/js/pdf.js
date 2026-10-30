@@ -14,7 +14,7 @@
       .replace(/…/g, '...').replace(/[•‣◦⁃▪●]/g, '-').replace(/→/g, '->').replace(/←/g, '<-').replace(/↔/g, '<->').replace(/≥/g, '>=').replace(/≤/g, '<=').replace(/≈/g, '~')   // symbols the PDF's font has no shape for, as the plain text they stand for
       .replace(/[^\x09\x0a\x0d\x20-\x7e\xa1-\xff]/g, '?');
   }
-  function fieldValue(f, state, ctx) { return f.calc ? calc.field(f.calc, ctx) : (f.money ? util.formatMoney(state.f[f.id].v) : (f.t === 'multi' && !f.nona && !state.f[f.id].v ? '(not asked yet)' : state.f[f.id].v)); }
+  function fieldValue(f, state, ctx) { return f.preset === '?' && String(state.f[f.id].v).trim() === '?' ? '' : f.calc ? calc.field(f.calc, ctx) : (f.money ? util.formatMoney(state.f[f.id].v) : (f.t === 'multi' && !f.nona && !state.f[f.id].v ? '(not asked yet)' : state.f[f.id].v)); }
 
   /* label/value pairs two to a row; wide boxes (notes) take a full row */
   function fieldRows(items) {
@@ -106,6 +106,7 @@
       });
       body.push([{ content: 'Total instalments protected', colSpan: 2, styles: { fontStyle: 'bold' } }, { content: t(util.money(sp.total) + ' p.m.'), styles: { halign: 'right', fontStyle: 'bold' } }]);
       if (sp.all > sp.total) body.push([{ content: 'Not protected (switched off)', colSpan: 2, styles: { textColor: MUTED } }, { content: t(util.money(sp.all - sp.total) + ' p.m.'), styles: { halign: 'right', textColor: MUTED } }]);
+      if (sp.elsewhere) body.push([{ content: 'Paid by someone else, left out (' + sp.elsewhere + (sp.elsewhere === 1 ? ' debt' : ' debts') + ')', colSpan: 2, styles: { textColor: MUTED } }, { content: t(util.money(sp.elsewhereTotal) + ' p.m.'), styles: { halign: 'right', textColor: MUTED } }]);
       noteText('Instalment protector: ' + (!sp.count ? 'no debt with an instalment recorded.' : sp.on === sp.count ? 'all debts protected.' : sp.on === 0 ? 'no debt protected.' : sp.on + ' of ' + sp.count + ' debts protected.'));
       ensure(Math.min(body.length * 7 + 12, 60));
       table({ head: [[{ content: 'Instalment Protector' }, { content: 'Protected' }, { content: 'Instalment (R p.m.)', styles: R }]], body: sp.rows.length ? body : [[{ content: 'No debt with an instalment recorded.', colSpan: 3, styles: { textColor: MUTED, fontStyle: 'italic' } }]], columnStyles: { 0: { cellWidth: CW - 90 }, 1: { cellWidth: 40 }, 2: { cellWidth: 50 } } });
@@ -120,12 +121,6 @@
     }
     function lanePrefix(b) { return b.lane ? (b.lane === 'br' ? 'BrightRock Fractured: ' : 'Standard: ') : ''; }
     function blockPdf(b, sec, notitle) {
-      if (b.part) {                                                                  // a band over the blocks that follow
-        ensure(40);
-        doc.setFillColor.apply(doc, ACCENT_SOFT); doc.rect(M, y, CW, 7, 'F');
-        doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor.apply(doc, DEEP); doc.text(t(b.part), M + 2.5, y + 4.9);
-        y += 10; return;
-      }
       if (b.strip) {                                                                 // the top of the BrightRock Risk Calculation page: what was asked for
         var asked = FF.actions.brightRockAsked(state);
         table({ body: [[{ content: 'Asked for on Client priorities and quotes needed', styles: { textColor: DEEP, fontStyle: 'bold', fillColor: ACCENT_SOFT } }, { content: t(asked.length ? 'BrightRock Fractured: ' + asked.join(', ') : 'No BrightRock Fractured quote asked for yet.'), styles: { fillColor: ACCENT_SOFT } }]], columnStyles: { 0: { cellWidth: 62 }, 1: { cellWidth: CW - 62 } } });

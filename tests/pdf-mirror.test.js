@@ -123,3 +123,11 @@ test('the instalment protector prints which debts are protected, the total of th
   assert.ok(all.includes('Instalment protector: ') && /\d of \d debts protected/.test(all));
   store.setProtectAll(s, true); pdf(s); assert.ok(rec.join(' | ').includes('Instalment protector: all debts protected.') && !rec.join(' | ').includes('Not protected (switched off)'));
 });
+
+test('a placeholder question mark (the ACI value before it is known) is not printed', () => {
+  const s = store.blank();
+  assert.strictEqual(s.f.lc_f_aciv.v, '?');                                                       // on screen it starts as "?"
+  pdf(s);
+  assert.ok(!rec.some(x => x.trim() === '?'), 'a "?" was printed');
+  set(s, 'lc_f_aciv', '2.5%'); pdf(s); assert.ok(rec.some(x => x.trim() === '2.5%'));
+});

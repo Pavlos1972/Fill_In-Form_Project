@@ -13,7 +13,7 @@
                 pri (the priority area of the Client priorities page the block belongs to), head (the block holding that area's decision and comments boxes),
                 lane ('br' BrightRock Fractured or 'std' Standard) and row ('fna', 'sf', 'red'): where a life quote block sits in the two-column grid of the Life area, sqd and sq (a row of the standard quote details table, and which boxes make it up),
                 strip (the line at the top of the BrightRock Risk Calculation page), half (two blocks side by side), protector / actions (their own layouts).
-   List keys:   dense (one short row for each quote instead of a card). Panel keys: inline (the area's decision, referral or request and comments are in one row). */
+   List keys:   need (the list shown and empty is one unanswered item in the progress count), dense (one short row for each quote instead of a card). Panel keys: inline (the area's decision, referral or request and comments are in one row). */
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
   else { root.FF = root.FF || {}; root.FF.schema = factory(); }
@@ -22,9 +22,9 @@
   var QTYPE = ['New Business', 'Servicing', 'N/A'];                         // what kind of quote it is
   var INS = ['Old Mutual', 'Momentum', 'Liberty', 'Sanlam', 'Discovery', 'BrightRock', 'Hollard', 'Assupol', 'Clientele', 'Other'];
   var INS_STD = ['Old Mutual', 'Momentum', 'Liberty', 'Sanlam', 'Discovery', 'Hollard', 'Assupol', 'Clientele', 'BrightRock (standard)', 'Other'];     // the insurers a standard quote can be asked of (BrightRock too: it does standard as well as fractured)
-  var BANKS = ['Nedbank', 'FNB', 'Investec', 'Standard Bank', 'ABSA', 'Discovery Bank', 'Capitec', 'Wesbank', 'Other'];
+  var BANKS = ['Nedbank', 'FNB', 'Investec', 'Standard Bank', 'ABSA', 'Discovery Bank', 'Capitec', 'Wesbank'];
   var WHO = ['Client', 'Spouse', 'Joint', 'Business', 'Ex-Spouse/Partner'];
-  var ACI = ['Fixed', 'CPI', 'None'], REQ = ['Request a quote', 'Not required'];
+  var ACI = ['Fixed', 'CPI', 'None'], REQ = ['Request a quote', 'Not required'], REQ4 = ['Request a quote', 'Not required', 'Cannot afford now', 'Not interested'];       // REQ4: the answers of every quote list
   var MA_BROKER = ['Through company', 'Privately paid, no broker', 'Privately paid, other broker', 'Paul K'];
   var N = function (id, l, rows) { var f = { id: id, l: l || 'Notes', t: 'area', wide: 1, opt: 1 }; if (rows) f.rows = rows; return f; };
   var BIZ = { f: 'bizowner', eq: 'Yes' }, HAS_BIZPOL = { all: [BIZ, { f: 'biz_assur', nin: ['No'] }] };
@@ -38,6 +38,8 @@
   var UNSURE = 'Client not sure, needs to think about it', BUDGET = 'Client needs to check their budget', CAN_THINK = { life: 1, ra: 1, inv: 1 };        // two more answers (both yellow) for the areas where a client often wants time
   var SPOUSE = { f: 'marital', nin: ['Single', 'Divorced', 'Widowed'] }, HAS_PARTNERS = { all: [BIZ, { f: 'biz_partners', eq: 'Yes' }] };      // a spouse or partner to ask about; business partners to ask about
   var HAS_RISK = { f: 'has_risk', nin: ['No'] }, HAS_GROUP = { f: 'has_group', nin: ['No', 'Not sure'] };
+  var HAS_DEBTS = { f: 'has_debts', nin: ['No'] }, HAS_KIDS = { f: 'has_kids', nin: ['No'] }, HAS_INV = { f: 'has_inv', nin: ['No'] }, HAS_RA = { f: 'has_ra', nin: ['No'] }, HAS_PP = { f: 'has_pp', nin: ['No'] };      // the Yes/No answer that opens a list
+  var MA_ON = { f: 'ma', nin: ['None'] }, GAP_ON = { f: 'gap', nin: ['No'] }, WILL_ON = { f: 'will', nin: ['No'] }, STI_ON = { f: 'sti', nin: ['No', 'Handled by spouse'] };      // the answers that open the boxes under them
   var FNA_ON = { f: 'fna_req', nin: ['Not required', 'No FNA done'] }, SF_ON = { f: 'sf_req', nin: ['Not required'] };      // a quote that is not required has no type or insurer: those boxes go
   var BF_FNA_ON = { f: 'bf_fna_req', nin: ['Not required', 'No FNA done'] }, BF_SF_ON = { f: 'bf_sf_req', nin: ['Not required'] };      // the same for the BrightRock Fractured quotes (no insurer: it is always BrightRock)
   var FNA_REQ = ['Request a quote', 'Not required', 'No FNA done'];
@@ -54,9 +56,9 @@
 
   function riskCalc(p) {
     return [
-      { id: p + '_hh', l: 'Household net income (R)', t: 'txt', calc: 'hh', s: 3 },
+      { id: p + '_hh', l: 'Client take-home income (R)', t: 'txt', calc: 'hh', s: 3 },
       { id: p + '_cc', l: 'Minus childcare costs (R)', t: 'txt', calc: 'cc', s: 3 },
-      { id: p + '_dr', l: 'Minus debt repayments (R)', t: 'txt', calc: 'dr', s: 3 },
+      { id: p + '_dr', l: 'Minus debt repayments paid by the client (R)', t: 'txt', calc: 'dr', s: 3 },
       { id: p + '_need', l: 'Total household income needed (R)', t: 'txt', calc: 'need', s: 3 }
     ];
   }
@@ -101,7 +103,7 @@
         { id: 'idno', l: 'ID / passport number', t: 'txt', risky: 1, len: 1, s: 4 },
         { id: 'gender', l: 'Gender', t: 'sel', o: ['Female', 'Male'], s: 2 },
         { id: 'nat', l: 'Nationality', t: 'sel', o: ['South African', 'Other'], preset: 'South African', voice: 1, s: 3 },
-        { id: 'nat_other', l: 'Other', t: 'txt', s: 3 },
+        { id: 'nat_other', l: 'Other', t: 'txt', cond: { f: 'nat', eq: 'Other' }, grey: 1, s: 3 },
         { id: 'tax', l: 'Income tax number', t: 'txt', risky: 1, len: 1, s: 4 }
       ] },
       { title: 'Contact details', layout: 'g12', fields: [
@@ -135,7 +137,7 @@
       { title: 'Business owner details', cond: BIZ, condMsg: 'These fields appear when Business owner is set to Yes.', fields: [
         { id: 'biz_name', l: 'Business name', t: 'txt' },
         { id: 'biz_struct', l: 'Type of ownership', t: 'sel', o: ['Sole proprietor', 'Partnership', 'Private company (Pty) Ltd', 'Close corporation', 'Trust', 'Other'] },
-        { id: 'biz_struct_other', l: 'Other', t: 'txt' },
+        { id: 'biz_struct_other', l: 'Other', t: 'txt', cond: { f: 'biz_struct', eq: 'Other' }, grey: 1 },
         { id: 'biz_does', l: 'What does the business do?', t: 'area', wide: 1, lookup: 'biz_name' },
         { id: 'biz_partners', l: 'Has partners or co-owners', t: 'sel', o: YN },
         { id: 'biz_pct', l: 'Your shareholding / interest %', t: 'txt' },
@@ -195,15 +197,18 @@
     ] },
 
     { id: 'retire', title: 'Retirement funding', blocks: [
-      { title: 'Retirement annuities', list: 'ret_ra' },
+      { title: 'Retirement annuities', fields: [{ id: 'has_ra', l: 'Has retirement annuities', t: 'sel', o: YN }] },
+      { title: 'Existing retirement annuities', list: 'ret_ra', cond: HAS_RA, grey: 1, condMsg: 'No retirement annuity is in place, so there is none to record.' },
       PS('ra'),
-      { title: 'Pension and provident funds', list: 'ret_pp' },
+      { title: 'Pension and provident funds', fields: [{ id: 'has_pp', l: 'Has pension or provident funds', t: 'sel', o: YN }] },
+      { title: 'Existing pension and provident funds', list: 'ret_pp', cond: HAS_PP, grey: 1, condMsg: 'No pension or provident fund is in place, so there is none to record.' },
       PS('pp'),
       { fields: [N('n_retire')] }
     ] },
 
     { id: 'inv', title: 'Investments', blocks: [
-      { list: 'inv' },
+      { fields: [{ id: 'has_inv', l: 'Has investments', t: 'sel', o: YN }] },
+      { list: 'inv', cond: HAS_INV, grey: 1, condMsg: 'No investments are in place, so there are none to record.' },
       PS('inv'),
       { fields: [N('n_inv')] }
     ] },
@@ -212,41 +217,41 @@
     { id: 'other', title: 'Medical, will & short-term', blocks: [
       { title: 'Medical aid', half: 1, layout: 'g12', fields: [
         { id: 'ma', l: 'Medical aid', t: 'sel', o: ['Medical aid', 'Hospital plan', 'None'], s: 6 },
-        { id: 'ma_prov', l: 'Medical aid provider', t: 'sel', free: 1, o: MED_SCHEMES, s: 6 },
-        { id: 'ma_plan', l: 'Plan', t: 'txt', risky: 1, s: 6 },
-        { id: 'ma_broker', l: 'Medical aid broker', t: 'sel', o: MA_BROKER, s: 6 },
+        { id: 'ma_prov', l: 'Medical aid provider', t: 'sel', free: 1, o: MED_SCHEMES, cond: MA_ON, grey: 1, s: 6 },
+        { id: 'ma_plan', l: 'Plan', t: 'txt', risky: 1, cond: MA_ON, grey: 1, s: 6 },
+        { id: 'ma_broker', l: 'Medical aid broker', t: 'sel', o: MA_BROKER, cond: MA_ON, grey: 1, s: 6 },
         N('n_ma', 'Notes', 2)
       ] },
       { title: 'Gap cover', half: 1, layout: 'g12', fields: [
         { id: 'gap', l: 'Gap cover', t: 'sel', o: ['Yes', 'No', 'Not sure'], s: 6 },
-        { id: 'gap_prov', l: 'Gap cover provider', t: 'sel', free: 1, o: GAP_PROVIDERS, s: 6 },
-        { id: 'gap_broker', l: 'Gap cover broker', t: 'sel', o: MA_BROKER, s: 6 },
+        { id: 'gap_prov', l: 'Gap cover provider', t: 'sel', free: 1, o: GAP_PROVIDERS, cond: GAP_ON, grey: 1, s: 6 },
+        { id: 'gap_broker', l: 'Gap cover broker', t: 'sel', o: MA_BROKER, cond: GAP_ON, grey: 1, s: 6 },
         N('n_gap', 'Notes', 2)
       ] },
       { title: 'Will', layout: 'g12', fields: [
         { id: 'will', l: 'Has a will', t: 'sel', o: YN, s: 4 },
-        { id: 'will_up', l: 'Will is up to date', t: 'sel', o: YN, s: 4 },
-        { id: 'will_where', l: 'Held with', t: 'sel', o: ['Capital Legacy', 'Other provider'], s: 4 },
-        { id: 'will_where_other', l: 'Other', t: 'txt', s: 4 },
-        { id: 'will_broker', l: 'Will broker', t: 'sel', o: ['Paul K', 'Other broker', 'None'], s: 4 },
-        { id: 'will_date', l: 'Last updated', t: 'txt', date: 1, s: 4 },
+        { id: 'will_up', l: 'Will is up to date', t: 'sel', o: YN, cond: WILL_ON, grey: 1, s: 4 },
+        { id: 'will_where', l: 'Held with', t: 'sel', o: ['Capital Legacy', 'Other provider'], cond: WILL_ON, grey: 1, s: 4 },
+        { id: 'will_where_other', l: 'Other', t: 'txt', cond: { all: [WILL_ON, { f: 'will_where', eq: 'Other provider' }] }, grey: 1, s: 4 },
+        { id: 'will_broker', l: 'Will broker', t: 'sel', o: ['Paul K', 'Other broker', 'None'], cond: WILL_ON, grey: 1, s: 4 },
+        { id: 'will_date', l: 'Last updated', t: 'txt', date: 1, cond: WILL_ON, grey: 1, s: 4 },
         N('n_will', 'Notes', 2)
       ] },
       { title: 'Short-term insurance', layout: 'g12', fields: [
         { id: 'sti', l: 'Has short-term insurance', t: 'sel', o: ['Yes', 'No', 'Handled by spouse'], s: 3 },
-        { id: 'sti_broker', l: 'Short-term broker', t: 'sel', o: ['Cameron Maritz', 'Other broker'], s: 3 },
-        { id: 'sti_car', l: 'Car', t: 'sel', o: YN, s: 3 },
-        { id: 'sti_house', l: 'Household contents', t: 'sel', o: YN, s: 3 },
-        { id: 'sti_struct', l: 'Structural', t: 'sel', o: YN, s: 3 },
-        { id: 'sti_personal', l: 'Total personal spend (R)', t: 'txt', money: 1, s: 3 },
-        { id: 'sti_biz', l: 'Business', t: 'sel', o: YN, s: 3 },
-        { id: 'sti_biz_spend', l: 'Total business spend (R)', t: 'txt', money: 1, s: 3 },
+        { id: 'sti_broker', l: 'Short-term broker', t: 'sel', o: ['Cameron Maritz', 'Other broker'], cond: STI_ON, grey: 1, s: 3 },
+        { id: 'sti_car', l: 'Car', t: 'sel', o: YN, cond: STI_ON, grey: 1, s: 3 },
+        { id: 'sti_house', l: 'Household contents', t: 'sel', o: YN, cond: STI_ON, grey: 1, s: 3 },
+        { id: 'sti_struct', l: 'Structural', t: 'sel', o: YN, cond: STI_ON, grey: 1, s: 3 },
+        { id: 'sti_personal', l: 'Total personal spend (R)', t: 'txt', money: 1, cond: STI_ON, grey: 1, s: 3 },
+        { id: 'sti_biz', l: 'Business', t: 'sel', o: YN, cond: { all: [STI_ON, BIZ] }, grey: 1, s: 3 },
+        { id: 'sti_biz_spend', l: 'Total business spend (R)', t: 'txt', money: 1, cond: { all: [STI_ON, BIZ, { f: 'sti_biz', eq: 'Yes' }] }, grey: 1, s: 3 },
         N('n_sti', 'Notes', 2)
       ] }
     ] },
 
-    { id: 'debts', title: 'Debts', blocks: [{ list: 'debts' }, { fields: [N('n_debts')] }] },
-    { id: 'kids', title: 'Children', blocks: [{ list: 'kids' }, { fields: [N('n_kids')] }] },
+    { id: 'debts', title: 'Debts', blocks: [{ fields: [{ id: 'has_debts', l: 'Has debts', t: 'sel', o: YN }] }, { list: 'debts', help: 'In the BrightRock calculation only the debts the client pays (Payer: Client, or not set) come off the take-home income. Debts paid by the spouse, jointly, by the business or by an ex-spouse or partner are left out.', cond: HAS_DEBTS, grey: 1, condMsg: 'No debts, so there is nothing to record.' }, { fields: [N('n_debts')] }] },
+    { id: 'kids', title: 'Children', blocks: [{ fields: [{ id: 'has_kids', l: 'Has children', t: 'sel', o: YN }] }, { list: 'kids', cond: HAS_KIDS, grey: 1, condMsg: 'No children, so there is nobody to record.' }, { fields: [N('n_kids')] }] },
 
     { id: 'health', roomy: 1, title: 'Health', blocks: [
       { fields: [
@@ -322,7 +327,7 @@
       { pri: 'rgar', title: 'Retirement goal analysis (RGAR)', help: 'To generate the RGAR report you need the client\'s current or paid-up retirement annuities, pension and/or provident fund(s), and proof of income where there is a pension and/or provident fund.', layout: 'g12', fields: [
         { id: 'rgar_req', l: 'RGAR', t: 'sel', o: ['Request an RGAR', 'Not required'], s: 4 },
         { id: 'ret_age', l: 'Retirement age', t: 'sel', o: ['50', '55', '60', '65', '70'], s: 4 },
-        { id: 'ret_net', money: 1, l: 'Net amount (today\'s terms) (R)', t: 'txt', s: 4 }
+        { id: 'ret_net', money: 1, l: 'Net amount (today\'s terms) (R p.m.)', t: 'txt', s: 4 }
       ] },
       HEAD('inv'),
       { pri: 'inv', title: 'Investment quotes', list: 'invq' },
@@ -373,11 +378,11 @@
         { id: 'lc_wol', l: 'Life cover (WOL) ABI', t: 'txt', opt: 1, preset: '3%', s: 3 },
         { id: 'lc_ccabi', l: 'Childcare ABI', t: 'txt', opt: 1, preset: '5%', s: 3 }
       ]) },
-      { title: 'Permanent disability: fractured cover', layout: 'g12', fields: riskCalc('pd').concat([
+      { title: 'Permanent disability: fractured cover', help: 'Built on the same household income needed as the Life cover above.', layout: 'g12', fields: [
         { id: 'pd_f_aci', l: 'ACI', t: 'sel', o: ACI, opt: 1, preset: 'Fixed', s: 3 },
         { id: 'pd_f_aciv', l: 'ACI value', t: 'txt', opt: 1, preset: '?', s: 3 },
         { id: 'pd_ccabi', l: 'Childcare ABI', t: 'txt', opt: 1, preset: '5%', s: 3 }
-      ]) },
+      ] },
       { title: 'Income protection / sickness benefit: fractured cover', protector: 1, layout: 'g12', fields: [
         { id: 'ip_age', l: 'Income protection age', t: 'sel', o: ['65', '70'], opt: 1, preset: '65' },
         { id: 'ip_amt', l: 'Insured amount (R p.m.)', t: 'txt', calc: 'ip_amt' },
@@ -413,12 +418,12 @@
   /* sum.t: totals worked out by the page (never added up by Claude): [label, [[list, column], ...]]. */
   var panels = [
     { id: 'life', title: 'Personal Risk Covers', sub: 'Life cover, disability, dread disease, income protection', src: 'Personal risk cover, group risk cover, credit life, total debt and childcare to be covered',
-      sum: { f: ['has_risk', 'joint', 'has_group', 'bf_fna_req', 'bf_fna_type', 'bf_sf_req', 'bf_sf_type', 'fna_req', 'fna_type', 'fna_ins', 'sf_req', 'sf_type', 'sf_ins'], l: { risk: 0, grp: 0, debts: ['type', 'prov', 'prov_other', 'desc', 'cl'], bfred: 0, redq: 0 },
+      sum: { f: ['has_risk', 'joint', 'has_group', 'pref_spend', 'bf_fna_req', 'bf_fna_type', 'bf_sf_req', 'bf_sf_type', 'fna_req', 'fna_type', 'fna_ins', 'sf_req', 'sf_type', 'sf_ins'], l: { risk: 0, grp: 0, debts: ['type', 'prov', 'desc', 'cl'], bfred: 0, redq: 0 },
         t: [['Total debt to be covered (balances)', [['debts', 'bal']]], ['Total monthly debt repayments', [['debts', 'inst']]], ['Total childcare cost to be covered, per month', [['kids', 'cost']]]] } },
     { id: 'ra', title: 'Retirement Planning', sub: 'Retirement Annuities', src: 'Retirement funding: retirement annuities, pension and provident funds',
       sum: { f: [], l: { ret_ra: 0, ret_pp: 0, raq: 0 } } },
     { id: 'rgar', title: 'RGAR', sub: 'Retirement goal analysis', src: 'Retirement funding totals, retirement age and income goal',
-      sum: { f: ['rgar_req', 'ret_age', 'ret_net'], l: {}, t: [['Total saved across all retirement funds', [['ret_ra', 'val'], ['ret_pp', 'val']]], ['Total monthly contributions to retirement funds', [['ret_ra', 'contrib'], ['ret_pp', 'contrib']]]] } },
+      sum: { f: ['rgar_req', 'ret_age', 'ret_net'], l: {}, t: [['Total saved across all retirement funds (including living annuities)', [['ret_ra', 'val'], ['ret_pp', 'val'], ['inv', 'val', 'type', 'Living annuity']]], ['Total monthly contributions to retirement funds', [['ret_ra', 'contrib'], ['ret_pp', 'contrib']]]] } },
     { id: 'inv', title: 'Investment Planning', sub: 'Investments', src: 'Investments',
       sum: { f: [], l: { inv: 0, invq: 0 } } },
     { id: 'egar', inline: 1, title: 'EGAR', sub: 'Education goal analysis', src: 'Children (education stage and cost)',
@@ -438,21 +443,21 @@
   /* Lists that grow. cards: show each row as a spread-out card (and in the PDF as its own block).
      sum: columns that get a total.  calc: a column worked out from other columns. */
   var lists = {
-    risk: { title: 'Existing personal risk policies', add: 'Add policy', cols: [
+    risk: { need: 1, title: 'Existing personal risk policies', add: 'Add policy', cols: [
       { k: 'prov', l: 'Provider', o: INS, free: 1 }, { k: 'spend', money: 1, l: 'Spend (R p.m.)', num: 1 }, { k: 'broker', l: 'Broker on record', o: BROKER }, { k: 'notes', l: 'Notes' }
     ], sum: { spend: 'Total spend' } },
-    grp: { title: 'Existing group risk policies', add: 'Add group policy', cols: [
+    grp: { need: 1, title: 'Existing group risk policies', add: 'Add group policy', cols: [
       { k: 'prov', l: 'Provider / administrator', o: INS, free: 1 }, { k: 'spend', money: 1, l: 'Spend (R p.m.)', num: 1 }, { k: 'broker', l: 'Broker on record', o: BROKER }, { k: 'notes', l: 'Notes' }
     ], sum: { spend: 'Total spend' } },
-    ret_ra: { title: 'Retirement annuities', add: 'Add retirement annuity', cols: [
-      { k: 'prov', l: 'Provider / administrator', o: INS.concat(['Allan Gray']), free: 1 },
+    ret_ra: { need: 1, title: 'Retirement annuities', add: 'Add retirement annuity', cols: [
+      { k: 'prov', l: 'Provider / administrator', o: INS.concat(['Allan Gray']), free: 1 }, { k: 'status', l: 'Current or paid-up', o: ['Current', 'Paid-up'] },
       { k: 'val', money: 1, l: 'Value (R)', num: 1 }, { k: 'contrib', money: 1, l: 'Monthly contribution (R p.m.)', num: 1 }, { k: 'broker', l: 'Broker on record', o: BROKER }
     ], sum: { val: 'Total value', contrib: 'Total contributions' } },
-    ret_pp: { title: 'Pension and provident funds', add: 'Add pension / provident fund', cols: [
+    ret_pp: { need: 1, title: 'Pension and provident funds', add: 'Add pension / provident fund', cols: [
       { k: 'type', l: 'Type', o: ['Pension fund', 'Provident fund'] }, { k: 'prov', l: 'Provider / administrator', o: INS.concat(['Allan Gray']), free: 1 },
       { k: 'val', money: 1, l: 'Value (R)', num: 1 }, { k: 'contrib', money: 1, l: 'Monthly contribution (R p.m.)', num: 1 }, { k: 'broker', l: 'Broker on record', o: BROKER }
     ], sum: { val: 'Total value', contrib: 'Total contributions' } },
-    inv: { title: 'Investments', add: 'Add investment', cols: [
+    inv: { need: 1, title: 'Investments', add: 'Add investment', cols: [
       { k: 'type', l: 'Type', o: ['Unit trust', 'Tax-free savings', 'Endowment', 'Offshore', 'Share portfolio', 'Living annuity', 'Other'] },
       { k: 'prov', l: 'Provider', free: 1, o: INV_PROVIDERS },
       { k: 'val', money: 1, l: 'Current value (R)', num: 1 }, { k: 'prem', money: 1, l: 'Monthly premium (R p.m.)', num: 1 }, { k: 'broker', l: 'Broker on record', o: BROKER }
@@ -466,29 +471,29 @@
     shares: { title: 'Partners and shareholders', add: 'Add partner / shareholder', cols: [
       { k: 'name', l: 'Full name' }, { k: 'id', l: 'ID number' }, { k: 'cell', l: 'Cell number' }, { k: 'pct', l: 'Shareholding %', num: 1 }
     ], sum: {} },
-    debts: { cards: 'Debt', title: 'Debts', add: 'Add debt', cols: [
-      { k: 'type', l: 'Type', o: ['Home loan', 'Vehicle finance', 'Credit card', 'Personal loan', 'Revolving credit', 'Other'] }, { k: 'prov', l: 'Loan provider / bank', o: BANKS }, { k: 'prov_other', l: 'Other (if the bank is not in the list)' },
+    debts: { need: 1, cards: 'Debt', title: 'Debts', add: 'Add debt', cols: [
+      { k: 'type', l: 'Type', o: ['Home loan', 'Vehicle finance', 'Credit card', 'Personal loan', 'Revolving credit', 'Other'] }, { k: 'prov', l: 'Loan provider / bank', o: BANKS, free: 1 },
       { k: 'desc', l: 'Description' }, { k: 'owner', l: 'Owner', o: WHO }, { k: 'payer', l: 'Payer', o: WHO }, { k: 'term', l: 'Term left' },
       { k: 'inst', money: 1, l: 'Instalment (R p.m.)', num: 1 }, { k: 'bal', money: 1, l: 'Balance (R)', num: 1 }, { k: 'asset', money: 1, l: 'Asset value (R)', num: 1 },
       { k: 'cl', l: 'Credit life with lender', o: YN }, { k: 'surety', l: 'Surety signed', o: ['Yes', 'No', 'Unsure'] },
       { k: 'notes', l: 'Notes', t: 'area', wide: 1 }
     ], sum: { inst: 'Total monthly', bal: 'Total liabilities', asset: 'Total assets' } },
-    kids: { cards: 'Child', title: 'Children', add: 'Add child', cols: [
+    kids: { need: 1, cards: 'Child', title: 'Children', add: 'Add child', cols: [
       { k: 'name', l: 'Name' }, { k: 'sname', l: 'Surname' }, { k: 'gender', l: 'Gender', o: ['Female', 'Male'] }, { k: 'dob', l: 'Date of birth', date: 1 }, { k: 'age', l: 'Age', calc: 'age' },
       { k: 'stage', l: 'Education stage', o: STAGES }, { k: 'cost', money: 1, l: 'Monthly cost (R)', num: 1 }
     ], sum: { cost: 'Total childcare' } },
     bfred: { dense: 1, cards: 'Reduced quote', title: 'Reduced quotes (BrightRock Fractured)', add: 'Add reduced quote', cols: [
-      { k: 'req', l: 'Request', o: REQ }, { k: 'type', l: 'Type of quote', o: QTYPE }, { k: 'amt', money: 1, l: 'Monthly amount (R p.m.)', num: 1 }
+      { k: 'req', l: 'Request', o: REQ4 }, { k: 'type', l: 'Type of quote', o: QTYPE }, { k: 'amt', money: 1, l: 'Monthly amount (R p.m.)', num: 1 }
     ], sum: {} },
     redq: { dense: 1, cards: 'Reduced quote', title: 'Reduced quotes (Standard)', add: 'Add reduced quote', cols: [
-      { k: 'req', l: 'Request', o: REQ }, { k: 'type', l: 'Type of quote', o: QTYPE }, { k: 'ins', l: 'Insurer', o: INS_STD, free: 1 }, { k: 'amt', money: 1, l: 'Monthly amount (R p.m.)', num: 1 }
+      { k: 'req', l: 'Request', o: REQ4 }, { k: 'type', l: 'Type of quote', o: QTYPE }, { k: 'ins', l: 'Insurer', o: INS_STD, free: 1 }, { k: 'amt', money: 1, l: 'Monthly amount (R p.m.)', num: 1 }
     ], sum: {} },
     raq: { dense: 1, cards: 'RA quote', title: 'Retirement annuity quotes', add: 'Add RA quote', cols: [
-      { k: 'req', l: 'Request', o: ['Request a quote', 'Not required', 'Cannot afford now', 'Not interested'] }, { k: 'ins', l: 'Insurer', o: INS, free: 1 },
+      { k: 'req', l: 'Request', o: REQ4 }, { k: 'ins', l: 'Insurer', o: INS, free: 1 },
       { k: 'monthly', money: 1, l: 'Monthly amount (R p.m.)', num: 1 }, { k: 'lump', money: 1, l: 'Lump sum (R)', num: 1 }
     ], sum: {} },
     invq: { dense: 1, cards: 'Investment quote', title: 'Investment quotes', add: 'Add investment quote', cols: [
-      { k: 'purpose', l: 'Purpose', o: ['Children\'s education', 'General investing'] }, { k: 'product', l: 'Product', o: ['Tax-free savings', 'Endowment', 'Unit trust / voluntary funds', 'Other'] },
+      { k: 'req', l: 'Request', o: REQ4 }, { k: 'purpose', l: 'Purpose', o: ['Children\'s education', 'General investing'] }, { k: 'product', l: 'Product', o: ['Tax-free savings', 'Endowment', 'Unit trust / voluntary funds', 'Other'] },
       { k: 'ins', l: 'Insurer', o: INS, free: 1 }, { k: 'monthly', money: 1, l: 'Monthly amount (R p.m.)', num: 1 }, { k: 'lump', money: 1, l: 'Lump sum (R)', num: 1 }
     ], sum: {} }
   };
