@@ -114,9 +114,8 @@
         { id: 'wemail', l: 'Work email', t: 'txt', risky: 1, none: 'No work email', s: 6 }
       ] },
       { title: 'Background', layout: 'g12', fields: [
-        { id: 'smoker', l: 'Smoker', t: 'sel', o: ['Non-smoker', 'Smoker'], s: 3 },
-        { id: 'edu', l: 'Highest education', t: 'sel', o: ['Matric', 'Matric & diploma', '4-year diploma', '3-year degree', 'Postgraduate', 'Other'], s: 3 },
-        { id: 'edu_notes', l: 'Qualification details', t: 'area', s: 6 }
+        { id: 'edu', l: 'Highest education', t: 'sel', o: ['Matric', 'Matric & diploma', '4-year diploma', '3-year degree', 'Postgraduate', 'Other'], s: 4 },
+        { id: 'edu_notes', l: 'Qualification details', t: 'area', s: 8 }
       ] },
       { title: 'Public profile (LinkedIn)', fields: [
         { id: 'profile', l: 'Public profile summary', t: 'area', wide: 1, opt: 1, nopdf: 1, lookup: 'client', lookupBtn: 'Search LinkedIn', rows: 3, hint: 'Filled in by itself when the name and employer or occupation are known. Needs the Anthropic key on the laptop; it is not available on the practice page.' }
@@ -178,10 +177,11 @@
       { fields: [N('n_income')] }
     ] },
 
+    { id: 'debts', title: 'Debts', blocks: [{ fields: [{ id: 'has_debts', l: 'Has debts', t: 'sel', o: YN }] }, { list: 'debts', help: 'In the BrightRock calculation only the debts the client pays (Payer: Client, or not set) come off the take-home income. Debts paid by the spouse, jointly, by the business or by an ex-spouse or partner are left out.', cond: HAS_DEBTS, grey: 1, condMsg: 'No debts, so there is nothing to record.' }, { fields: [N('n_debts')] }] },
+
+    { id: 'kids', title: 'Children', blocks: [{ fields: [{ id: 'has_kids', l: 'Has children', t: 'sel', o: YN }] }, { list: 'kids', help: 'Childcare costs only (crèche, aftercare, nanny, day mother). They come off the take-home income in the BrightRock calculation. School and tertiary fees are not entered here.', cond: HAS_KIDS, grey: 1, condMsg: 'No children, so there is nobody to record.' }, { fields: [N('n_kids')] }] },
+
     { id: 'cover', title: 'Personal & group risk cover', blocks: [
-      { help: 'The Letter of Authority (LOA) lets us get the policy schedules through Astute.', fields: [
-        { id: 'loa', l: 'Can we send you a LOA to sign?', t: 'sel', o: ['Yes', 'No', 'Not now'] }
-      ] },
       { title: 'Personal risk cover', fields: [
         { id: 'has_risk', l: 'Has personal risk cover', t: 'sel', o: YN },
         { id: 'joint', l: 'Joint life with spouse', t: 'sel', o: YN, cond: { all: [HAS_RISK, SPOUSE] }, grey: 1 }
@@ -199,10 +199,9 @@
     { id: 'retire', title: 'Retirement funding', blocks: [
       { title: 'Retirement annuities', fields: [{ id: 'has_ra', l: 'Has retirement annuities', t: 'sel', o: YN }] },
       { title: 'Existing retirement annuities', list: 'ret_ra', cond: HAS_RA, grey: 1, condMsg: 'No retirement annuity is in place, so there is none to record.' },
-      PS('ra'),
       { title: 'Pension and provident funds', fields: [{ id: 'has_pp', l: 'Has pension or provident funds', t: 'sel', o: YN }] },
       { title: 'Existing pension and provident funds', list: 'ret_pp', cond: HAS_PP, grey: 1, condMsg: 'No pension or provident fund is in place, so there is none to record.' },
-      PS('pp'),
+      PS('ra'),                                                                                  // one request for the retirement annuities and the pension and provident funds
       { fields: [N('n_retire')] }
     ] },
 
@@ -250,11 +249,10 @@
       ] }
     ] },
 
-    { id: 'debts', title: 'Debts', blocks: [{ fields: [{ id: 'has_debts', l: 'Has debts', t: 'sel', o: YN }] }, { list: 'debts', help: 'In the BrightRock calculation only the debts the client pays (Payer: Client, or not set) come off the take-home income. Debts paid by the spouse, jointly, by the business or by an ex-spouse or partner are left out.', cond: HAS_DEBTS, grey: 1, condMsg: 'No debts, so there is nothing to record.' }, { fields: [N('n_debts')] }] },
-    { id: 'kids', title: 'Children', blocks: [{ fields: [{ id: 'has_kids', l: 'Has children', t: 'sel', o: YN }] }, { list: 'kids', cond: HAS_KIDS, grey: 1, condMsg: 'No children, so there is nobody to record.' }, { fields: [N('n_kids')] }] },
 
     { id: 'health', roomy: 1, title: 'Health', blocks: [
       { fields: [
+        { id: 'smoker', l: 'Smoker', t: 'sel', o: ['Non-smoker', 'Smoker'] },
         { id: 'h_gen', l: 'General health good', t: 'sel', o: YN },
         { id: 'h_dia', l: 'Diabetes / high sugar', t: 'sel', o: YN },
         { id: 'h_chol', l: 'High cholesterol', t: 'sel', o: YN },
@@ -339,11 +337,11 @@
       ] },
       HEAD('will'),
       { pri: 'will', title: 'Referral', fields: [
-        { id: 'ref_will', l: 'Will (Capital Legacy)', t: 'sel', o: ['Capital Legacy to contact client', 'Has updated will', 'Not interested'] }
+        { id: 'ref_will', l: 'Will (Capital Legacy)', t: 'sel', o: ['Capital Legacy to contact client', 'Not interested'] }
       ] },
       HEAD('st'),
       { pri: 'st', title: 'Referral', fields: [
-        { id: 'ref_sti', l: 'Short-term (Cameron)', t: 'sel', o: ['Cameron to contact client', 'Must not contact client', 'Client has own broker', 'Not interested'] }
+        { id: 'ref_sti', l: 'Short-term (Cameron)', t: 'sel', o: ['Cameron to contact client', 'Must not contact client', 'Not interested'] }
       ] },
       { pri: 'biz', cond: HAS_PARTNERS, grey: 1, nomsg: 1, title: 'Buy & Sell', help: 'Partner names, ID numbers, cell numbers and shareholding % come from the Partners and shareholders list on the Occupation page.', fields: [
         { id: 'bs_req', l: 'Buy & Sell quote', t: 'sel', o: REQ },
@@ -400,7 +398,10 @@
     /* Admin: the next appointment (moved here from Client priorities) on the left and, on the right, the action points for the personal assistant (what is still to be asked for, quotes to request, who must contact the client, the follow-up
        appointment), written from the rest of the form (see actions.js). */
     { id: 'admin', adv: 1, layout: 'admin', title: 'Admin', blocks: [
-      { title: 'Next appointment', fields: [{ id: 'next_appt', l: 'Next appointment (date)', t: 'txt', date: 1, cal: 1, hint: 'e.g. 05/11/2026' }] },
+      { title: 'Letter of Authority', left: 1, help: 'The Letter of Authority (LOA) lets us get the policy schedules through Astute: the retirement, investment and risk policy schedules all depend on it.', fields: [
+        { id: 'loa', l: 'Can we send you a LOA to sign?', t: 'sel', o: ['Yes', 'No', 'Not now'] }
+      ] },
+      { title: 'Next appointment', left: 1, fields: [{ id: 'next_appt', l: 'Next appointment (date)', t: 'txt', date: 1, cal: 1, hint: 'e.g. 05/11/2026' }] },
       { title: 'Action Points for Personal Assistant', actions: 1, fields: [{ id: 'pa_actions', l: 'Action points for Sitamah Nathoo (personal assistant)', t: 'area', wide: 1, opt: 1, nonotes: 1, rows: 16 }] }
     ] }
   ];
@@ -480,7 +481,7 @@
     ], sum: { inst: 'Total monthly', bal: 'Total liabilities', asset: 'Total assets' } },
     kids: { need: 1, cards: 'Child', title: 'Children', add: 'Add child', cols: [
       { k: 'name', l: 'Name' }, { k: 'sname', l: 'Surname' }, { k: 'gender', l: 'Gender', o: ['Female', 'Male'] }, { k: 'dob', l: 'Date of birth', date: 1 }, { k: 'age', l: 'Age', calc: 'age' },
-      { k: 'stage', l: 'Education stage', o: STAGES }, { k: 'cost', money: 1, l: 'Monthly cost (R)', num: 1 }
+      { k: 'stage', l: 'Education stage', o: STAGES }, { k: 'cost', money: 1, l: 'Childcare (R p.m.)', num: 1 }
     ], sum: { cost: 'Total childcare' } },
     bfred: { dense: 1, cards: 'Reduced quote', title: 'Reduced quotes (BrightRock Fractured)', add: 'Add reduced quote', cols: [
       { k: 'req', l: 'Request', o: REQ4 }, { k: 'type', l: 'Type of quote', o: QTYPE }, { k: 'amt', money: 1, l: 'Monthly amount (R p.m.)', num: 1 }

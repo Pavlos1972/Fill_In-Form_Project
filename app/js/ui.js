@@ -396,13 +396,16 @@
     var seen = {}, cols = sec.layout === 'admin', pair = '';
     var flush = function () { if (pair) { h += '<div class="halves">' + pair + '</div>'; pair = ''; } };           // blocks marked half sit two to a row
     if (cols) h += '<div class="admin">';
+    var leftAt = h.length, left = '';                                                                            // on the Admin page the blocks marked left are stacked in the narrow column
     sec.blocks.forEach(function (b) {
       if (b.pri) { if (!seen[b.pri]) { seen[b.pri] = 1; h += panelHTML(sec, b.pri); } return; }
       if (b.half) { pair += '<div class="half">' + blockHTML(b, sec, c) + '</div>'; return; }
       flush();
+      if (cols && b.left) { left += blockHTML(b, sec, c); return; }
       h += cols ? '<div class="admcol">' + blockHTML(b, sec, c) + '</div>' : blockHTML(b, sec, c);
     });
     flush();
+    if (left) h = h.slice(0, leftAt) + '<div class="admcol">' + left + '</div>' + h.slice(leftAt);
     return h + (cols ? '</div>' : '');
   }
 

@@ -54,7 +54,7 @@
     ['will', ['No'], { ids: ['will_up', 'will_where', 'will_where_other', 'will_broker', 'will_date'] }, 'will details'],
     ['sti', ['No'], { ids: ['sti_broker', 'sti_car', 'sti_house', 'sti_struct', 'sti_personal', 'sti_biz', 'sti_biz_spend'] }, 'short-term insurance details']
   ];
-  var SCHEDULE_BOXES = ['ps_risk', 'ps_grp', 'ps_ra', 'ps_pp', 'ps_inv'];
+  var SCHEDULE_BOXES = ['ps_risk', 'ps_grp', 'ps_ra', 'ps_inv'];
 
   /* Returns [{ id, msg }] for a field, or [{ list, i, msg }] for a list row. */
   function check(ctx) {

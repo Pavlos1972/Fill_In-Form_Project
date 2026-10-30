@@ -200,7 +200,7 @@
     'kids.gender': ['boy or girl', 'gender', 'is it a boy', 'is it a girl', 'is he a boy', 'is she a girl'],
     'kids.dob': ['born', 'birthday', 'birth date', 'when was he born', 'when was she born', 'how old is', 'date of birth'],
     'kids.stage': ['which grade', 'what grade', 'education stage', 'what stage', 'at school', 'in school'],
-    'kids.cost': ['monthly cost', 'school fees', 'cost per month', 'how much does he cost', 'how much does she cost', 'childcare'],
+    'kids.cost': ['monthly cost', 'cost per month', 'how much does he cost', 'how much does she cost', 'childcare', 'child care', 'creche', 'aftercare', 'after care', 'nanny', 'day mother'],
     'debts.prov': ['who is the loan with', 'which bank', 'loan provider', 'who is it with', 'who is the lender'],
     'debts.type': ['type of loan', 'what kind of loan', 'what type of debt', 'kind of debt'],
     'debts.desc': ['what is it for', 'what was it for', 'description'],
@@ -246,8 +246,7 @@
     loa: ['loa', 'letter of authority', 'send you a loa', 'sign a loa', 'sign the loa', 'authority form', 'can we send you a loa'],
     ps_risk: ['personal policy schedules', 'schedules for your personal policies', 'personal risk policy schedules', 'policy schedules for the personal risk', 'schedules for the risk policies', 'policy schedules', 'policy schedule', 'through astute', 'from astute', 'send us the schedules'],
     ps_grp: ['group policy schedules', 'group risk schedule', 'group risk schedules', 'schedules for the group risk', 'schedules for the group policies', 'policy schedules', 'policy schedule', 'through astute', 'from astute', 'send us the schedules'],
-    ps_ra: ['retirement annuity schedules', 'schedules for the retirement annuity', 'schedules for your retirement annuities', 'ra schedules', 'schedule for the ra', 'policy schedules', 'policy schedule', 'through astute', 'from astute', 'send us the schedules'],
-    ps_pp: ['pension schedules', 'provident fund schedules', 'pension and provident schedules', 'schedules for the pension', 'schedules for the provident fund', 'policy schedules', 'policy schedule', 'through astute', 'from astute', 'send us the schedules'],
+    ps_ra: ['retirement annuity schedules', 'schedules for the retirement annuity', 'schedules for your retirement annuities', 'ra schedules', 'schedule for the ra', 'pension schedules', 'provident fund schedules', 'pension and provident schedules', 'schedules for the pension', 'schedules for the provident fund', 'retirement schedules', 'schedules for the retirement funds', 'policy schedules', 'policy schedule', 'through astute', 'from astute', 'send us the schedules'],
     ps_inv: ['investment schedules', 'schedules for the investments', 'schedule for your investments', 'schedules for your investment', 'policy schedules', 'policy schedule', 'through astute', 'from astute', 'send us the schedules'],
     ref_will: ['will referral', 'referral for the will', 'capital legacy', 'about your will', 'your will', 'wills'],
     idtype: ['id or passport', 'passport or id', 'do you have an id', 'identity document', 'id document', 'id book', 'id card', 'smart card', 'green id book', 'passport'],
@@ -1063,7 +1062,7 @@
     debts: [['bal', /\b(?:outstanding|balance|owe|owing)\b/], ['inst', /\b(?:instal?ments?|repayments?|a month|per month|monthly|pm)\b/], ['asset', /\b(?:worth|asset)\b/]],
     risk: [['spend', /\b(?:month|premium|paying|pay)\b/]], grp: [['spend', /\b(?:month|premium|paying|pay)\b/]], ret_ra: [['contrib', /\b(?:month|contribut\w*)\b/], ['val', /\b(?:worth|value|balance|in it)\b/]], ret_pp: [['contrib', /\b(?:month|contribut\w*)\b/], ['val', /\b(?:worth|value|balance|in it)\b/]],
     bizpol: [['prem', /\b(?:month|premium|paying|pay)\b/], ['cover', /\b(?:cover|covered|sum assured|worth|value)\b/]],
-    inv: [['prem', /\b(?:month|premium|invest)\b/], ['val', /\b(?:worth|value|balance)\b/]], kids: [['cost', /\b(?:month|fees|cost|costs)\b/]]
+    inv: [['prem', /\b(?:month|premium|invest)\b/], ['val', /\b(?:worth|value|balance)\b/]], kids: [['cost', /\b(?:cost|costs|childcare|creche|aftercare|nanny)\b/]]
   };
   var GENERIC_WORD = { bank: 1, finance: 1, loan: 1, loans: 1, card: 1, account: 1, policy: 1, policies: 1, fund: 1, funds: 1, limited: 1, ltd: 1, group: 1, life: 1, cover: 1, insurance: 1, with: 1, invest: 1, investment: 1, investments: 1, named: 1, called: 1, born: 1, month: 1, months: 1, per: 1, paying: 1, pay: 1, rand: 1, r: 1 };
   function rowFacts(idx, key, core) {

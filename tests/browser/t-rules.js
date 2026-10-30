@@ -31,7 +31,7 @@ srv.listen(0, async () => {
   await p.fill('[data-f="sname"]', 'Kuiper'); await p.press('[data-f="sname"]', 'Tab'); await p.waitForTimeout(250);
   await nav('Children'); await p.click('[data-add="kids"]'); await p.waitForTimeout(250);
   const labels = await p.evaluate(() => [...document.querySelectorAll('.rowcard')[0].querySelectorAll('.f .l span')].map(e => e.textContent.trim()).join(' | '));
-  ok(labels === 'Name | Surname | Gender | Date of birth | Age | Education stage | Monthly cost (R)', 'the card has Name and Surname apart: ' + labels);
+  ok(labels === 'Name | Surname | Gender | Date of birth | Age | Education stage | Childcare (R p.m.)', 'the card has Name and Surname apart: ' + labels);
   const kid = k => '[data-l="kids"][data-i="0"][data-k="' + k + '"]';
   ok(await val(kid('sname')) === 'Kuiper', 'a new child gets the father\'s surname: ' + await val(kid('sname')));
   await p.fill(kid('name'), 'Hannah Kuiper'); await p.press(kid('name'), 'Tab'); await p.waitForTimeout(250);
