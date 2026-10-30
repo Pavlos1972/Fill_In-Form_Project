@@ -96,15 +96,19 @@
       }
     }
 
-    /* Income protection (fractured cover): age and insured amount, the instalment protector (a line for each debt with an instalment, then their total), household needs, then the other boxes. */
+    /* Income protection (fractured cover): age and insured amount, the instalment protector (a line for each debt with an instalment and whether it is protected, then the total of those that are), household needs, then the other boxes. */
     function protectorPdf(b) {
       var f = {}; b.fields.forEach(function (x) { f[x.id] = x; });
-      var sp = calc.ipSplit(ctx);
+      var sp = calc.ipSplit(ctx), R = { halign: 'right' };
       fieldsTable([f.ip_age, f.ip_amt]);
-      var body = sp.rows.map(function (r) { return [t(r.label + (r.prov ? ' (' + r.prov + ')' : '')), { content: t(util.money(r.inst) + ' p.m.'), styles: { halign: 'right' } }]; });
-      body.push([{ content: 'Total instalments', styles: { fontStyle: 'bold' } }, { content: t(util.money(sp.total) + ' p.m.'), styles: { halign: 'right', fontStyle: 'bold' } }]);
+      var body = sp.rows.map(function (r) {
+        return [t(r.label + (r.prov ? ' (' + r.prov + ')' : '')), { content: r.on ? 'Protected' : 'Not protected', styles: r.on ? {} : { textColor: MUTED, fontStyle: 'italic' } }, { content: t(util.money(r.inst) + ' p.m.'), styles: r.on ? R : { halign: 'right', textColor: MUTED } }];
+      });
+      body.push([{ content: 'Total instalments protected', colSpan: 2, styles: { fontStyle: 'bold' } }, { content: t(util.money(sp.total) + ' p.m.'), styles: { halign: 'right', fontStyle: 'bold' } }]);
+      if (sp.all > sp.total) body.push([{ content: 'Not protected (switched off)', colSpan: 2, styles: { textColor: MUTED } }, { content: t(util.money(sp.all - sp.total) + ' p.m.'), styles: { halign: 'right', textColor: MUTED } }]);
+      noteText('Instalment protector: ' + (!sp.count ? 'no debt with an instalment recorded.' : sp.on === sp.count ? 'all debts protected.' : sp.on === 0 ? 'no debt protected.' : sp.on + ' of ' + sp.count + ' debts protected.'));
       ensure(Math.min(body.length * 7 + 12, 60));
-      table({ head: [[{ content: 'Instalment Protector' }, { content: 'Instalment (R p.m.)', styles: { halign: 'right' } }]], body: sp.rows.length ? body : [[{ content: 'No debt with an instalment recorded.', colSpan: 2, styles: { textColor: MUTED, fontStyle: 'italic' } }]], columnStyles: { 0: { cellWidth: CW - 50 }, 1: { cellWidth: 50 } } });
+      table({ head: [[{ content: 'Instalment Protector' }, { content: 'Protected' }, { content: 'Instalment (R p.m.)', styles: R }]], body: sp.rows.length ? body : [[{ content: 'No debt with an instalment recorded.', colSpan: 3, styles: { textColor: MUTED, fontStyle: 'italic' } }]], columnStyles: { 0: { cellWidth: CW - 90 }, 1: { cellWidth: 40 }, 2: { cellWidth: 50 } } });
       fieldsTable([f.ip_hh]);
       fieldsTable(b.fields.filter(function (x) { return !/^ip_(?:age|amt|hh)$/.test(x.id); }));
     }

@@ -281,17 +281,27 @@
   }
   /* Income protection (fractured cover): the age and the insured amount down the left; on the right the instalment protector (one box for each debt with an instalment, from the Debts page: nothing is typed here)
      and, under it, household needs. A message under household needs says so when the instalments are more than the insured amount. */
+  function switchHTML(state3, attrs, label) {
+    return '<button type="button" role="switch" class="tgl ' + state3 + '" aria-checked="' + (state3 === 'on' ? 'true' : state3 === 'mixed' ? 'mixed' : 'false') + '" aria-label="' + esc(label) + '" ' + attrs + '></button>';
+  }
   function protectorHTML(b, c) {
     var f = {}; b.fields.forEach(function (x) { f[x.id] = x; });
     var sp = calc.ipSplit(c), plain = function (n) { return util.money(n).replace(/^R /, '').replace(/\.00$/, ''); };
+    var mstate = !sp.count || sp.on === sp.count ? 'on' : sp.on === 0 ? 'off' : 'mixed';           // the master switch: green when every debt is protected
+    var master = '<div class="pmaster">' + switchHTML(mstate, 'data-ipall="1"' + (sp.count ? '' : ' disabled'), 'Protect all debts') + '<span>' + (!sp.count ? 'Protect all debts' : mstate === 'on' ? 'All debts protected' : mstate === 'off' ? 'No debt protected' : sp.on + ' of ' + sp.count + ' debts protected') + '</span></div>';
     var rows = sp.rows.map(function (r) {
-      return '<label class="f s-calc"><span class="l"><span>' + esc(r.label) + '</span>' + (r.prov ? '<span class="rt">' + esc(r.prov) + '</span>' : '') + '</span><span class="box"><input value="' + esc(util.money(r.inst) + ' p.m.') + '" readonly tabindex="-1" autocomplete="off"><span class="st">' + badge('calc', '') + '</span></span></label>';
+      return '<div class="prow' + (r.on ? '' : ' unprot') + '">' + switchHTML(r.on ? 'on' : 'off', 'data-ipt="' + r.i + '"', (r.on ? 'Protected: ' : 'Not protected: ') + r.label + (r.prov ? ' (' + r.prov + ')' : '')) +
+        '<div class="f s-calc"><span class="l"><span>' + esc(r.label) + '</span>' + (r.prov ? '<span class="rt">' + esc(r.prov) + '</span>' : '') + '</span><span class="box"><input value="' + esc(util.money(r.inst) + ' p.m.') + '" readonly tabindex="-1" autocomplete="off"></span></div></div>';
     }).join('');
     var hh = fieldHTML(f.ip_hh, false);
     if (sp.over) hh = hh.replace('class="f ', 'class="f neg ');
-    var quote = sp.insured != null && !sp.over ? '<div class="ipcheck">In the quote: <b>' + sp.rows.map(function (r) { return plain(r.inst); }).concat([plain(sp.rest)]).join(' + ') + ' = ' + plain(sp.insured) + ' p.m.</b> (the instalments to the bank, then household needs, add up to the insured amount)</div>' : '';
+    var on = sp.rows.filter(function (r) { return r.on; });
+    var quote = sp.insured != null && !sp.over ? '<div class="ipcheck">' + (on.length ? 'In the quote: <b>' + on.map(function (r) { return plain(r.inst); }).concat([plain(sp.rest)]).join(' + ') + ' = ' + plain(sp.insured) + ' p.m.</b> (the instalments to the bank, then household needs, add up to the insured amount)'
+      : 'No debt is protected: <b>the whole insured amount (' + plain(sp.insured) + ' p.m.) is household needs</b>') + '</div>' : '';
+    var notp = sp.all - sp.total;
     return '<div class="ipgrid"><div class="ipleft">' + fieldHTML(f.ip_age, false) + fieldHTML(f.ip_amt, false) + '</div>' +
-      '<div class="protector"><h5>Instalment Protector</h5>' + (rows ? '<div class="prows">' + rows + '</div><div class="sumline"><span>Total instalments</span><b>' + esc(util.money(sp.total)) + ' p.m.</b></div>' : '<p class="help">No debt with an instalment on the Debts page yet.</p>') +
+      '<div class="protector"><div class="phead"><h5>Instalment Protector</h5>' + master + '</div>' + (rows ? '<div class="prows">' + rows + '</div><div class="sumline"><span>Total instalments protected</span><b>' + esc(util.money(sp.total)) + ' p.m.</b></div>' +
+        (notp > 0 ? '<div class="sumline"><span>Not protected (switched off)</span><b>' + esc(util.money(notp)) + ' p.m.</b></div>' : '') : '<p class="help">No debt with an instalment on the Debts page yet.</p>') +
       '<div class="household"><h5>Household needs</h5>' + hh + '</div></div></div>' + quote +
       gridHTML({ layout: b.layout, fields: b.fields.filter(function (x) { return !/^ip_(?:age|amt|hh)$/.test(x.id); }) }, c);
   }
@@ -595,8 +605,10 @@
   schema.sections.forEach(function (s) { calc.condFields(s.cond).concat([].concat.apply([], s.blocks.map(function (b) { return calc.condFields(b.cond).concat([].concat.apply([], (b.fields || []).map(function (f) { return calc.condFields(f.cond); }))); }))).forEach(function (id) { condIds[id] = 1; }); });
 
   document.addEventListener('click', function (e) {
-    var t = e.target.closest('[data-sec],[data-accept],[data-add],[data-del],[data-goto],[data-usedob],[data-lookup],[data-cal],[data-sumrefresh]');
+    var t = e.target.closest('[data-sec],[data-accept],[data-add],[data-del],[data-goto],[data-usedob],[data-lookup],[data-cal],[data-sumrefresh],[data-ipt],[data-ipall]');
     if (!t) return;
+    if (t.dataset.ipall) { var sp0 = calc.ipSplit(ctx()); store.setProtectAll(state, !(sp0.count && sp0.on === sp0.count)); touch(); redraw(); return; }                 // the master switch: all on, or (when all are on) all off
+    if (t.dataset.ipt !== undefined) { var di = +t.dataset.ipt; store.setProtect(state, di, !!(state.l.debts[di] && state.l.debts[di].off)); touch(); redraw(); return; }       // one debt's switch
     if (t.dataset.sumrefresh) { sumRefresh([t.dataset.sumrefresh], true); return; }
     if (t.dataset.cal) { openCalendar(t.dataset.cal); return; }
     if (t.dataset.sec) { cur = t.dataset.sec; redraw(); window.scrollTo(0, 0); return; }
