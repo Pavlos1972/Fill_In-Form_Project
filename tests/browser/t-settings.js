@@ -77,6 +77,18 @@ srv.listen(0, async () => {
   await p.setViewportSize({ width: 1280, height: 800 }); await p.waitForTimeout(200);
   ok(await p.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), 'no sideways scrolling with all four chips at 1280 wide');
 
+  // the four chips sit together at the far right of the title row, in order
+  const where = () => p.evaluate(() => {
+    const top = document.querySelector('.top'), cs = getComputedStyle(top), right = top.getBoundingClientRect().right - parseFloat(cs.paddingRight), brand = document.querySelector('.top .brand').getBoundingClientRect();
+    const ids = ['#keyState', '#keyState2', '#costState', '#speechCostState'], r = ids.map(i => document.querySelector(i).getBoundingClientRect());
+    return { gap: right - r[3].right, order: r.every((x, i) => i === 0 || x.top > r[i - 1].top + 4 || x.left >= r[i - 1].right - 1), sameRow: r.every(x => x.top < brand.bottom), visible: ids.every(i => !document.querySelector(i).hidden) };
+  });
+  for (const w of [1280, 1500, 1920]) {
+    await p.setViewportSize({ width: w, height: 800 }); await p.waitForTimeout(200);
+    const c = await where();
+    ok(c.visible && c.order && c.sameRow && c.gap >= -1 && c.gap < 6, 'the four chips are at the far right of the title row, in order, at ' + w + ' wide ' + JSON.stringify(c));
+  }
+
   ok(errs.length === 0, 'no page errors ' + errs.join('|'));
   console.log(bad ? bad + ' FAILED' : 'all pass'); await b.close(); srv.close();
 });
