@@ -188,7 +188,7 @@
     var rows = (def.nona ? '' : '<label' + (disabled ? ' class="dis"' : '') + '><input type="checkbox" data-ck="' + def.id + '|na"' + (na ? ' checked' : '') + (disabled ? ' disabled' : '') + '> (not asked yet)</label><hr>') +
       def.o.map(function (o, i) { var dis = disabled || na; return '<label' + (dis ? ' class="dis"' : '') + '><input type="checkbox" data-ck="' + def.id + '|' + i + '"' + (sel.indexOf(o) >= 0 ? ' checked' : '') + (dis ? ' disabled' : '') + '> ' + esc(o) + '</label>'; }).join('') +
       extra.map(function (o, i) { return '<label><input type="checkbox" data-ck="' + def.id + '|x' + i + '" checked> ' + esc(o) + '</label>'; }).join('');
-    return '<div class="ms" data-ms="' + def.id + '"><button type="button" class="msb' + (open ? ' open' : '') + (def.nona && !sel.length ? ' ph' : '') + '" data-msb="' + def.id + '" aria-expanded="' + open + '"' + (disabled ? ' disabled' : '') + '>' + esc(sel.length ? sel.join(def.nona ? ', ' : ' + ') : def.nona ? 'Choose insurer(s)' : '(not asked yet)') + '</button>' + (open ? '<div class="msp">' + rows + '</div>' : '') + '</div>';
+    return '<div class="ms" data-ms="' + def.id + '"><button type="button" class="msb' + (open ? ' open' : '') + (def.nona ? '' : ' wrap') + (def.nona && !sel.length ? ' ph' : '') + '" data-msb="' + def.id + '" aria-expanded="' + open + '"' + (disabled ? ' disabled' : '') + '>' + esc(sel.length ? sel.join(def.nona ? ', ' : ' + ') : def.nona ? 'Choose insurer(s)' : '(not asked yet)') + '</button>' + (open ? '<div class="msp">' + rows + '</div>' : '') + '</div>';
   }
   function control(attrs, def, v, disabled) {
     if (def.t === 'multi') return multiHTML(def, v, disabled);
