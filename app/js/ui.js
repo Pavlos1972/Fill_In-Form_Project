@@ -10,7 +10,10 @@
 
   /* ---------- drafts and saving ---------- */
   var draftHold = false;                                                                          // while the question about the last unsaved Fact Find is open, its draft is not overwritten
-  function saveDraft() { if (draftHold) return; try { localStorage.setItem(DRAFT_KEY, store.toJSON(state)); localStorage.setItem(DRAFT_KEY + '-file', fileBase); localStorage.setItem(DRAFT_KEY + '-dirty', dirty ? '1' : '0'); } catch (e) { /* storage unavailable */ } }
+  var onDisk = true;                                                                              // nothing is unsaved: a blank form, a file just opened, or a file just saved and read back to check it
+  /* The draft in the browser is a safety copy of work that is not saved yet. When everything is safely in a file there is nothing to protect, so the client's details are not left in the browser. */
+  function saveDraft() { if (draftHold) return; try {
+    if (!dirty && onDisk) { localStorage.removeItem(DRAFT_KEY); localStorage.removeItem(DRAFT_KEY + '-file'); localStorage.setItem(DRAFT_KEY + '-dirty', '0'); return; } localStorage.setItem(DRAFT_KEY, store.toJSON(state)); localStorage.setItem(DRAFT_KEY + '-file', fileBase); localStorage.setItem(DRAFT_KEY + '-dirty', dirty ? '1' : '0'); } catch (e) { /* storage unavailable */ } }
   /* The file a client was last opened from or saved to is remembered, so Save writes back to it even after Chrome is closed. */
   function idb(fn) {
     return new Promise(function (resolve) {
@@ -25,7 +28,7 @@
   function rememberHandle(h) { return idb(function (st, done) { var r = h ? st.put(h, 'current') : st.delete('current'); r.onsuccess = function () { done(true); }; r.onerror = function () { done(null); }; }); }
   function recallHandle() { return idb(function (st, done) { var r = st.get('current'); r.onsuccess = function () { done(r.result || null); }; r.onerror = function () { done(null); }; }); }
   function loadDraft() { try { var t = localStorage.getItem(DRAFT_KEY); return t ? store.fromJSON(t) : null; } catch (e) { return null; } }
-  function touch() { dirty = true; saveDraft(); refreshChrome(); if (cur === 'admin' && typeof paSoon === 'function') paSoon(); }
+  function touch() { dirty = true; onDisk = false; saveDraft(); refreshChrome(); if (cur === 'admin' && typeof paSoon === 'function') paSoon(); }
   /* A South African ID number holds the date of birth (YYMMDD), and the date of birth always follows it: when the ID number is entered or changed,
      the date goes into the date of birth box, replacing whatever was there (a date entered before the ID, or the date of the previous ID), and a note says so.
      A date typed or said after the ID is left as it is (the Checks panel warns when it does not match). The date takes the status of the ID number:
@@ -124,12 +127,21 @@
     return o;
   }
   function currentBase() { return fileBase || store.baseFileName(state); }
+  /* The file just written is read back and compared with what was written: 'ok', 'different', or 'unchecked' (a plain download, or a browser that will not say). */
+  function readBack(h, text) {
+    if (!h || !h.getFile) return Promise.resolve('unchecked');
+    return h.getFile().then(function (f) { return f.text(); }).then(function (t) { return t === text ? 'ok' : 'different'; }, function () { return 'unchecked'; });
+  }
+  /* The draft in the browser is removed only once the file is on disk and has been read back and matches. If the check fails or cannot be made, the draft stays. */
   function saveJson(forceAs) {
-    var blob = new Blob([store.toJSON(state)], { type: 'application/json' });
+    var text = store.toJSON(state), blob = new Blob([text], { type: 'application/json' });
     writeFile(blob, currentBase() + '.json', 'Fact Find', '.json', forceAs ? null : fileHandle, 'fact-find-data', fileHandle).then(function (h) {
       if (h) { fileHandle = h; fileBase = h.name.replace(/\.json$/i, ''); rememberHandle(h); }
       else if (!fileBase) fileBase = currentBase();
-      dirty = false; lastSaved = new Date(); saveDraft(); refreshChrome(); toast('Saved.');
+      return readBack(h, text).then(function (v) {
+        if (v === 'different') { refreshChrome(); toast('The saved file does not match the form, so your work is still kept here. Try Save again.', 7000); return; }
+        dirty = false; onDisk = v === 'ok'; lastSaved = new Date(); saveDraft(); refreshChrome(); toast('Saved.');
+      });
     }).catch(function (e) { if (e && e.name !== 'AbortError') toast('Could not save: ' + e.message); });
   }
   function makePdf() { return FF.pdf.build(state); }
@@ -150,7 +162,7 @@
     r.onload = function () {
       try {
         state = store.fromJSON(r.result); vmFreshForm(); fileHandle = handle || null; fileBase = file.name.replace(/\.json$/i, '');
-        dirty = false; cur = 'info'; rememberHandle(handle || null); saveDraft(); redraw(); toast('Opened ' + file.name);
+        dirty = false; onDisk = true; cur = 'info'; rememberHandle(handle || null); saveDraft(); redraw(); toast('Opened ' + file.name);
       } catch (e) { toast(e.message || 'Could not open that file.'); }
     };
     r.readAsText(file);
@@ -165,7 +177,7 @@
     var timed = meeting.ms() >= 60000;                                                              // a meeting that has run for a minute is not thrown away by a stray click
     if ((dirty || timed) && !window.confirm('Start a new Fact Find?' + (dirty ? ' Changes you have not saved will be lost.' : '') + (timed ? ' The meeting timer goes back to zero.' : ''))) return;
     meeting.reset(); meetingRender();
-    state = store.blank(); vmFreshForm(); fileHandle = null; fileBase = ''; rememberHandle(null); dirty = false; lastSaved = null; cur = 'info'; saveDraft(); redraw();
+    state = store.blank(); vmFreshForm(); fileHandle = null; fileBase = ''; rememberHandle(null); dirty = false; onDisk = true; lastSaved = null; cur = 'info'; saveDraft(); redraw();
   }
 
   /* ---------- rendering ---------- */
@@ -526,10 +538,14 @@
     if (ver) ver.textContent = 'Version ' + schema.version + ', ' + schema.released + ' · Tax tables ' + tax;
   }
   /* The top bar counts down to the day the Anthropic key stops working. */
+  /* The top bar shows the days left of each key that is saved, each with its own label: the Anthropic key, then the OpenAI key. */
   function refreshKey() {
-    var el = $('#keyState'), st = FF.lookup.keyStatus(FF.lookup.getSettings());
-    el.textContent = st.text; el.hidden = !st.text;
-    el.style.color = st.level === 'expired' ? 'var(--bad)' : (st.level === 'soon' || st.level === 'unset') ? 'var(--warn)' : '';
+    var set = FF.lookup.getSettings();
+    [['#keyState', 'anthropic'], ['#keyState2', 'openai']].forEach(function (k) {
+      var el = $(k[0]), st = FF.lookup.keyStatus(set, null, k[1]);
+      el.textContent = st.text; el.hidden = !st.text;
+      el.style.color = st.level === 'expired' ? 'var(--bad)' : (st.level === 'soon' || st.level === 'unset') ? 'var(--warn)' : '';
+    });
   }
   /* Update calculated boxes, totals and warnings in place so the cursor never jumps. */
   function refreshLive() {
@@ -776,7 +792,7 @@
   function openSettings() {
     var set = FF.lookup.getSettings(), dlg = $('#settings');
     $('#setKey').value = set.apiKey; $('#setExpires').value = set.expires;
-    $('#setOpenaiKey').value = set.openaiKey;
+    $('#setOpenaiKey').value = set.openaiKey; $('#setOpenaiExpires').value = set.openaiExpires; $('#setOpenaiPrice').value = set.openaiPrice;
     $('#setOpenaiModel').innerHTML = FF.lookup.TRANSCRIBE_MODELS.map(function (m) { return '<option value="' + m.id + '"' + (m.id === set.openaiModel ? ' selected' : '') + '>' + esc(m.label) + '</option>'; }).join('');
     $('#setVoiceModel').innerHTML = FF.lookup.VOICE_MODELS.map(function (m) { return '<option value="' + m.id + '"' + (m.id === set.voiceModel ? ' selected' : '') + '>' + esc(m.label) + '</option>'; }).join('');
     $('#setModel').innerHTML = FF.lookup.MODELS.map(function (m) { return '<option value="' + m.id + '"' + (m.id === set.model ? ' selected' : '') + '>' + esc(m.label) + '</option>'; }).join('');
@@ -794,11 +810,11 @@
   $('#setCancel').addEventListener('click', function () { $('#settings').close(); });
   $('#setForget').addEventListener('click', function () {                                           // both keys leave this browser at once; the other settings stay
     $('#setKey').value = ''; $('#setOpenaiKey').value = '';
-    FF.lookup.saveSettings({ apiKey: '', model: $('#setModel').value, voiceModel: $('#setVoiceModel').value, expires: '', openaiKey: '', openaiModel: $('#setOpenaiModel').value });
-    $('#setExpires').value = ''; refreshKey(); $('#setResult').textContent = 'Both keys were removed from this browser.';
+    FF.lookup.saveSettings({ apiKey: '', model: $('#setModel').value, voiceModel: $('#setVoiceModel').value, expires: '', openaiExpires: '', openaiPrice: $('#setOpenaiPrice').value, openaiKey: '', openaiModel: $('#setOpenaiModel').value });
+    $('#setExpires').value = ''; $('#setOpenaiExpires').value = ''; refreshKey(); $('#setResult').textContent = 'Both keys were removed from this browser.';
   });
   $('#setSave').addEventListener('click', function () {
-    FF.lookup.saveSettings({ apiKey: $('#setKey').value, model: $('#setModel').value, voiceModel: $('#setVoiceModel').value, expires: $('#setExpires').value, openaiKey: $('#setOpenaiKey').value, openaiModel: $('#setOpenaiModel').value });
+    FF.lookup.saveSettings({ apiKey: $('#setKey').value, model: $('#setModel').value, voiceModel: $('#setVoiceModel').value, expires: $('#setExpires').value, openaiExpires: $('#setOpenaiExpires').value, openaiPrice: $('#setOpenaiPrice').value, openaiKey: $('#setOpenaiKey').value, openaiModel: $('#setOpenaiModel').value });
     if ($('#setSpeech')) { try { localStorage.setItem(SPEECH_KEY, JSON.stringify({ engine: $('#setSpeech').value, model: $('#setWhisper').value, call: !!$('#setCall') && $('#setCall').value === '1' })); } catch (e) { /* storage unavailable */ } }
     saveCreditBox();
     if ($('#setQuick')) { try { localStorage.setItem(QUICK_KEY, $('#setQuick').value); } catch (e) { /* storage unavailable */ } }
@@ -837,11 +853,25 @@
     if (left != null && left < 1 && lowWarned < 2) { lowWarned = 2; toast('Claude credit is nearly finished: about ' + usd(left) + ' left. Top it up in the Anthropic Console.'); }
     else if (left != null && left < 5 && lowWarned < 1) { lowWarned = 1; toast('Claude credit is getting low: about ' + usd(left) + ' left.'); }
   }
+  /* What the spoken lines sent to OpenAI cost: counted from the seconds of sound sent, at the price in lookup.js (or the one typed in Settings). Kept with the Fact Find, like the Claude cost. */
+  function spendSpeech(seconds, model) {
+    if (!state.openai) state.openai = store.blankSpeech();
+    FF.lookup.addSpeech(state.openai, model, seconds, FF.lookup.getSettings().openaiPrice); saveDraft(); refreshCost();
+  }
+  function speechChip() {
+    var el = $('#speechCostState');
+    if (el) return el;
+    el = document.createElement('span'); el.id = 'speechCostState'; el.className = 'savestate'; el.setAttribute('role', 'button'); el.tabIndex = 0; el.style.cssText = 'cursor:pointer'; el.hidden = true;
+    costChip().parentNode.insertBefore(el, costChip().nextSibling);
+    el.addEventListener('click', openSettings);
+    el.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openSettings(); } });
+    return el;
+  }
   function costChip() {
     var el = $('#costState');
     if (el) return el;
-    el = document.createElement('span'); el.id = 'costState'; el.className = 'savestate'; el.setAttribute('role', 'button'); el.tabIndex = 0; el.style.cssText = 'cursor:pointer;margin-left:12px'; el.hidden = true;
-    $('#keyState').parentNode.insertBefore(el, $('#keyState').nextSibling);
+    el = document.createElement('span'); el.id = 'costState'; el.className = 'savestate'; el.setAttribute('role', 'button'); el.tabIndex = 0; el.style.cssText = 'cursor:pointer'; el.hidden = true;
+    $('#keyState2').parentNode.insertBefore(el, $('#keyState2').nextSibling);
     el.addEventListener('click', openSettings);
     el.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openSettings(); } });
     return el;
@@ -853,6 +883,10 @@
     el.title = t.calls + ' requests to Claude for this fact find: ' + tok(t.input + t.read + t.write) + ' tokens read (' + tok(t.read) + ' of them from memory, which costs a tenth or less), ' + tok(t.output) + ' written' + (t.searches ? ', ' + t.searches + ' web searches' : '') +
       '. An estimate from the published prices; the Anthropic Console has the real figure.' + (left == null ? ' Click to type the credit you have left, and it is counted down here.' : ' Click to change the credit.');
     el.style.color = left == null ? '' : left < 1 ? 'var(--bad)' : left < 5 ? 'var(--warn)' : '';
+    var sp = speechChip(), sv = state.openai || store.blankSpeech(), set = FF.lookup.getSettings(), rate = FF.lookup.speechRate(set.openaiModel, set.openaiPrice), mins = sv.seconds / 60;
+    sp.hidden = !set.openaiKey && !(sv.usd > 0);
+    sp.textContent = 'OpenAI: ' + usd(sv.usd) + ' this fact find';
+    sp.title = sv.calls + ' spoken lines sent to OpenAI for this fact find: ' + (Math.round(mins * 10) / 10) + ' minutes of sound at about US$' + rate + ' a minute. An estimate: OpenAI charges by audio token, so the OpenAI usage page has the real figure. Click to change the price in Settings.';
   }
   /* The "fill at once" choice is added to Settings from here too. */
   function quickSettings() {
@@ -1219,7 +1253,7 @@
     if (e.kind === 'done') { delete vm.done[e.sec]; if (e.moved && vm.undo.length && vm.undo[vm.undo.length - 1].kind === 'nav') return vmUndo(); redraw(); return; }      // taking back "finished" also goes back to the page it moved on from
     if (e.kind === 'bulk') { e.fields.forEach(function (x) { if (state.f[x.id]) state.f[x.id].st = x.st; }); e.rows.forEach(function (x) { var r = state.l[x.list] && state.l[x.list][x.i]; if (r) r.st = x.st; }); touch(); redraw(); return; }
     if (e.kind === 'wipe') {
-      e.snap.claude = state.claude; state = e.snap; fileBase = e.base; fileHandle = e.handle; rememberHandle(e.handle); dirty = e.dirty; cur = e.sec;
+      e.snap.claude = state.claude; e.snap.openai = state.openai; state = e.snap; fileBase = e.base; fileHandle = e.handle; rememberHandle(e.handle); dirty = e.dirty; onDisk = e.onDisk; cur = e.sec;
       vm.target = null; vm.answered = false; vm.secGlow = true; saveDraft(); redraw(); vmMarkWait(); toast('Everything is back as it was.'); return;
     }
     if (e.kind === 'addrow') { store.delRow(state, e.list, e.i); vm.rowCur[e.list] = Math.min(vm.rowCur[e.list] == null ? 0 : vm.rowCur[e.list], state.l[e.list].length - 1); touch(); redraw(); return; }
@@ -1294,9 +1328,9 @@
     return vmRun(w.after || []);
   }
   function vmWipe() {
-    vm.undo.push({ kind: 'wipe', snap: JSON.parse(JSON.stringify(state)), base: fileBase, handle: fileHandle, dirty: dirty, sec: cur });
+    vm.undo.push({ kind: 'wipe', snap: JSON.parse(JSON.stringify(state)), base: fileBase, handle: fileHandle, dirty: dirty, onDisk: onDisk, sec: cur });
     var cost = state.claude; state = store.blank(); state.claude = cost; vmFreshForm();                                  // what Claude has cost stays, however much of the form is cleared
-    fileHandle = null; fileBase = ''; rememberHandle(null); dirty = false; saveDraft();
+    fileHandle = null; fileBase = ''; rememberHandle(null); dirty = false; onDisk = true; saveDraft();
     cur = 'info'; vm.target = null; vm.answered = false; vm.noteMode = null; vm.rowCur = {}; vm.recent = []; vm.flashes = {}; vm.secGlow = true; vm.run = null; vm.erun = null; vm.eann = null; vm.pointed = null; vm.digits = null;
     redraw(); vmMarkWait(); window.scrollTo(0, 0);
     toast('The whole form is empty. Say "undo" to bring everything back.');
@@ -2414,7 +2448,7 @@
     if (!vm.on) vmToggle(true);
     var p = speechPrefs(), set = FF.lookup.getSettings(), status = '', kind = p.engine === 'chrome' ? 'warn' : '';
     lsn = FF.listen.create({
-      engine: p.engine, model: p.model, openaiKey: set.openaiKey, openaiModel: set.openaiModel, prompt: vmSpeechHints, call: p.call && p.engine === 'openai',
+      engine: p.engine, model: p.model, openaiKey: set.openaiKey, openaiModel: set.openaiModel, usage: spendSpeech, prompt: vmSpeechHints, call: p.call && p.engine === 'openai',
       state: function (st, d) {
         lsnState = st; listenRender();
         if (st === 'loading') { status = p.engine === 'chrome' || p.engine === 'openai' ? '' : 'Getting the speech model ready on this computer' + (d.percent != null ? ' (' + d.percent + '%, only the first time)' : '…'); listenShow(status, ''); }
@@ -2488,7 +2522,7 @@
   state = store.blank(); fileBase = ''; dirty = false;
   if (restored) draftHold = true; else rememberHandle(null);
   layoutSetup(); convoRender();
-  window.FF.app = { get state() { return state; }, redraw: redraw, setState: function (s) { state = s; redraw(); }, makePdf: makePdf, voiceHear: vmHear, voice: vm, voiceLog: convoLog };
+  window.FF.app = { get state() { return state; }, redraw: redraw, setState: function (s) { state = s; redraw(); }, makePdf: makePdf, voiceHear: vmHear, voice: vm, voiceLog: convoLog, spendSpeech: spendSpeech };
   redraw();
   if (restored) {
     var who = store.clientName(restored) || 'the last client', rd = document.createElement('dialog'); rd.id = 'restoreDraft';
@@ -2497,7 +2531,7 @@
     document.body.appendChild(rd);
     rd.addEventListener('cancel', function (e) { e.preventDefault(); });                            // a choice is needed: Escape does not close it
     rd.querySelector('#restoreYes').addEventListener('click', function () {
-      state = restored; fileBase = restoredBase; dirty = true; draftHold = false; rd.close(); rd.remove();
+      state = restored; fileBase = restoredBase; dirty = true; onDisk = false; draftHold = false; rd.close(); rd.remove();
       recallHandle().then(function (h) { if (h && fileBase) { fileHandle = h; } });
       redraw(); toast('Restored your unsaved changes for ' + who + '.');
     });

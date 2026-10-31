@@ -58,22 +58,37 @@
     return c;
   }
 
-  function getSettings() {
-    try { var s = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}'); return { openaiKey: s.openaiKey || '', openaiModel: s.openaiModel || DEFAULT_TRANSCRIBE, apiKey: s.apiKey || '', model: s.modelSet === LOOKUP_SETTING && s.model ? s.model : DEFAULT_MODEL, voiceModel: s.voiceSet === VOICE_SETTING && s.voiceModel ? s.voiceModel : DEFAULT_VOICE_MODEL, expires: s.expires || '' }; }
-    catch (e) { return { openaiKey: '', openaiModel: DEFAULT_TRANSCRIBE, apiKey: '', model: DEFAULT_MODEL, voiceModel: DEFAULT_VOICE_MODEL, expires: '' }; }
+  /* What OpenAI charges for speech-to-text, in US dollars per minute of sound (OpenAI's published estimate: these models are really billed by audio token, so the Settings box can hold the price from the OpenAI
+     dashboard instead). Only used for the running cost in the top bar. A model that is not listed is priced as the dearest one, so the meter never reads low. */
+  var TRANSCRIBE_PRICES = { 'gpt-4o-transcribe': 0.006, 'gpt-4o-mini-transcribe': 0.003, 'whisper-1': 0.006 };
+  function speechRate(model, override) {
+    var o = parseFloat(String(override == null ? '' : override).replace(',', '.'));
+    return o > 0 && isFinite(o) ? o : (TRANSCRIBE_PRICES[model] || 0.006);
   }
-  function saveSettings(s) { try { localStorage.setItem(SETTINGS_KEY, JSON.stringify({ openaiKey: String(s.openaiKey || '').trim(), openaiModel: s.openaiModel || DEFAULT_TRANSCRIBE, apiKey: String(s.apiKey || '').trim(), model: s.model || DEFAULT_MODEL, modelSet: LOOKUP_SETTING, voiceModel: s.voiceModel || DEFAULT_VOICE_MODEL, voiceSet: VOICE_SETTING, expires: String(s.expires || '').trim() })); return true; } catch (e) { return false; } }
+  /* Adds one spoken line that was sent to OpenAI ({ usd, seconds, calls }) and returns what it cost. */
+  function addSpeech(tally, model, seconds, override) {
+    var s = +seconds > 0 && isFinite(+seconds) ? +seconds : 0, c = s / 60 * speechRate(model, override);
+    tally.usd = (tally.usd || 0) + c; tally.seconds = (tally.seconds || 0) + s; tally.calls = (tally.calls || 0) + 1;
+    return c;
+  }
 
-  /* How the top bar describes the key: nothing without a key, then days left until the date typed in Settings. */
-  function keyStatus(set, now) {
-    if (!set.apiKey) return { level: 'none', text: '' };
-    var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(set.expires || '');
-    if (!m) return { level: 'unset', text: 'Key: add expiry date' };
+  function getSettings() {
+    try { var s = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}'); return { openaiKey: s.openaiKey || '', openaiModel: s.openaiModel || DEFAULT_TRANSCRIBE, apiKey: s.apiKey || '', model: s.modelSet === LOOKUP_SETTING && s.model ? s.model : DEFAULT_MODEL, voiceModel: s.voiceSet === VOICE_SETTING && s.voiceModel ? s.voiceModel : DEFAULT_VOICE_MODEL, expires: s.expires || '', openaiExpires: s.openaiExpires || '', openaiPrice: s.openaiPrice || '' }; }
+    catch (e) { return { openaiKey: '', openaiModel: DEFAULT_TRANSCRIBE, apiKey: '', model: DEFAULT_MODEL, voiceModel: DEFAULT_VOICE_MODEL, expires: '', openaiExpires: '', openaiPrice: '' }; }
+  }
+  function saveSettings(s) { try { localStorage.setItem(SETTINGS_KEY, JSON.stringify({ openaiKey: String(s.openaiKey || '').trim(), openaiModel: s.openaiModel || DEFAULT_TRANSCRIBE, apiKey: String(s.apiKey || '').trim(), model: s.model || DEFAULT_MODEL, modelSet: LOOKUP_SETTING, voiceModel: s.voiceModel || DEFAULT_VOICE_MODEL, voiceSet: VOICE_SETTING, expires: String(s.expires || '').trim(), openaiExpires: String(s.openaiExpires || '').trim(), openaiPrice: String(s.openaiPrice || '').trim() })); return true; } catch (e) { return false; } }
+
+  /* How the top bar describes a key: nothing without that key, then days left until the date typed in Settings for it. which: 'anthropic' (the default) or 'openai': each has its own key, its own date and its own label. */
+  function keyStatus(set, now, which) {
+    var oa = which === 'openai', key = oa ? set.openaiKey : set.apiKey, date = oa ? set.openaiExpires : set.expires, label = oa ? 'OpenAI key' : 'Anthropic key';
+    if (!key) return { level: 'none', text: '' };
+    var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date || '');
+    if (!m) return { level: 'unset', text: label + ': add expiry date' };
     var t = now || new Date(), end = new Date(+m[1], +m[2] - 1, +m[3]), today = new Date(t.getFullYear(), t.getMonth(), t.getDate());
     var days = Math.round((end - today) / 86400000);
-    if (days < 0) return { level: 'expired', days: days, text: 'Key expired. Renew it in Settings' };
-    if (days === 0) return { level: 'soon', days: 0, text: 'Key expires today' };
-    return { level: days <= 14 ? 'soon' : 'ok', days: days, text: 'Key: ' + days + (days === 1 ? ' day' : ' days') + ' left' };
+    if (days < 0) return { level: 'expired', days: days, text: label + ' expired. Renew it in Settings' };
+    if (days === 0) return { level: 'soon', days: 0, text: label + ' expires today' };
+    return { level: days <= 14 ? 'soon' : 'ok', days: days, text: label + ': ' + days + (days === 1 ? ' day' : ' days') + ' left' };
   }
 
   /* extra: for a person, { org, role }: who they work for (or own) and their occupation, so the right person is found. Nothing else about them is sent. */
@@ -166,5 +181,5 @@
       return d || 'Could not identify this company.';
     }, function (e) { throw new Error('Could not reach Claude (' + ((e && (e.message || e.code)) || 'no connection') + ').'); });
   }
-  return { DEFAULT_MODEL: DEFAULT_MODEL, DEFAULT_VOICE_MODEL: DEFAULT_VOICE_MODEL, MODELS: MODELS, VOICE_MODELS: VOICE_MODELS, TRANSCRIBE_MODELS: TRANSCRIBE_MODELS, DEFAULT_TRANSCRIBE: DEFAULT_TRANSCRIBE, PRICES: PRICES, costOf: costOf, addUsage: addUsage, getSettings: getSettings, saveSettings: saveSettings, keyStatus: keyStatus, buildRequest: buildRequest, promptFor: promptFor, extractText: extractText, run: run, runAsk: runAsk, ENDPOINT: ENDPOINT };
+  return { DEFAULT_MODEL: DEFAULT_MODEL, DEFAULT_VOICE_MODEL: DEFAULT_VOICE_MODEL, MODELS: MODELS, VOICE_MODELS: VOICE_MODELS, TRANSCRIBE_MODELS: TRANSCRIBE_MODELS, DEFAULT_TRANSCRIBE: DEFAULT_TRANSCRIBE, PRICES: PRICES, costOf: costOf, addUsage: addUsage, TRANSCRIBE_PRICES: TRANSCRIBE_PRICES, speechRate: speechRate, addSpeech: addSpeech, getSettings: getSettings, saveSettings: saveSettings, keyStatus: keyStatus, buildRequest: buildRequest, promptFor: promptFor, extractText: extractText, run: run, runAsk: runAsk, ENDPOINT: ENDPOINT };
 });

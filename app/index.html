@@ -9,7 +9,7 @@
   html { color-scheme: light; }
   body { margin: 0; font: 14px/1.45 system-ui, "Segoe UI", sans-serif; padding-inline: 16px; padding-block: 14px 40px; }
 </style>
-<link rel="stylesheet" href="css/app.css?v=20261031a">
+<link rel="stylesheet" href="css/app.css?v=20261031b">
 <style>
   @keyframes vwait { 0%, 100% { box-shadow: 0 0 0 3px #e5483a, 0 0 14px 3px rgba(255,176,32,.55); } 50% { box-shadow: 0 0 0 3px #f06a2b, 0 0 28px 9px rgba(255,176,32,.9); } }
   @keyframes vok { from { box-shadow: 0 0 0 3px #1f9d55, 0 0 28px 9px rgba(31,157,85,.75); } to { box-shadow: 0 0 0 3px rgba(31,157,85,0), 0 0 0 0 rgba(31,157,85,0); } }
@@ -48,7 +48,8 @@
   <h1>Fact Find</h1>
   <span class="who">Client <b id="clientName">New client</b></span>
   <span class="savestate" id="saveState"></span>
-  <span class="savestate" id="keyState" role="button" tabindex="0" title="Anthropic key. Click to open Settings." style="cursor:pointer;margin-left:12px" hidden></span>
+  <span class="savestate" id="keyState" role="button" tabindex="0" title="Anthropic key. Click to open Settings." style="cursor:pointer" hidden></span>
+  <span class="savestate" id="keyState2" role="button" tabindex="0" title="OpenAI key. Click to open Settings." style="cursor:pointer" hidden></span>
   <span class="grow"></span>
   <div class="actions">
     <div class="grp left">
@@ -92,20 +93,24 @@
   <h2>Settings</h2>
   <p class="help">The company look-up (done by itself when an employer or business name is entered) and the LinkedIn search ask Claude to search the web. They need an Anthropic API key. The key is kept only in this browser on this computer. Only the company name is sent, and for the LinkedIn search the client's name, employer and occupation.</p>
   <label class="f"><span class="l"><span>Anthropic API key</span></span><input id="setKey" type="password" autocomplete="off" placeholder="sk-ant-..."></label>
+  <label class="f"><span class="l"><span>Anthropic key expires on</span></span><input id="setExpires" type="date"></label>
+  <p class="help">Enter the date shown as "Expires" next to the key in the Anthropic console. The top bar then counts down the days. <a href="https://platform.claude.com/dashboard" target="_blank" rel="noopener">Open the console ↗</a></p>
   <label class="f"><span class="l"><span>Look-up model (web search)</span></span><select id="setModel"></select></label>
   <p class="help">Used only for the company look-up and the LinkedIn search. Each one reads several web pages, so this is the dearest thing the form does: Sonnet costs half of Opus, and Haiku a small fraction. The company look-up runs by itself when an employer or business name is entered; the LinkedIn search runs only when you tap its button. The running cost is in the top bar.</p>
   <label class="f"><span class="l"><span>Voice model</span></span><select id="setVoiceModel"></select></label>
   <p class="help">Voice mode asks this model what was said and which box each fact belongs in. Only the last few sentences are sent, as text. ID numbers, phone numbers and email addresses are never sent: the model sees a marker such as [N1] and says which box it belongs in, and the real number stays on this computer.</p>
   <label class="f"><span class="l"><span>Speech source</span></span><select id="setSpeech"><option value="whisper">Whisper on this computer (private)</option><option value="chrome">Chrome speech recognition (audio goes to Google)</option><option value="openai">OpenAI transcription (best with names; audio goes to OpenAI)</option></select></label>
   <label class="f"><span class="l"><span>OpenAI key (for the OpenAI speech source)</span></span><input id="setOpenaiKey" type="password" autocomplete="off" placeholder="sk-..."></label>
+  <label class="f"><span class="l"><span>OpenAI key expires on</span></span><input id="setOpenaiExpires" type="date"></label>
+  <p class="help">Type the date this OpenAI key stops working, or the date you plan to replace it. The top bar then counts down the days, next to the Anthropic key's. <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener">Open the OpenAI keys page &#8599;</a></p>
+  <label class="f"><span class="l"><span>OpenAI speech price (US$ per minute)</span></span><input id="setOpenaiPrice" type="text" inputmode="decimal" autocomplete="off" placeholder="empty: 0.006 (0.003 for mini)"></label>
+  <p class="help">Used only for the cost shown in the top bar. OpenAI lists about US$0.006 a minute for gpt-4o-transcribe and whisper-1 and about US$0.003 for gpt-4o-mini-transcribe, but it really charges by audio token, so this is an estimate. Type the price from your OpenAI usage page here to replace it. Leave it empty to use the listed price.</p>
   <label class="f"><span class="l"><span>OpenAI speech model</span></span><select id="setOpenaiModel"></select></label>
   <label class="f"><span class="l"><span>Hear the client on a Teams call (OpenAI source only)</span></span><select id="setCall"><option value="0">No: the microphone only</option><option value="1">Yes: share the call's sound when Listen is pressed</option></select></label>
   <p class="help">The microphone hears only you when you wear a headset: the client's voice comes out of the headset, not out of the room. With Yes, pressing Listen opens Chrome's share window. Choose <b>Entire screen</b> and tick <b>Also share system audio</b> (the Teams app), or choose the <b>Teams tab</b> and tick <b>Also share tab audio</b> (Teams in Chrome). The form then hears you through the microphone and the client through the call's sound, and so knows who said what. Only the sound is used: the picture is thrown away and nothing is recorded. The call's sound goes to OpenAI together with yours, so the same care applies. Wear a headset: with loudspeakers the microphone hears the client as well.</p>
   <p class="help">With the OpenAI speech source each spoken line is cut out on this computer and sent, as sound, to OpenAI for transcription, together with the names on the form and the terms of the trade so that names are heard properly. The sound goes to OpenAI and not to Anthropic; Claude only ever reads the words. Use it only when your client terms allow a speech service to hear the call. The key is kept only in this browser. Transcription costs a few cents a meeting; the OpenAI account shows the real figure. Make the key under API keys in the OpenAI console, and keep a few dollars of credit on the account (Billing). <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener">Open the OpenAI console ↗</a></p>
   <label class="f"><span class="l"><span>Whisper model</span></span><select id="setWhisper"><option value="tiny.en">Tiny (fastest)</option><option value="base.en">Base (more accurate)</option><option value="small.en">Small (most accurate, slowest)</option></select></label>
   <p class="help">The Listen button in the top bar uses the microphone. Whisper keeps the sound on this computer: the speech model is downloaded once (about 40 MB for Tiny) and kept in this browser. Chrome's own recognition is instant, but Google hears the audio, so use it for practice talk only, never with a client. A change here applies the next time Listen is pressed.</p>
-  <label class="f"><span class="l"><span>Key expires on</span></span><input id="setExpires" type="date"></label>
-  <p class="help">Enter the date shown as "Expires" next to the key in the Anthropic console. The top bar then counts down the days. <a href="https://platform.claude.com/dashboard" target="_blank" rel="noopener">Open the console ↗</a></p>
   <p class="help"><b>Keep the keys safe.</b> Both keys are saved in this browser, on this computer, as plain text, and this web address is shared with every page published under pavlos1972.github.io. Set a spending limit on each key in its console, and press <b>Remove saved keys</b> before leaving a shared or borrowed computer.</p>
   <p class="help" id="setResult"></p>
   <div class="dlg-actions"><button class="btn ghost small" id="setTest" type="button">Test</button><button class="btn ghost small" id="setForget" type="button">Remove saved keys</button><span class="grow"></span><button class="btn ghost small" id="setCancel" type="button">Cancel</button><button class="btn small" id="setSave" type="button">Save</button></div>
@@ -115,21 +120,21 @@
 
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jspdf.plugin.autotable.min.js"></script>
-<script src="js/util.js?v=20261031a"></script>
+<script src="js/util.js?v=20261031b"></script>
 <script src="js/tax.js?v=20261018p"></script>
-<script src="js/schema.js?v=20261031a"></script>
-<script src="js/calc.js?v=20261031a"></script>
-<script src="js/validate.js?v=20261031a"></script>
-<script src="js/store.js?v=20261031a"></script>
-<script src="js/summary.js?v=20261031a"></script>
-<script src="js/actions.js?v=20261031a"></script>
+<script src="js/schema.js?v=20261031b"></script>
+<script src="js/calc.js?v=20261031b"></script>
+<script src="js/validate.js?v=20261031b"></script>
+<script src="js/store.js?v=20261031b"></script>
+<script src="js/summary.js?v=20261031b"></script>
+<script src="js/actions.js?v=20261031b"></script>
 <script src="js/lookup.js?v=20261029c"></script>
 <script src="assets/logo.js?v=20261018p"></script>
-<script src="js/pdf.js?v=20261031a"></script>
-<script src="js/voice.js?v=20261031a"></script>
-<script src="js/voice-ai.js?v=20261031a"></script>
+<script src="js/pdf.js?v=20261031b"></script>
+<script src="js/voice.js?v=20261031b"></script>
+<script src="js/voice-ai.js?v=20261031b"></script>
 <script src="js/listen.js?v=20261019a"></script>
 <script src="js/timer.js?v=20261026a"></script>
-<script src="js/ui.js?v=20261031a"></script>
+<script src="js/ui.js?v=20261031b"></script>
 </body>
 </html>

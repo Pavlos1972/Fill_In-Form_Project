@@ -510,7 +510,10 @@
       if (hint) form.append('prompt', hint.slice(0, 1200));
       if (h.reading) h.reading(secs);
       req = f('https://api.openai.com/v1/audio/transcriptions', { method: 'POST', headers: { Authorization: 'Bearer ' + o.openaiKey }, body: form }).then(function (res) {
-        return res.json().catch(function () { return {}; }).then(function (b) { return res.ok ? { text: String(b.text || '') } : { status: res.status, error: openaiError(res.status, b) }; });
+        return res.json().catch(function () { return {}; }).then(function (b) {
+          if (res.ok && o.usage) { try { o.usage(secs, o.openaiModel || 'gpt-4o-transcribe'); } catch (e) { /* the meter must never stop a line */ } }      // OpenAI charges for every answered line, whether or not it was kept
+          return res.ok ? { text: String(b.text || '') } : { status: res.status, error: openaiError(res.status, b) };
+        });
       }, function () { return { error: 'Could not reach OpenAI. Check the internet connection.' }; });
       chain = chain.then(function () { return req; }).then(function (r) {
         if (!alive) return;
