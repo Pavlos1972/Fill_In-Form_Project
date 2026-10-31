@@ -7,7 +7,7 @@
 HERE="$(cd "$(dirname "$0")" && pwd)"; APP="${APP:-$HERE/../../app}"; OUT="${1:-$(mktemp -d)}"; PW="$(npm root -g)"
 mkdir -p "$OUT/shots"; cd "$HERE"
 run() { name=$1; shift; timeout 240 node "$HERE/$name.js" "$PW" "$APP" "$@" > "$OUT/$name.txt" 2>&1; echo "exit $?" >> "$OUT/$name.txt"; }
-SIMPLE="t-sched t-notes t-lastthree t-draft t-agree t-bar t-consent t-correct t-delete t-email2 t-email3 t-engine t-ip t-kids t-link t-order t-pick t-rules t-batcha t-batchbc demo-confirm demo-dobconfirm demo-dobfollow demo-fix2 demo-frag demo-ladder demo-leavenotes demo-long demo-moveon demo-notes2 demo-quick demo-sections demo-stopnotes demo-tax"
+SIMPLE="t-settings t-sched t-notes t-lastthree t-draft t-agree t-bar t-consent t-correct t-delete t-email2 t-email3 t-engine t-ip t-kids t-link t-order t-pick t-rules t-batcha t-batchbc demo-confirm demo-dobconfirm demo-dobfollow demo-fix2 demo-frag demo-ladder demo-leavenotes demo-long demo-moveon demo-notes2 demo-quick demo-sections demo-stopnotes demo-tax"
 for n in $SIMPLE; do
   run "$n" "$OUT/shots" "$OUT/shots" &
   while [ "$(jobs -r | wc -l)" -ge 6 ]; do sleep 0.5; done

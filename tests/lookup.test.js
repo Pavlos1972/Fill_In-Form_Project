@@ -50,10 +50,10 @@ test('the top bar counts down the days to the key expiry date', () => {
   assert.strictEqual(L.keyStatus({ apiKey: '' }, now).text, '');
   assert.strictEqual(L.keyStatus({ apiKey: 'k', expires: '' }, now).level, 'unset');
   const a = L.keyStatus({ apiKey: 'k', expires: '2026-11-15' }, now);
-  assert.deepStrictEqual([a.level, a.days, a.text], ['ok', 30, 'Key: 30 days left']);
+  assert.deepStrictEqual([a.level, a.days, a.text], ['ok', 30, 'Anthropic key: 30 days left']);
   assert.strictEqual(L.keyStatus({ apiKey: 'k', expires: '2026-10-30' }, now).level, 'soon');
-  assert.strictEqual(L.keyStatus({ apiKey: 'k', expires: '2026-10-17' }, now).text, 'Key: 1 day left');
-  assert.strictEqual(L.keyStatus({ apiKey: 'k', expires: '2026-10-16' }, now).text, 'Key expires today');
+  assert.strictEqual(L.keyStatus({ apiKey: 'k', expires: '2026-10-17' }, now).text, 'Anthropic key: 1 day left');
+  assert.strictEqual(L.keyStatus({ apiKey: 'k', expires: '2026-10-16' }, now).text, 'Anthropic key expires today');
   assert.strictEqual(L.keyStatus({ apiKey: 'k', expires: '2026-10-15' }, now).level, 'expired');
 });
 
@@ -138,4 +138,43 @@ test('only the answer after the last search is kept, not what the model said to 
   ] };
   assert.strictEqual(L.extractText(resp), 'Wealth Revolution is a financial planning firm. It advises on risk cover.');
   assert.strictEqual(L.extractText({ content: [{ type: 'text', text: 'A public school.' }] }), 'A public school.');
+});
+
+/* ---- two keys, each with its own expiry date and label ---- */
+test('each key has its own label and its own expiry date in the top bar', () => {
+  const now = new Date(2026, 9, 16);
+  const set = { apiKey: 'sk-ant-x', expires: '2026-11-15', openaiKey: 'sk-oa', openaiExpires: '2026-10-20' };
+  const a = L.keyStatus(set, now), o = L.keyStatus(set, now, 'openai');
+  assert.deepStrictEqual([a.text, a.level], ['Anthropic key: 30 days left', 'ok']);
+  assert.deepStrictEqual([o.text, o.level], ['OpenAI key: 4 days left', 'soon']);                                   // one key can be close to its date while the other is not
+  assert.strictEqual(L.keyStatus({ openaiKey: 'sk-oa', openaiExpires: '' }, now, 'openai').text, 'OpenAI key: add expiry date');
+  assert.strictEqual(L.keyStatus({ openaiKey: 'sk-oa', openaiExpires: '2026-10-15' }, now, 'openai').text, 'OpenAI key expired. Renew it in Settings');
+  assert.strictEqual(L.keyStatus({ openaiKey: 'sk-oa', openaiExpires: '2026-10-16' }, now, 'openai').text, 'OpenAI key expires today');
+  assert.strictEqual(L.keyStatus({ apiKey: 'sk-ant-x', expires: '2026-11-15' }, now, 'openai').text, '');         // no OpenAI key: nothing is shown for it, whatever the other date says
+  assert.strictEqual(L.keyStatus({ openaiKey: 'sk-oa', openaiExpires: '2026-11-15' }, now).text, '');            // and the other way round
+});
+
+test('both expiry dates are kept in Settings, an older file of settings has none for OpenAI, and the date is not mixed up with the other key\'s', () => {
+  const kept = {}; global.localStorage = { getItem: k => (k in kept ? kept[k] : null), setItem: (k, v) => { kept[k] = String(v); }, removeItem: k => { delete kept[k]; } };
+  try {
+    kept['wr-fact-find-settings'] = JSON.stringify({ apiKey: 'sk-ant-x', expires: '2026-12-01' });                  // saved before there was a date for OpenAI
+    let s = L.getSettings(); assert.deepStrictEqual([s.expires, s.openaiExpires, s.openaiPrice], ['2026-12-01', '', '']);
+    L.saveSettings({ apiKey: 'sk-ant-x', expires: '2026-12-01', openaiKey: 'sk-oa', openaiExpires: '2027-01-15', openaiPrice: '0.0065' });
+    s = L.getSettings(); assert.deepStrictEqual([s.expires, s.openaiExpires, s.openaiPrice], ['2026-12-01', '2027-01-15', '0.0065']);
+  } finally { delete global.localStorage; }
+});
+
+/* ---- what OpenAI's speech-to-text costs ---- */
+test('a spoken line costs its seconds of sound at the price per minute of the model, or at the price typed in Settings', () => {
+  assert.deepStrictEqual(L.TRANSCRIBE_PRICES, { 'gpt-4o-transcribe': 0.006, 'gpt-4o-mini-transcribe': 0.003, 'whisper-1': 0.006 });
+  assert.strictEqual(L.speechRate('gpt-4o-transcribe'), 0.006); assert.strictEqual(L.speechRate('gpt-4o-mini-transcribe', ''), 0.003);
+  assert.strictEqual(L.speechRate('a-model-nobody-listed'), 0.006);                                                  // priced as the dearer one, so the meter never reads low
+  assert.strictEqual(L.speechRate('gpt-4o-transcribe', '0,010'), 0.01);                                              // a comma for the decimal point is read
+  assert.strictEqual(L.speechRate('gpt-4o-transcribe', 'abc'), 0.006); assert.strictEqual(L.speechRate('gpt-4o-transcribe', '-1'), 0.006);
+  const t = {};
+  assert.ok(Math.abs(L.addSpeech(t, 'gpt-4o-transcribe', 30) - 0.003) < 1e-9);                                       // half a minute at 0.006 a minute
+  L.addSpeech(t, 'gpt-4o-transcribe', 90, '0.01');                                                                    // a minute and a half at 0.01
+  assert.deepStrictEqual([t.calls, Math.round(t.seconds), Math.round(t.usd * 10000) / 10000], [2, 120, 0.018]);
+  L.addSpeech(t, 'gpt-4o-transcribe', -5); L.addSpeech(t, 'gpt-4o-transcribe', NaN);
+  assert.strictEqual(Math.round(t.usd * 10000) / 10000, 0.018);                                                       // nonsense adds nothing to the cost
 });
