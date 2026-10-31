@@ -79,10 +79,13 @@
   }
   /* "Request Current Policy Schedule(s)": the last item of each section that holds policies. A tick-box dropdown (t: 'multi', the choices ticked are kept as one text joined with "; ", empty = not asked yet) and, beside it,
      a small box for "Other". The block is always open (it is never locked: a client may mention a policy before it is typed in); group risk has no Astute choice. */
-  var PS_CLIENT = 'Requested from client in meeting', PS_ASTUTE = 'Draw from Astute (with signed LOA)', PS_OTHER = 'Other';
+  /* The first choice of each schedule box says what was asked for, in the words of its own area. (Older files held "Requested from client in meeting": store.js changes it to the area's wording when a file is opened.) */
+  var PS_CLIENT_OLD = 'Requested from client in meeting', PS_ASTUTE = 'Draw from Astute (with signed LOA)', PS_OTHER = 'Other';
+  var PS_CLIENT = { risk: 'Requested Personal Risk Covers in meeting, await client response', grp: 'Requested Group Risk Covers in meeting, await client response', ra: 'Requested Retirement Annuities in meeting, await client response',
+    pp: 'Requested Pension and Provident Funds in meeting, await client response', inv: 'Requested Investments in meeting, await client response' };
   function PS(id, group) {
     return { title: 'Request Current Policy Schedule(s)', layout: 'g12', fields: [
-      { id: 'ps_' + id, l: 'Schedule(s) requested', t: 'multi', o: group ? [PS_CLIENT, PS_OTHER] : [PS_CLIENT, PS_ASTUTE, PS_OTHER], s: 7 },
+      { id: 'ps_' + id, l: 'Schedule(s) requested', t: 'multi', o: group ? [PS_CLIENT[id], PS_OTHER] : [PS_CLIENT[id], PS_ASTUTE, PS_OTHER], s: 7 },
       { id: 'ps_' + id + '_ot', l: 'Other schedule arrangement', t: 'txt', opt: 1, voice: 1, cond: { f: 'ps_' + id, has: PS_OTHER }, grey: 1, s: 5 }
     ] };
   }
@@ -517,5 +520,5 @@
   var byId = {};
   sections.forEach(function (s) { s.blocks.forEach(function (b) { (b.fields || []).forEach(function (f) { byId[f.id] = f; }); }); });
 
-  return { version: '3.0', released: 'October 2026', sections: sections, lists: lists, panels: panels, panelsById: panelsById, advisor: ADVISOR, brBasis: BR_BASIS, PRIORITY: PRIORITY, NOT_PRIORITY: NOT_PRIORITY, UNSURE: UNSURE, BUDGET: BUDGET, fieldsById: byId };
+  return { version: '3.0', released: 'October 2026', sections: sections, lists: lists, panels: panels, panelsById: panelsById, advisor: ADVISOR, brBasis: BR_BASIS, psClient: PS_CLIENT, psClientOld: PS_CLIENT_OLD, PRIORITY: PRIORITY, NOT_PRIORITY: NOT_PRIORITY, UNSURE: UNSURE, BUDGET: BUDGET, fieldsById: byId };
 });

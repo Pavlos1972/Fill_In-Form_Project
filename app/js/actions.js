@@ -31,7 +31,7 @@
 
     SCHEDS.forEach(function (c) {
       if (!shows(c[0])) return;
-      var rows = [].concat(c[3]).reduce(function (a, k) { return a.concat(state.l[k] || []); }, []), held = rows.map(function (r) { return String(r.d.prov || '').trim(); }).filter(Boolean), choice = v(c[0]).split(';').map(function (x) { return x.trim(); }).filter(Boolean);
+      var rows = [].concat(c[3]).reduce(function (a, k) { return a.concat(state.l[k] || []); }, []), held = rows.map(function (r) { return String(r.d.prov || '').trim(); }).filter(Boolean), choice = v(c[0]).split(';').map(function (x) { x = x.trim(); return x === schema.psClient[c[0].slice(3)] ? CLIENT : x; }).filter(Boolean);       // the area's own wording ("Requested Personal Risk Covers in meeting, await client response") is the "requested from client" choice
       var known = rows.length || (c[0] === 'ps_risk' && v('has_risk') === 'Yes') || (c[0] === 'ps_grp' && v('has_group') === 'Yes');
       if (!choice.length && !known) return;                                                      // a choice that was made always counts; "not asked yet" is chased only where the client is known to have the policies (a Yes, or a policy recorded)
       out.schedules.push({ what: c[2], held: held, requested: choice.length ? choice : ['not asked yet'], other: choice.indexOf(OTHER) >= 0 ? v(c[1]) : '' });
@@ -90,7 +90,7 @@
     f.schedules.forEach(function (s) {
       var what = s.what + names(s.held), r = s.requested;
       if (r.indexOf('not asked yet') >= 0) { pts.push('Ask ' + who + ' how the current policy schedules for the ' + what + ' will be provided.'); return; }
-      if (r.indexOf(CLIENT) >= 0) pts.push('Follow up with ' + who + ' for the current policy schedules, asked for in the meeting, for the ' + what + '.');
+      if (r.indexOf(CLIENT) >= 0) pts.push('Follow up with ' + who + ' for the current policy schedules, asked for in the meeting, for the ' + what + ': await client response.');
       if (r.indexOf(ASTUTE) >= 0) {
         if (loa === 'No') { if (r.indexOf(CLIENT) < 0) pts.push('There is no signed LOA: ask ' + who + ' to send the current policy schedules for the ' + what + ' directly.'); }
         else pts.push('Draw the current policy schedules for the ' + what + ' from Astute once the signed LOA is back.');
