@@ -8,7 +8,7 @@
                 grey (a box whose cond is false stays on screen, greyed out, instead of going away),
                 sl (the label shown on screen, when it is shorter than the label voice uses), vl (the label voice and Claude use, when the two kinds of life quote need telling apart),
                 t 'multi' (tick boxes; multi: 'ins' makes it a list of insurers; nona: no "(not asked yet)" row).
-   Block keys:  title, fields, list, note (a line under the block's boxes, shown on screen and printed), cond (show only when true), condMsg, help (guidance shown on screen only),
+   Block keys:  title, fields, list, note (a line under the block's boxes, shown on screen and printed), cond (show only when true), condMsg, help (guidance shown on screen and printed in the PDF),
                 grey (when cond is false the block stays on screen greyed out, under condMsg, instead of going away), nomsg (no condMsg above a greyed block), own (the block's own cond, apart from its area being switched off: a block with its own condMsg is hidden when that rule fails, but greyed when only its area is off),
                 pri (the priority area of the Client priorities page the block belongs to), head (the block holding that area's decision and comments boxes),
                 lane ('br' BrightRock Fractured or 'std' Standard) and row ('fna', 'sf', 'red'): where a life quote block sits in the two-column grid of the Life area, sqd and sq (a row of the standard quote details table, and which boxes make it up),

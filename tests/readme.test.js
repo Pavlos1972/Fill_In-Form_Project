@@ -8,14 +8,16 @@ const schema = require('../app/js/schema.js');
 const root = path.join(__dirname, '..');
 const readme = fs.readFileSync(path.join(root, 'README.md'), 'utf8');
 
-test('the README lists the pages in the order of the form', () => {
-  const line = readme.split('\n').find(l => l.startsWith('- **Fill in** each section'));
-  assert.ok(line, 'the "Fill in each section" bullet is missing');
-  let from = 0;
-  schema.sections.forEach(s => {
-    const at = line.indexOf(s.title, from);
-    assert.ok(at >= 0, 'the README does not list "' + s.title + '" here, or lists it out of order');
-    from = at + s.title.length;
+test('the README lists the pages in the order of the form, in both places that list them', () => {
+  ['- **Fill in** each section', '- **The pages follow the work.**'].forEach(start => {
+    const line = readme.split('\n').find(l => l.startsWith(start));
+    assert.ok(line, 'the bullet starting "' + start + '" is missing');
+    let from = 0;
+    schema.sections.forEach(s => {
+      const at = line.indexOf(s.title, from);
+      assert.ok(at >= 0, 'the README bullet "' + start + '" does not list "' + s.title + '", or lists it out of order');
+      from = at + s.title.length;
+    });
   });
 });
 
