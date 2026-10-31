@@ -134,6 +134,7 @@
     splitRetirement(s, j);
     brightRockLane(s, j);
     listGates(s);
+    scheduleWording(s);
     referralFacts(s);
     s.sum = cleanSum(j.sum);
     s.pa = cleanPa(j.pa);
@@ -174,6 +175,13 @@
   var LIST_GATES = [['has_debts', 'debts'], ['has_kids', 'kids'], ['has_inv', 'inv'], ['has_ra', 'ret_ra'], ['has_pp', 'ret_pp']];
   function listGates(s) {
     LIST_GATES.forEach(function (g) { if (s.f[g[0]] && s.f[g[0]].v === '' && s.l[g[1]].some(rowFilled)) s.f[g[0]] = { v: 'Yes', st: 'confirmed' }; });
+  }
+  /* Files saved when every schedule box said "Requested from client in meeting": each box now says it in the words of its own area (Requested Personal Risk Covers in meeting, await client response, ...). */
+  function scheduleWording(s) {
+    Object.keys(schema.psClient).forEach(function (area) {
+      var c = s.f['ps_' + area]; if (!c || String(c.v).indexOf(schema.psClientOld) < 0) return;
+      c.v = String(c.v).split(';').map(function (x) { x = x.trim(); return x === schema.psClientOld ? schema.psClient[area] : x; }).filter(Boolean).join('; ');
+    });
   }
   /* The referral boxes no longer have the choices that only said what is asked elsewhere on the page: "Client has own broker" is the short-term broker box (Other broker) and "Has updated will" is the will boxes. A file that holds
      one of them keeps the fact in its own box (when that box is empty) and the referral says Not interested, which is what the action points already did with it. */

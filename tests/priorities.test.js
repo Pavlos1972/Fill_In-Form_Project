@@ -308,13 +308,13 @@ test('the Life area is headed "Personal Risk Covers", with the same words under 
 
 /* ---------- Request Current Policy Schedule(s), the LOA question and the Admin page ---------- */
 const A = require('../app/js/actions.js');
-const PS = ['risk', 'grp', 'ra', 'pp', 'inv'], CL = 'Requested from client in meeting', AS = 'Draw from Astute (with signed LOA)';
+const PS = ['risk', 'grp', 'ra', 'pp', 'inv'], CL = area => schema.psClient[area], AS = 'Draw from Astute (with signed LOA)';
 
 test('each of the five sections that hold policies ends with a "Request Current Policy Schedule(s)" tick-box list and a small Other box', () => {
   PS.forEach(k => {
     const f = schema.fieldsById['ps_' + k], o = schema.fieldsById['ps_' + k + '_ot'], blk = schema.sections.reduce((a, s) => a.concat(s.blocks), []).find(b => (b.fields || []).some(x => x.id === 'ps_' + k));
     assert.strictEqual(f.t, 'multi'); assert.strictEqual(blk.title, 'Request Current Policy Schedule(s)'); assert.ok(!blk.cond && !blk.grey && !blk.condMsg);        // never locked
-    assert.deepStrictEqual(f.o, k === 'grp' ? [CL, 'Other'] : [CL, AS, 'Other'], k);                                      // group risk has no Astute; "Client does not agree" is gone from all
+    assert.deepStrictEqual(f.o, k === 'grp' ? [CL(k), 'Other'] : [CL(k), AS, 'Other'], k);                                      // group risk has no Astute; "Client does not agree" is gone from all
     assert.ok(!f.o.some(x => /agree/i.test(x)) && o.t === 'txt' && o.cond.has === 'Other' && o.grey);
   });
   assert.strictEqual(schema.sections.find(x => x.id === 'inv').blocks.slice(-2)[0].fields[0].id, 'ps_inv');            // the last item of the section, before its Notes
@@ -328,17 +328,17 @@ test('no schedule list is ever locked, whatever the client has or has not been a
   store.addRow(s, 'ret_ra', { prov: 'Allan Gray' }); assert.ok(open());
   const other = schema.fieldsById.ps_ra_ot;
   assert.ok(!show(s, other.cond));
-  set(s, 'ps_ra', CL + '; Other'); assert.ok(show(s, other.cond));
-  set(s, 'ps_ra_ot', 'Bring them next week'); set(s, 'ps_ra', CL); assert.strictEqual(s.f.ps_ra_ot.v, '');        // Other is not ticked any more: what was typed goes
+  set(s, 'ps_ra', CL('ra') + '; Other'); assert.ok(show(s, other.cond));
+  set(s, 'ps_ra_ot', 'Bring them next week'); set(s, 'ps_ra', CL('ra')); assert.strictEqual(s.f.ps_ra_ot.v, '');        // Other is not ticked any more: what was typed goes
 });
 
 test('the action points follow a schedule choice that was made, with or without a recorded policy; "not asked yet" is chased only where the client has the policies', () => {
   const s = fresh(); set(s, 'fname', 'Thandi');
   assert.deepStrictEqual(A.local(s), ['Set up a follow-up appointment with Thandi (date to be agreed).']);              // nothing asked, nothing known: nothing to chase
-  set(s, 'ps_ra', CL);                                                                                                    // ticked before the retirement annuity was typed in
-  assert.ok(A.local(s).includes('Follow up with Thandi for the current policy schedules, asked for in the meeting, for the retirement annuities.'));
+  set(s, 'ps_ra', CL('ra'));                                                                                                    // ticked before the retirement annuity was typed in
+  assert.ok(A.local(s).includes('Follow up with Thandi for the current policy schedules, asked for in the meeting, for the retirement annuities: await client response.'));
   set(s, 'ps_inv', AS); set(s, 'loa', 'Yes'); assert.ok(A.local(s).some(l => /^Draw the current policy schedules for the investments from Astute/.test(l)));
-  set(s, 'has_risk', 'No'); set(s, 'ps_risk', CL); assert.ok(A.local(s).some(l => /personal risk policies/.test(l)));  // a choice made on purpose counts
+  set(s, 'has_risk', 'No'); set(s, 'ps_risk', CL('risk')); assert.ok(A.local(s).some(l => /personal risk policies/.test(l)));  // a choice made on purpose counts
   set(s, 'ps_risk', ''); assert.ok(!A.local(s).some(l => /personal risk policies/.test(l)));                              // unticked and not a policy the client has: nothing
   set(s, 'has_risk', 'Yes'); assert.ok(A.local(s).includes('Ask Thandi how the current policy schedules for the personal risk policies will be provided.'));
   store.addRow(s, 'ret_pp', { prov: 'Sanlam' }); assert.ok(A.local(s).includes('Ask Thandi how the current policy schedules for the pension and provident funds (Sanlam) will be provided.'));
@@ -354,11 +354,11 @@ test('the LOA question comes first on the Personal & group risk cover page, with
 
 test('the tick-box lists are said any way, and more said later adds to what is ticked', () => {
   const idx = V.buildIndex(schema), v = (id, t) => { const r = V.interpret(idx.byId[id], t); return r && (r.error ? 'ERR:' + r.error : r.value); };
-  assert.strictEqual(v('ps_risk', 'the client will send them'), CL); assert.strictEqual(v('ps_risk', 'we will get them through Astute'), AS);
-  assert.strictEqual(v('ps_risk', 'both'), CL + '; ' + AS); assert.strictEqual(v('ps_risk', 'not through Astute, she will send them'), CL);
+  assert.strictEqual(v('ps_risk', 'the client will send them'), CL('risk')); assert.strictEqual(v('ps_risk', 'we will get them through Astute'), AS);
+  assert.strictEqual(v('ps_risk', 'both'), CL('risk') + '; ' + AS); assert.strictEqual(v('ps_risk', 'not through Astute, she will send them'), CL('risk'));
   assert.strictEqual(v('ps_risk', 'something else'), 'Other'); assert.strictEqual(v('ps_risk', 'blah'), 'ERR:no-match');
   assert.strictEqual(v('ps_grp', 'through Astute'), 'ERR:no-match');                                                     // group risk has no Astute choice
-  assert.strictEqual(V.mergeMulti(CL, AS, idx.byId.ps_risk.options), CL + '; ' + AS);
+  assert.strictEqual(V.mergeMulti(CL('risk'), AS, idx.byId.ps_risk.options), CL('risk') + '; ' + AS);
   assert.ok(idx.byId.ps_risk.multi && !idx.byId.loa.multi);
   const body = JSON.parse(AI.buildRequest(idx, { sectionId: 'cover', recent: [] }, 'auto', 'x', 'm').messages[0].content);
   assert.ok(body.fields.find(f => f.id === 'ps_risk').multi === true);
@@ -382,8 +382,8 @@ test('the Retirement Planning and Investment Planning areas have their new headi
 
 function pa() {
   const s = fresh();
-  set(s, 'fname', 'Thandi'); set(s, 'loa', 'Yes'); set(s, 'has_risk', 'Yes'); store.addRow(s, 'risk', { prov: 'Liberty' }); store.addRow(s, 'risk', { prov: 'Discovery' }); set(s, 'ps_risk', CL);
-  set(s, 'has_group', 'Yes'); store.addRow(s, 'grp', { prov: 'Old Mutual' }); set(s, 'ps_grp', CL + '; Other'); set(s, 'ps_grp_ot', 'Employer HR to send the benefit summary.');
+  set(s, 'fname', 'Thandi'); set(s, 'loa', 'Yes'); set(s, 'has_risk', 'Yes'); store.addRow(s, 'risk', { prov: 'Liberty' }); store.addRow(s, 'risk', { prov: 'Discovery' }); set(s, 'ps_risk', CL('risk'));
+  set(s, 'has_group', 'Yes'); store.addRow(s, 'grp', { prov: 'Old Mutual' }); set(s, 'ps_grp', CL('grp') + '; Other'); set(s, 'ps_grp_ot', 'Employer HR to send the benefit summary.');
   store.addRow(s, 'ret_ra', { prov: 'Allan Gray' }); set(s, 'ps_ra', AS); store.addRow(s, 'ret_pp', { prov: 'Sanlam', type: 'Pension fund' });
   store.addRow(s, 'debts', { type: 'Home loan', prov: 'Nedbank', cl: 'Yes' }); store.addRow(s, 'debts', { type: 'Vehicle finance', prov: 'Wesbank', cl: 'No' }); store.addRow(s, 'debts', { type: 'Credit card', prov: 'Discovery Bank' });
   set(s, 'bf_fna_req', 'Request a quote'); set(s, 'bf_fna_type', 'New Business'); set(s, 'fna_req', 'Request a quote'); set(s, 'fna_type', 'New Business'); set(s, 'fna_ins', 'Old Mutual; Discovery'); set(s, 'rgar_req', 'Request an RGAR'); set(s, 'ret_age', '65'); set(s, 'ret_net', 'R 60 000.00'); set(s, 'egar_req', 'Request an EGAR'); store.addRow(s, 'kids', { name: 'A' }); store.addRow(s, 'kids', { name: 'B' });
@@ -396,8 +396,8 @@ test('the action points: what is still to get, quotes, who contacts the client, 
   const s = pa(), lines = A.local(s), text = A.text(lines);
   assert.deepStrictEqual(lines, [
     'Send Thandi the LOA to sign, so the policy schedules can be drawn from Astute.',
-    'Follow up with Thandi for the current policy schedules, asked for in the meeting, for the personal risk policies (Liberty, Discovery).',
-    'Follow up with Thandi for the current policy schedules, asked for in the meeting, for the group risk benefits (Old Mutual).',
+    'Follow up with Thandi for the current policy schedules, asked for in the meeting, for the personal risk policies (Liberty, Discovery): await client response.',
+    'Follow up with Thandi for the current policy schedules, asked for in the meeting, for the group risk benefits (Old Mutual): await client response.',
     'Current policy schedules for the group risk benefits (Old Mutual): Employer HR to send the benefit summary.',
     'Draw the current policy schedules for the retirement annuities (Allan Gray) from Astute once the signed LOA is back.',
     'Ask Thandi how the current policy schedules for the pension and provident funds (Sanlam) will be provided.',

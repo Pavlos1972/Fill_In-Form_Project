@@ -435,6 +435,7 @@ table.sqt .dash { color: var(--muted); display: inline-block; padding-top: 7px; 
 .msb { width: 100%; text-align: left; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 8px 30px 8px 10px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; position: relative; min-height: 36px; }
 .msb::after { content: "▾"; position: absolute; right: 10px; top: 50%; transform: translateY(-50%); color: var(--muted); }
 .msb.open { border-color: var(--accent); }
+.msb.wrap { white-space: normal; overflow: visible; text-overflow: clip; line-height: 1.35; padding-right: 112px; }      /* the schedule requests have long wording: it wraps, so all of it can be read */
 .msb.ph { color: var(--muted); }
 .msb:disabled { cursor: default; background: var(--calc-soft); color: var(--calc); }
 .f.s-empty .msb { background: var(--surface-2); border-style: dashed; color: var(--muted); }

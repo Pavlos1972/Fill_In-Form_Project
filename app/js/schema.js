@@ -8,7 +8,7 @@
                 grey (a box whose cond is false stays on screen, greyed out, instead of going away),
                 sl (the label shown on screen, when it is shorter than the label voice uses), vl (the label voice and Claude use, when the two kinds of life quote need telling apart),
                 t 'multi' (tick boxes; multi: 'ins' makes it a list of insurers; nona: no "(not asked yet)" row).
-   Block keys:  title, fields, list, note (a line under the block's boxes, shown on screen and printed), cond (show only when true), condMsg, help (guidance shown on screen only),
+   Block keys:  title, fields, list, note (a line under the block's boxes, shown on screen and printed), cond (show only when true), condMsg, help (guidance shown on screen and printed in the PDF),
                 grey (when cond is false the block stays on screen greyed out, under condMsg, instead of going away), nomsg (no condMsg above a greyed block), own (the block's own cond, apart from its area being switched off: a block with its own condMsg is hidden when that rule fails, but greyed when only its area is off),
                 pri (the priority area of the Client priorities page the block belongs to), head (the block holding that area's decision and comments boxes),
                 lane ('br' BrightRock Fractured or 'std' Standard) and row ('fna', 'sf', 'red'): where a life quote block sits in the two-column grid of the Life area, sqd and sq (a row of the standard quote details table, and which boxes make it up),
@@ -79,10 +79,13 @@
   }
   /* "Request Current Policy Schedule(s)": the last item of each section that holds policies. A tick-box dropdown (t: 'multi', the choices ticked are kept as one text joined with "; ", empty = not asked yet) and, beside it,
      a small box for "Other". The block is always open (it is never locked: a client may mention a policy before it is typed in); group risk has no Astute choice. */
-  var PS_CLIENT = 'Requested from client in meeting', PS_ASTUTE = 'Draw from Astute (with signed LOA)', PS_OTHER = 'Other';
+  /* The first choice of each schedule box says what was asked for, in the words of its own area. (Older files held "Requested from client in meeting": store.js changes it to the area's wording when a file is opened.) */
+  var PS_CLIENT_OLD = 'Requested from client in meeting', PS_ASTUTE = 'Draw from Astute (with signed LOA)', PS_OTHER = 'Other';
+  var PS_CLIENT = { risk: 'Requested Personal Risk Covers in meeting, await client response', grp: 'Requested Group Risk Covers in meeting, await client response', ra: 'Requested Retirement Annuities in meeting, await client response',
+    pp: 'Requested Pension and Provident Funds in meeting, await client response', inv: 'Requested Investments in meeting, await client response' };
   function PS(id, group) {
     return { title: 'Request Current Policy Schedule(s)', layout: 'g12', fields: [
-      { id: 'ps_' + id, l: 'Schedule(s) requested', t: 'multi', o: group ? [PS_CLIENT, PS_OTHER] : [PS_CLIENT, PS_ASTUTE, PS_OTHER], s: 7 },
+      { id: 'ps_' + id, l: 'Schedule(s) requested', t: 'multi', o: group ? [PS_CLIENT[id], PS_OTHER] : [PS_CLIENT[id], PS_ASTUTE, PS_OTHER], s: 7 },
       { id: 'ps_' + id + '_ot', l: 'Other schedule arrangement', t: 'txt', opt: 1, voice: 1, cond: { f: 'ps_' + id, has: PS_OTHER }, grey: 1, s: 5 }
     ] };
   }
@@ -517,5 +520,5 @@
   var byId = {};
   sections.forEach(function (s) { s.blocks.forEach(function (b) { (b.fields || []).forEach(function (f) { byId[f.id] = f; }); }); });
 
-  return { version: '3.0', released: 'October 2026', sections: sections, lists: lists, panels: panels, panelsById: panelsById, advisor: ADVISOR, brBasis: BR_BASIS, PRIORITY: PRIORITY, NOT_PRIORITY: NOT_PRIORITY, UNSURE: UNSURE, BUDGET: BUDGET, fieldsById: byId };
+  return { version: '3.0', released: 'October 2026', sections: sections, lists: lists, panels: panels, panelsById: panelsById, advisor: ADVISOR, brBasis: BR_BASIS, psClient: PS_CLIENT, psClientOld: PS_CLIENT_OLD, PRIORITY: PRIORITY, NOT_PRIORITY: NOT_PRIORITY, UNSURE: UNSURE, BUDGET: BUDGET, fieldsById: byId };
 });

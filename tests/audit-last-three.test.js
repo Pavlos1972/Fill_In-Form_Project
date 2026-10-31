@@ -63,6 +63,6 @@ test('the retirement annuities and the pension and provident funds each keep the
   assert.ok(schema.fieldsById.ps_ra && schema.fieldsById.ps_pp && schema.fieldsById.ps_ra_ot && schema.fieldsById.ps_pp_ot);
   assert.strictEqual(at('ps_ra'), blocks.findIndex(b => b.list === 'ret_ra') + 1);
   assert.strictEqual(at('ps_pp'), blocks.findIndex(b => b.list === 'ret_pp') + 1);
-  const s = fresh(); set(s, 'ps_ra', 'Requested from client in meeting'); set(s, 'ps_pp', 'Draw from Astute (with signed LOA)');
-  const back = store.fromJSON(store.toJSON(s)); assert.deepStrictEqual([back.f.ps_ra.v, back.f.ps_pp.v], ['Requested from client in meeting', 'Draw from Astute (with signed LOA)']);   // opening a file does not join them
+  const s = fresh(); set(s, 'ps_ra', schema.psClient.ra); set(s, 'ps_pp', 'Draw from Astute (with signed LOA)');
+  const back = store.fromJSON(store.toJSON(s)); assert.deepStrictEqual([back.f.ps_ra.v, back.f.ps_pp.v], [schema.psClient.ra, 'Draw from Astute (with signed LOA)']);   // opening a file does not join them
 });

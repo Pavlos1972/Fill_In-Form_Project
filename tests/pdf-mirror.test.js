@@ -42,7 +42,7 @@ function filled() {
   ['has_risk', 'has_group', 'bizowner', 'biz_assur'].forEach(id => set(s, id, 'Yes')); set(s, 'marital', 'Married in community of property'); set(s, 'fname', 'Thandi'); set(s, 'sname', 'Dlamini');
   schema.panels.forEach(P => { if (P.dec) set(s, P.dec, schema.PRIORITY); });
   ['fna_req', 'sf_req', 'bf_fna_req', 'bf_sf_req'].forEach(id => set(s, id, 'Request a quote'));
-  set(s, 'fna_ins', 'Old Mutual; Discovery'); set(s, 'ps_risk', 'Requested from client in meeting; Other'); set(s, 'ps_risk_ot', 'Employer will send');
+  set(s, 'fna_ins', 'Old Mutual; Discovery'); set(s, 'ps_risk', schema.psClient.risk + '; Other'); set(s, 'ps_risk_ot', 'Employer will send');
   Object.keys(schema.lists).forEach(k => { const d = {}; schema.lists[k].cols.forEach(c => { d[c.k] = c.o ? c.o[0] : (c.money ? '1000' : 'Sample ' + c.k); }); store.addRow(s, k, d); });
   return s;
 }
