@@ -488,3 +488,13 @@ test('the Standard Quotes have an income protection and a dread disease quote of
   assert.strictEqual(back.f.dd_term.v, '');                                                                          // and a box left empty in the old file is not filled behind the adviser's back
   assert.strictEqual(back.f.dds_cover.v, 'R 500 000.00');
 });
+
+test('the OpenAI speech cost is kept with the Fact Find, like the Claude cost, and an older file has none', () => {
+  const s = store.blank(); assert.deepStrictEqual(s.openai, { usd: 0, seconds: 0, calls: 0 });
+  s.openai = { usd: 0.0123, seconds: 123.4, calls: 9 };
+  const back = store.fromJSON(store.toJSON(s)); assert.deepStrictEqual(back.openai, { usd: 0.0123, seconds: 123.4, calls: 9 });
+  const old = JSON.parse(store.toJSON(store.blank())); delete old.openai;
+  assert.deepStrictEqual(store.fromJSON(JSON.stringify(old)).openai, { usd: 0, seconds: 0, calls: 0 });
+  const junk = JSON.parse(store.toJSON(store.blank())); junk.openai = { usd: 'lots', seconds: -4, calls: null };
+  assert.deepStrictEqual(store.fromJSON(JSON.stringify(junk)).openai, { usd: 0, seconds: 0, calls: 0 });
+});

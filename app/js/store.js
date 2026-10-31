@@ -14,6 +14,13 @@
     Object.keys(o).forEach(function (k) { if (t && +t[k] > 0 && isFinite(+t[k])) o[k] = +t[k]; });
     return o;
   }
+  /* What the spoken lines sent to OpenAI for transcription cost, kept with the Fact Find the same way: { usd, seconds of sound, lines sent }. */
+  function blankSpeech() { return { usd: 0, seconds: 0, calls: 0 }; }
+  function speechFrom(t) {
+    var o = blankSpeech();
+    Object.keys(o).forEach(function (k) { if (t && +t[k] > 0 && isFinite(+t[k])) o[k] = +t[k]; });
+    return o;
+  }
   /* The action points on the Admin page: what they were written from (key), when (at), by what ('claude' or 'form'), and whether the adviser has typed in the box since (edited): after that they no longer follow the form until Refresh. */
   function blankPa() { return { key: '', at: '', by: '', edited: false }; }
   function cleanPa(x) {
@@ -23,7 +30,7 @@
   }
   function setPa(state, key, by) { state.pa = { key: String(key || ''), at: new Date().toISOString(), by: by === 'claude' ? 'claude' : 'form', edited: false }; }
   function blank() {
-    var s = { app: APP_ID, schema: schema.version, created: new Date().toISOString(), modified: null, f: {}, l: {}, sum: {}, pa: blankPa(), unplaced: [], claude: blankTally() };
+    var s = { app: APP_ID, schema: schema.version, created: new Date().toISOString(), modified: null, f: {}, l: {}, sum: {}, pa: blankPa(), unplaced: [], claude: blankTally(), openai: blankSpeech() };
     Object.keys(schema.fieldsById).forEach(function (id) {
       var d = schema.fieldsById[id], p = d.preset === '@today' ? util.todayDMY() : d.preset;
       s.f[id] = p ? { v: p, st: 'preset' } : { v: '', st: 'empty' };
@@ -141,6 +148,7 @@
     legacyNotes(s, j);
     s.unplaced = (Array.isArray(j.unplaced) ? j.unplaced : []).map(cleanUnplaced).filter(Boolean).slice(0, 60);
     s.claude = tallyFrom(j.claude);
+    s.openai = speechFrom(j.openai);
     tidyAmounts(s);
     tidyDates(s);
     return s;
@@ -302,5 +310,5 @@
     return { tot: tot, fill: fill, ver: ver };
   }
 
-  return { setProtect: setProtect, setProtectAll: setProtectAll, setPa: setPa, blankPa: blankPa, cleanPa: cleanPa, setSum: setSum, cleanSum: cleanSum, addUnplaced: addUnplaced, closeUnplaced: closeUnplaced, unplacedKey: unplacedKey, blank: blank, blankTally: blankTally, ctxFor: ctxFor, setField: setField, addRow: addRow, delRow: delRow, setCell: setCell, accept: accept, clientName: clientName, idClash: idClash, idKey: idKey, fatherSurname: fatherSurname, baseFileName: baseFileName, pdfFileName: pdfFileName, fromJSON: fromJSON, toJSON: toJSON, counts: counts };
+  return { setProtect: setProtect, setProtectAll: setProtectAll, setPa: setPa, blankPa: blankPa, cleanPa: cleanPa, setSum: setSum, cleanSum: cleanSum, addUnplaced: addUnplaced, closeUnplaced: closeUnplaced, unplacedKey: unplacedKey, blank: blank, blankTally: blankTally, blankSpeech: blankSpeech, ctxFor: ctxFor, setField: setField, addRow: addRow, delRow: delRow, setCell: setCell, accept: accept, clientName: clientName, idClash: idClash, idKey: idKey, fatherSurname: fatherSurname, baseFileName: baseFileName, pdfFileName: pdfFileName, fromJSON: fromJSON, toJSON: toJSON, counts: counts };
 });

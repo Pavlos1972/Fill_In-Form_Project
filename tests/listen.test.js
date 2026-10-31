@@ -482,3 +482,22 @@ test('OpenAI transcription: starting, a lost line and stopping are written to th
   assert.deepStrictEqual(events.map(e => e[0]), ['listening on', 'line lost', 'listening stopped']);
   assert.strictEqual(events[1][2], true, 'a lost line is not shown');
 });
+
+test('OpenAI transcription: each answered line reports the seconds of sound it sent and the model, and a failed line does not', async () => {
+  const used = [];
+  const r = openaiRig({ opts: { usage: (secs, model) => used.push([Math.round(secs * 10) / 10, model]) } });
+  await r.lsn.start();
+  r.talk([noise(0.5), speech(1.5), noise(1.2)]);
+  await new Promise(x => setTimeout(x, 50));
+  assert.strictEqual(used.length, 1); assert.strictEqual(used[0][1], 'gpt-4o-transcribe'); assert.ok(used[0][0] > 1 && used[0][0] < 4, 'seconds: ' + used[0][0]);
+  const bad = openaiRig({ reply: (n, reply) => reply(500, { error: { message: 'boom' } }), opts: { usage: (secs, model) => used.push(['failed', secs]) } });
+  await bad.lsn.start();
+  bad.talk([noise(0.5), speech(1.5), noise(1.2)]);
+  await new Promise(x => setTimeout(x, 50));
+  assert.ok(!used.some(u => u[0] === 'failed'), 'a line OpenAI did not answer is not counted');
+  const throws = openaiRig({ opts: { usage: () => { throw new Error('meter broke'); } } });
+  await throws.lsn.start(); throws.talk([noise(0.5), speech(1.5), noise(1.2)]);
+  await new Promise(x => setTimeout(x, 50));
+  assert.strictEqual(throws.said.length, 1, 'the line still came through when the meter threw');
+  r.lsn.stop(); bad.lsn.stop(); throws.lsn.stop();
+});
