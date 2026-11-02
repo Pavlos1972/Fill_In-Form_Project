@@ -90,21 +90,24 @@
   function sentence(s) { return /[.?!)]$/.test(s) ? s : s + '.'; }
   function an(w) { return /^(?:FNA|[aeiou])/i.test(w) ? 'an ' : 'a '; }
   function names(held) { return held.length ? ' (' + held.join(', ') + ')' : ''; }
+  /* The points are orders to the assistant, so the client is always "the client Thandi", never the first name alone: the name could be taken for the assistant's own (a test with her name, or one like it). */
+  var ASSISTANT = 'Sitamah';
+  function clientRef(name) { return !name || name === 'the client' ? 'the client' : 'the client ' + name; }
   function local(state) {
-    var f = facts(state), who = f.client, pts = [], loa = f.letter_of_authority;
+    var f = facts(state), who = clientRef(f.client), pts = [], loa = f.letter_of_authority;
     var astute = f.schedules.some(function (s) { return s.requested.indexOf(ASTUTE) >= 0; });
     if (loa === 'Yes') pts.push('Send ' + who + ' the LOA to sign' + (astute ? ', so the policy schedules can be drawn from Astute.' : '.'));
-    else if (loa === 'Not now') pts.push('Do not send the LOA yet: ' + who + ' is not ready to sign. Raise it again at the follow-up appointment.');
+    else if (loa === 'Not now') pts.push('Do not send the LOA to ' + who + ' yet: not ready to sign. Raise it again at the follow-up appointment.');
     else if (loa === 'not asked yet' && astute) pts.push('Ask ' + who + ' whether the LOA can be sent for signing: it is needed to draw the policy schedules from Astute.');
     f.schedules.forEach(function (s) {
       var what = s.what + names(s.held), r = s.requested;
       if (r.indexOf('not asked yet') >= 0) { pts.push('Ask ' + who + ' how the current policy schedules for the ' + what + ' will be provided.'); return; }
       if (r.indexOf(CLIENT) >= 0) pts.push('Follow up with ' + who + ' for the current policy schedules, asked for in the meeting, for the ' + what + ': await client response.');
       if (r.indexOf(ASTUTE) >= 0) {
-        if (loa === 'No') { if (r.indexOf(CLIENT) < 0) pts.push('There is no signed LOA: ask ' + who + ' to send the current policy schedules for the ' + what + ' directly.'); }
+        if (loa === 'No') { if (r.indexOf(CLIENT) < 0) pts.push('Ask ' + who + ' to send the current policy schedules for the ' + what + ' directly: there is no signed LOA.'); }
         else pts.push('Draw the current policy schedules for the ' + what + ' from Astute once the signed LOA is back.');
       }
-      if (r.indexOf(OTHER) >= 0) pts.push('Current policy schedules for the ' + what + ': ' + (s.other ? s.other.replace(/[.\s]+$/, '') : 'other arrangement (to be confirmed)') + '.');
+      if (r.indexOf(OTHER) >= 0) pts.push('Await the current policy schedules for the ' + what + ': ' + (s.other ? s.other.replace(/[.\s]+$/, '') : 'other arrangement (to be confirmed)') + '.');
     });
     f.credit_life.forEach(function (c) {
       pts.push(c.credit_life === 'Yes' ? 'Ask ' + who + ' for the credit life details' + (c.lender ? ' with ' + c.lender : '') + ' on the ' + c.debt + '.' : 'Ask ' + who + ' whether there is credit life' + (c.lender ? ' with ' + c.lender : '') + ' on the ' + c.debt + '.');
@@ -128,13 +131,19 @@
       if (q.monthly_amount) line += ' for ' + q.monthly_amount + ' p.m.'; else if (q.lump_sum) line += ' for a lump sum of ' + q.lump_sum; else if (q.cover_amount) line += ' for cover of ' + q.cover_amount;
       pts.push(sentence(line.replace(/\.$/, '')));
     });
-    if (f.preferred_monthly_spend && f.quotes.some(function (q) { return q.kind === BR || q.kind === STD; })) pts.push('For the life quotes: ' + who + ' prefers to spend ' + amt(f.preferred_monthly_spend) + ' p.m.');
+    if (f.preferred_monthly_spend && f.quotes.some(function (q) { return q.kind === BR || q.kind === STD; })) pts.push('Note for the life quotes that ' + who + ' prefers to spend ' + amt(f.preferred_monthly_spend) + ' p.m.');
     f.referrals.forEach(function (r) { pts.push('Ask ' + r.who + ' to contact ' + who + ' about ' + r.about + '.'); });
     f.undecided.forEach(function (u) { pts.push('Follow up with ' + who + ' on ' + u.area + ': ' + u.answer + ' before deciding' + (u.comment ? ' (' + u.comment.replace(/[.\s]+$/, '') + ')' : '') + '.'); });
     pts.push(f.appointment ? 'Set up a follow-up appointment with ' + who + (/^at /.test(f.appointment) ? ' ' : ' for ') + f.appointment + '.' : 'Set up a follow-up appointment with ' + who + ' (date and time to be agreed).');
     return pts;
   }
-  function text(lines) { return lines.map(function (l) { return '- ' + l; }).join('\n'); }
+  /* The line that opens the box, put in by the form (never written by Claude): the points are for the assistant. */
+  function header(state) {
+    var v = function (id) { return String((state.f[id] && state.f[id].v) || '').trim(); }, nm = (v('fname') + ' ' + v('sname')).trim();
+    return ASSISTANT + ', please action these for ' + clientRef(nm) + ':';
+  }
+  /* The points as the box holds them: with a state, the opening line to the assistant first. */
+  function text(lines, state) { return (state ? header(state) + '\n' : '') + lines.map(function (l) { return '- ' + l; }).join('\n'); }
   /* The BrightRock Fractured quotes asked for, short: ["FNA (New Business)", "Shortfall", "Reduced R 2 500 p.m."] (shown at the top of the BrightRock Risk Calculation page). */
   function brightRockAsked(state) {
     return facts(state).quotes.filter(function (q) { return q.kind === BR; }).map(function (q) {
@@ -142,5 +151,5 @@
     });
   }
 
-  return { facts: facts, key: key, local: local, text: text, brightRockAsked: brightRockAsked };
+  return { facts: facts, key: key, local: local, text: text, header: header, clientRef: clientRef, ASSISTANT: ASSISTANT, brightRockAsked: brightRockAsked };
 });

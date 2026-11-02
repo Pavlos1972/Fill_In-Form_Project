@@ -443,7 +443,7 @@
     if (ta && ta.value !== state.f.pa_actions.v && !(document.activeElement === ta && state.pa.edited)) ta.value = state.f.pa_actions.v;     // never over what is being typed
   }
   function paWrite(lines, key, by) {
-    store.setField(state, 'pa_actions', FF.actions.text(lines)); store.setPa(state, key, by);
+    store.setField(state, 'pa_actions', FF.actions.text(lines, state)); store.setPa(state, key, by);
     touch(); paPaint();
   }
   /* manual: the Refresh button. Otherwise only while the points are the form's own (not typed over) and the form has changed since they were written. */
