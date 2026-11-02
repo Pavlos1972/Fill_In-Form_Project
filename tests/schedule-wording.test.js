@@ -39,7 +39,7 @@ test('the action point for a request made in the meeting says to await the clien
   const what = { risk: 'personal risk policies', grp: 'group risk benefits', ra: 'retirement annuities', pp: 'pension and provident funds', inv: 'investments' };
   Object.keys(AREAS).forEach(k => {
     const s = fresh(); set(s, 'fname', 'Thandi'); set(s, 'ps_' + k, schema.psClient[k]);
-    assert.ok(A.local(s).includes('Follow up with Thandi for the current policy schedules, asked for in the meeting, for the ' + what[k] + ': await client response.'), k + ': ' + A.local(s).join(' | '));
+    assert.ok(A.local(s).includes('Follow up with the client Thandi for the current policy schedules, asked for in the meeting, for the ' + what[k] + ': await client response.'), k + ': ' + A.local(s).join(' | '));
   });
   const a = fresh(); set(a, 'fname', 'Thandi'); set(a, 'loa', 'Yes'); set(a, 'ps_inv', ASTUTE);
   assert.ok(!A.local(a).some(p => /await client response/.test(p)));                                                        // Astute alone: nothing to await from the client

@@ -42,7 +42,7 @@ srv.listen(0, async () => {
 
   // the action point and the PDF
   const point = await p.evaluate(() => FF.actions.local(FF.app.state).pop());
-  ok(point === 'Set up a follow-up appointment with Thandi for Friday 06/11/2026 at 14:30.', 'the action point for the assistant: ' + point);
+  ok(point === 'Set up a follow-up appointment with the client Thandi for Friday 06/11/2026 at 14:30.', 'the action point for the assistant: ' + point);
   const pdfText = await p.evaluate(() => { const rec = []; const d = FF.pdf.build(FF.app.state); return d.output('datauristring').length > 1000; });
   ok(pdfText, 'the PDF is made with the new boxes');
 
