@@ -89,6 +89,20 @@ srv.listen(0, async () => {
     ok(c.visible && c.order && c.sameRow && c.gap >= -1 && c.gap < 6, 'the four chips are at the far right of the title row, in order, at ' + w + ' wide ' + JSON.stringify(c));
   }
 
+  // the client's name and the save state are centred directly above the meeting, voice and listen buttons, and nothing overlaps (also with a long name)
+  const centred = () => p.evaluate(() => {
+    const m = document.querySelector('.top .tmid').getBoundingClientRect(), g = document.querySelector('.top .actions .mid').getBoundingClientRect(), l = document.querySelector('.top .tleft').getBoundingClientRect(), c = document.querySelector('.top .chips').getBoundingClientRect();
+    return { off: Math.round(((m.left + m.right) / 2) - ((g.left + g.right) / 2)), above: m.bottom <= g.top + 1, clear: l.right <= m.left + 1 && m.right <= c.left + 1 };
+  });
+  for (const long of [false, true]) {
+    await p.evaluate(long => { const s = FF.app.state; FF.store.setField(s, 'fname', long ? 'Maria Magdalena' : 'Thandi'); FF.store.setField(s, 'sname', long ? 'van der Westhuizen-Smith' : 'Dlamini'); FF.app.redraw(); }, long);
+    for (const w of [1366, 1500, 1920]) {
+      await p.setViewportSize({ width: w, height: 800 }); await p.waitForTimeout(250);
+      const c = await centred();
+      ok(Math.abs(c.off) <= 2 && c.above && c.clear, 'the client name and save state are centred above the meeting buttons at ' + w + ' wide' + (long ? ' (long name)' : '') + ' ' + JSON.stringify(c));
+    }
+  }
+
   ok(errs.length === 0, 'no page errors ' + errs.join('|'));
   console.log(bad ? bad + ' FAILED' : 'all pass'); await b.close(); srv.close();
 });
