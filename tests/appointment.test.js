@@ -67,11 +67,11 @@ test('the action point names the day, the date and the time, and says what is st
   const s = fresh(); set(s, 'fname', 'Thandi');
   const last = () => A.local(s).pop();
   set(s, 'next_appt', '06/11/2026'); set(s, 'next_time', '2:30 pm');
-  assert.strictEqual(last(), 'Set up a follow-up appointment with Thandi for Friday 06/11/2026 at 14:30.');
+  assert.strictEqual(last(), 'Set up a follow-up appointment with the client Thandi for Friday 06/11/2026 at 14:30.');
   assert.strictEqual(A.facts(s).appointment, 'Friday 06/11/2026 at 14:30');
-  set(s, 'next_time', ''); assert.strictEqual(last(), 'Set up a follow-up appointment with Thandi for Friday 06/11/2026 (time to be agreed).');
-  set(s, 'next_appt', ''); set(s, 'next_time', '10 am'); assert.strictEqual(last(), 'Set up a follow-up appointment with Thandi at 10:00 (date to be agreed).');
-  set(s, 'next_time', ''); assert.strictEqual(last(), 'Set up a follow-up appointment with Thandi (date and time to be agreed).');
+  set(s, 'next_time', ''); assert.strictEqual(last(), 'Set up a follow-up appointment with the client Thandi for Friday 06/11/2026 (time to be agreed).');
+  set(s, 'next_appt', ''); set(s, 'next_time', '10 am'); assert.strictEqual(last(), 'Set up a follow-up appointment with the client Thandi at 10:00 (date to be agreed).');
+  set(s, 'next_time', ''); assert.strictEqual(last(), 'Set up a follow-up appointment with the client Thandi (date and time to be agreed).');
 });
 
 test('voice reads a spoken time', () => {

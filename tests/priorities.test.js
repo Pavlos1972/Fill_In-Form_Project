@@ -334,14 +334,14 @@ test('no schedule list is ever locked, whatever the client has or has not been a
 
 test('the action points follow a schedule choice that was made, with or without a recorded policy; "not asked yet" is chased only where the client has the policies', () => {
   const s = fresh(); set(s, 'fname', 'Thandi');
-  assert.deepStrictEqual(A.local(s), ['Set up a follow-up appointment with Thandi (date and time to be agreed).']);              // nothing asked, nothing known: nothing to chase
+  assert.deepStrictEqual(A.local(s), ['Set up a follow-up appointment with the client Thandi (date and time to be agreed).']);              // nothing asked, nothing known: nothing to chase
   set(s, 'ps_ra', CL('ra'));                                                                                                    // ticked before the retirement annuity was typed in
-  assert.ok(A.local(s).includes('Follow up with Thandi for the current policy schedules, asked for in the meeting, for the retirement annuities: await client response.'));
+  assert.ok(A.local(s).includes('Follow up with the client Thandi for the current policy schedules, asked for in the meeting, for the retirement annuities: await client response.'));
   set(s, 'ps_inv', AS); set(s, 'loa', 'Yes'); assert.ok(A.local(s).some(l => /^Draw the current policy schedules for the investments from Astute/.test(l)));
   set(s, 'has_risk', 'No'); set(s, 'ps_risk', CL('risk')); assert.ok(A.local(s).some(l => /personal risk policies/.test(l)));  // a choice made on purpose counts
   set(s, 'ps_risk', ''); assert.ok(!A.local(s).some(l => /personal risk policies/.test(l)));                              // unticked and not a policy the client has: nothing
-  set(s, 'has_risk', 'Yes'); assert.ok(A.local(s).includes('Ask Thandi how the current policy schedules for the personal risk policies will be provided.'));
-  store.addRow(s, 'ret_pp', { prov: 'Sanlam' }); assert.ok(A.local(s).includes('Ask Thandi how the current policy schedules for the pension and provident funds (Sanlam) will be provided.'));
+  set(s, 'has_risk', 'Yes'); assert.ok(A.local(s).includes('Ask the client Thandi how the current policy schedules for the personal risk policies will be provided.'));
+  store.addRow(s, 'ret_pp', { prov: 'Sanlam' }); assert.ok(A.local(s).includes('Ask the client Thandi how the current policy schedules for the pension and provident funds (Sanlam) will be provided.'));
 });
 
 test('the LOA question comes first on the Personal & group risk cover page, with Yes, No and Not now', () => {
@@ -395,32 +395,32 @@ function pa() {
 test('the action points: what is still to get, quotes, who contacts the client, and the follow-up appointment, in point form for the assistant', () => {
   const s = pa(), lines = A.local(s), text = A.text(lines);
   assert.deepStrictEqual(lines, [
-    'Send Thandi the LOA to sign, so the policy schedules can be drawn from Astute.',
-    'Follow up with Thandi for the current policy schedules, asked for in the meeting, for the personal risk policies (Liberty, Discovery): await client response.',
-    'Follow up with Thandi for the current policy schedules, asked for in the meeting, for the group risk benefits (Old Mutual): await client response.',
-    'Current policy schedules for the group risk benefits (Old Mutual): Employer HR to send the benefit summary.',
+    'Send the client Thandi the LOA to sign, so the policy schedules can be drawn from Astute.',
+    'Follow up with the client Thandi for the current policy schedules, asked for in the meeting, for the personal risk policies (Liberty, Discovery): await client response.',
+    'Follow up with the client Thandi for the current policy schedules, asked for in the meeting, for the group risk benefits (Old Mutual): await client response.',
+    'Await the current policy schedules for the group risk benefits (Old Mutual): Employer HR to send the benefit summary.',
     'Draw the current policy schedules for the retirement annuities (Allan Gray) from Astute once the signed LOA is back.',
-    'Ask Thandi how the current policy schedules for the pension and provident funds (Sanlam) will be provided.',
-    'Ask Thandi for the credit life details with Nedbank on the home loan.',
-    'Ask Thandi whether there is credit life with Discovery Bank on the credit card.',
+    'Ask the client Thandi how the current policy schedules for the pension and provident funds (Sanlam) will be provided.',
+    'Ask the client Thandi for the credit life details with Nedbank on the home loan.',
+    'Ask the client Thandi whether there is credit life with Discovery Bank on the credit card.',
     'Request a BrightRock Fractured FNA quote (New Business): BR FNA Quote based on Fact Find.',
     'Request standard FNA quotes from Old Mutual and Discovery (New Business).',
     'Request a retirement annuity quote from Old Mutual for R 5 000 p.m.',
     'Request a retirement goal analysis (RGAR): retire at 65 on R 60 000 p.m. net in today\'s terms.',
     'Request an education goal analysis (EGAR) for the 2 children.',
-    'Ask Valerie to contact Thandi about medical aid and gap cover.', 'Ask Capital Legacy to contact Thandi about the will.', 'Ask Cameron to contact Thandi about short-term insurance.',
-    'Follow up with Thandi on Personal Risk Covers: needs to check the budget before deciding (Revisit once the budget is checked).',
-    'Set up a follow-up appointment with Thandi for Thursday 05/11/2026 (time to be agreed).']);
+    'Ask Valerie to contact the client Thandi about medical aid and gap cover.', 'Ask Capital Legacy to contact the client Thandi about the will.', 'Ask Cameron to contact the client Thandi about short-term insurance.',
+    'Follow up with the client Thandi on Personal Risk Covers: needs to check the budget before deciding (Revisit once the budget is checked).',
+    'Set up a follow-up appointment with the client Thandi for Thursday 05/11/2026 (time to be agreed).']);
   assert.ok(text.split('\n').every(l => l.startsWith('- ')) && !/\b(?:he|she|his|her)\b/i.test(text));                   // point form, and no pronouns for the client
 });
 test('the action points follow the schedule choices, the LOA answer, the credit life answers and the quotes that are switched off', () => {
   const s = pa(); set(s, 'loa', 'No');
-  assert.ok(A.local(s).includes('There is no signed LOA: ask Thandi to send the current policy schedules for the retirement annuities (Allan Gray) directly.'));      // Astute chosen, no signed LOA: ask the client directly
+  assert.ok(A.local(s).includes('Ask the client Thandi to send the current policy schedules for the retirement annuities (Allan Gray) directly: there is no signed LOA.'));      // Astute chosen, no signed LOA: ask the client directly
   assert.ok(!A.local(s).some(l => /^Send Thandi the LOA/.test(l)));
-  set(s, 'loa', 'Not now'); assert.ok(A.local(s).includes('Do not send the LOA yet: Thandi is not ready to sign. Raise it again at the follow-up appointment.'));
-  set(s, 'ps_ra', ''); set(s, 'ps_risk', ''); assert.ok(A.local(s).includes('Ask Thandi how the current policy schedules for the personal risk policies (Liberty, Discovery) will be provided.'));   // not asked yet
+  set(s, 'loa', 'Not now'); assert.ok(A.local(s).includes('Do not send the LOA to the client Thandi yet: not ready to sign. Raise it again at the follow-up appointment.'));
+  set(s, 'ps_ra', ''); set(s, 'ps_risk', ''); assert.ok(A.local(s).includes('Ask the client Thandi how the current policy schedules for the personal risk policies (Liberty, Discovery) will be provided.'));   // not asked yet
   set(s, 'pr_life', schema.NOT_PRIORITY); assert.ok(!A.local(s).some(l => /FNA/.test(l)) && !A.local(s).some(l => /Personal Risk Covers/.test(l)));      // a quote of an area that is not a priority is not asked for
-  set(s, 'next_appt', ''); assert.strictEqual(A.local(s).pop(), 'Set up a follow-up appointment with Thandi (date and time to be agreed).');
+  set(s, 'next_appt', ''); assert.strictEqual(A.local(s).pop(), 'Set up a follow-up appointment with the client Thandi (date and time to be agreed).');
   const e = fresh(); assert.deepStrictEqual(A.local(e), ['Set up a follow-up appointment with the client (date and time to be agreed).']);                            // cover not asked about, nothing recorded: nothing to chase
   set(e, 'has_risk', 'Yes'); assert.strictEqual(A.local(e)[0], 'Ask the client how the current policy schedules for the personal risk policies will be provided.');   // cover said to exist, schedule not asked yet
   const k1 = A.key(A.facts(pa())); set(s, 'fname', 'Sipho'); assert.notStrictEqual(A.key(A.facts(s)), k1);
@@ -429,8 +429,8 @@ test('the action points request: only the facts go to Claude, with rules for wha
   const s = pa(); store.setField(s, 'cell', '0824541751'); store.setField(s, 'sname', 'Dlamini');
   const f = A.facts(s); assert.ok(!/0824541751|Dlamini/.test(JSON.stringify(f)));                                          // no private number, no surname
   let sent = null;
-  const out = await AI.actionPoints({ ask: (system, content) => { sent = { system, content: JSON.parse(content) }; return Promise.resolve('{"points": ["- Send Thandi the LOA to sign.", "  Ask Valerie to contact Thandi about medical aid.  ", "", 5]}'); }, model: 'm', facts: f });
-  assert.deepStrictEqual(out, ['Send Thandi the LOA to sign.', 'Ask Valerie to contact Thandi about medical aid.', '5']);
+  const out = await AI.actionPoints({ ask: (system, content) => { sent = { system, content: JSON.parse(content) }; return Promise.resolve('{"points": ["- Send Thandi the LOA to sign.", "  Ask Valerie to contact the client Thandi about medical aid.  ", "", 5]}'); }, model: 'm', facts: f });
+  assert.deepStrictEqual(out, ['Send the client Thandi the LOA to sign.', 'Ask Valerie to contact the client Thandi about medical aid.', '5']);
   assert.deepStrictEqual(Object.keys(sent.content.facts).sort(), ['appointment', 'client', 'credit_life', 'instructions', 'letter_of_authority', 'preferred_monthly_spend', 'quotes', 'referrals', 'schedules', 'undecided']);
   assert.match(sent.system, /Sitamah Nathoo/); assert.match(sent.system, /point form/); assert.match(sent.system, /never "he", "she", "his" or "her"/); assert.match(sent.system, /no signed LOA/);
   await assert.rejects(AI.actionPoints({ ask: () => Promise.reject(new Error('no connection')), model: 'm', facts: f }), /no connection/);

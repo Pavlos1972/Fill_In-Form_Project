@@ -55,7 +55,7 @@ test('the Letter of Authority is on the Admin page, in the narrow column with th
   assert.deepStrictEqual(admin.blocks.map(b => !!b.left), [true, true, false]);
   assert.ok(!sec('cover').blocks.some(b => ids(b).includes('loa')));
   const s = fresh(); set(s, 'loa', 'Yes'); set(s, 'fname', 'Thandi'); set(s, 'ps_inv', 'Draw from Astute (with signed LOA)');
-  assert.ok(A.local(s).some(l => /Send Thandi the LOA to sign/.test(l)));                                           // the action points read the same box
+  assert.ok(A.local(s).some(l => /Send the client Thandi the LOA to sign/.test(l)));                                           // the action points read the same box
 });
 
 test('the retirement annuities and the pension and provident funds each keep their own schedule request, under their own list', () => {

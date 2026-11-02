@@ -604,6 +604,7 @@
      opts: { apiKey | ask, model, facts, fetchImpl } -> Promise of an array of points (maybe empty). */
   var ACTIONS_SYSTEM = [
     'You help a financial adviser, Paul Kafentzis. After a meeting with a client you write the action points for his personal assistant, Sitamah Nathoo, who does what is needed next.',
+    'Sitamah reads the list and carries out each point herself, so every point is an instruction TO her: something for her to do, never a report to the adviser and never something about her.',
     'You receive JSON "facts" taken from the client\'s Fact Find: "client" (first name), "letter_of_authority" (the answer to "Can we send you a LOA to sign?": Yes, No, Not now or not asked yet),',
     '"schedules" (for each kind of policy the client has: what it is, who it is with ("held"), and how the current policy schedule is to be got ("requested": "Requested from client in meeting" (the box words it for its own area, for example "Requested Personal Risk Covers in meeting, await client response"), "Draw from Astute (with signed LOA)", "Other" with the words in "other", or "not asked yet")),',
     '"credit_life" (debts with credit life through the lender: "Yes", or "not asked yet" when it is not known), "quotes" (quotes and analyses the adviser must have requested), "referrals" (who must contact the client), "undecided" (areas where the client needs time),',
@@ -611,20 +612,28 @@
     'Write the points Sitamah must act on, and nothing else:',
     '- Information still to get from the client: the current policy schedules, and the LOA. "Requested from client in meeting": follow up with the client for them and end the point with "await client response". "Draw from Astute (with signed LOA)": draw them from Astute once the signed LOA is back; when the LOA is "No" there will be no signed LOA, so ask the client for the schedules directly. "Other": say what the arrangement is.',
     '  "not asked yet": ask the client how the schedules will be provided. Letter of authority "Yes": send it to the client to sign; "Not now": do not send it yet, raise it again later. Credit life "Yes": ask the client for the credit life details with that lender; "not asked yet": ask whether there is credit life on that debt.',
-    '- New quotes: one point for each quote or analysis in "quotes", with what is needed (type, insurer, amounts as given). When "preferred_monthly_spend" is given and there is a life quote, add one point saying what the client prefers to spend, for the quotes. A life quote has a "kind": "BrightRock Fractured" (the quote is from BrightRock alone: say "BrightRock Fractured"; it also has a "basis", for example "BR FNA Quote based on Fact Find": write the basis in the point exactly as given, and never write one for a quote that has none) or "Standard" (say "standard", and name every insurer in "insurers": one point can cover several insurers). Contact: one point for each "referrals" entry, asking that person to contact the client about it.',
+    '- New quotes: one point for each quote or analysis in "quotes", with what is needed (type, insurer, amounts as given). When "preferred_monthly_spend" is given and there is a life quote, add one instruction to note what the client prefers to spend, for the quotes. A life quote has a "kind": "BrightRock Fractured" (the quote is from BrightRock alone: say "BrightRock Fractured"; it also has a "basis", for example "BR FNA Quote based on Fact Find": write the basis in the point exactly as given, and never write one for a quote that has none) or "Standard" (say "standard", and name every insurer in "insurers": one point can cover several insurers). Contact: one point for each "referrals" entry, asking that person to contact the client about it.',
     '- Anything in "undecided" or "instructions" that needs action (follow up after the client has checked the budget, an instruction from the adviser). Leave out an instruction that is only a remark.',
     '- Last, the follow-up appointment: set one up for the day, date and time in "appointment" (use its words as they are), or say the date and time are still to be agreed when it is empty.',
-    'Rules: every point is a clear, complete action in plain words, starting with a verb, one action each, in point form. Use only the facts given: never invent a name, a date, an amount or a task. Use the client\'s first name, never "he", "she", "his" or "her".',
+    'Rules: every point is a clear, complete action in plain words, starting with a verb, one action each, in point form. Use only the facts given: never invent a name, a date, an amount or a task. Refer to the client only as "the client" followed by the first name, for example "the client Thandi" (the first name alone could be mistaken for the assistant\'s, whose name may be similar), never "he", "she", "his" or "her". Never write "Sitamah" in a point: she is the one reading it. The line that addresses her is added for you: do not write one.',
     'Keep names, amounts and dates exactly as given. Leave out anything that is not an action for the assistant: no summary of what the client has, no advice, no repeating of the form. Where the facts hold nothing for a kind of point, write nothing for it.',
     'Keep the order above (LOA and schedules, credit life, quotes, referrals, follow-ups, then the appointment). Reply with ONE JSON object and nothing else: {"points": ["...", "..."]}.'
   ].join('\n');
+  /* What the form makes sure of, whatever Claude wrote: no point is addressed to Sitamah (she is the reader), and the client's first name always comes after "the client". */
+  function directToSitamah(point, client) {
+    var p = String(point == null ? '' : point), name = client && client !== 'the client' ? String(client) : '';
+    if (!/^sitamah$/i.test(name)) p = p.replace(/^\s*Sitamah\s*[,:\-\u2013]?\s*(?:please\s+|to\s+)?/i, function () { return ''; });
+    p = p.replace(/^[a-z]/, function (c) { return c.toUpperCase(); });
+    if (name) p = p.replace(new RegExp('(?<!the client )(?<![A-Za-z])' + name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?![A-Za-z])', 'g'), 'the client ' + name);
+    return p;
+  }
   function actionPoints(opts) {
     var req = withThinking({ model: opts.model, max_tokens: 1400, output_config: { effort: 'low' }, system: ACTIONS_SYSTEM, messages: [{ role: 'user', content: JSON.stringify({ facts: scrubData(opts.facts) }) }] });
     return callModel(opts, req).then(function (text) {
       var raw = extractJson(text), list = raw && Array.isArray(raw.points) ? raw.points : [];
-      return list.map(function (p) { return String(p == null ? '' : p).replace(/^[\s\-•*]+/, '').replace(/\s+/g, ' ').trim().slice(0, 300); }).filter(Boolean).slice(0, 40);
+      return list.map(function (p) { return directToSitamah(String(p == null ? '' : p).replace(/^[\s\-•*]+/, '').replace(/\s+/g, ' ').trim().slice(0, 300), opts.facts && opts.facts.client); }).filter(Boolean).slice(0, 40);
     });
   }
 
-  return { actionPoints: actionPoints, ACTIONS_SYSTEM: ACTIONS_SYSTEM, summarise: summarise, SUMMARY_SYSTEM: SUMMARY_SYSTEM, decide: decide, sweep: sweep, sweepRequest: sweepRequest, SWEEP_SYSTEM: SWEEP_SYSTEM, points: points, warm: warm, reconcile: reconcile, setShare: setShare, sharing: sharing, thinkingFor: thinkingFor, prepare: prepare, buildRequest: buildRequest, cachedRequest: cachedRequest, normalize: normalize, extractJson: extractJson, scrub: scrub, shield: shield, SYSTEM: SYSTEM };
+  return { actionPoints: actionPoints, directToSitamah: directToSitamah, ACTIONS_SYSTEM: ACTIONS_SYSTEM, summarise: summarise, SUMMARY_SYSTEM: SUMMARY_SYSTEM, decide: decide, sweep: sweep, sweepRequest: sweepRequest, SWEEP_SYSTEM: SWEEP_SYSTEM, points: points, warm: warm, reconcile: reconcile, setShare: setShare, sharing: sharing, thinkingFor: thinkingFor, prepare: prepare, buildRequest: buildRequest, cachedRequest: cachedRequest, normalize: normalize, extractJson: extractJson, scrub: scrub, shield: shield, SYSTEM: SYSTEM };
 });
