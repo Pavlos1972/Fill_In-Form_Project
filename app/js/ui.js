@@ -670,6 +670,7 @@
       if (t.dataset.f === 'idno' && val) { var clashMsg = idClashMsg(val, { id: 'idno' }); if (clashMsg) { t.value = state.f.idno.v; toast(clashMsg); return; } }     // the box goes back to what it held
       if (def && def.money) { val = util.formatMoney(val); t.value = val; }
       if (def && def.date) { var pd = util.parseDate(val); if (pd) { val = util.formatDate(pd); t.value = val; } }
+      if (def && def.time) { var pt = util.parseTime(val); if (pt) { val = util.formatTime(pt); t.value = val; } }              // "2pm" and "2:30 pm" become 14:30
       if (t.dataset.f === 'pa_actions') { state.pa.edited = val !== ''; paSure = false; }                  // typed over: the points are the adviser's own until Refresh
       store.setField(state, t.dataset.f, val);
       var dobSet = (t.dataset.f === 'idno' || t.dataset.f === 'idtype') && autoDob();        // the date of birth follows the ID number (and the ID type going back to ID)

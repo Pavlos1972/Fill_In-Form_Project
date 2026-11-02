@@ -64,6 +64,26 @@
   /* The form shows every date as day/month/year. */
   function formatDate(d) { return d ? pad(d.d) + '/' + pad(d.m) + '/' + d.y : ''; }
   function todayDMY() { return formatDate(parseDate(isoToday())); }
+  /* The day of the week of a date ({ y, m, d }): "Friday". */
+  var DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  function weekdayName(d) { return d ? DAYS[new Date(Date.UTC(d.y, d.m - 1, d.d)).getUTCDay()] : ''; }
+  /* A time of day, typed or said: "14:30", "14h30", "14.30", "1430", "9h", "2pm", "2:30 pm". Gives { h, m } (24-hour) or null. An hour from 1 to 6 with no am or pm and no leading zero is the afternoon
+     ("2:30" is 14:30): an appointment is not at half past two in the night. "02:30" is kept as typed. */
+  function parseTime(v) {
+    var s = String(v == null ? '' : v).toLowerCase().replace(/\u00a0/g, ' ').replace(/^\s*(?:at|@)\s*/, '').replace(/\s*(?:hrs?|hours)\.?\s*$/, '').trim();
+    var m = /^(\d{1,2})\s*[:h.]\s*(\d{2})\s*(a\.?\s?m\.?|p\.?\s?m\.?)?$/.exec(s) || /^(\d{1,2})\s*h?\s*(a\.?\s?m\.?|p\.?\s?m\.?)$/.exec(s), h, mi, mer;
+    if (m) { h = +m[1]; mi = m.length === 4 ? +m[2] : 0; mer = (m.length === 4 ? m[3] : m[2]) || ''; }
+    else if ((m = /^(\d{1,2})\s*h$/.exec(s))) { h = +m[1]; mi = 0; mer = ''; }
+    else if ((m = /^(\d{2})(\d{2})$/.exec(s))) { h = +m[1]; mi = +m[2]; mer = ''; }
+    else return null;
+    mer = mer.replace(/[.\s]/g, '');
+    if (mi > 59) return null;
+    if (mer) { if (h < 1 || h > 12) return null; if (mer === 'pm' && h < 12) h += 12; if (mer === 'am' && h === 12) h = 0; }
+    else { if (h > 23) return null; if (h >= 1 && h <= 6 && !/^0/.test(m[1])) h += 12; }
+    return { h: h, m: mi };
+  }
+  /* 24-hour, as the form shows it: 14:30 */
+  function formatTime(t) { return t ? pad(t.h) + ':' + pad(t.m) : ''; }
   function longDate(d) { return d ? d.d + ' ' + MONTHS[d.m - 1].replace(/^./, function (c) { return c.toUpperCase(); }) + ' ' + d.y : ''; }
 
   /* Date of birth encoded in a South African ID number (YYMMDD...). */
@@ -97,5 +117,5 @@
     for (var i = 12; i >= 0; i--) { var n = +s[i]; if (alt) { n *= 2; if (n > 9) n -= 9; } sum += n; alt = !alt; }
     return sum % 10 === 0;
   }
-  return { sexFromSaId: sexFromSaId, splitFullName: splitFullName, num: num, money: money, money2: money2, formatMoney: formatMoney, parseDate: parseDate, ageAt: ageAt, isoToday: isoToday, formatDate: formatDate, todayDMY: todayDMY, longDate: longDate, dobFromSaId: dobFromSaId, saIdValid: saIdValid };
+  return { sexFromSaId: sexFromSaId, splitFullName: splitFullName, num: num, money: money, money2: money2, formatMoney: formatMoney, parseDate: parseDate, weekdayName: weekdayName, parseTime: parseTime, formatTime: formatTime, ageAt: ageAt, isoToday: isoToday, formatDate: formatDate, todayDMY: todayDMY, longDate: longDate, dobFromSaId: dobFromSaId, saIdValid: saIdValid };
 });

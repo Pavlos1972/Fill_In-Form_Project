@@ -126,7 +126,7 @@ test('the summary and the action points name the kind of quote', () => {
     'Request standard FNA quotes from Old Mutual and Discovery (New Business).',
     'Request a standard shortfall quote from Sanlam.',
     'Request a standard reduced quote from Old Mutual for R 2 500 p.m.',
-    'Set up a follow-up appointment with Thandi (date to be agreed).']);
+    'Set up a follow-up appointment with Thandi (date and time to be agreed).']);
   assert.deepStrictEqual(A.brightRockAsked(s), ['FNA (New Business)', 'Shortfall', 'Reduced (New Business) R 2 500 p.m.']);
   assert.deepStrictEqual(A.facts(s).quotes.map(q => q.kind), ['BrightRock Fractured', 'BrightRock Fractured', 'BrightRock Fractured', 'Standard', 'Standard', 'Standard']);
   const pts = S.local(s, 'life');

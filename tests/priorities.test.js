@@ -334,7 +334,7 @@ test('no schedule list is ever locked, whatever the client has or has not been a
 
 test('the action points follow a schedule choice that was made, with or without a recorded policy; "not asked yet" is chased only where the client has the policies', () => {
   const s = fresh(); set(s, 'fname', 'Thandi');
-  assert.deepStrictEqual(A.local(s), ['Set up a follow-up appointment with Thandi (date to be agreed).']);              // nothing asked, nothing known: nothing to chase
+  assert.deepStrictEqual(A.local(s), ['Set up a follow-up appointment with Thandi (date and time to be agreed).']);              // nothing asked, nothing known: nothing to chase
   set(s, 'ps_ra', CL('ra'));                                                                                                    // ticked before the retirement annuity was typed in
   assert.ok(A.local(s).includes('Follow up with Thandi for the current policy schedules, asked for in the meeting, for the retirement annuities: await client response.'));
   set(s, 'ps_inv', AS); set(s, 'loa', 'Yes'); assert.ok(A.local(s).some(l => /^Draw the current policy schedules for the investments from Astute/.test(l)));
@@ -410,7 +410,7 @@ test('the action points: what is still to get, quotes, who contacts the client, 
     'Request an education goal analysis (EGAR) for the 2 children.',
     'Ask Valerie to contact Thandi about medical aid and gap cover.', 'Ask Capital Legacy to contact Thandi about the will.', 'Ask Cameron to contact Thandi about short-term insurance.',
     'Follow up with Thandi on Personal Risk Covers: needs to check the budget before deciding (Revisit once the budget is checked).',
-    'Set up a follow-up appointment with Thandi for 05/11/2026.']);
+    'Set up a follow-up appointment with Thandi for Thursday 05/11/2026 (time to be agreed).']);
   assert.ok(text.split('\n').every(l => l.startsWith('- ')) && !/\b(?:he|she|his|her)\b/i.test(text));                   // point form, and no pronouns for the client
 });
 test('the action points follow the schedule choices, the LOA answer, the credit life answers and the quotes that are switched off', () => {
@@ -420,8 +420,8 @@ test('the action points follow the schedule choices, the LOA answer, the credit 
   set(s, 'loa', 'Not now'); assert.ok(A.local(s).includes('Do not send the LOA yet: Thandi is not ready to sign. Raise it again at the follow-up appointment.'));
   set(s, 'ps_ra', ''); set(s, 'ps_risk', ''); assert.ok(A.local(s).includes('Ask Thandi how the current policy schedules for the personal risk policies (Liberty, Discovery) will be provided.'));   // not asked yet
   set(s, 'pr_life', schema.NOT_PRIORITY); assert.ok(!A.local(s).some(l => /FNA/.test(l)) && !A.local(s).some(l => /Personal Risk Covers/.test(l)));      // a quote of an area that is not a priority is not asked for
-  set(s, 'next_appt', ''); assert.strictEqual(A.local(s).pop(), 'Set up a follow-up appointment with Thandi (date to be agreed).');
-  const e = fresh(); assert.deepStrictEqual(A.local(e), ['Set up a follow-up appointment with the client (date to be agreed).']);                            // cover not asked about, nothing recorded: nothing to chase
+  set(s, 'next_appt', ''); assert.strictEqual(A.local(s).pop(), 'Set up a follow-up appointment with Thandi (date and time to be agreed).');
+  const e = fresh(); assert.deepStrictEqual(A.local(e), ['Set up a follow-up appointment with the client (date and time to be agreed).']);                            // cover not asked about, nothing recorded: nothing to chase
   set(e, 'has_risk', 'Yes'); assert.strictEqual(A.local(e)[0], 'Ask the client how the current policy schedules for the personal risk policies will be provided.');   // cover said to exist, schedule not asked yet
   const k1 = A.key(A.facts(pa())); set(s, 'fname', 'Sipho'); assert.notStrictEqual(A.key(A.facts(s)), k1);
 });
