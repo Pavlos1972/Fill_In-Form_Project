@@ -36,6 +36,8 @@
   }
 
   var fieldCalcs = {
+    /* The day of the week of the next appointment's date: Friday. */
+    weekday: function (ctx) { var d = util.parseDate(ctx.v('next_appt')); return d ? util.weekdayName(d) : ''; },
     /* The client's age on the date of the form (Date completed), from the date of birth. */
     age: function (ctx) {
       var a = clientAge(ctx);

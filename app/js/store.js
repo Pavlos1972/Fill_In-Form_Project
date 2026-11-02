@@ -59,6 +59,8 @@
   /* "Other" in a policy schedule list opens its small box: when Other is not ticked any more, what was typed there goes. */
   var PS_OTHER_BOX = { ps_risk: 'ps_risk_ot', ps_grp: 'ps_grp_ot', ps_ra: 'ps_ra_ot', ps_pp: 'ps_pp_ot', ps_inv: 'ps_inv_ot' };
   function setField(state, id, v, st) {
+    var def = schema.fieldsById[id];
+    if (def && def.time) { var pt = util.parseTime(v); if (pt) v = util.formatTime(pt); }                  // "2pm" and "2:30 pm" are kept as 14:30, however they got here
     var was = id === 'sname' || id === 'gender' ? fatherSurname(state) : null;
     state.f[id] = { v: v, st: st || (v === '' ? 'empty' : 'confirmed') };
     if (PS_OTHER_BOX[id] && state.f[PS_OTHER_BOX[id]] && String(v).split(';').map(function (x) { return x.trim(); }).indexOf('Other') < 0) state.f[PS_OTHER_BOX[id]] = { v: '', st: 'empty' };

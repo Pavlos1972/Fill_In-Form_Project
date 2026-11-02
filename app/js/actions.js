@@ -21,13 +21,22 @@
   function andList(a) { return a.length < 2 ? a.join('') : a.slice(0, -1).join(', ') + ' and ' + a[a.length - 1]; }
   var BR = 'BrightRock Fractured', STD = 'Standard';                                                    // the two kinds of life quote
 
+  /* The next appointment as one phrase: "Friday 06/11/2026 at 14:30". Whatever part is missing is said to be still to be agreed. */
+  function appointmentText(v) {
+    var d = util.parseDate(v('next_appt')), t = util.parseTime(v('next_time')),
+      ds = d ? util.weekdayName(d) + ' ' + util.formatDate(d) : String(v('next_appt') || '').trim(), ts = t ? util.formatTime(t) : String(v('next_time') || '').trim();
+    if (ds && ts) return ds + ' at ' + ts;
+    if (ds) return ds + ' (time to be agreed)';
+    if (ts) return 'at ' + ts + ' (date to be agreed)';
+    return '';
+  }
   /* What the form holds for the action points: { client, letter_of_authority, schedules, credit_life, quotes, preferred_monthly_spend, referrals, undecided, instructions, appointment }.
      A life quote (FNA, Shortfall, Reduced) says which kind it is: "BrightRock Fractured" (insurer BrightRock, built on the calculation page) or "Standard" (one or more insurers). */
   function facts(state) {
     var ctx = store.ctxFor(state), v = function (id) { return String(state.f[id] && state.f[id].v != null ? state.f[id].v : '').trim(); };
     var shows = function (id) { var f = schema.fieldsById[id], b = blockOfField[id]; return !!f && (!b || calc.showIf(b.cond, ctx)) && calc.showIf(f.cond, ctx); };
     var listOn = function (key) { var b = blockOfList[key]; return !b || calc.showIf(b.cond, ctx); };
-    var out = { client: v('fname') || 'the client', letter_of_authority: v('loa') || 'not asked yet', schedules: [], credit_life: [], quotes: [], referrals: [], undecided: [], instructions: [], appointment: v('next_appt'), preferred_monthly_spend: v('pref_spend') };
+    var out = { client: v('fname') || 'the client', letter_of_authority: v('loa') || 'not asked yet', schedules: [], credit_life: [], quotes: [], referrals: [], undecided: [], instructions: [], appointment: appointmentText(v), preferred_monthly_spend: v('pref_spend') };
 
     SCHEDS.forEach(function (c) {
       if (!shows(c[0])) return;
@@ -122,7 +131,7 @@
     if (f.preferred_monthly_spend && f.quotes.some(function (q) { return q.kind === BR || q.kind === STD; })) pts.push('For the life quotes: ' + who + ' prefers to spend ' + amt(f.preferred_monthly_spend) + ' p.m.');
     f.referrals.forEach(function (r) { pts.push('Ask ' + r.who + ' to contact ' + who + ' about ' + r.about + '.'); });
     f.undecided.forEach(function (u) { pts.push('Follow up with ' + who + ' on ' + u.area + ': ' + u.answer + ' before deciding' + (u.comment ? ' (' + u.comment.replace(/[.\s]+$/, '') + ')' : '') + '.'); });
-    pts.push(f.appointment ? 'Set up a follow-up appointment with ' + who + ' for ' + f.appointment + '.' : 'Set up a follow-up appointment with ' + who + ' (date to be agreed).');
+    pts.push(f.appointment ? 'Set up a follow-up appointment with ' + who + (/^at /.test(f.appointment) ? ' ' : ' for ') + f.appointment + '.' : 'Set up a follow-up appointment with ' + who + ' (date and time to be agreed).');
     return pts;
   }
   function text(lines) { return lines.map(function (l) { return '- ' + l; }).join('\n'); }
