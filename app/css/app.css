@@ -139,6 +139,13 @@ tfoot td { background: var(--surface-2); font-weight: 600; font-variant-numeric:
 
 .empty-list { padding: 14px; color: var(--muted); border: 1px dashed var(--line); border-radius: 6px; margin-bottom: 10px; }
 .top .grow { flex: 1 1 auto; }
+.top .titlebar { flex: 1 1 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 20px; }
+.top .tleft { display: flex; align-items: center; gap: 8px 20px; min-width: 0; }
+.top .tmid { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: center; gap: 2px 18px; }
+@media (min-width: 1300px) {     /* wide enough: the client's name and the save state are centred, directly above the meeting, voice and listen buttons (same three-column grid as the button row) */
+  .top .titlebar { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 8px 24px; }
+  .top .tmid { max-width: 26vw; text-align: center; }
+}
 .top .chips { flex: 1 1 0; min-width: 0; display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 4px 18px; }     /* the key dates and what Claude and OpenAI have cost: together at the far right of the title row; they wrap among themselves, never the whole group onto a row of its own */
 @media (max-width: 900px) { .top .chips { flex: 1 1 100%; justify-content: flex-start; } }
 .top .who { color: var(--muted); }
