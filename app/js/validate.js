@@ -95,6 +95,9 @@
       if (!na) warn('next_appt', 'Date not recognised. Use day/month/year, such as 05/11/2026.');
       else if (ymd(na) < ymd(now)) warn('next_appt', 'This date is before the date of the form.');
     }
+    if (v('next_time') && !util.parseTime(v('next_time'))) warn('next_time', 'Time not recognised. Use, for example, 14:30 or 2:30 pm.');
+    else if (v('next_appt') && !v('next_time')) warn('next_time', 'Add the time of the next appointment.');
+    if (v('next_time') && !v('next_appt')) warn('next_appt', 'Add the date of the next appointment (the time is ' + v('next_time') + ').');
 
     ['pemail', 'wemail'].forEach(function (id) { if (v(id) && !EMAIL.test(v(id))) warn(id, 'This does not look like an email address.'); });
     ['cell', 'work', 'home', 'sp_tel'].forEach(function (id) { if (v(id) && !phoneOk(v(id))) warn(id, 'Expected 10 digits, for example 082 555 0148.'); });

@@ -104,6 +104,43 @@
     return null;
   }
   /* "fourteenth of March nineteen eighty six", "14 March 1986", "14/03/1986" -> "1986-03-14", or null. */
+  /* A time said or typed for the appointment: "half past two", "quarter to ten", "ten o'clock", "two thirty", "at 14:30", "2pm", "ten in the morning", "noon". Gives { value: '14:30', rest } or null; rest is
+     the text without the time. inSentence: the time sits inside a longer answer (a date and a time), so only forms that cannot be taken for anything else count: a colon or h, am or pm, half past, quarter past or to,
+     o'clock, noon, or the words after "at". An hour from 1 to 6 with no am or pm is the afternoon, and 7 to 11 the morning (the answer is shown for checking). */
+  var HOUR_WORDS = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12 };
+  function spokenTime(raw, inSentence) {
+    var s = ' ' + String(raw).toLowerCase().replace(/[’]/g, "'").replace(/\s+/g, ' ').trim() + ' ';
+    var pad2 = function (n) { return (n < 10 ? '0' : '') + n; }, m;
+    var cut = function (str, from, len) { return (str.slice(0, from) + ' ' + str.slice(from + len)).replace(/\s+/g, ' ').trim().replace(/\s+at$/, '').replace(/^at\s+/, ''); };
+    /* digits: 14:30, 14h30, 2:30 pm, 2pm, 9h */
+    var dm = /(^|[^\d:.\/])((?:(?:at|@)\s*)?)(\d{1,2}\s*(?::|h)\s*\d{2}(?:\s*(?:a\.?\s?m\.?|p\.?\s?m\.?))?|\d{1,2}\s*(?:a\.?\s?m\.?|p\.?\s?m\.?)|\d{1,2}\s*h)(?![\w])/.exec(s);
+    if (dm) { var tp = util.parseTime(dm[3]); if (tp) return { value: util.formatTime(tp), rest: cut(s, dm.index + dm[1].length, dm[0].length - dm[1].length) }; }
+    if (!inSentence) { var whole = util.parseTime(s.trim()); if (whole) return { value: util.formatTime(whole), rest: '' }; }
+    /* words (digits and the slash of a date are kept, so the date can still be read from what is left) */
+    var w = ' ' + s.replace(/[^a-z0-9' \/\-]/g, ' ').replace(/\s+/g, ' ').trim() + ' ';
+    var mer = /\b(?:p m|pm|in the afternoon|in the evening)\b/.test(w) ? 'pm' : (/\b(?:a m|am|in the morning)\b/.test(w) ? 'am' : '');
+    var hour = function (x) { x = String(x || '').trim(); return HOUR_WORDS.hasOwnProperty(x) ? HOUR_WORDS[x] : null; };
+    var fin = function (h, mi, mm) {
+      if (h == null || mi == null || mi < 0 || mi > 59) return null;
+      if (mer === 'pm' && h < 12) h += 12; else if (mer === 'am' && h === 12) h = 0; else if (!mer && h >= 1 && h <= 6) h += 12;
+      if (h < 0 || h > 23) return null;
+      var r = cut(w, mm.index, mm[0].length).replace(/\b(?:in the (?:morning|afternoon|evening)|a m|p m|am|pm)\b/g, ' ').replace(/\s+/g, ' ').trim();
+      return { value: pad2(h) + ':' + pad2(mi), rest: r };
+    };
+    var H = '(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)';
+    if ((m = new RegExp('half past ' + H + '\\b').exec(w))) return fin(hour(m[1]), 30, m);
+    if ((m = new RegExp('quarter past ' + H + '\\b').exec(w))) return fin(hour(m[1]), 15, m);
+    if ((m = new RegExp('quarter to ' + H + '\\b').exec(w))) { var hq = hour(m[1]); return fin(hq === 1 ? 12 : hq - 1, 45, m); }
+    if ((m = new RegExp('\\b' + H + " o'?clock").exec(w))) return fin(hour(m[1]), 0, m);
+    if ((m = /\b(?:noon|midday)\b/.exec(w))) return { value: '12:00', rest: cut(w, m.index, m[0].length) };
+    if ((m = new RegExp('\\b' + H + ' (fifteen|thirty|forty five|fortyfive|forty|fifty|twenty five|twenty|ten|five|(?:oh|o) (?:one|two|three|four|five|six|seven|eight|nine))\\b').exec(w)) && (!inSentence || new RegExp('\\bat ' + H + ' ').test(w))) {
+      var mn = String(m[2]).replace(/^(?:oh|o) /, ''); mn = mn === 'fortyfive' ? 45 : wordsToNumber(mn);
+      return fin(hour(m[1]), mn, m);
+    }
+    if ((m = new RegExp('\\b' + H + ' (?:a m|p m|am|pm|in the (?:morning|afternoon|evening))\\b').exec(w))) return fin(hour(m[1]), 0, m);
+    if (!inSentence && (m = new RegExp('^ (?:at )?' + H + ' $').exec(w))) return fin(hour(m[1]), 0, m);
+    return null;
+  }
   function spokenDate(raw) {
     var p = util.parseDate(String(raw).trim().replace(/[.,]$/, ''));
     var pad = function (n) { return (n < 10 ? '0' : '') + n; };
@@ -326,6 +363,7 @@
     pr_will_cm: ['will comments', 'reason for the will', 'will instructions'],
     pr_st_cm: ['short term comments', 'reason for short term', 'short term instructions'],
     pref_spend: ['preferred monthly spend', 'preferred spend', 'monthly spend', 'premium spend', 'what are you comfortable spending', 'comfortable spending', 'how much would you like to spend', 'how much do you want to spend', 'what would you like to spend', 'budget for life cover', 'spend on a life policy', 'spend on life cover', 'spend we should work on'],
+    next_time: ['time of the next appointment', 'next appointment time', 'time of our next meeting', 'time of the follow up meeting', 'what time shall we meet', 'what time can you make it', 'at what time', 'appointment time'],
     next_appt: ['next appointment', 'next meeting', 'follow up meeting', 'follow up appointment', 'next appointment date', 'when can we meet again', 'when shall we meet again', 'see you again on', 'come back to you on', 'come back to you with my recommendations', 'date of our next meeting'],
     marr_date: ['date of marriage', 'marriage date', 'wedding date', 'date of your wedding', 'wedding day', 'when did you get married', 'when were you married', 'when did you marry', 'married on', 'got married on', 'were married on', 'married since', 'wedding anniversary'],
     will_date: ['last updated', 'when last', 'when was it updated', 'last update'],
@@ -352,6 +390,7 @@
   var COMPANY_IDS = ['employer', 'biz_name', 'cl_lender'];
   var OCC_IDS = ['occ', 'sp_occ', 'km_role'];
   var DATE_IDS = ['dob', 'will_date', 'marr_date', 'next_appt'];
+  var TIME_IDS = ['next_time'];
   var APPROX_DATE_IDS = ['will_date', 'marr_date'];                         // boxes where "in 2023" or "about two years ago" is a good enough answer
   /* "2023", "in 2023", "about two years ago", "last year", "six months ago" -> the year, as text; null when it is not a loose date. */
   function looseYear(raw, now) {
@@ -387,7 +426,7 @@
   var PHONE_IDS = ['cell', 'work', 'home', 'sp_tel'];
   var EMAIL_IDS = ['pemail', 'wemail'];
   var DIGIT_IDS = ['idno', 'tax'];
-  var TYPED_IDS = PHONE_IDS.concat(EMAIL_IDS, DIGIT_IDS, DATE_IDS);
+  var TYPED_IDS = PHONE_IDS.concat(EMAIL_IDS, DIGIT_IDS, DATE_IDS, TIME_IDS);
   var PCT_IDS = ['d_desk', 'd_supo', 'd_trav', 'd_sups', 'd_light', 'd_mod', 'd_heavy', 'biz_pct'];
 
   /* Names in brackets in a label ("Short-term (Cameron)") are things people say; units and notes ("(R)", "(today's terms)") are not. */
@@ -979,9 +1018,16 @@
       var amt = wordsToNumber(raw);
       return amt == null ? { error: 'no-number' } : { value: util.formatMoney(String(amt)), status: 'verify' };
     }
+    if (TIME_IDS.indexOf(id) >= 0) {
+      var tm = spokenTime(raw, false);
+      return tm ? { value: tm.value, status: 'verify' } : { error: 'no-time' };
+    }
     if (DATE_IDS.indexOf(id) >= 0 || f.date) {
-      var d = spokenDate(raw);
+      var tmx = id === 'next_appt' ? spokenTime(raw, true) : null;                  // "the sixth of November at half past two": the time goes into its own box
+      var d = spokenDate(id === 'next_appt' ? (tmx ? tmx.rest : String(raw)).replace(/\b(?:mon|tues|wednes|thurs|fri|satur|sun)day\b/gi, ' ') : raw);
       if (!d && APPROX_DATE_IDS.indexOf(id) >= 0) { var yr = looseYear(raw); if (yr) return { value: yr, status: 'verify' }; }       // a year is what the client remembers
+      if (!d && tmx) return { value: tmx.value, status: 'verify', field: 'next_time' };                  // only a time was said ("my next appointment is half past two"): it is the time box that is filled
+      if (d && tmx) return { value: d, status: 'verify', extra: [{ id: 'next_time', value: tmx.value, status: 'verify' }] };
       return d ? { value: d, status: 'verify' } : { error: 'no-date' };
     }
     if (EMAIL_IDS.indexOf(id) >= 0) {
@@ -1326,7 +1372,7 @@
         if (th && th.score >= 2.5 && visible(th.id) && TYPED.indexOf(vid(idx.byId[th.id])) >= 0) {
           var tp = aim(th, core), tv = EMAIL_IDS.indexOf(vid(tp.def)) >= 0 ? (typedEmail(core) || [core.replace(/^.*\b(?:is|are|it's|its|address|email|e-mail)\b[,:\s]*(?:me\s+)?(?:(?:at|on)\s+)?/i, '')])[0] : core;   // an email is what follows "is" / "it's"
           var tr = answerFor(tp.def, tv, tp.existing);
-          if (tr.kind === 'fill') { var tid = tp.commit(); actions.push({ do: 'fill', field: tid, res: tr, explicit: true }); target = tid; answered = true; return; }
+          if (tr.kind === 'fill') { var tid = tp.commit(); if (tr.field) tid = tr.field; actions.push({ do: 'fill', field: tid, res: tr, explicit: true }); target = tid; answered = true; return; }
         }
       }
       if (!isQ && !WH.test(core) && visible('idno')) {                    // "my ID is 7212...", or just the number
@@ -1343,7 +1389,7 @@
         if (hit && hit.score >= 2.5 && visible(hit.id)) {
           var ap = aim(hit, core), r = answerFor(ap.def, m[3].replace(/[,\s]+(?:right|correct|okay|ok|yes|isn't it|is that right|is that correct|not so)\s*$/i, ''), ap.existing);
           r = fullName(ap.def, r, m[2]);
-          if (r.kind === 'fill' || r.kind === 'confirm') { var aid = ap.commit(); actions.push({ do: r.kind, field: aid, res: r, explicit: true, tentative: hit.score < 3 }); target = aid; answered = true; if (hit.score < 3) sure = false; return; }
+          if (r.kind === 'fill' || r.kind === 'confirm') { var aid = ap.commit(); if (r.field) aid = r.field; actions.push({ do: r.kind, field: aid, res: r, explicit: true, tentative: hit.score < 3 }); target = aid; answered = true; if (hit.score < 3) sure = false; return; }
         }
       }
       if (isQ || WH.test(core) || looksLikeQuestion(core)) {               // someone asks about a field
@@ -1364,7 +1410,7 @@
       if (selfAsk && target && !answered && !isChatter(seg)) { sure = false; return; }                  // the rest of the same sentence is not an answer to a box the page moved to itself: Claude reads it
       if (target && !answered && !/^count:/.test(target)) {                // a plain statement while a box is waiting answers it
         var a = fullName(defOf(target), answerFor(defOf(target), seg, valueOf(target)), '');
-        if (a.kind === 'fill' || a.kind === 'confirm') { var longText = words >= 6 && isFreeText(defOf(target)); actions.push({ do: a.kind, field: target, res: a, tentative: longText }); answered = true; if (longText) sure = false; return; }
+        if (a.kind === 'fill' || a.kind === 'confirm') { var longText = words >= 6 && isFreeText(defOf(target)); actions.push({ do: a.kind, field: a.field || target, res: a, tentative: longText }); answered = true; if (longText) sure = false; return; }
         if (a.kind === 'wait') { actions.push({ do: 'wait', field: target, dangling: !!a.dangling }); return; }
         sure = false; return;
       }
@@ -1421,11 +1467,13 @@
     if (r.error === 'lead-in-only') return { kind: 'wait', dangling: true };
     if (r.error) return { kind: 'error', error: r.error, note: r.note };
     if (existing && norm(r.value) === norm(existing)) return { kind: 'confirm' };
-    return { kind: 'fill', value: r.value, status: r.status, extra: r.extra, append: r.append, note: r.note };
+    var res = { kind: 'fill', value: r.value, status: r.status, extra: r.extra, append: r.append, note: r.note };
+    if (r.field) res.field = r.field;
+    return res;
   }
 
   return {
-    norm: norm, wordsToNumber: wordsToNumber, spokenDigits: spokenDigits, spokenDate: spokenDate, spokenEmail: spokenEmail, yesNo: yesNo,
+    norm: norm, wordsToNumber: wordsToNumber, spokenDigits: spokenDigits, spokenDate: spokenDate, spokenTime: spokenTime, spokenEmail: spokenEmail, yesNo: yesNo,
     buildIndex: buildIndex, parseCommand: parseCommand, wrapUp: wrapUp, mergeMulti: mergeMulti, endsNotes: endsNotes, splitNotesEnd: splitNotesEnd, mentionsNotes: mentionsNotes, mayEndNotes: mayEndNotes, wipeAnswer: wipeAnswer, looksLikeQuestion: looksLikeQuestion, isChatter: isChatter, plan: plan, pointForm: pointForm, LIST_NOUNS: LIST_NOUNS, matchQuestion: matchQuestion, interpret: interpret, titleCase: titleCase,
     isConfirm: isConfirm, answerFor: answerFor, clauses: clauses, PRIVATE_IDS: PRIVATE_IDS, yearsValue: yearsValue
   };

@@ -407,7 +407,11 @@
       { title: 'Letter of Authority', left: 1, help: 'The Letter of Authority (LOA) lets us get the policy schedules through Astute: the retirement, investment and risk policy schedules all depend on it.', fields: [
         { id: 'loa', l: 'Can we send you a LOA to sign?', t: 'sel', o: ['Yes', 'No', 'Not now'] }
       ] },
-      { title: 'Next appointment', left: 1, fields: [{ id: 'next_appt', l: 'Next appointment (date)', t: 'txt', date: 1, cal: 1, hint: 'e.g. 05/11/2026' }] },
+      { title: 'Next appointment', left: 1, layout: 'g12', fields: [
+        { id: 'next_appt', l: 'Next appointment (date)', t: 'txt', date: 1, cal: 1, hint: 'e.g. 05/11/2026', s: 12 },
+        { id: 'next_day', l: 'Next appointment (day)', sl: 'Day', t: 'txt', calc: 'weekday', s: 5 },
+        { id: 'next_time', l: 'Next appointment (time)', sl: 'Time', t: 'txt', time: 1, hint: 'e.g. 14:30', s: 7 }
+      ] },
       { title: 'Action Points for Personal Assistant', actions: 1, fields: [{ id: 'pa_actions', l: 'Action points for Sitamah Nathoo (personal assistant)', t: 'area', wide: 1, opt: 1, nonotes: 1, rows: 16 }] }
     ] }
   ];
