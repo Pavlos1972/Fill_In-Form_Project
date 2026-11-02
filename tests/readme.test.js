@@ -49,3 +49,12 @@ test('the README does not point at the folder that was removed', () => {
   assert.ok(!fs.existsSync(path.join(root, 'dist')));
   assert.ok(!/`dist\/?`/.test(readme), 'the README still names dist/');
 });
+
+/* The standing rule that the PDF mirrors the form is written down for every session, and the two checks it names exist and are run. */
+test('CLAUDE.md holds the rule that the PDF mirrors the form, and the checks it names exist', () => {
+  const rules = fs.readFileSync(path.join(root, 'CLAUDE.md'), 'utf8');
+  assert.match(rules, /## Keep the Fact Find PDF mirroring the form \(set by Paul Kafentzis, always\)/);
+  ['tests/pdf-mirror.test.js', 'tests/browser/audit-pdf.js'].forEach(f => { assert.ok(rules.includes(f), 'CLAUDE.md does not name ' + f); assert.ok(fs.existsSync(path.join(root, f)), f + ' is missing'); });
+  assert.match(fs.readFileSync(path.join(root, 'tests/browser/run.sh'), 'utf8'), /audit-pdf/, 'the browser runner does not run the PDF check');
+  assert.ok(readme.includes('standing rule in `CLAUDE.md`'), 'the README does not mention the rule');
+});
