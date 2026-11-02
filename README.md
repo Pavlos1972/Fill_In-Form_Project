@@ -86,7 +86,7 @@ Open `app/index.html` in Microsoft Edge or Google Chrome. There is nothing to in
 | `.github/workflows/pages.yml` | Publishes the app folder to the website when `main` changes, after running the tests |
 | `.github/workflows/tests.yml` | Runs the tests on every pull request |
 | `tests/` | Automated tests. Run `npm test` (needs Node 20 or later). `tests/browser/` holds the checks that open the real page in Chrome (every page, voice, the PDF, the layout at three widths): run `npm run test:browser` (needs Playwright and Chrome, see the top of `tests/browser/run.sh`). |
-| `docs/` | The revision analysis, the approved mock-up, the TaxTim examples, the SARS tax tables (`docs/tax_tables.json`), a sample PDF (`docs/sample/`) and `docs/notes/` (notes left for the next session) |
+| `docs/` | The revision analysis, the approved mock-up, the TaxTim examples, the SARS tax tables (`docs/tax_tables.json`), and a sample PDF (`docs/sample/`) |
 
 ## Look and colours
 
