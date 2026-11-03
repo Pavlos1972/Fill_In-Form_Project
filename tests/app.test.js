@@ -103,15 +103,17 @@ test('a saved file reopens exactly, and unknown or missing parts are tolerated',
 });
 test('file name follows the meeting date and client', () => {
   const s = fresh(); set(s, 'fname', 'Thandi'); set(s, 'sname', 'Dlamini');
-  assert.strictEqual(store.baseFileName(s), 'Fact Find - 15.10.2026 - Thandi Dlamini');
+  assert.strictEqual(store.baseFileName(s), 'Fact Find (Audio to Text) - 15.10.26 - (Thandi Dlamini)');
 });
-test('the PDF is named "Fact Find (Voice to Text) - dd.mm.yy - (Name Surname)"', () => {
+test('the PDF and the saved file (.json) are named "Fact Find (Audio to Text) - dd.mm.yy - (Name Surname)"', () => {
   const s = fresh(); set(s, 'fname', 'Sitamah'); set(s, 'sname', 'Nathoo'); set(s, 'date', '29/10/2026');
-  assert.strictEqual(store.pdfFileName(s), 'Fact Find (Voice to Text) - 29.10.26 - (Sitamah Nathoo)');
-  set(s, 'date', '05/03/2027'); assert.strictEqual(store.pdfFileName(s), 'Fact Find (Voice to Text) - 05.03.27 - (Sitamah Nathoo)');         // day and month with two digits, the year with two
-  set(s, 'fname', 'Thandi'); set(s, 'sname', 'Dlamini: "Test"/Co'); assert.strictEqual(store.pdfFileName(s), 'Fact Find (Voice to Text) - 05.03.27 - (Thandi Dlamini TestCo)');   // characters a file name cannot hold are left out
-  const e = fresh(); set(e, 'date', '17/10/2026'); assert.strictEqual(store.pdfFileName(e), 'Fact Find (Voice to Text) - 17.10.26 - (New client)');
-  assert.strictEqual(store.baseFileName(s), 'Fact Find - 05.03.2027 - Thandi Dlamini TestCo');                                                        // the saved .json keeps its own name
+  assert.strictEqual(store.pdfFileName(s), 'Fact Find (Audio to Text) - 29.10.26 - (Sitamah Nathoo)');
+  set(s, 'date', '05/03/2027'); assert.strictEqual(store.pdfFileName(s), 'Fact Find (Audio to Text) - 05.03.27 - (Sitamah Nathoo)');         // day and month with two digits, the year with two
+  set(s, 'fname', 'Thandi'); set(s, 'sname', 'Dlamini: "Test"/Co'); assert.strictEqual(store.pdfFileName(s), 'Fact Find (Audio to Text) - 05.03.27 - (Thandi Dlamini TestCo)');   // characters a file name cannot hold are left out
+  const e = fresh(); set(e, 'date', '17/10/2026'); assert.strictEqual(store.pdfFileName(e), 'Fact Find (Audio to Text) - 17.10.26 - (New client)');
+  assert.strictEqual(store.baseFileName(s), store.pdfFileName(s), 'the saved .json has exactly the same name as the PDF');
+  assert.strictEqual(store.baseFileName(e), 'Fact Find (Audio to Text) - 17.10.26 - (New client)');
+  assert.ok(!/Voice to Text/.test(store.pdfFileName(s) + store.baseFileName(s)), 'the old "Voice to Text" name is gone');                                                        // the saved .json keeps its own name
 });
 test('each debt has a bank box (pick one or type another) and its own notes', () => {
   const cols = schema.lists.debts.cols.map(c => c.k);
@@ -149,7 +151,7 @@ test('every date is shown day/month/year, and older files are brought into line'
   assert.strictEqual(back.f.date.v, '17/10/2026');
   assert.strictEqual(back.l.kids[0].d.dob, '22/08/2019');
   s.f.dob.v = 'not a date'; assert.strictEqual(store.fromJSON(store.toJSON(s)).f.dob.v, 'not a date');   // anything else is left as typed
-  assert.strictEqual(store.baseFileName(Object.assign(store.blank(), { f: Object.assign(store.blank().f, { date: { v: '17/10/2026', st: 'confirmed' } }) })), 'Fact Find - 17.10.2026 - New client');
+  assert.strictEqual(store.baseFileName(Object.assign(store.blank(), { f: Object.assign(store.blank().f, { date: { v: '17/10/2026', st: 'confirmed' } }) })), 'Fact Find (Audio to Text) - 17.10.26 - (New client)');
   const calc2 = require('../app/js/calc.js');
   const c = store.ctxFor(back);
   assert.strictEqual(calc2.clientAge(c), 40);                              // ages are worked out from day/month/year dates

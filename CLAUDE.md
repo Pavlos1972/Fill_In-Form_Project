@@ -17,9 +17,10 @@ The README.md describes the app; this file keeps the rules that must not be lost
 
 ## File naming (set by Paul Kafentzis, do not change unless asked)
 
-- **The Fact Find saved as a PDF** is always named
-  `Fact Find (Voice to Text) - dd.mm.yy - (Name Surname)`
-  for example `Fact Find (Voice to Text) - 29.10.26 - (Sitamah Nathoo)`.
-  The date is the form's *Date completed* with a two-digit year; the name and surname are in round brackets.
-  It is built by `store.pdfFileName()` in `app/js/store.js` and used by Save PDF and Preview PDF in `app/js/ui.js`. A test in `tests/app.test.js` pins it.
-- The saved Fact Find file (.json) keeps its own name, `Fact Find - dd.mm.yyyy - Name Surname` (`store.baseFileName()`).
+- **The Fact Find saved as a PDF and the saved Fact Find file (.json) have the same name**, only the ending differs:
+  `Fact Find (Audio to Text) - dd.mm.yy - (Name Surname)`
+  for example `Fact Find (Audio to Text) - 04.11.26 - (Sitamah Nathoo)` (then `.pdf` or `.json`).
+  The date is the form's *Date completed* with a two-digit year; the name and surname are in round brackets (`(New client)` until a name is entered).
+  It is built by `store.pdfFileName()` in `app/js/store.js`; `store.baseFileName()` returns the same name for the .json. Save, Save as, Save PDF and Preview PDF in `app/js/ui.js` use them, also the plain-download fallback.
+  Tests in `tests/app.test.js` and `tests/browser/t-settings.js` pin it. (Until 3 November 2026 the PDF said "Voice to Text" and the .json was `Fact Find - dd.mm.yyyy - Name Surname`; Paul changed both.)
+- A file that is opened keeps its own name when it is saved again; only the first save of a client's file, and every PDF, get the name above.

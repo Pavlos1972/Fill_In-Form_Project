@@ -107,15 +107,13 @@
     return [state.f.fname.v, state.f.sname.v].map(function (x) { return String(x || '').trim(); }).filter(Boolean).join(' ');
   }
   function safeName(s) { return String(s).replace(/[\\/:*?"<>|]/g, '').replace(/\s+/g, ' ').trim(); }
-  /* The name of the Fact Find saved as a PDF: "Fact Find (Voice to Text) - dd.mm.yy - (Name Surname)", the date being Date completed (two-digit year), e.g. "Fact Find (Voice to Text) - 29.10.26 - (Sitamah Nathoo)". */
+  /* The name of the Fact Find saved as a PDF, and of the saved Fact Find file (.json), is the same: "Fact Find (Audio to Text) - dd.mm.yy - (Name Surname)", the date being Date completed (two-digit year),
+     e.g. "Fact Find (Audio to Text) - 29.10.26 - (Sitamah Nathoo)"; only the ending (.pdf or .json) differs. */
   function pdfFileName(state) {
     var d = util.parseDate(state.f.date.v) || util.parseDate(util.isoToday()), two = function (n) { return (n < 10 ? '0' : '') + n; };
-    return 'Fact Find (Voice to Text) - ' + two(d.d) + '.' + two(d.m) + '.' + two(d.y % 100) + ' - (' + (safeName(clientName(state)) || 'New client') + ')';
+    return 'Fact Find (Audio to Text) - ' + two(d.d) + '.' + two(d.m) + '.' + two(d.y % 100) + ' - (' + (safeName(clientName(state)) || 'New client') + ')';
   }
-  function baseFileName(state) {
-    var d = util.parseDate(state.f.date.v) || util.parseDate(util.isoToday()), date = (d.d < 10 ? '0' : '') + d.d + '.' + (d.m < 10 ? '0' : '') + d.m + '.' + d.y;
-    return 'Fact Find - ' + date + ' - ' + (safeName(clientName(state)) || 'New client');
-  }
+  function baseFileName(state) { return pdfFileName(state); }
 
   /* Reopen a saved file. Unknown ids are ignored and missing ones start blank, so older files keep working. */
   function fromJSON(text) {
