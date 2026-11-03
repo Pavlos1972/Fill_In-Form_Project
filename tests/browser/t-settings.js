@@ -15,7 +15,7 @@ srv.listen(0, async () => {
     const handle = { name: 'Thandi.json', requestPermission: () => Promise.resolve('granted'),
       createWritable: () => Promise.resolve({ write: blob => blob.text().then(t => { window.__file.pending = t; }), close: () => { window.__file.text = window.__file.pending; return Promise.resolve(); } }),
       getFile: () => mode === 'different' ? Promise.resolve({ text: () => Promise.resolve(window.__file.text + ' ') }) : mode === 'unreadable' ? Promise.reject(new Error('no')) : Promise.resolve({ text: () => Promise.resolve(window.__file.text) }) };
-    window.showSaveFilePicker = () => Promise.resolve(handle);
+    window.showSaveFilePicker = o => { (window.__suggested = window.__suggested || []).push(o && o.suggestedName); return Promise.resolve(handle); };
   }, mode);
 
   // 1. work that is not saved is in the browser's draft
@@ -27,6 +27,18 @@ srv.listen(0, async () => {
   d = await draft(); ok(d.json === null && d.dirty === '0', 'after a verified save the draft (and the client\'s details) are gone from the browser: ' + JSON.stringify({ json: d.json && d.json.slice(0, 20), dirty: d.dirty }));
   ok(await p.evaluate(() => /Thandi/.test(window.__file.text)), 'the saved file holds the client\'s details');
   ok(await p.evaluate(() => FF.app.state.f.fname.v === 'Thandi'), 'the form on the screen is untouched');
+  // the first save of a client's file, and the PDF, are suggested the same name: "Fact Find (Audio to Text) - dd.mm.yy - (Name Surname)"
+  const p2 = await p.context().newPage(); await p2.goto('http://localhost:' + srv.address().port + '/');
+  await p2.evaluate(() => {
+    window.__s = []; const mem = { t: '', text: '' };
+    const h = { name: 'f.json', requestPermission: () => Promise.resolve('granted'), createWritable: () => Promise.resolve({ write: b => b.text().then(t => { mem.t = t; }), close: () => { mem.text = mem.t; return Promise.resolve(); } }), getFile: () => Promise.resolve({ text: () => Promise.resolve(mem.text) }) };
+    window.showSaveFilePicker = o => { window.__s.push(o && o.suggestedName); return Promise.resolve(h); };
+    FF.store.setField(FF.app.state, 'date', '04/11/2026'); FF.store.setField(FF.app.state, 'fname', 'Sitamah'); FF.store.setField(FF.app.state, 'sname', 'Nathoo'); FF.app.redraw();
+  });
+  await p2.click('#btnSave'); await p2.waitForTimeout(500); await p2.click('#btnPdf'); await p2.waitForTimeout(800);
+  const sug = await p2.evaluate(() => window.__s); await p2.close();
+  ok(sug[0] === 'Fact Find (Audio to Text) - 04.11.26 - (Sitamah Nathoo).json', 'the first save of the client\'s file is suggested the new name: ' + JSON.stringify(sug[0]));
+  ok(sug[1] === 'Fact Find (Audio to Text) - 04.11.26 - (Sitamah Nathoo).pdf', 'Save PDF is suggested the same name, ending .pdf: ' + JSON.stringify(sug[1]));
   // 3. more typing makes a draft again
   await typeName('Thandi Z'); d = await draft(); ok(d.dirty === '1' && /Thandi Z/.test(d.json || ''), 'typing again keeps a draft again');
 
