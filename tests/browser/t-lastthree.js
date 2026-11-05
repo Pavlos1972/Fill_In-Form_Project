@@ -13,8 +13,8 @@ srv.listen(0, async () => {
   const order = await p.evaluate(() => [...document.querySelectorAll('.nav button[data-sec]')].map(x => x.dataset.sec).join(' '));
   ok(order === 'info occ income debts kids cover retire inv other health prio calc admin', 'the pages are in the new order: ' + order);
 
-  await nav('info'); ok(!(await has('[data-f="smoker"]')), 'Smoker is not on Client info');
-  await nav('health'); ok(await has('[data-f="smoker"]'), 'Smoker is on Health');
+  await nav('health'); ok(!(await has('[data-f="smoker"]')), 'Smoker is not on Health');
+  await nav('info'); ok(await has('[data-f="smoker"]'), 'Smoker is on Client info');
   await p.selectOption('[data-f="smoker"]', 'Smoker'); ok(await p.evaluate(() => FF.app.state.f.smoker.v === 'Smoker'), 'and can be answered there');
 
   await nav('cover'); ok(!(await has('[data-f="loa"]')), 'the LOA is not on the cover page');
@@ -28,7 +28,7 @@ srv.listen(0, async () => {
   ok(heads === 2 && (await has('[data-msb="ps_ra"]')) && (await has('[data-msb="ps_pp"]')), 'Retirement has a schedule request under each list: ' + heads);
 
   await nav('kids'); await p.selectOption('[data-f="has_kids"]', 'Yes'); await p.click('button[data-add="kids"]'); await p.waitForTimeout(200);
-  ok(await p.evaluate(() => /Childcare \(R p\.m\.\)/.test(document.body.innerText) && /Childcare costs only/.test(document.body.innerText)), 'Children shows Childcare (R p.m.) and says what goes in it');
+  ok(await p.evaluate(() => /Childcare \(R p\.m\.\)/.test(document.body.innerText) && /whatever amount is agreed on the call/.test(document.body.innerText)), 'Children shows Childcare (R p.m.) and says what goes in it');
 
   await nav('prio'); await p.evaluate(() => { FF.store.setField(FF.app.state, 'pr_will', 'Priority: client agrees'); FF.store.setField(FF.app.state, 'pr_st', 'Priority: client agrees'); FF.app.redraw(); }); await nav('prio'); await p.waitForTimeout(200);
   const ref = await p.evaluate(() => ['ref_will', 'ref_sti'].map(id => { const e = document.querySelector('[data-f="' + id + '"]'); return e ? [...e.options].map(o => o.textContent.trim()).filter(Boolean).join(' / ') : null; }));

@@ -307,7 +307,7 @@ function openaiRig(extra) {
   const said = [], notes = [], errors = [], calls = []; let chunk = null;
   const reply = (status, body, delay) => new Promise(r => setTimeout(() => r({ ok: status === 200, status, json: () => Promise.resolve(body) }), delay || 0));
   const lsn = L.create(Object.assign({
-    engine: 'openai', openaiKey: 'sk-test', openaiModel: 'gpt-4o-transcribe', prompt: last => 'Names: Paul Kafentzis, Vicky Zachos.' + (last ? ' Before: ' + last : ''),
+    engine: 'openai', openaiKey: 'sk-test', openaiModel: 'gpt-4o-transcribe', openaiWarm: false, prompt: last => 'Names: Paul Kafentzis, Vicky Zachos.' + (last ? ' Before: ' + last : ''),
     mic: onChunk => { chunk = onChunk; return Promise.resolve({ label: 'Test mic', close() {} }); },
     fetchImpl: (url, init) => { calls.push({ url, init }); return (extra && extra.reply ? extra.reply(calls.length, reply) : reply(200, { text: ' My surname is Kafentzis. ' })); },
     text: (t, m) => said.push([t, m]), note: n => notes.push(n), state: (s, d) => { if (s === 'error') errors.push(d.message); }
@@ -374,7 +374,7 @@ test('OpenAI transcription: one failed line is a note, three in a row stop the l
 function callRig(texts, extra) {
   const said = [], notes = [], events = [], calls = []; let micChunk = null, callChunk = null, ended = null, closed = 0, n = 0;
   const lsn = L.create(Object.assign({
-    engine: 'openai', openaiKey: 'sk-test', openaiModel: 'gpt-4o-transcribe', call: true,
+    engine: 'openai', openaiKey: 'sk-test', openaiModel: 'gpt-4o-transcribe', openaiWarm: false, call: true,
     mic: onChunk => { micChunk = onChunk; return Promise.resolve({ label: 'Headset', close() { closed++; } }); },
     callCapture: onChunk => { callChunk = onChunk; return Promise.resolve({ label: 'Teams', onEnded: cb => { ended = cb; }, close() { closed++; } }); },
     fetchImpl: (url, init) => { calls.push(init); const t = texts[Math.min(n++, texts.length - 1)]; return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ text: t }) }); },
@@ -500,4 +500,55 @@ test('OpenAI transcription: each answered line reports the seconds of sound it s
   await new Promise(x => setTimeout(x, 50));
   assert.strictEqual(throws.said.length, 1, 'the line still came through when the meter threw');
   r.lsn.stop(); bad.lsn.stop(); throws.lsn.stop();
+});
+
+test('OpenAI transcription: a half second of silence is sent when Listen starts (the first line does not wait for a cold start), it says nothing and it is counted on the meter', async () => {
+  const used = [], said = [], calls = []; let chunk = null;
+  const lsn = L.create({
+    engine: 'openai', openaiKey: 'sk-test', openaiModel: 'gpt-4o-transcribe', usage: (secs, model) => used.push([secs, model]),
+    mic: onChunk => { chunk = onChunk; return Promise.resolve({ label: 'Test mic', close() {} }); },
+    fetchImpl: (url, init) => { calls.push({ url, init }); return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ text: ' Thank you. ' }) }); },
+    text: t => said.push(t), note: () => {}, state: () => {}
+  });
+  try {
+    await lsn.start(); await wait(50);
+    assert.strictEqual(calls.length, 1, 'one request at the start');
+    assert.ok(/audio\/transcriptions$/.test(calls[0].url));
+    assert.deepStrictEqual(said, [], 'what comes back for the silence is thrown away');
+    assert.deepStrictEqual(used, [[0.6, 'gpt-4o-transcribe']], 'and it is counted on the speech meter');
+  } finally { lsn.stop(); }
+  const off = []; const lsn2 = L.create({ engine: 'openai', openaiKey: 'sk-test', openaiWarm: false, mic: () => Promise.resolve({ label: 'm', close() {} }), fetchImpl: (u, i) => { off.push(u); return Promise.resolve({ ok: true, json: () => Promise.resolve({ text: '' }) }); }, text: () => {}, note: () => {}, state: () => {} });
+  try { await lsn2.start(); await wait(30); assert.strictEqual(off.length, 0, 'the warm-up can be switched off'); } finally { lsn2.stop(); }
+});
+
+test('Call sound: when two speakers overlap, the line of the one who began first goes first, even if the other is finished first', async () => {
+  let T = 0; const r = callRig(['The client says her long answer here.', 'Mm-hmm okay.'], { now: () => T });
+  await r.lsn.start();
+  T = 0; r.call([noise(0.3), speech(4.0)]);                                  // the client starts a long answer at 0 s and is still talking
+  T = 2500; r.mic([noise(0.3), speech(1.0), noise(1.2)]);                    // the adviser's "Mm-hmm" began later and is finished first
+  await wait(40);
+  assert.deepStrictEqual(r.said.map(s => s[1].who), [], 'the short line waits while the longer one that began first is still going');
+  T = 5000; r.call([noise(1.2)]);                                            // the client's line ends
+  await wait(60);
+  assert.deepStrictEqual(r.said.map(s => [s[1].who, s[0]]), [['client', 'The client says her long answer here.'], ['me', 'Mm-hmm okay.']]);
+  r.lsn.stop();
+});
+
+test('Call sound: a line that waits for an earlier-starting speaker is let go after the hold time even if that speaker never finishes', async () => {
+  let T = 0; const r = callRig(['Okay, I will send it.'], { now: () => T, holdMs: 60 });
+  await r.lsn.start();
+  T = 0; r.call([noise(0.3), speech(4.0)]);
+  T = 2500; r.mic([noise(0.3), speech(1.0), noise(1.2)]);
+  await wait(20); assert.strictEqual(r.said.length, 0, 'waiting');
+  await wait(120); assert.deepStrictEqual(r.said.map(s => [s[1].who, s[0]]), [['me', 'Okay, I will send it.']], 'let go');
+  r.lsn.stop();
+});
+
+test('Call sound: nothing waits when the other source is quiet, and lines keep their order', async () => {
+  let T = 0; const r = callRig(['First line here.', 'Second line here.'], { now: () => T });
+  await r.lsn.start();
+  T = 3000; r.mic([noise(0.3), speech(1.0), noise(1.2)]); await wait(30);
+  T = 6000; r.call([noise(0.3), speech(1.0), noise(1.2)]); await wait(30);
+  assert.deepStrictEqual(r.said.map(s => [s[1].who, s[0]]), [['me', 'First line here.'], ['client', 'Second line here.']]);
+  r.lsn.stop();
 });

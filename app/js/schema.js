@@ -83,9 +83,11 @@
   var PS_CLIENT_OLD = 'Requested from client in meeting', PS_ASTUTE = 'Draw from Astute (with signed LOA)', PS_OTHER = 'Other';
   var PS_CLIENT = { risk: 'Requested Personal Risk Covers in meeting, await client response', grp: 'Requested Group Risk Covers in meeting, await client response', ra: 'Requested Retirement Annuities in meeting, await client response',
     pp: 'Requested Pension and Provident Funds in meeting, await client response', inv: 'Requested Investments in meeting, await client response' };
-  function PS(id, group) {
-    return { title: 'Request Current Policy Schedule(s)', layout: 'g12', fields: [
-      { id: 'ps_' + id, l: 'Schedule(s) requested', t: 'multi', o: group ? [PS_CLIENT[id], PS_OTHER] : [PS_CLIENT[id], PS_ASTUTE, PS_OTHER], s: 7 },
+  var PS_NOSEND = 'Client does not need to send through', PS_NONE = 'No policy schedules to request';
+  /* gate: the Yes/No above (has_risk, has_group, has_ra, has_pp, has_inv). When it says No there is nothing to request: the block greys out under PS_NONE (on screen and in the PDF), the points are left out and the choices are cleared (store.js). */
+  function PS(id, group, gate) {
+    return { title: 'Request Current Policy Schedule(s)', layout: 'g12', cond: gate, grey: 1, condMsg: PS_NONE, pdfMsg: 1, fields: [
+      { id: 'ps_' + id, l: 'Schedule(s) requested', t: 'multi', o: group ? [PS_CLIENT[id], PS_NOSEND, PS_OTHER] : [PS_CLIENT[id], PS_ASTUTE, PS_NOSEND, PS_OTHER], s: 7 },
       { id: 'ps_' + id + '_ot', l: 'Other schedule arrangement', t: 'txt', opt: 1, voice: 1, cond: { f: 'ps_' + id, has: PS_OTHER }, grey: 1, s: 5 }
     ] };
   }
@@ -119,8 +121,9 @@
         { id: 'wemail', l: 'Work email', t: 'txt', risky: 1, none: 'No work email', s: 6 }
       ] },
       { title: 'Background', layout: 'g12', fields: [
-        { id: 'edu', l: 'Highest education', t: 'sel', o: ['Matric', 'Matric & diploma', '4-year diploma', '3-year degree', 'Postgraduate', 'Other'], s: 4 },
-        { id: 'edu_notes', l: 'Qualification details', t: 'area', s: 8 }
+        { id: 'smoker', l: 'Smoker', t: 'sel', o: ['Non-smoker', 'Smoker'], s: 3 },
+        { id: 'edu', l: 'Highest education', t: 'sel', o: ['Matric', 'Matric & diploma', '4-year diploma', '3-year degree', 'Postgraduate', 'Other'], s: 3 },
+        { id: 'edu_notes', l: 'Qualification details', t: 'area', s: 6 }
       ] },
       { title: 'Public profile (LinkedIn)', fields: [
         { id: 'profile', l: 'Public profile summary', t: 'area', wide: 1, opt: 1, nopdf: 1, lookup: 'client', lookupBtn: 'Search LinkedIn', rows: 3, hint: 'Filled in by itself when the name and employer or occupation are known. Needs the Anthropic key on the laptop; it is not available on the practice page.' }
@@ -169,6 +172,10 @@
         { id: 'gross', money: 1, l: 'Gross monthly income (R)', t: 'txt', risky: 1 },
         { id: 'dnet', l: 'Direct Net Income (R p.m.)', t: 'txt', calc: 'dnet', link: ['Check on TaxTim', 'https://www.taxtim.com/za/calculators/income-tax'] },
         { id: 'net', money: 1, l: 'Take-home net income (R p.m.)', t: 'txt', risky: 1 },
+        { id: 'rent', money: 1, l: 'Rental Income', t: 'txt', opt: 1, voice: 1 },
+        { id: 'spinc', money: 1, l: 'Spousal Income', t: 'txt', opt: 1, voice: 1 },
+        { id: 'maint', money: 1, l: 'Child Maintenance Income', t: 'txt', opt: 1, voice: 1 },
+        { id: 'tinc', l: 'Total Income', t: 'txt', calc: 'tinc' },
         { id: 'exp', money: 1, l: 'Monthly expenses / budget (R)', t: 'txt', risky: 1 },
         { id: 'disp', l: 'Disposable income (R)', t: 'txt', calc: 'disp' },
         { id: 'marital', l: 'Marital status', t: 'sel', o: ['Single', 'Married in community of property', 'Married out of community (with accrual)', 'Married out of community (no accrual)', 'Customary marriage', 'Civil union', 'Life partner', 'Divorced', 'Widowed'] },
@@ -184,7 +191,7 @@
 
     { id: 'debts', title: 'Debts', blocks: [{ fields: [{ id: 'has_debts', l: 'Has debts', t: 'sel', o: YN }] }, { list: 'debts', help: 'In the BrightRock calculation only the debts the client pays (Payer: Client, or not set) come off the take-home income. Debts paid by the spouse, jointly, by the business or by an ex-spouse or partner are left out.', cond: HAS_DEBTS, grey: 1, condMsg: 'No debts, so there is nothing to record.' }, { fields: [N('n_debts')] }] },
 
-    { id: 'kids', title: 'Children', blocks: [{ fields: [{ id: 'has_kids', l: 'Has children', t: 'sel', o: YN }] }, { list: 'kids', help: 'Childcare costs only (crèche, aftercare, nanny, day mother). They come off the take-home income in the BrightRock calculation. School and tertiary fees are not entered here.', cond: HAS_KIDS, grey: 1, condMsg: 'No children, so there is nobody to record.' }, { fields: [N('n_kids')] }] },
+    { id: 'kids', title: 'Children', blocks: [{ fields: [{ id: 'has_kids', l: 'Has children', t: 'sel', o: YN }] }, { list: 'kids', help: 'Childcare (R p.m.) is whatever amount is agreed on the call for each child (crèche, aftercare, nanny, day mother and the like). It comes off the take-home income in the BrightRock calculation.', cond: HAS_KIDS, grey: 1, condMsg: 'No children, so there is nobody to record.' }, { fields: [N('n_kids')] }] },
 
     { id: 'cover', title: 'Personal & group risk cover', blocks: [
       { title: 'Personal risk cover', fields: [
@@ -192,29 +199,29 @@
         { id: 'joint', l: 'Joint life with spouse', t: 'sel', o: YN, cond: { all: [HAS_RISK, SPOUSE] }, grey: 1 }
       ] },
       { title: 'Existing personal risk policies', list: 'risk', cond: HAS_RISK, grey: 1, condMsg: 'No personal risk cover is in place, so there are no policies to record.' },
-      PS('risk'),
+      PS('risk', false, HAS_RISK),
       { title: 'Group risk cover', fields: [
         { id: 'has_group', l: 'Group risk through employer', t: 'sel', o: ['Yes', 'No', 'Not sure'] }
       ] },
       { title: 'Existing group risk policies', list: 'grp', cond: HAS_GROUP, grey: 1, condMsg: 'No group risk cover is in place (Group risk through employer is No or Not sure), so there are no policies to record.' },
-      PS('grp', true),
+      PS('grp', true, { f: 'has_group', nin: ['No'] }),
       { fields: [N('n_cover')] }
     ] },
 
     { id: 'retire', title: 'Retirement funding', blocks: [
       { title: 'Retirement annuities', fields: [{ id: 'has_ra', l: 'Has retirement annuities', t: 'sel', o: YN }] },
       { title: 'Existing retirement annuities', list: 'ret_ra', cond: HAS_RA, grey: 1, condMsg: 'No retirement annuity is in place, so there is none to record.' },
-      PS('ra'),
+      PS('ra', false, HAS_RA),
       { title: 'Pension and provident funds', fields: [{ id: 'has_pp', l: 'Has pension or provident funds', t: 'sel', o: YN }] },
       { title: 'Existing pension and provident funds', list: 'ret_pp', cond: HAS_PP, grey: 1, condMsg: 'No pension or provident fund is in place, so there is none to record.' },
-      PS('pp'),
+      PS('pp', false, HAS_PP),
       { fields: [N('n_retire')] }
     ] },
 
     { id: 'inv', title: 'Investments', blocks: [
       { fields: [{ id: 'has_inv', l: 'Has investments', t: 'sel', o: YN }] },
       { list: 'inv', cond: HAS_INV, grey: 1, condMsg: 'No investments are in place, so there are none to record.' },
-      PS('inv'),
+      PS('inv', false, HAS_INV),
       { fields: [N('n_inv')] }
     ] },
 
@@ -258,7 +265,6 @@
 
     { id: 'health', roomy: 1, title: 'Health', blocks: [
       { fields: [
-        { id: 'smoker', l: 'Smoker', t: 'sel', o: ['Non-smoker', 'Smoker'] },
         { id: 'h_gen', l: 'General health good', t: 'sel', o: YN },
         { id: 'h_dia', l: 'Diabetes / high sugar', t: 'sel', o: YN },
         { id: 'h_chol', l: 'High cholesterol', t: 'sel', o: YN },
@@ -524,5 +530,5 @@
   var byId = {};
   sections.forEach(function (s) { s.blocks.forEach(function (b) { (b.fields || []).forEach(function (f) { byId[f.id] = f; }); }); });
 
-  return { version: '3.0', released: 'October 2026', sections: sections, lists: lists, panels: panels, panelsById: panelsById, advisor: ADVISOR, brBasis: BR_BASIS, psClient: PS_CLIENT, psClientOld: PS_CLIENT_OLD, PRIORITY: PRIORITY, NOT_PRIORITY: NOT_PRIORITY, UNSURE: UNSURE, BUDGET: BUDGET, fieldsById: byId };
+  return { version: '3.0', released: 'October 2026', sections: sections, lists: lists, panels: panels, panelsById: panelsById, advisor: ADVISOR, brBasis: BR_BASIS, psClient: PS_CLIENT, psNoSend: PS_NOSEND, psNone: PS_NONE, psClientOld: PS_CLIENT_OLD, PRIORITY: PRIORITY, NOT_PRIORITY: NOT_PRIORITY, UNSURE: UNSURE, BUDGET: BUDGET, fieldsById: byId };
 });

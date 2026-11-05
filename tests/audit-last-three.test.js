@@ -16,7 +16,7 @@ const reopen = (mutate) => { const j = JSON.parse(store.toJSON(fresh())); mutate
 test('the child cost box is childcare, says so, and the EGAR panel is left exactly as it was', () => {
   const col = schema.lists.kids.cols.find(c => c.k === 'cost');
   assert.strictEqual(col.l, 'Childcare (R p.m.)');
-  assert.match(sec('kids').blocks.find(b => b.list === 'kids').help, /Childcare costs only/);
+  assert.match(sec('kids').blocks.find(b => b.list === 'kids').help, /whatever amount is agreed on the call/);
   assert.deepStrictEqual(schema.panelsById.egar.sum, { f: ['egar_req'], l: { kids: ['age', 'stage', 'cost'] } });      // nothing about the EGAR was changed
   const s = fresh(); set(s, 'net', 'R 40 000.00'); store.addRow(s, 'kids', { name: 'A', cost: 'R 3 000.00' });
   assert.strictEqual(calc.field('cc', store.ctxFor(s)), 'R 3 000.00'); assert.strictEqual(calc.field('need', store.ctxFor(s)), 'R 37 000.00');
@@ -42,9 +42,11 @@ test('the pages are in the order the work goes: debts and children come straight
   assert.deepStrictEqual(schema.sections.map(s => s.id), ['info', 'occ', 'income', 'debts', 'kids', 'cover', 'retire', 'inv', 'other', 'health', 'prio', 'calc', 'admin']);
 });
 
-test('Smoker is with the health questions, not on Client info', () => {
-  assert.ok(ids(sec('health').blocks[0]).includes('smoker') && ids(sec('health').blocks[0])[0] === 'smoker');
-  assert.ok(!sec('info').blocks.some(b => ids(b).includes('smoker')));
+test('Smoker is back on Client info (Background, next to Highest education), not on Health', () => {
+  const bg = sec('info').blocks.find(b => b.title === 'Background');
+  assert.deepStrictEqual(ids(bg), ['smoker', 'edu', 'edu_notes']);
+  assert.deepStrictEqual(bg.fields.map(f => f.s), [3, 3, 6]);
+  assert.ok(!sec('health').blocks.some(b => ids(b).includes('smoker')));
   assert.strictEqual(fresh().f.smoker.v, '');
   const old = reopen(j => { j.f.smoker = { v: 'Smoker', st: 'confirmed' }; }); assert.strictEqual(old.f.smoker.v, 'Smoker');        // same box, so older files keep the answer
 });

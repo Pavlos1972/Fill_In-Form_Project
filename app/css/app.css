@@ -260,6 +260,8 @@ dialog .f input, dialog .f select { padding-right: 9px; background: var(--surfac
 .f.s-preset .st { display: none; }
 .f.s-preset input, .f.s-preset select { padding-right: 9px; }
 .f.s-calc input { padding-right: 74px; }
+.f[data-field="next_day"].s-calc input { padding-right: 9px; }                                      /* the Day box is narrow: no badge inside it, so "Wednesday" is not cut off */
+.f[data-field="next_day"].s-calc .st { display: none; }
 .vm-stopnotes { background: var(--accent); color: var(--accent-ink); border: 0; border-radius: 4px; padding: 2px 9px; font: 500 11px var(--mono); letter-spacing: .04em; text-transform: uppercase; cursor: pointer; }
 .vm-stopnotes:hover { filter: brightness(1.08); }
 /* The line under the top bar while the microphone is on: what is being heard, and how loud. */

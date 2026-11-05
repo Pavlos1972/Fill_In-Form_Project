@@ -14,6 +14,7 @@ const dir = process.argv[3];
     ['spelled in pieces', 'pemail', ['what is your personal email address?', 'P A U L K 1', 'dot K A F E N T Z I S', 'at gmail dot com'], 'paulk1.kafentzis@gmail.com'],
     ['redo of a wrong address', 'pemail', ['what is your personal email address?', 'paul k1 dot cafences at gmail dot com', 'okay that is a problem the spelling is wrong', 'my personal email address is', 'Paul K1', '.Kafentzis', 'at gmail.com'], 'paulk1.kafentzis@gmail.com'],
     ['chatter does not start one', 'wemail', ['what is your work email address?', 'there is a problem with the program', 'yes I do', 'okay let me think'], ''],
+    ['words about the address, then the whole address (the Roquelle log)', 'wemail', ['what is your work email address?', "I do. It's my first name Paul", 'paulk at liferisk dot co dot za'], 'paulk@liferisk.co.za'],
     ['unfinished address is kept as heard', 'wemail', ['what is your work email address?', 'Paul k at liferisk', 'now what is your smoker status'], 'paulk@liferisk'],
   ];
   let bad = 0;

@@ -14,7 +14,8 @@ const sameLabel = (a, b) => idx.byId[defId(a)] && idx.byId[defId(b)] && idx.byId
 
 const SAMPLE = f => {
   if (f.money) return 'R85 000';
-  if (['dob', 'will_date', 'marr_date', 'next_appt'].includes(vid(f))) return '14 March 1986';
+  if (vid(f) === 'next_appt') return '14 March 2099';                                                       // an appointment is never before the meeting
+  if (['dob', 'will_date', 'marr_date'].includes(vid(f))) return '14 March 1986';
   if (vid(f) === 'next_time') return 'half past two';
   if (['cell', 'work', 'home', 'sp_tel'].includes(vid(f))) return '082 555 0148';
   if (['pemail', 'wemail'].includes(vid(f))) return 'john at gmail dot com';
