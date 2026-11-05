@@ -132,7 +132,7 @@
     }
     var ip = calc.ipSplit(ctx);                                                                  // the instalments protected for the bank cannot be more than the income protection insured amount
     if (ip.over) warn('ip_hh', 'The debt instalments (' + util.money(ip.total) + ' p.m.) are more than the Insured amount (' + util.money(ip.insured) + ' p.m.) by ' + util.money(ip.total - ip.insured) + '. Household needs cannot be less than nothing: check the instalments on the Debts page.');
-    var need = calc.field('need', ctx);                                                          // household income needed (Life and Permanent disability)
+    var need = calc.field('need', ctx);                                                          // household income needed (Life cover and Lump Sum Disability: the same figure)
     if (/^-/.test(need)) warn('lc_need', 'Total household income needed is ' + need + ': the childcare costs and the debt repayments are more than the take-home income. Check the Children and Debts pages.');
     if (v('biz_pct') !== '' && (ctx.n('biz_pct') < 0 || ctx.n('biz_pct') > 100)) warn('biz_pct', 'A shareholding must be between 0 and 100.');
 
@@ -225,7 +225,7 @@
       else ctx.rows('kids').forEach(function (r, i) { if (!String(r.d.dob || '').trim()) rowWarn('kids', i, 'An EGAR is asked for: this child\'s date of birth is needed.'); });
     }
     var brAsked = bfFna || bfSf || rows('bfred').some(function (r) { return r.d.req === REQUEST; }), stdAsked = asked('fna_req') || asked('sf_req') || rows('redq').some(function (r) { return r.d.req === REQUEST; });
-    [[brAsked, [['lc_f_aciv', 'Life cover'], ['pd_f_aciv', 'Permanent disability'], ['ip_aciv', 'Income protection'], ['dd_aciv', 'Dread disease']], 'BrightRock Fractured'],
+    [[brAsked, [['lc_f_aciv', 'Life cover'], ['pd_f_aciv', 'Lump Sum Disability'], ['ip_aciv', 'Income protection'], ['dd_aciv', 'Dread disease']], 'BrightRock Fractured'],
       [stdAsked, [['lc_aciv', 'Life cover'], ['pd_aciv', 'Permanent disability'], ['ips_aciv', 'Income protection'], ['dds_aciv', 'Dread disease']], 'standard']].forEach(function (g) {
       if (g[0]) g[1].forEach(function (c) { if (schema.fieldsById[c[0]] && v(c[0]) === '?') warn(c[0], c[1] + ' (' + g[2] + ' quote): the ACI value is still “?”. Type the real value.'); });
     });

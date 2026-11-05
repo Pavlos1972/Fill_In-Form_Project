@@ -388,11 +388,14 @@
         { id: 'lc_wol', l: 'Life cover (WOL) ABI', t: 'txt', opt: 1, preset: '3%', s: 3 },
         { id: 'lc_ccabi', l: 'Childcare ABI', t: 'txt', opt: 1, preset: '5%', s: 3 }
       ]) },
-      { title: 'Permanent disability: fractured cover', help: 'Built on the same household income needed as the Life cover above.', layout: 'g12', fields: [
+      /* Lump Sum Disability (it used to be called Permanent disability, and shared the Life cover's household figures): its own four calculation boxes, the same sums as the Life cover (the ids pd_hh, pd_cc, pd_dr, pd_need),
+         then ACI, ACI value, Household needs ABI (5%; there is no Life cover (WOL) ABI here) and Childcare ABI. */
+      { title: 'Lump Sum Disability: fractured cover', layout: 'g12', fields: riskCalc('pd').concat([
         { id: 'pd_f_aci', l: 'ACI', t: 'sel', o: ACI, opt: 1, preset: 'Fixed', s: 3 },
         { id: 'pd_f_aciv', l: 'ACI value', t: 'txt', opt: 1, preset: '?', s: 3 },
+        { id: 'pd_hhabi', l: 'Household needs ABI', t: 'txt', opt: 1, preset: '5%', s: 3 },
         { id: 'pd_ccabi', l: 'Childcare ABI', t: 'txt', opt: 1, preset: '5%', s: 3 }
-      ] },
+      ]) },
       { title: 'Income protection / sickness benefit: fractured cover', protector: 1, layout: 'g12', fields: [
         { id: 'ip_age', l: 'Income protection age', t: 'sel', o: ['65', '70'], opt: 1, preset: '65' },
         { id: 'ip_amt', l: 'Insured amount (R p.m.)', t: 'txt', calc: 'ip_amt' },
