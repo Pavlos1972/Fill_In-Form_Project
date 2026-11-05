@@ -88,6 +88,18 @@ let bad = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if
   ok(/^1\. Personal Risk Covers\n/.test(t) && /\n\n6\. Medical Aid\n/.test(t), 'on arriving at the priorities page the box writes itself for the green areas, with no Refresh and no change: ' + JSON.stringify(t.slice(0, 60)));
   ok(await p.evaluate(() => FF.app.state.l.risk[0].d.broker === 'Other broker' && FF.app.state.l.inv[0].d.broker === 'Other broker' && FF.app.state.f.ma_broker.v === 'Other broker'), 'and the empty Broker on record in its policy rows, and in the Medical aid box, are Other broker');
 
+  // ---- Lump Sum Disability on the BrightRock Risk Calculation page ----
+  p = await fresh();
+  await p.evaluate(() => { const s = FF.app.state; FF.store.setField(s, 'net', 'R 20 000.00'); FF.store.addRow(s, 'kids', { name: 'A', cost: 'R 5 950.00' }, 'confirmed'); FF.store.addRow(s, 'kids', { name: 'B', cost: 'R 5 150.00' }, 'confirmed'); FF.store.addRow(s, 'debts', { type: 'Credit card', inst: 'R 2 000.00', payer: 'Client' }, 'confirmed'); FF.store.addRow(s, 'debts', { type: 'Revolving credit', inst: 'R 700.00', payer: 'Client' }, 'confirmed'); FF.app.redraw(); });
+  await nav(p, 'calc');
+  const titles = await p.evaluate(() => [...document.querySelectorAll('.main .block-title')].map(e => e.textContent.trim()));
+  ok(titles.includes('Lump Sum Disability: fractured cover') && !titles.some(t => /^Permanent disability: fractured/.test(t)), 'the block is called Lump Sum Disability: fractured cover: ' + titles.join(' | '));
+  ok(!/same household income needed as the Life cover/.test(await p.evaluate(() => document.body.innerText)), 'and no longer says it is built on the Life cover');
+  const pdv = await p.evaluate(() => ['pd_hh', 'pd_cc', 'pd_dr', 'pd_need', 'pd_hhabi', 'pd_ccabi'].map(id => (document.querySelector('[data-f="' + id + '"]') || {}).value));
+  ok(pdv.join(' | ') === 'R 20 000.00 | R 11 100.00 | R 2 700.00 | R 6 200.00 | 5% | 5%', 'it shows its own four figures and the two ABIs: ' + pdv.join(' | '));
+  ok(await p.evaluate(() => ['pd_hh', 'pd_cc', 'pd_dr', 'pd_need'].every(id => { const e = document.querySelector('[data-f="' + id + '"]'); return e && (e.readOnly || e.disabled); })), 'the four sums cannot be typed over');
+  await p.screenshot({ path: process.argv[4] + '/priorities-lumpsum.png', clip: { x: 0, y: 100, width: 1500, height: 800 } });
+
   ok(errs.length === 0, 'no page errors ' + errs.join('|'));
   console.log(bad ? bad + ' FAILED' : 'all pass'); await b.close(); process.exit(bad ? 1 : 0);
 })();
