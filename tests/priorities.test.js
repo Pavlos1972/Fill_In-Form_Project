@@ -132,7 +132,7 @@ test('an area\'s summary is written from that area\'s own boxes only', () => {
   const s = sample(), flat = id => JSON.stringify(S.areaData(s, id));
   const all = AREAS.map(id => flat(id)).join(' ');
   assert.ok(!/Customary|500 000|Example|0824541751|h_bp|Thandi/.test(all), 'no income, marital status, health, name or phone in any area');
-  assert.deepStrictEqual(Object.keys(S.areaData(s, 'will').fields).sort(), ['will', 'will_up', 'will_where']);
+  assert.deepStrictEqual(Object.keys(S.areaData(s, 'will').fields).sort(), ['will', 'will_broker', 'will_up', 'will_where']);
   assert.deepStrictEqual(Object.keys(S.areaData(s, 'will').lists), []);
   assert.deepStrictEqual(Object.keys(S.areaData(s, 'life').lists).sort(), ['bfred', 'debts', 'grp', 'redq', 'risk']);
   assert.deepStrictEqual(S.areaData(s, 'life').lists.debts, [{ type: 'Home loan', prov: 'Nedbank', cl: 'Yes' }, { type: 'Vehicle finance', prov: 'Wesbank', cl: 'No' }]);   // credit life per debt, not the balance
@@ -146,11 +146,11 @@ test('an area\'s summary is written from that area\'s own boxes only', () => {
 test('plain points for each area, said the way the adviser needs them', () => {
   const s = sample(), L = id => S.local(s, id);
   assert.deepStrictEqual(L('life'), ['Personal risk cover: Liberty, R 20 000 p.m., Other broker', 'Joint life with spouse: no', 'Group risk: Discovery, R 1 450 p.m., Through company', 'Credit life: Home loan (Nedbank): yes', 'Credit life: Vehicle finance (Wesbank): no', 'Standard quote asked for: FNA quote (new business)', 'Total debt to be covered (balances): R 1 200 000', 'Total childcare cost to be covered, per month: R 20 000']);
-  assert.deepStrictEqual(L('ra'), ['Retirement annuity: Allan Gray, R 16 000 000, R 50 000 p.m.', 'Pension fund: Old Mutual, R 3 200 000, R 8 000 p.m.']);
+  assert.deepStrictEqual(L('ra'), ['Retirement annuity: Allan Gray, R 16 000 000, R 50 000 p.m., Other broker', 'Pension fund: Old Mutual, R 3 200 000, R 8 000 p.m., Other broker']);
   assert.deepStrictEqual(L('rgar').slice(0, 2), ['Total saved across all retirement funds (including living annuities): R 19 200 000', 'Total monthly contributions to retirement funds: R 58 000 p.m.']);
   assert.ok(L('inv').includes('Tax-free savings: none') && L('inv').includes('Endowment: none') && L('inv').includes('Total invested: R 11 000'));
-  assert.deepStrictEqual(L('will'), ['Has a will: held with Capital Legacy', 'Will is not up to date']);
-  assert.deepStrictEqual(L('med'), ['Medical aid: Discovery Health', 'Gap cover: none']);
+  assert.deepStrictEqual(L('will'), ['Has a will: held with Capital Legacy', 'Will is not up to date', 'Broker on record: Other broker']);
+  assert.deepStrictEqual(L('med'), ['Medical aid: Discovery Health, Other broker', 'Gap cover: none']);
   const e = fresh();
   assert.deepStrictEqual(S.local(e, 'will'), ['Nothing recorded yet about a will']);
   set(e, 'will', 'No'); assert.deepStrictEqual(S.local(e, 'will'), ['No will in place']);
@@ -272,7 +272,7 @@ test('Business assurance has a summary of the policies the client already has, a
   store.addRow(s, 'bizpol', { type: 'Buy & sell', prov: 'Old Mutual', cover: 'R 2 000 000.00', prem: 'R 3 400.00', paid: 'The business' });
   store.addRow(s, 'bizpol', { type: 'Keyman', prov: 'Discovery', cover: 'R 1 000 000.00' });
   set(s, 'biz_partners', 'Yes'); set(s, 'biz_loans', 'Yes'); store.addRow(s, 'shares', { name: 'Thandi', pct: '40' });
-  assert.deepStrictEqual(S.linesFor(s, 'biz').lines, ['Buy & sell: Old Mutual, cover R 2 000 000, R 3 400 p.m., paid by business', 'Keyman: Discovery, cover R 1 000 000', 'Has partners or co-owners: Thandi 40%', 'Business loans or surety signed: yes']);
+  assert.deepStrictEqual(S.linesFor(s, 'biz').lines, ['Buy & sell: Old Mutual, cover R 2 000 000, R 3 400 p.m., paid by business, Other broker', 'Keyman: Discovery, cover R 1 000 000, Other broker', 'Has partners or co-owners: Thandi 40%', 'Business loans or surety signed: yes']);
   const sent = S.stale(s, ['biz'], true).biz;
   assert.strictEqual(sent.area, 'Business assurance'); assert.strictEqual(sent.data.lists['Existing business assurance policies'].length, 2);
   assert.ok(!/Example|Thandi Dlamini/.test(JSON.stringify(sent)));

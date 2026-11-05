@@ -189,8 +189,8 @@
       ensure(applies ? 46 : 20);
       doc.setFillColor.apply(doc, on ? GO_SOFT : off ? STOP_SOFT : maybe ? MAYBE_SOFT : PALE); doc.rect(M, y, CW, 7, 'F');
       doc.setDrawColor.apply(doc, on ? GO : off ? STOP : maybe ? MAYBE : LINE); doc.setLineWidth(0.4); doc.line(M, y + 7, M + CW, y + 7);
-      doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor.apply(doc, INK); doc.text(t(P.title), M + 2.5, y + 4.9);
-      var tw = doc.getTextWidth(t(P.title));
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor.apply(doc, INK); doc.text(t(schema.areaTitle(P)), M + 2.5, y + 4.9);
+      var tw = doc.getTextWidth(t(schema.areaTitle(P)));
       doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor.apply(doc, MUTED); doc.text(t(P.sub), M + 2.5 + tw + 3, y + 4.9);
       if (P.dec) { doc.setFontSize(8.5); doc.setTextColor.apply(doc, on ? GO : off ? STOP : maybe ? MAYBE : MUTED); doc.text(t(v || 'Not yet discussed'), M + CW - 2.5, y + 4.9, { align: 'right' }); }
       else { doc.setFontSize(8.5); doc.setTextColor.apply(doc, MUTED); doc.text(applies ? 'Business owner' : 'Not applicable', M + CW - 2.5, y + 4.9, { align: 'right' }); }      // business assurance: no decision box, so what the client is
