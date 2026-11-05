@@ -33,7 +33,7 @@ test('an older file that held "Client has own broker" or "Has updated will" keep
   assert.deepStrictEqual([s.f.ref_sti.v, s.f.sti.v, s.f.sti_broker.v], ['Not interested', 'Yes', 'Other broker']);
   assert.deepStrictEqual([s.f.ref_will.v, s.f.will.v, s.f.will_up.v], ['Not interested', 'Yes', 'Yes']);
   const kept = reopen(j => { j.f.ref_sti = { v: 'Client has own broker', st: 'confirmed' }; j.f.sti = { v: 'Yes', st: 'confirmed' }; j.f.sti_broker = { v: 'Cameron Maritz', st: 'confirmed' }; });
-  assert.strictEqual(kept.f.sti_broker.v, 'Cameron Maritz');                                                          // what was already in the box is not overwritten
+  assert.strictEqual(kept.f.sti_broker.v, 'Other broker');                                                            // what was in the box is kept (the old choice "Cameron Maritz" is Other broker now)
   assert.ok(!A.facts(s).referrals.length);
 });
 

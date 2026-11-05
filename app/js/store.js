@@ -29,8 +29,10 @@
     return o;
   }
   function setPa(state, key, by) { state.pa = { key: String(key || ''), at: new Date().toISOString(), by: by === 'claude' ? 'claude' : 'form', edited: false }; }
+  /* The Priorities to be Focused on box (top of Client priorities and quotes needed) is kept the same way as the action points: what it was written from, when, by what, and whether the adviser has typed in it since. */
+  function setFocus(state, key, by) { state.focus = { key: String(key || ''), at: new Date().toISOString(), by: by === 'claude' ? 'claude' : 'form', edited: false }; }
   function blank() {
-    var s = { app: APP_ID, schema: schema.version, created: new Date().toISOString(), modified: null, f: {}, l: {}, sum: {}, pa: blankPa(), unplaced: [], claude: blankTally(), openai: blankSpeech() };
+    var s = { app: APP_ID, schema: schema.version, created: new Date().toISOString(), modified: null, f: {}, l: {}, sum: {}, pa: blankPa(), focus: blankPa(), unplaced: [], claude: blankTally(), openai: blankSpeech() };
     Object.keys(schema.fieldsById).forEach(function (id) {
       var d = schema.fieldsById[id], p = d.preset === '@today' ? util.todayDMY() : d.preset;
       s.f[id] = p ? { v: p, st: 'preset' } : { v: '', st: 'empty' };
@@ -69,6 +71,16 @@
     if (NOT_REQUIRED[id] && NOT_REQUIRED[id].vals.indexOf(v) >= 0) NOT_REQUIRED[id].clear.forEach(function (d) { if (state.f[d]) state.f[d] = { v: '', st: 'empty' }; });
     if (id === 'sname' || id === 'gender') followFather(state, was);
     if (calc.DUTY_IDS.indexOf(id) >= 0) settleDuties(state);
+    if (BROKER_OF[id]) brokerDefault(state, id);
+  }
+  /* "Broker on record" in Medical aid, Gap cover, Will and Short-term insurance starts as Other broker when the answer above it opens the boxes (Medical aid not None, Gap cover not No, and so on), shown as a default (status
+     "preset"). When the answer closes them again, a default that was not touched goes, so nothing is left under a No. A broker the adviser or the client chose is never changed. */
+  var BROKER_OF = { ma: ['ma_broker', ['None']], gap: ['gap_broker', ['No']], will: ['will_broker', ['No']], sti: ['sti_broker', ['No', 'Handled by spouse']] };
+  function brokerDefault(state, id) {
+    var b = BROKER_OF[id], gate = state.f[id].v, box = state.f[b[0]];
+    if (!box) return;
+    if (gate !== '' && b[1].indexOf(gate) < 0) { if (box.v === '') state.f[b[0]] = { v: schema.defaultBroker, st: 'preset' }; }
+    else if (box.st === 'preset' && box.v === schema.defaultBroker) state.f[b[0]] = { v: '', st: 'empty' };
   }
   /* Duties split: once the boxes that are filled add up to 100%, the boxes still empty are set to 0 (shown as a default, status "preset": nothing was heard). When the total moves off 100% again, those automatic
      zeros are taken away, so a box the adviser or the client really answered (typed, said, or a 0 typed by hand) is never touched. */
@@ -82,7 +94,7 @@
   }
   function addRow(state, key, data, st) {
     var d = {};
-    schema.lists[key].cols.forEach(function (c) { d[c.k] = (data && data[c.k]) || ''; });
+    schema.lists[key].cols.forEach(function (c) { d[c.k] = (data && data[c.k]) || c.def || ''; });         // a column can have a value a new row starts with (Broker on record: Other broker)
     if (key === 'kids' && !d.sname) d.sname = fatherSurname(state);
     if (key === 'invq' && !d.req) d.req = 'Request a quote';                                         // a row in the investment quotes is a quote asked for until it says otherwise
     var r = { d: d, st: st || 'confirmed' };
@@ -156,8 +168,10 @@
     listGates(s);
     scheduleWording(s);
     referralFacts(s);
+    brokerChoices(s);
     s.sum = cleanSum(j.sum);
     s.pa = cleanPa(j.pa);
+    s.focus = cleanPa(j.focus);
     legacyNotes(s, j);
     s.unplaced = (Array.isArray(j.unplaced) ? j.unplaced : []).map(cleanUnplaced).filter(Boolean).slice(0, 60);
     s.claude = tallyFrom(j.claude);
@@ -195,7 +209,7 @@
   /* Files saved before a list had its Yes/No answer (has debts, has children, has investments, has retirement annuities, has a pension or provident fund): a list with rows in it was a Yes. */
   var LIST_GATES = [['has_debts', 'debts'], ['has_kids', 'kids'], ['has_inv', 'inv'], ['has_ra', 'ret_ra'], ['has_pp', 'ret_pp']];
   function listGates(s) {
-    LIST_GATES.forEach(function (g) { if (s.f[g[0]] && s.f[g[0]].v === '' && s.l[g[1]].some(rowFilled)) s.f[g[0]] = { v: 'Yes', st: 'confirmed' }; });
+    LIST_GATES.forEach(function (g) { if (s.f[g[0]] && s.f[g[0]].v === '' && s.l[g[1]].some(function (r) { return rowFilled(g[1], r); })) s.f[g[0]] = { v: 'Yes', st: 'confirmed' }; });
   }
   /* Files saved when every schedule box said "Requested from client in meeting": each box now says it in the words of its own area (Requested Personal Risk Covers in meeting, await client response, ...). */
   function scheduleWording(s) {
@@ -210,6 +224,12 @@
     var put = function (id, v) { if (s.f[id] && s.f[id].v === '') s.f[id] = { v: v, st: 'confirmed' }; };
     if (s.f.ref_sti && s.f.ref_sti.v === 'Client has own broker') { put('sti', 'Yes'); put('sti_broker', 'Other broker'); s.f.ref_sti = { v: 'Not interested', st: s.f.ref_sti.st }; }
     if (s.f.ref_will && s.f.ref_will.v === 'Has updated will') { put('will', 'Yes'); put('will_up', 'Yes'); s.f.ref_will = { v: 'Not interested', st: s.f.ref_will.st }; }
+  }
+  /* "Broker on record" is the same four choices everywhere. A file saved with the older medical aid, gap cover and short-term choices keeps the fact: "Privately paid, no broker" is None, "Privately paid, other
+     broker" and "Cameron Maritz" are Other broker. */
+  function brokerChoices(s) {
+    var old = { 'Privately paid, no broker': 'None', 'Privately paid, other broker': 'Other broker', 'Cameron Maritz': 'Other broker' };
+    ['ma_broker', 'gap_broker', 'will_broker', 'sti_broker'].forEach(function (id) { var c = s.f[id]; if (c && old.hasOwnProperty(c.v)) c.v = old[c.v]; });
   }
   /* The notes boxes of the old advisor pages (quotes, referrals, buy & sell) are now one notes box on the Client priorities page (the Risk calculation page keeps its own): what was written in them is kept there, each under its old heading. */
   var LEGACY_NOTES = [['n_q_risk', 'Personal risk quotes'], ['n_q_ret', 'Retirement & investment quotes'], ['n_ref', 'Referrals'], ['n_bs', 'Buy & Sell']];
@@ -295,7 +315,15 @@
 
   /* A policy schedule request is not an answer to count when the Yes/No above it says there is nothing to ask for. */
   var PS_GATE = { ps_risk: [['has_risk', 'No']], ps_grp: [['has_group', 'No']], ps_ra: [['has_ra', 'No']], ps_pp: [['has_pp', 'No']], ps_inv: [['has_inv', 'No']] };      // every Yes/No listed says No
-  function rowFilled(r) { return Object.keys(r.d || {}).some(function (k) { return String(r.d[k] == null ? '' : r.d[k]).trim() !== ''; }); }
+  /* A row is empty when every box is empty or holds only the value a new row starts with (the default Broker on record). */
+  function cellBlank(key, k, v) {
+    v = v == null ? '' : String(v).trim();
+    if (v === '') return true;
+    var L = schema.lists[key], col = L && L.cols.filter(function (c) { return c.k === k; })[0];
+    return !!(col && col.def != null && v === col.def);
+  }
+  function rowBlank(key, r) { return Object.keys(r.d || {}).every(function (k) { return cellBlank(key, k, r.d[k]); }); }
+  function rowFilled(key, r) { return !rowBlank(key, r); }
   /* Progress for a section: how many answers are filled out of those that count. A row of a list counts when something is in it; a list that is on show and empty is one answer still to give; the seven duties boxes
      are one answer (they add up to 100%). */
   function counts(state, sec) {
@@ -316,12 +344,12 @@
       });
       if (b.list) {
         var rows = state.l[b.list];
-        rows.forEach(function (r) { tot++; if (rowFilled(r)) fill++; if (r.st === 'verify') ver++; });
+        rows.forEach(function (r) { tot++; if (rowFilled(b.list, r)) fill++; if (r.st === 'verify') ver++; });
         if (!rows.length && schema.lists[b.list].need) tot++;
       }
     });
     return { tot: tot, fill: fill, ver: ver };
   }
 
-  return { setProtect: setProtect, setProtectAll: setProtectAll, setPa: setPa, blankPa: blankPa, cleanPa: cleanPa, setSum: setSum, cleanSum: cleanSum, addUnplaced: addUnplaced, closeUnplaced: closeUnplaced, unplacedKey: unplacedKey, blank: blank, blankTally: blankTally, blankSpeech: blankSpeech, ctxFor: ctxFor, setField: setField, addRow: addRow, delRow: delRow, setCell: setCell, accept: accept, clientName: clientName, idClash: idClash, idKey: idKey, fatherSurname: fatherSurname, baseFileName: baseFileName, pdfFileName: pdfFileName, fromJSON: fromJSON, toJSON: toJSON, counts: counts };
+  return { rowBlank: rowBlank, rowFilled: rowFilled, setProtect: setProtect, setProtectAll: setProtectAll, setPa: setPa, setFocus: setFocus, blankPa: blankPa, cleanPa: cleanPa, setSum: setSum, cleanSum: cleanSum, addUnplaced: addUnplaced, closeUnplaced: closeUnplaced, unplacedKey: unplacedKey, blank: blank, blankTally: blankTally, blankSpeech: blankSpeech, ctxFor: ctxFor, setField: setField, addRow: addRow, delRow: delRow, setCell: setCell, accept: accept, clientName: clientName, idClash: idClash, idKey: idKey, fatherSurname: fatherSurname, baseFileName: baseFileName, pdfFileName: pdfFileName, fromJSON: fromJSON, toJSON: toJSON, counts: counts };
 });

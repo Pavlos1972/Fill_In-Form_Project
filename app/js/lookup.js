@@ -92,7 +92,12 @@
   }
 
   /* extra: for a person, { org, role }: who they work for (or own) and their occupation, so the right person is found. Nothing else about them is sent. */
+  /* Claude is always told today's date. */
+  function todayLine() { var d = new Date(), p = function (n) { return (n < 10 ? '0' : '') + n; }, DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']; return 'Today\'s date is ' + DAYS[d.getDay()] + ' ' + p(d.getDate()) + '/' + p(d.getMonth() + 1) + '/' + d.getFullYear() + '. '; }
   function promptFor(name, kind, extra) {
+    return todayLine() + promptFor0(name, kind, extra);
+  }
+  function promptFor0(name, kind, extra) {
     if (kind === 'person') return personPrompt(name, extra || {});
     var what = kind === 'business' ? 'the business' : 'the company or organisation';
     return 'Search the web for ' + what + ' called "' + name + '" (most likely in South Africa). ' +

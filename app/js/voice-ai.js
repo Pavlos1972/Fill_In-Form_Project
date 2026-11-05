@@ -9,6 +9,13 @@
 })(typeof self !== 'undefined' ? self : this, function (V) {
   var ENDPOINT = 'https://api.anthropic.com/v1/messages', API_VERSION = '2023-06-01';
 
+  /* Claude is always told today's date: every request carries "today" (the weekday and the date from this computer's clock, "Thursday 05/11/2026"). It is not the same as the form's Date completed (meeting_date), which can be
+     another day. clock() can be replaced (tests). */
+  var clock = function () { return new Date(); };
+  var DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  function todayText() { var d = clock(), p = function (n) { return (n < 10 ? '0' : '') + n; }; return DAYS[d.getDay()] + ' ' + p(d.getDate()) + '/' + p(d.getMonth() + 1) + '/' + d.getFullYear(); }
+  function setClock(fn) { clock = fn || function () { return new Date(); }; }
+
   /* Private values (ID, tax and phone numbers, email addresses) are swapped for markers before a line leaves this computer. When sharing is switched on in Settings (the Anthropic account behind
      the key is covered by the agreement the firm needs for client details), they are sent as they are and Claude fills, checks and edits those boxes itself. Off unless switched on. */
   var share = false;
@@ -106,6 +113,7 @@
     '- "position.concluded" (when present) lists the sections already finished. The client or adviser adding something to one of them ("oh wait, there is one more debt, a car loan with Wesbank", "I forgot, I also have a policy with Sanlam") reopens it: give a "section" action for it and the row or the fills. A bare "no", "okay" or "that\'s all" after a section was finished is small talk: give {"actions": []}.',
     '- "Okay, that\'s the notes done, now the children" is [notesOff, section kids]. While notes are being taken (see below) any wording that says the notes are finished ("I\'ve noted that, I\'ve completed those notes", "that\'s everything I wanted to note", "okay, that\'s the notes") is notesOff and is never itself noted.',
     '',
+    '"today" is today\'s date (the weekday and the date): always use it when anything depends on the date ("next Thursday", "in two weeks", "last year", an age, how long ago). "meeting_date" can be another day.',
     'Dates. "meeting_date" is the day of this meeting. A date said without a year ("Thursday the 19th", "the 19th of the month") is the first such day on or after the meeting date (when a weekday is said it must fall on that weekday): give a full date for it, with the year worked out from the meeting date, never a year from memory. The next appointment is never before the meeting date.',
     'Policy schedules. The boxes ps_risk, ps_grp, ps_ra, ps_pp and ps_inv ("Request Current Policy Schedule(s)" for the personal risk policies, group risk, retirement annuities, pension and provident funds, investments) are tick-box boxes (marked "multi": true):',
     'they take one or more of their options, given joined with "; " ("Requested Personal Risk Covers in meeting, await client response; Draw from Astute (with signed LOA)"), and are empty while it has not been asked. The first choice of each box is worded for its own area (Requested Personal Risk Covers / Group Risk Covers / Retirement Annuities / Pension and Provident Funds / Investments in meeting, await client response): use the first option exactly as the box lists it. "The client will send them" is that first choice;',
@@ -265,6 +273,7 @@
       recent: (ctx.recent || []).map(function (l) { return { who: l.who, text: scrub(l.text) }; }),
       newest: { who: who === 'client' ? 'client' : who === 'auto' ? 'unclear' : 'adviser', text: sh.text }
     };
+    body.today = todayText();
     if (ctx.meeting) body.meeting_date = String(ctx.meeting).slice(0, 40);                       // the date of the form (the meeting): what a date said without a year is counted from
     var alts = (ctx.alternatives || []).slice(0, 2).map(function (x) { return scrub(String(x)).slice(0, 300); }).filter(function (x) { return x && x !== sh.text; });
     if (alts.length) body.heard_alternatives = alts;                  // what else the speech recogniser thought it heard for the newest line (numbers and addresses hidden the same way)
@@ -507,6 +516,7 @@
   /* The catch-up check: the whole conversation (or the part since a section was entered) read again against the form as it is now, to find what was said and never reached a box.
      Only boxes that are empty are ever filled from it; anything else it finds is handed back as "unplaced" for the adviser. */
   var SWEEP_SYSTEM = [
+    'The JSON has "today": today\'s date, to use whenever the date matters.',
     'You check a Fact Find form against the conversation it was filled from. A financial adviser spoke with a client; the form was filled live while they talked, and some of what was said never reached a box.',
     'You receive JSON: "sections", "fields" (every box of the form with its section; boxes with "options" take exactly one of them), "filled" (what is in the boxes now), "lists" (every list of rows, with its columns and the rows there now),',
     '"transcript" (the conversation in order: "who" is "adviser", "client" or "unclear"; nobody is labelled reliably, so read each line for what it says), "focus" (a section id, or null for the whole form),',
@@ -545,6 +555,7 @@
     });
     var filled = {}; Object.keys(opts.filled || {}).forEach(function (id) { if (!priv(id)) filled[id] = scrub(String(opts.filled[id])).slice(0, 160); });
     var body = {
+      today: todayText(),
       focus: opts.focus || null,
       sections: idx.sections.map(function (x) { return { id: x.id, title: x.title }; }),
       fields: fields, filled: filled, lists: listsFor(idx, opts).filter(function (l) { return !hid['list:' + l.id]; }),
@@ -560,13 +571,13 @@
 
   /* File notes in point form. opts: { apiKey | ask, model, text, topic, fetchImpl } -> Promise of an array of short points (maybe empty). */
   var POINTS_SYSTEM = [
-    'You help a financial adviser keep file notes while on a call with a client.',
+    'You help a financial adviser keep file notes while on a call with a client. The JSON has "today": today\'s date, to use whenever the date matters.',
     'Turn what was said into short point-form notes: one brief point per fact, not full sentences, no "he said that" or "she mentioned".',
     'Keep names, amounts, dates and numbers exactly as said, but write spoken numbers as figures ("60", "R1.2 million", "R250 000"), and add nothing that was not said.',
     'Reply with ONE JSON object and nothing else: {"points": ["...", "..."]}. Use {"points": []} when nothing is worth noting (greetings, small talk).'
   ].join('\n');
   function points(opts) {
-    var req = withThinking({ model: opts.model, max_tokens: 400, output_config: { effort: 'low' }, system: POINTS_SYSTEM, messages: [{ role: 'user', content: JSON.stringify({ topic: opts.topic || '', said: scrub(opts.text) }) }] });
+    var req = withThinking({ model: opts.model, max_tokens: 400, output_config: { effort: 'low' }, system: POINTS_SYSTEM, messages: [{ role: 'user', content: JSON.stringify({ today: todayText(), topic: opts.topic || '', said: scrub(opts.text) }) }] });
     return callModel(opts, req).then(function (text) {
       var raw = extractJson(text), list = raw && Array.isArray(raw.points) ? raw.points : [];
       return list.map(function (p) { return String(p == null ? '' : p).replace(/^[\s\-•*]+/, '').trim(); }).filter(Boolean).slice(0, 8);
@@ -578,6 +589,7 @@
   var SUMMARY_SYSTEM = [
     'You help a financial adviser who is meeting a client. The Fact Find form has a page of areas (Personal Risk Covers, which is life cover, disability, dread disease and income protection; Retirement Planning, which is retirement annuities; RGAR; Investment Planning, which is investments; EGAR; Medical Aid; Will; Short Term) where the adviser recommends what the client should do.',
     'For each area you receive JSON "areas": { "<id>": { "area": "<name>", "data": { "facts": { "<box>": "<value>" }, "lists": { "<list>": [ { "<column>": "<value>" } ] } } } }. The areas are Personal Risk Covers, Retirement Planning, RGAR, Investment Planning, EGAR, Medical Aid, Will, Short Term and Business assurance (for a business owner).',
+    'The JSON has "today": today\'s date, to use whenever the date matters (a will last updated years ago, an age).',
     'Write a very brief point-form summary of what the client HAS in that area, so the adviser can see at a glance what is in place and what is missing before advising.',
     'Rules:',
     '- Use only the data given for that area. Never mention anything that is not in it and never bring in another area: no income, family, health or marital details unless they are in that area\'s data.',
@@ -599,7 +611,7 @@
   function summarise(opts) {
     var ids = Object.keys(opts.areas || {}), body = {};
     ids.forEach(function (id) { body[id] = { area: opts.areas[id].area, data: scrubData(opts.areas[id].data) }; });
-    var req = withThinking({ model: opts.model, max_tokens: 1800, output_config: { effort: 'low' }, system: SUMMARY_SYSTEM, messages: [{ role: 'user', content: JSON.stringify({ areas: body }) }] });
+    var req = withThinking({ model: opts.model, max_tokens: 1800, output_config: { effort: 'low' }, system: SUMMARY_SYSTEM, messages: [{ role: 'user', content: JSON.stringify({ today: todayText(), areas: body }) }] });
     return callModel(opts, req).then(function (text) {
       var raw = extractJson(text), got = raw && raw.areas && typeof raw.areas === 'object' ? raw.areas : {}, out = {};
       ids.forEach(function (id) {
@@ -615,6 +627,7 @@
      opts: { apiKey | ask, model, facts, fetchImpl } -> Promise of an array of points (maybe empty). */
   var ACTIONS_SYSTEM = [
     'You help a financial adviser, Paul Kafentzis. After a meeting with a client you write the action points for his personal assistant, Sitamah Nathoo, who does what is needed next.',
+    'The JSON has "today": today\'s date, to use whenever the date matters.',
     'Sitamah reads the list and carries out each point herself, so every point is an instruction TO her: something for her to do, never a report to the adviser and never something about her.',
     'You receive JSON "facts" taken from the client\'s Fact Find: "client" (first name), "letter_of_authority" (the answer to "Can we send you a LOA to sign?": Yes, No, Not now or not asked yet),',
     '"schedules" (for each kind of policy the client has: what it is, who it is with ("held"), and how the current policy schedule is to be got ("requested": "Requested from client in meeting" (the box words it for its own area, for example "Requested Personal Risk Covers in meeting, await client response"), "Draw from Astute (with signed LOA)", "Other" with the words in "other", or "not asked yet")),',
@@ -631,6 +644,25 @@
     'Keep names, amounts and dates exactly as given. Leave out anything that is not an action for the assistant: no summary of what the client has, no advice, no repeating of the form. Where the facts hold nothing for a kind of point, write nothing for it.',
     'Keep the order above (LOA and schedules, credit life, quotes, referrals, follow-ups, then the appointment). Reply with ONE JSON object and nothing else: {"points": ["...", "..."]}.'
   ].join('\n');
+  /* The "Priorities to be Focused on" box (top of Client priorities and quotes needed): for each green priority, what is needed, in point form. The form puts the headings (number and area) in itself: Claude gives only the points. */
+  var FOCUS_SYSTEM = [
+    'You help a financial adviser, Paul Kafentzis, during and after a meeting with a client. The Fact Find form has eight priority areas, numbered 1 to 8. When the client agrees to an area it turns green. You write the box "Priorities to be Focused on": for each GREEN area, what Paul must focus on, in point form.',
+    'You receive JSON with "today" (today\'s date, to use whenever the date matters) and "facts": "client" (first name) and "areas", only the green ones, each with "number", "area", "about" and what the form holds for it: "comment" (Paul\'s own note for the area: the reason, or his instructions), "quotes_to_request" (quotes and analyses to ask for, already worded), "schedules" (the current policy schedules still to get: what they are, who the policies are with ("held"), and how they are to come ("requested", with the words in "other")), "credit_life" (debts with credit life through the lender: "Yes", or "not asked yet"), "preferred_monthly_spend", "referral" (who is to contact the client about what) and "on_the_form" (what the client already has in that area, for context only).',
+    'For each area give 2 to 6 short points of what is NEEDED for that priority: the quotes and analyses to be requested (keep the wording and the amounts as given), the information still to get from the client, the referral, and the point of Paul\'s comment that matters (a reason or an instruction). Add what the client already has only when it explains what is needed (for example the existing cover to be replaced). Never write a point that only repeats what the client has.',
+    'Rules: use only the facts given, never invent a name, an amount, a date or a task; keep names, amounts and dates exactly as given. Refer to the client only as "the client" followed by the first name, for example "the client Thandi", never "he", "she", "his" or "her". Plain words, each point one idea, no heading, no number, no dash at the start. Give an entry for every area you were sent; when the facts hold nothing for an area, give {"<number>": []}.',
+    'Reply with ONE JSON object and nothing else: {"areas": {"<number>": ["point", "point"], "<number>": ["point"]}}.'
+  ].join('\n');
+  function focusPoints(opts) {
+    var req = withThinking({ model: opts.model, max_tokens: 1600, output_config: { effort: 'low' }, system: FOCUS_SYSTEM, messages: [{ role: 'user', content: JSON.stringify({ today: todayText(), facts: scrubData(opts.facts) }) }] });
+    return callModel(opts, req).then(function (text) {
+      var raw = extractJson(text), got = raw && raw.areas && typeof raw.areas === 'object' ? raw.areas : {}, out = {};
+      (opts.facts && opts.facts.areas || []).forEach(function (a) {
+        var list = Array.isArray(got[a.number]) ? got[a.number] : [];
+        out[a.number] = list.map(function (p) { return directToSitamah(String(p == null ? '' : p).replace(/^[\s\-•*]+/, '').replace(/\s+/g, ' ').trim().slice(0, 260), opts.facts.client); }).filter(Boolean).slice(0, 8);
+      });
+      return out;
+    });
+  }
   /* What the form makes sure of, whatever Claude wrote: no point is addressed to Sitamah (she is the reader), and the client's first name always comes after "the client". */
   function directToSitamah(point, client) {
     var p = String(point == null ? '' : point), name = client && client !== 'the client' ? String(client) : '';
@@ -640,12 +672,12 @@
     return p;
   }
   function actionPoints(opts) {
-    var req = withThinking({ model: opts.model, max_tokens: 1400, output_config: { effort: 'low' }, system: ACTIONS_SYSTEM, messages: [{ role: 'user', content: JSON.stringify({ facts: scrubData(opts.facts) }) }] });
+    var req = withThinking({ model: opts.model, max_tokens: 1400, output_config: { effort: 'low' }, system: ACTIONS_SYSTEM, messages: [{ role: 'user', content: JSON.stringify({ today: todayText(), facts: scrubData(opts.facts) }) }] });
     return callModel(opts, req).then(function (text) {
       var raw = extractJson(text), list = raw && Array.isArray(raw.points) ? raw.points : [];
       return list.map(function (p) { return directToSitamah(String(p == null ? '' : p).replace(/^[\s\-•*]+/, '').replace(/\s+/g, ' ').trim().slice(0, 300), opts.facts && opts.facts.client); }).filter(Boolean).slice(0, 40);
     });
   }
 
-  return { actionPoints: actionPoints, directToSitamah: directToSitamah, ACTIONS_SYSTEM: ACTIONS_SYSTEM, summarise: summarise, SUMMARY_SYSTEM: SUMMARY_SYSTEM, decide: decide, sweep: sweep, sweepRequest: sweepRequest, SWEEP_SYSTEM: SWEEP_SYSTEM, points: points, warm: warm, reconcile: reconcile, setShare: setShare, sharing: sharing, thinkingFor: thinkingFor, prepare: prepare, buildRequest: buildRequest, cachedRequest: cachedRequest, normalize: normalize, extractJson: extractJson, scrub: scrub, shield: shield, SYSTEM: SYSTEM };
+  return { POINTS_SYSTEM: POINTS_SYSTEM, todayText: todayText, setClock: setClock, focusPoints: focusPoints, FOCUS_SYSTEM: FOCUS_SYSTEM, actionPoints: actionPoints, directToSitamah: directToSitamah, ACTIONS_SYSTEM: ACTIONS_SYSTEM, summarise: summarise, SUMMARY_SYSTEM: SUMMARY_SYSTEM, decide: decide, sweep: sweep, sweepRequest: sweepRequest, SWEEP_SYSTEM: SWEEP_SYSTEM, points: points, warm: warm, reconcile: reconcile, setShare: setShare, sharing: sharing, thinkingFor: thinkingFor, prepare: prepare, buildRequest: buildRequest, cachedRequest: cachedRequest, normalize: normalize, extractJson: extractJson, scrub: scrub, shield: shield, SYSTEM: SYSTEM };
 });
