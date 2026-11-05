@@ -169,6 +169,7 @@
     scheduleWording(s);
     referralFacts(s);
     brokerChoices(s);
+    openDefaults(s);
     s.sum = cleanSum(j.sum);
     s.pa = cleanPa(j.pa);
     s.focus = cleanPa(j.focus);
@@ -230,6 +231,21 @@
   function brokerChoices(s) {
     var old = { 'Privately paid, no broker': 'None', 'Privately paid, other broker': 'Other broker', 'Cameron Maritz': 'Other broker' };
     ['ma_broker', 'gap_broker', 'will_broker', 'sti_broker'].forEach(function (id) { var c = s.f[id]; if (c && old.hasOwnProperty(c.v)) c.v = old[c.v]; });
+  }
+  /* The rules that start a box off by itself (the Duties zeros, Broker on record: Other broker) also apply to a file that is opened, because it may have been saved before they existed: a Duties split that adds up to
+     100% gets 0 in the empty boxes; every policy row that has something in it and no broker gets Other broker; and the broker box of Medical aid, Gap cover, Will and Short-term insurance gets it when its answer opens it.
+     Nothing that is there is changed, and a second opening changes nothing more. */
+  function openDefaults(s) {
+    settleDuties(s);
+    Object.keys(schema.lists).forEach(function (key) {
+      var defs = schema.lists[key].cols.filter(function (c) { return c.def != null; });
+      if (!defs.length || !s.l[key]) return;
+      s.l[key].forEach(function (r) {
+        if (rowBlank(key, r)) return;                                                       // a row with nothing in it stays empty
+        defs.forEach(function (c) { if (r.d[c.k] == null || String(r.d[c.k]).trim() === '') r.d[c.k] = c.def; });
+      });
+    });
+    Object.keys(BROKER_OF).forEach(function (id) { if (s.f[id]) brokerDefault(s, id); });
   }
   /* The notes boxes of the old advisor pages (quotes, referrals, buy & sell) are now one notes box on the Client priorities page (the Risk calculation page keeps its own): what was written in them is kept there, each under its old heading. */
   var LEGACY_NOTES = [['n_q_risk', 'Personal risk quotes'], ['n_q_ret', 'Retirement & investment quotes'], ['n_ref', 'Referrals'], ['n_bs', 'Buy & Sell']];

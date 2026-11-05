@@ -66,7 +66,9 @@ test('files saved with the older medical aid, gap and short-term choices keep th
   const s = store.fromJSON(JSON.stringify(j));
   assert.deepStrictEqual(['ma_broker', 'gap_broker', 'sti_broker', 'will_broker'].map(id => s.f[id].v), ['None', 'Other broker', 'Other broker', 'Paul K']);
   const empty = JSON.parse(store.toJSON(fresh())); empty.f.ma = { v: 'Medical aid', st: 'confirmed' };
-  assert.strictEqual(store.fromJSON(JSON.stringify(empty)).f.ma_broker.v, '', 'an older file with the box empty is left empty');
+  const opened = store.fromJSON(JSON.stringify(empty));
+  assert.deepStrictEqual([opened.f.ma_broker.v, opened.f.ma_broker.st], ['Other broker', 'preset'], 'an older file whose answer opens the box and whose broker is empty gets the default when it is opened');
+  assert.strictEqual(store.fromJSON(store.toJSON(opened)).f.ma_broker.v, 'Other broker', 'opening it again changes nothing more');
 });
 
 test('voice: "Paul", "through the company", "no broker" and "Cameron" are read for the four boxes, and the default is not an answer Claude has to respect', () => {
@@ -78,4 +80,23 @@ test('voice: "Paul", "through the company", "no broker" and "Cameron" are read f
   assert.strictEqual(r('sti_broker', 'Cameron looks after it'), 'Other broker');
   LISTS.forEach(k => { assert.strictEqual(r(k + '.broker', 'Paul K'), 'Paul K', k); assert.strictEqual(r(k + '.broker', 'another broker'), 'Other broker', k); });
   assert.ok(idx.byId.ma_broker.label === 'Medical aid broker on record' && idx.byId.sti_broker.label === 'Short-term broker on record', 'voice and Claude can tell the four apart');
+});
+
+test('opening a file saved before these rules: Duties zeros, an empty Broker on record in every policy row, and the four boxes', () => {
+  const old = JSON.parse(store.toJSON(fresh()));
+  old.f.d_desk = { v: '90', st: 'heard' }; old.f.d_trav = { v: '10', st: 'heard' };
+  old.f.has_risk = { v: 'Yes', st: 'heard' }; old.f.sti = { v: 'No', st: 'heard' }; old.f.will = { v: 'Yes', st: 'confirmed' };
+  old.l.risk = [{ d: { prov: 'Liberty', spend: 'R 2 231.35', broker: '', notes: '' }, st: 'heard' }, { d: { prov: '', spend: '', broker: '', notes: '' }, st: 'heard' }];
+  old.l.inv = [{ d: { type: 'Other', prov: 'FNB', val: 'R 11 000.00', prem: 'R 200.00', broker: '' }, st: 'confirmed' }];
+  old.l.ret_ra = [{ d: { prov: 'Allan Gray', broker: 'Paul K' }, st: 'confirmed' }];
+  const s = store.fromJSON(JSON.stringify(old)), D = ['d_desk', 'd_supo', 'd_trav', 'd_sups', 'd_light', 'd_mod', 'd_heavy'];
+  assert.deepStrictEqual(D.map(id => s.f[id].v), ['90', '0', '10', '0', '0', '0', '0'], 'the other duties are 0');
+  assert.deepStrictEqual([s.f.d_supo.st, s.f.d_desk.st], ['preset', 'heard']);
+  assert.strictEqual(s.l.risk[0].d.broker, 'Other broker'); assert.strictEqual(s.l.risk[1].d.broker, '', 'a row with nothing in it stays empty');
+  assert.strictEqual(s.l.inv[0].d.broker, 'Other broker'); assert.strictEqual(s.l.ret_ra[0].d.broker, 'Paul K', 'a broker that is there is not changed');
+  assert.deepStrictEqual([s.f.will_broker.v, s.f.will_broker.st, s.f.sti_broker.v], ['Other broker', 'preset', ''], 'Will is Yes so its broker opens with the default; short-term is No so it does not');
+  const again = store.fromJSON(store.toJSON(s));
+  assert.deepStrictEqual(D.map(id => again.f[id].v), D.map(id => s.f[id].v)); assert.strictEqual(store.toJSON(again).replace(/"(created|modified|at)":"[^"]*"/g, ''), store.toJSON(s).replace(/"(created|modified|at)":"[^"]*"/g, ''), 'a second opening changes nothing');
+  const under = JSON.parse(store.toJSON(fresh())); under.f.d_desk = { v: '90', st: 'heard' }; under.f.d_trav = { v: '5', st: 'heard' };
+  assert.deepStrictEqual(D.map(id => store.fromJSON(JSON.stringify(under)).f[id].v), ['90', '', '5', '', '', '', ''], 'not 100%: nothing is added');
 });

@@ -12,6 +12,8 @@
   }); });
   /* the notes boxes (Notes at the foot of a page): id and the page they are on. Claude reads them for the action points and decides what is something to do and what is only information. */
   var NOTE_BOXES = [];
+  /* The notes box of the page each policy schedule belongs to: what the adviser noted there is sent with the schedule, so a note such as "No need to send through" or "she says she emailed it" is read against it. */
+  var SCHED_NOTE = { ps_risk: 'n_cover', ps_grp: 'n_cover', ps_ra: 'n_retire', ps_pp: 'n_retire', ps_inv: 'n_inv' };
   schema.sections.forEach(function (s) { s.blocks.forEach(function (b) { (b.fields || []).forEach(function (f) { if (f.opt && f.t === 'area' && /^n_/.test(f.id)) NOTE_BOXES.push({ id: f.id, page: s.title, sec: s }); }); }); });
   var CLIENT = 'Requested from client in meeting', ASTUTE = 'Draw from Astute (with signed LOA)', OTHER = 'Other';
   /* the policy schedule lists: box, its "Other" box, what to call the policies, and the list they are in */
@@ -48,7 +50,9 @@
       choice = choice.filter(function (x) { return x !== schema.psNoSend; });
       var known = rows.length || (c[0] === 'ps_risk' && v('has_risk') === 'Yes') || (c[0] === 'ps_grp' && v('has_group') === 'Yes');
       if (!choice.length && !known) return;                                                      // a choice that was made always counts; "not asked yet" is chased only where the client is known to have the policies (a Yes, or a policy recorded)
-      out.schedules.push({ what: c[2], held: held, requested: choice.length ? choice : ['not asked yet'], other: choice.indexOf(OTHER) >= 0 ? v(c[1]) : '' });
+      var sch = { what: c[2], held: held, requested: choice.length ? choice : ['not asked yet'], other: choice.indexOf(OTHER) >= 0 ? v(c[1]) : '' }, nt = v(SCHED_NOTE[c[0]]).replace(/\s+\n/g, '\n').slice(0, 1200);
+      if (nt) sch.note_on_this_page = nt;
+      out.schedules.push(sch);
     });
     NOTE_BOXES.forEach(function (n) { var t = v(n.id).replace(/\s+\n/g, '\n').slice(0, 2000); if (t && shows(n.id) && calc.showIf(n.sec.cond, ctx)) out.notes.push({ page: n.page, note: t }); });
     var lifeOff = v(schema.panelsById.life.dec) === schema.NOT_PRIORITY;                          // credit life is part of the Life area: when it is not a priority, nothing is chased
@@ -90,6 +94,7 @@
      focusFacts() is what Claude is sent; focusLocal() writes the same points plainly (used with no Anthropic key and until Claude's version arrives); focusText() puts the headings in, always from the form, never from Claude. */
   var AREA_SCHEDS = { life: ['personal risk policies', 'group risk benefits'], ra: ['retirement annuities', 'pension and provident funds'], inv: ['investments'] };
   var AREA_REFERRAL = { med: 'Valerie', will: 'Capital Legacy', st: 'Cameron' };
+  var AREA_NOTES = { life: ['n_cover', 'n_debts'], ra: ['n_retire'], rgar: ['n_retire'], inv: ['n_inv'], egar: ['n_kids'], med: ['n_ma', 'n_gap'], will: ['n_will'], st: ['n_sti'] };       // the notes boxes of the pages an area is about
   function quoteArea(q) {
     if (q.kind === BR || q.kind === STD) return 'life';
     var n = String(q.quote || '');
@@ -111,6 +116,8 @@
       }
       var ref = f.referrals.filter(function (r) { return r.who === AREA_REFERRAL[P.id]; });
       if (ref.length) a.referral = ref;
+      var nts = (AREA_NOTES[P.id] || []).map(function (id) { return v(id).replace(/\s+\n/g, '\n').slice(0, 1200); }).filter(Boolean);
+      if (nts.length) a.notes = nts;
       var held = summary.local(state, P.id).slice(0, 8);
       if (held.length) a.on_the_form = held;
       out.areas.push(a);
