@@ -106,9 +106,22 @@ test('the preferred monthly spend reaches the Life summary and the action points
   const n = fresh(); set(n, 'fna_req', 'Request a quote'); assert.ok(!A.local(n).some(p => /prefers to spend/.test(p)));
 });
 
-test('Permanent disability does not repeat the household figures of the Life cover', () => {
+test('Lump Sum Disability (fractured) has its own household boxes, the same sums as the Life cover, and no "same as the Life cover" line', () => {
   const ids = b => (b.fields || []).map(f => f.id);
-  const calcSec = sec('calc').blocks, life = calcSec.find(b => /^Life cover/.test(b.title || '')), pd = calcSec.find(b => /^Permanent disability/.test(b.title || ''));
+  const calcSec = sec('calc').blocks, life = calcSec.find(b => /^Life cover/.test(b.title || '')), pd = calcSec.find(b => /^Lump Sum Disability/.test(b.title || ''));
+  assert.strictEqual(pd.title, 'Lump Sum Disability: fractured cover');
   assert.deepStrictEqual(ids(life).slice(0, 4), ['lc_hh', 'lc_cc', 'lc_dr', 'lc_need']);
-  assert.ok(!ids(pd).some(id => /^pd_(?:hh|cc|dr|need)$/.test(id)) && /same household income needed/.test(pd.help));
+  assert.deepStrictEqual(ids(pd), ['pd_hh', 'pd_cc', 'pd_dr', 'pd_need', 'pd_f_aci', 'pd_f_aciv', 'pd_hhabi', 'pd_ccabi']);
+  assert.deepStrictEqual(pd.fields.slice(0, 4).map(f => f.l), ['Client take-home income (R)', 'Minus childcare costs (R)', 'Minus debt repayments paid by the client (R)', 'Total household income needed (R)']);
+  assert.ok(!pd.help && !JSON.stringify(pd).includes('same household income'), 'it no longer says it is built on the Life cover');
+  assert.ok(!ids(pd).includes('pd_wol') && !pd.fields.some(f => /WOL/.test(f.l)), 'no Life cover (WOL) ABI under disability');
+  assert.deepStrictEqual(pd.fields.slice(4).map(f => [f.id, f.preset]), [['pd_f_aci', 'Fixed'], ['pd_f_aciv', '?'], ['pd_hhabi', '5%'], ['pd_ccabi', '5%']]);
+  const s = fresh(); set(s, 'net', 'R 20 000.00'); store.addRow(s, 'kids', { name: 'A', cost: 'R 5 950.00' }); store.addRow(s, 'kids', { name: 'B', cost: 'R 5 150.00' });
+  store.addRow(s, 'debts', { type: 'Credit card', inst: 'R 2 000.00', payer: 'Client' }); store.addRow(s, 'debts', { type: 'Revolving credit', inst: 'R 700.00', payer: 'Client' }); store.addRow(s, 'debts', { type: 'Home loan', inst: 'R 9 000.00', payer: 'Spouse' });
+  const f = id => calc.field(schema.fieldsById[id].calc, store.ctxFor(s));
+  assert.deepStrictEqual(['pd_hh', 'pd_cc', 'pd_dr', 'pd_need'].map(f), ['R 20 000.00', 'R 11 100.00', 'R 2 700.00', 'R 6 200.00'], 'take-home, childcare, only the debts the client pays, and what is left');
+  assert.deepStrictEqual(['pd_hh', 'pd_cc', 'pd_dr', 'pd_need'].map(f), ['lc_hh', 'lc_cc', 'lc_dr', 'lc_need'].map(f), 'the same figures as the Life cover');
+  assert.strictEqual(fresh().f.pd_hhabi.v, '5%'); assert.strictEqual(fresh().f.pd_hhabi.st, 'preset');
+  const q = fresh(); set(q, 'bf_fna_req', 'Request a quote'); set(q, 'pr_life', schema.PRIORITY);
+  assert.ok(validate.check(store.ctxFor(q)).some(w => w.id === 'pd_f_aciv' && /^Lump Sum Disability \(BrightRock Fractured quote\): the ACI value is still/.test(w.msg)), 'the Checks name it Lump Sum Disability');
 });
