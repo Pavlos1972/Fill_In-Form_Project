@@ -424,22 +424,22 @@
 
   /* ---------- the action points on the Admin page ----------
      The box holds the points for the personal assistant. They are written from the rest of the form (actions.js): at once as plain points, then by Claude when it can be reached, for as long as the adviser has not typed in the box.
-     Typing in it makes the points the adviser's own: they no longer follow the form, until Refresh writes them again (a second tap, as that replaces what was typed). */
-  var paBusy = false, paTimer = null, paSure = false;
+     Typing in it makes the points the adviser's own: they no longer follow the form, until Refresh writes them again (one tap; the button says it replaces what was typed). */
+  var paBusy = false, paTimer = null;
   function paStatus() {
     var pa = state.pa || {}, ready = vmAIReady();
     if (paBusy) return 'Claude is writing these points…';
-    if (pa.edited) return 'Edited by you: these points no longer follow the form. Refresh writes them again.';
+    if (pa.edited) return 'Edited by you: these points no longer follow the form. Refresh writes them again, over what you typed.';
     if (pa.by === 'claude') return 'Written by Claude' + (pa.at ? ', ' + new Date(pa.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '') + ', from the form. They follow the form until you type in the box.';
     return ready ? 'Plain points from the form. Refresh for Claude to write them.' : 'Plain points from the form. Claude writes these when the Anthropic key is in Settings.';
   }
   function paHTML(b, c) {
     var f = b.fields[0];
-    return fieldHTML(f, false) + '<div class="apstatus"><span id="paStatus">' + esc(paStatus()) + '</span><button type="button" class="link-btn" id="paRefresh"' + (paBusy ? ' disabled' : '') + '>' + (paSure ? 'Replace what I typed' : 'Refresh') + '</button></div>';
+    return fieldHTML(f, false) + '<div class="apstatus"><span id="paStatus">' + esc(paStatus()) + '</span><button type="button" class="link-btn" id="paRefresh"' + (paBusy ? ' disabled' : '') + '>' + (state.pa.edited ? 'Refresh (replaces what I typed)' : 'Refresh') + '</button></div>';
   }
   function paPaint() {
     var st = document.getElementById('paStatus'), ta = document.querySelector('[data-f="pa_actions"]'), bt = document.getElementById('paRefresh');
-    if (st) st.textContent = paStatus(); if (bt) { bt.disabled = paBusy; bt.textContent = paSure ? 'Replace what I typed' : 'Refresh'; }
+    if (st) st.textContent = paStatus(); if (bt) { bt.disabled = paBusy; bt.textContent = state.pa.edited ? 'Refresh (replaces what I typed)' : 'Refresh'; }
     if (ta && ta.value !== state.f.pa_actions.v && !(document.activeElement === ta && state.pa.edited)) ta.value = state.f.pa_actions.v;     // never over what is being typed
   }
   function paWrite(lines, key, by) {
@@ -590,16 +590,13 @@
     var b = e.target.closest && e.target.closest('[data-msb]');
     if (b) { var id = b.dataset.msb; msOpen = msOpen === id ? '' : id; msFree = {}; redraw(); return; }
     if (msOpen && !(e.composedPath ? e.composedPath() : []).some(function (n) { return n.classList && n.classList.contains('ms'); })) msClose();       // the path was taken before the list was redrawn
-    if (e.target.id === 'paRefresh') {
-      if (state.pa.edited && !paSure) { paSure = true; paPaint(); setTimeout(function () { if (paSure) { paSure = false; paPaint(); } }, 4000); return; }
-      paSure = false; paRefresh(true);
-    }
+    if (e.target.id === 'paRefresh') paRefresh(true);                    // one tap: it writes the points again, over what was typed
   });
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape') msClose(); });
   document.addEventListener('toggle', function (e) { if (e.target.classList && e.target.classList.contains('sqd')) sqdOpen = e.target.open; }, true);
   document.addEventListener('input', function (e) {                                                       // the first key typed in the action points makes them the adviser's own
     var t = e.target; if (!t.dataset || t.dataset.f !== 'pa_actions') return;
-    state.pa.edited = t.value !== ''; paSure = false; var st = document.getElementById('paStatus'); if (st) st.textContent = paStatus();
+    state.pa.edited = t.value !== ''; paPaint();
   });
   document.addEventListener('change', function (e) {
     var t = e.target; if (!t.dataset || !t.dataset.ck) return;
@@ -671,7 +668,7 @@
       if (def && def.money) { val = util.formatMoney(val); t.value = val; }
       if (def && def.date) { var pd = util.parseDate(val); if (pd) { val = util.formatDate(pd); t.value = val; } }
       if (def && def.time) { var pt = util.parseTime(val); if (pt) { val = util.formatTime(pt); t.value = val; } }              // "2pm" and "2:30 pm" become 14:30
-      if (t.dataset.f === 'pa_actions') { state.pa.edited = val !== ''; paSure = false; }                  // typed over: the points are the adviser's own until Refresh
+      if (t.dataset.f === 'pa_actions') { state.pa.edited = val !== ''; }                  // typed over: the points are the adviser's own until Refresh
       store.setField(state, t.dataset.f, val);
       var dobSet = (t.dataset.f === 'idno' || t.dataset.f === 'idtype') && autoDob();        // the date of birth follows the ID number (and the ID type going back to ID)
       var sexSet = (t.dataset.f === 'idno' || t.dataset.f === 'idtype') && autoGender();      // and so does an empty gender box
@@ -681,6 +678,7 @@
       if (PROFILE_SRC.indexOf(t.dataset.f) >= 0) autoProfileLookup();
       if (dobSet) paintField('dob');
       if (sexSet) paintField('gender');
+      if (FF.calc.DUTY_IDS.indexOf(t.dataset.f) >= 0) FF.calc.DUTY_IDS.forEach(function (d) { if (d !== t.dataset.f) paintField(d); });       // the duties that were set to 0 (or taken back) when the total reached (or left) 100%
       if (condIds[t.dataset.f]) { redraw(); var again = document.querySelector('[data-f="' + t.dataset.f + '"]'); if (again) again.focus(); if ((state.unplaced || []).length && vmRetryUnplaced) vmRetryUnplaced(); } else refreshLive();
     } else if (t.dataset.l) {
       var key = t.dataset.l, i = +t.dataset.i, k = t.dataset.k, col = schema.lists[key].cols.filter(function (c) { return c.k === k; })[0], row0 = state.l[key][i];
@@ -929,6 +927,7 @@
      client's answer is in or confirmed. Simple wording is understood on this computer; looser wording goes to Claude (voice-ai.js).
      Whatever listens calls FF.app.voiceHear(text, who), who being 'me' (the adviser) or 'client'. Typing works as always when voice is off. */
   var V = FF.voice, VAI = FF.voiceAI, vidx = V.buildIndex(schema);
+  V.setMeetingSource(function () { return state && state.f && state.f.date ? state.f.date.v : ''; });                 // a date said without a year is counted from the date of the form
   try { if (VAI && VAI.setShare) VAI.setShare(localStorage.getItem('wr-fact-find-share') === '1'); } catch (e) { /* storage unavailable: sharing stays off */ }
   var vm = { on: false, done: {}, target: null, answered: false, secGlow: false, noteMode: null, rowCur: {}, undo: [], recent: [], flashes: {}, queue: Promise.resolve(), slow: 0, epoch: 0, busy: 0, seq: 0, moveSeq: 0, calls: 0, laneTarget: null, unplacedSeen: {}, noSweep: {}, sweeping: false, sweepNext: [], sweepSecs: {}, sweepT: 0, secAt: {}, sweptAll: 0, lastFail: 0, wipe: null, digits: null, run: null, erun: null, eann: null, paused: false, pointed: null, lastNum: null };
   /* ---------- "Live Client Conversation": a text box in the right-hand pane under Checks, kept in view while the page scrolls. The lines heard, oldest at the top and the latest at the bottom, each with what was done on the form because of it. ---------- */
@@ -1170,6 +1169,12 @@
     convoRender();
   }
   /* A row added only because it was pointed at ("any other properties?") that is still empty when the talk moves on is taken away again: otherwise empty rows pile up. */
+  /* The rows at the end of a list that hold nothing at all are taken away (the talk about the list is over). */
+  function vmDropEmptyTail(key) {
+    var rows = state.l[key], gone = false;
+    while (rows && rows.length && Object.keys(rows[rows.length - 1].d).every(function (k) { var x = rows[rows.length - 1].d[k]; return x === '' || x == null; })) { store.delRow(state, key, rows.length - 1); gone = true; }
+    if (gone) { vm.rowCur[key] = Math.max(Math.min(vm.rowCur[key] == null ? 0 : vm.rowCur[key], rows.length - 1), 0); touch(); redraw(); }
+  }
   function vmDropPointed(nextId) {
     var p = vm.pointed; if (!p) return;
     var nc = nextId ? vmCellRef(nextId) : null;
@@ -1233,6 +1238,7 @@
   function vmDone(a) {
     var L = a.list && vidx.lists[a.list], secId = a.section || (!a.list && !a.part ? cur : null);
     vmDropPointed(null);                                                       // a row only pointed at ("any more debts?") that stayed empty is taken away
+    if (a.list) vmDropEmptyTail(a.list);                                       // "no more debts": a last row with nothing in it is not kept
     if (!secId) {
       if (vm.target && /^count:/.test(vm.target)) { vm.target = null; vm.answered = false; }
       vmLog(L ? 'no more ' + L.title.toLowerCase() : 'that part of the page is finished'); vmMarkWait(); return;
@@ -1395,10 +1401,18 @@
   function vmPoint(id) { vmShow(id); }
   /* Put one answer into the form. res: { kind: 'confirm' } or { kind: 'fill', value, status, extra?, append? }. */
   /* A box in a list: row i, column k. The row is added first if it is not there yet. */
+  /* A credit card, an overdraft, a personal loan, revolving credit or a store account is not secured on anything, so it has no asset value. (A home loan and vehicle finance have: the property, the car.) */
+  var voiceAsset = typeof WeakSet === 'function' ? new WeakSet() : null;       // the asset values that voice put in, never one that was typed by hand
+  function debtNoAsset(row) {
+    var t = String(row.d.type || ''), d = String(row.d.desc || '') + ' ' + String(row.d.notes || '');
+    if (/^(?:Home loan|Vehicle finance)$/.test(t)) return false;                                  // these are secured on the property or the car, whatever the notes mention
+    return /^(?:Credit card|Personal loan|Revolving credit)$/.test(t) || /\b(?:overdraft|store (?:card|account)|credit facility|credit card|revolving)\b/i.test(d);
+  }
   function vmApplyCell(c, id, res) {
     var rows = state.l[c.list];
     while (rows.length <= c.i) store.addRow(state, c.list, {}, 'heard');
     var row = rows[c.i], prev = row.d[c.k] == null ? '' : String(row.d[c.k]);
+    if (c.list === 'debts' && c.k === 'asset' && res.kind === 'fill' && debtNoAsset(row)) { vmLog('left alone: Asset value for a debt that is not secured on anything (credit card, overdraft, personal loan)'); return false; }
     if (res.kind === 'fill' && vmIdClash(id, res.value)) return false;
     if (res.kind === 'confirm') {
       if (prev === '') return false;
@@ -1410,6 +1424,10 @@
       var auto = c.list === 'kids' && c.k === 'dob' && (row.d.stage === '' || row.d.stage === FF.calc.rowCalc('stage', row, ctx()));   // a child's stage follows the date of birth until set by hand
       vm.undo.push({ kind: 'cell', list: c.list, i: c.i, k: c.k, prev: { v: prev, st: row.st } });
       store.setCell(state, c.list, c.i, c.k, value, res.status === 'verify' ? 'verify' : 'heard');
+      if (c.list === 'debts' && c.k === 'asset' && voiceAsset) voiceAsset.add(row);
+      if (c.list === 'debts' && (c.k === 'type' || c.k === 'desc' || c.k === 'notes') && row.d.asset !== '' && voiceAsset && voiceAsset.has(row) && debtNoAsset(row)) {      // it turned out to be an overdraft or a card: the asset value voice put in is taken out again
+        vm.undo.push({ kind: 'cell', list: 'debts', i: c.i, k: 'asset', prev: { v: row.d.asset, st: row.st } }); row.d.asset = ''; voiceAsset['delete'](row); vm.noSweep['debts:' + c.i + ':asset'] = 1; vmLog('took out the Asset value: that debt is not secured on anything');
+      }
       if (c.list === 'kids' && c.k === 'name') kidsNameFix(row);                  // "Anna Kuiper" heard in the Name box: Anna, and Kuiper in Surname
       if (auto) row.d.stage = FF.calc.rowCalc('stage', row, ctx());
     }
@@ -1543,6 +1561,8 @@
   /* How many rows each list has: a line read before another one added a row (or took one away) is read again, so a child is not added twice. */
   function vmRowsSig() { return Object.keys(state.l).map(function (k) { return k + ':' + state.l[k].length; }).join(','); }
   /* keep (optional) receives what Claude was shown, so a reply that arrives later can be checked against the form as it is by then. */
+  /* The date of the form as Claude is told it: "Wednesday 04/11/2026". */
+  function meetingText() { var d = util.parseDate(state.f.date && state.f.date.v) || util.parseDate(util.isoToday()); return d ? util.weekdayName(d) + ' ' + util.formatDate(d) : ''; }
   function vmAsk(who, text, note, entry, keep) {
     var t0 = Date.now(), set = FF.lookup.getSettings(), tcr = vm.target ? vmCellRef(vm.target) : null, tid = !vm.noteMode && vm.target && !/^count:/.test(vm.target) && vmField(vm.target) ? (tcr ? tcr.list + '.' + tcr.k : vm.target) : null, fl = vmFilled(), aw = vmAwaiting(), tgt = vm.target;
     var rows = {}, sec = cur; Object.keys(state.l).forEach(function (k) { rows[k] = state.l[k].map(function (r) { return JSON.parse(JSON.stringify(r.d)); }); });    // the rows and the section as they are now, whenever the request is made
@@ -1553,7 +1573,7 @@
     return vmSlot().then(function () {
       return VAI.decide({
         apiKey: set.apiKey, ask: !set.apiKey && FF.voiceBackend && FF.voiceBackend.available ? FF.voiceBackend.ask : null, model: set.voiceModel, hedgeMs: 3500, idx: vidx, who: who, text: text, fetchImpl: entry || vmCur ? loggedFetch(entry || vmCur) : meteredFetch,
-        ctx: { sectionId: sec, targetId: tid, targetRow: tcr ? tcr.i + 1 : null, targetValue: tv, targetFilled: tfilled, alternatives: entry && entry.m && entry.shown === entry.text ? entry.m.also : null, filled: fl.filled, filledPrivate: fl.filledPrivate, hidden: vmHiddenMap(), awaiting: aw.awaiting, privateHeld: aw.held, note: note, concluded: Object.keys(vm.done),
+        ctx: { meeting: meetingText(), sectionId: sec, targetId: tid, targetRow: tcr ? tcr.i + 1 : null, targetValue: tv, targetFilled: tfilled, alternatives: entry && entry.m && entry.shown === entry.text ? entry.m.also : null, filled: fl.filled, filledPrivate: fl.filledPrivate, hidden: vmHiddenMap(), awaiting: aw.awaiting, privateHeld: aw.held, note: note, concluded: Object.keys(vm.done),
           listRows: function (key) { return rows[key] || []; }, recent: recent }
       }).then(function (r) { vmSlotFree(); return r; }, function (e) { vmSlotFree(); throw e; });
     }).then(function (r) { vm.busy--; vmRender(); if (entry) entry.claudeMs = Date.now() - t0; return r; }, function (err) {
@@ -1674,6 +1694,16 @@
         return null;
       case 'cell':                                                              // Claude: a value for a box of a row that is there
         var rn = state.l[a.list].length, ri = a.row === 'last' ? Math.max(rn - 1, 0) : a.row - 1;
+        if (a.row !== 'last' && ri >= rn) { vmLog('left alone: a box of ' + vidx.lists[a.list].title.toLowerCase() + ' row ' + a.row + ', which is not there (a new row is only started when a new one is introduced)'); return null; }       // "No" said twice must not open a Debt 3 with only a "No" in it
+        var said = vmCur ? String(vmCur.shown || vmCur.text || '') : '';
+        if (a.list === 'kids' && a.col === 'sname' && state.l.kids[ri] && state.l.kids[ri].d.name && /\b(?:second|middle) names?\b/i.test(said) && !/\b(?:surname|last name|family name)\b/i.test(said)) {          // "his second name is Dumitru" is a middle name: it follows the first name, it is not the surname
+          var kr = state.l.kids[ri], prevName = kr.d.name, middle = String(a.value == null ? '' : a.value).trim();
+          if (middle && prevName.toLowerCase().split(/\s+/).indexOf(middle.toLowerCase()) < 0) {
+            vm.undo.push({ kind: 'cell', list: 'kids', i: ri, k: 'name', prev: { v: prevName, st: kr.st } });
+            store.setCell(state, 'kids', ri, 'name', prevName + ' ' + middle, 'heard'); vm.rowCur.kids = ri; touch(); redraw(); vmFlash('kids:' + ri + ':name'); vmLog('added the middle name to the name, not the surname');
+          }
+          return null;
+        }
         return vmDo({ do: 'fill', field: a.list + ':' + ri + ':' + a.col, value: a.value, explicit: a.explicit });
       case 'wait': return vm.target ? vmNote(vm.target, a.dangling ? 'Listening for the rest' : 'Waiting for the correct answer') : null;
       case 'confirm': case 'fill':
@@ -1969,6 +1999,7 @@
       if (!cue && EMAIL_CHATTER.test(low.replace(/'/g, ''))) return null;                        // other chatter may not start one
       if (!cue && pay.length > 1 && !EMAIL_PIECE.test(payText) && !(vm.target === box && !vm.answered)) return null;   // a lone name, or words with a sign of an address in them, may start one
     }
+    if (run) { var whole2 = vmEmailParse(payText); if (whole2 && EMAIL_END.test(whole2)) return done(box, whole2); }   // a line that is a whole address on its own replaces the pieces kept before it ("my first name Roquelle" is not part of "roquelle@...")
     var all = (run ? run.t + ' ' : '') + payText, x = vmEmailParse(all);
     if (x && EMAIL_END.test(x)) return done(box, x);
     if (box !== vm.target) vmShow(box);

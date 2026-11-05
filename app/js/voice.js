@@ -180,6 +180,43 @@
     return chk ? pad(chk.d) + '/' + pad(chk.m) + '/' + chk.y : null;
   }
 
+  /* The date of the form (Date completed): what a date said without a year is counted from. */
+  var meetingSrc = null;
+  function setMeetingSource(fn) { meetingSrc = fn; }
+  function meetingDate() { var v = meetingSrc ? meetingSrc() : ''; return util.parseDate(v) || util.parseDate(util.isoToday()); }
+  function before(dmy, ref) { var p = util.parseDate(dmy); return !!(p && ref && (p.y * 10000 + p.m * 100 + p.d) < (ref.y * 10000 + ref.m * 100 + ref.d)); }
+  /* A date said without a year, for the next appointment: "Thursday the 19th", "the 19th", "the nineteenth of November", "19 November". It is the first such day on or after the date of the form (and,
+     when a weekday was said, one that falls on that weekday). Gives dd/mm/yyyy or null. */
+  var WEEKDAYS = ['sun', 'mon', 'tues', 'wednes', 'thurs', 'fri', 'satur'];
+  function yearlessDate(raw) {
+    var s = String(raw), wm = /\b(mon|tues|wednes|thurs|fri|satur|sun)day\b/i.exec(s), wd = wm ? WEEKDAYS.indexOf(wm[1].toLowerCase()) : -1;
+    var tk = norm(s.replace(/\b(?:mon|tues|wednes|thurs|fri|satur|sun)day\b/gi, ' ')).split(' ').filter(function (w) { return w && w !== 'the' && w !== 'of' && w !== 'on' && w !== 'this' && w !== 'next' && w !== 'coming'; });
+    var month = 0, day = null, i, sawYear = false;
+    for (i = 0; i < tk.length; i++) { if (/^(?:19|20)\d\d$/.test(tk[i])) sawYear = true; if (!month && monthOf(tk[i])) month = monthOf(tk[i]); }
+    if (sawYear) return null;
+    for (i = 0; i < tk.length && day == null; i++) {
+      if (monthOf(tk[i])) continue;
+      if (i + 1 < tk.length && TENS.hasOwnProperty(tk[i]) && ORD.hasOwnProperty(tk[i + 1])) day = TENS[tk[i]] + ORD[tk[i + 1]];
+      else if (i + 1 < tk.length && TENS.hasOwnProperty(tk[i]) && SMALL.hasOwnProperty(tk[i + 1]) && SMALL[tk[i + 1]] < 10 && SMALL[tk[i + 1]] > 0) day = TENS[tk[i]] + SMALL[tk[i + 1]];
+      else if (ORD.hasOwnProperty(tk[i]) || /^\d{1,2}(?:st|nd|rd|th)?$/.test(tk[i])) day = dayWord(tk[i]);
+      else if (TENS.hasOwnProperty(tk[i])) day = TENS[tk[i]];
+    }
+    if (day == null || day < 1 || day > 31) return null;
+    var m0 = meetingDate(); if (!m0) return null;
+    var found = function (weekday) {
+      for (var k = 0; k < 26; k++) {
+        var y = m0.y + Math.floor((m0.m - 1 + k) / 12), m = (m0.m - 1 + k) % 12 + 1;
+        if (month && m !== month) continue;
+        var dt = new Date(y, m - 1, day); if (dt.getMonth() !== m - 1) continue;                      // that month has no such day
+        if (y * 10000 + m * 100 + day < m0.y * 10000 + m0.m * 100 + m0.d) continue;                   // before the meeting
+        if (weekday >= 0 && (dt.getDay() !== weekday || k > 3)) continue;                              // the weekday said must fit within the next few months, else it was misspoken
+        return (day < 10 ? '0' : '') + day + '/' + (m < 10 ? '0' : '') + m + '/' + y;
+      }
+      return null;
+    };
+    return found(wd) || found(-1);
+  }
+
   /* "paul at liferisk dot co dot za" -> paul@liferisk.co.za */
   function spokenEmail(raw) {
     var s = String(raw).trim().toLowerCase().replace(/[,;!?]+$/, '');
@@ -301,6 +338,9 @@
     edu_notes: ['qualification details', 'what are your qualifications'],
     gross: ['gross', 'gross income', 'gross salary', 'before tax', 'salary before', 'how much do you earn', 'earn', 'earning'],
     net: ['take home', 'net income', 'net salary', 'nett', 'paid into your account', 'hits your account', 'in your pocket'],
+    rent: ['rental income', 'rent income', 'rental', 'rent from a property', 'rent from a flat', 'rent you receive', 'income from rent', 'tenant pays'],
+    spinc: ['spousal income', 'spouse income', 'spouse earns', 'spouse salary', 'what does your wife earn', 'what does your husband earn', 'what does your partner earn', 'partner income', 'partner earns'],
+    maint: ['child maintenance', 'maintenance income', 'maintenance', 'child support', 'maintenance from your ex', 'maintenance you receive'],
     exp: ['expenses', 'monthly expenses', 'budget', 'how much do you spend', 'living expenses', 'spend a month', 'monthly spend'],
     marital: ['marital status', 'married', 'single', 'relationship status', 'are you married'],
     sp_name: ['spouse name', 'partner name', 'name of your spouse', 'name of your partner', 'wife', 'husband'],
@@ -980,13 +1020,23 @@
   /* One answer for one field -> { value, status, extra?, append? } | { error, note? } | null. */
   /* A tick-box box (the policy schedule lists): one or more of its options, said any way ("the client will send them", "through Astute", "both", "something else"). -> { value: choices joined with "; ", status, append } or { error }. */
   var MULTI_CLIENT = / (?:requested from client|client sends|client will send|client to send|clients to send|will send them|will send it|will send us|to send them|send them|send it through|send us|sends them|bring them|brings them|bring it|email them|emails them|email it|from the client|from client|ask the client|asked the client|the client|(?:she|he|they|client) will send|(?:she|he|they|client)'ll send|(?:she|he|they|client) can send|(?:she|he|they|client) to send) /;
+  /* An amount said as a sum ("the childcare will be R5,000 plus R950"): every part is a number, and the amount is their total. Anything else is not a sum. */
+  function plusSum(raw) {
+    var parts = String(raw).split(/\s+plus\s+/i); if (parts.length < 2) return null;
+    var total = 0;
+    for (var i = 0; i < parts.length; i++) { var n = wordsToNumber(parts[i]); if (n == null) return null; total += n; }
+    return Math.round(total * 100) / 100;
+  }
+  var MULTI_NOSEND = / (?:(?:does not|doesn't|doesnt|do not|don't|dont|need not|no need to|not need to|does not have to|doesn't have to|no need for (?:him|her|them|the client) to|nothing for (?:him|her|them|the client) to) (?:need to |have to )?send|no need (?:to send|for (?:them|it|those|the schedules?))|(?:don't|dont|do not|doesn't|doesnt|does not) need (?:them|it|those|the schedules?)|nothing to send|no schedules (?:are )?(?:needed|required)|need not send) /;
   function interpretMulti(f, t) {
     var s = ' ' + t + ' ', opts = f.options || [], picked = {}, hasAstute = opts.some(function (o) { return /astute/i.test(o); });
     var both = / both /.test(s) && hasAstute, astuteNo = /\b(?:not|no|dont|don't|without|cannot|can't)\b[^.]{0,24}\bastute\b/.test(s);
+    var noSend = MULTI_NOSEND.test(s);                                                                // "the client does not need to send anything through": that choice alone, not "the client will send them"
     opts.forEach(function (o) {
       var on = norm(o.replace(/\(.*?\)/g, ' ')), hit = false;
       if (/astute/i.test(o)) hit = (/ astute /.test(s) && !astuteNo) || both || has(t, on);
-      else if (/client/i.test(o)) hit = both || has(t, on) || MULTI_CLIENT.test(s);
+      else if (/does not need to send/i.test(o)) hit = noSend;
+      else if (/client/i.test(o)) hit = !noSend && (both || has(t, on) || MULTI_CLIENT.test(s));
       else if (/^other$/i.test(o)) hit = / (?:other|something else|some other|another way) /.test(s);
       if (hit) picked[o] = 1;
     });
@@ -1015,7 +1065,8 @@
     if (f.multi) return f.mk === 'ins' ? interpretInsurers(f, t) : interpretMulti(f, t);
     if (f.options) return pickOption(f, t, raw);
     if (f.money) {
-      var amt = wordsToNumber(raw);
+      var amt = plusSum(raw);                                                              // "5,000 plus 950" is one amount said as a sum: 5 950
+      if (amt == null) amt = wordsToNumber(raw);
       return amt == null ? { error: 'no-number' } : { value: util.formatMoney(String(amt)), status: 'verify' };
     }
     if (TIME_IDS.indexOf(id) >= 0) {
@@ -1024,7 +1075,10 @@
     }
     if (DATE_IDS.indexOf(id) >= 0 || f.date) {
       var tmx = id === 'next_appt' ? spokenTime(raw, true) : null;                  // "the sixth of November at half past two": the time goes into its own box
-      var d = spokenDate(id === 'next_appt' ? (tmx ? tmx.rest : String(raw)).replace(/\b(?:mon|tues|wednes|thurs|fri|satur|sun)day\b/gi, ' ') : raw);
+      var apptTxt = id === 'next_appt' ? (tmx ? tmx.rest : String(raw)) : '';
+      var d = spokenDate(id === 'next_appt' ? apptTxt.replace(/\b(?:mon|tues|wednes|thurs|fri|satur|sun)day\b/gi, ' ') : raw);
+      if (!d && id === 'next_appt') d = yearlessDate(apptTxt);                                    // "Thursday the 19th": the year (and month) come from the date of the form
+      if (d && id === 'next_appt' && before(d, meetingDate())) return { error: 'before-meeting', note: 'the date of the form is ' + util.formatDate(meetingDate()) };     // an appointment is never before the meeting itself
       if (!d && APPROX_DATE_IDS.indexOf(id) >= 0) { var yr = looseYear(raw); if (yr) return { value: yr, status: 'verify' }; }       // a year is what the client remembers
       if (!d && tmx) return { value: tmx.value, status: 'verify', field: 'next_time' };                  // only a time was said ("my next appointment is half past two"): it is the time box that is filled
       if (d && tmx) return { value: d, status: 'verify', extra: [{ id: 'next_time', value: tmx.value, status: 'verify' }] };
@@ -1473,7 +1527,7 @@
   }
 
   return {
-    norm: norm, wordsToNumber: wordsToNumber, spokenDigits: spokenDigits, spokenDate: spokenDate, spokenTime: spokenTime, spokenEmail: spokenEmail, yesNo: yesNo,
+    norm: norm, wordsToNumber: wordsToNumber, spokenDigits: spokenDigits, spokenDate: spokenDate, yearlessDate: yearlessDate, setMeetingSource: setMeetingSource, spokenTime: spokenTime, spokenEmail: spokenEmail, yesNo: yesNo,
     buildIndex: buildIndex, parseCommand: parseCommand, wrapUp: wrapUp, mergeMulti: mergeMulti, endsNotes: endsNotes, splitNotesEnd: splitNotesEnd, mentionsNotes: mentionsNotes, mayEndNotes: mayEndNotes, wipeAnswer: wipeAnswer, looksLikeQuestion: looksLikeQuestion, isChatter: isChatter, plan: plan, pointForm: pointForm, LIST_NOUNS: LIST_NOUNS, matchQuestion: matchQuestion, interpret: interpret, titleCase: titleCase,
     isConfirm: isConfirm, answerFor: answerFor, clauses: clauses, PRIVATE_IDS: PRIVATE_IDS, yearsValue: yearsValue
   };

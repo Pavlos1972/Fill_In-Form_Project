@@ -55,7 +55,9 @@
   }
   /* A quote that is not required has no type and no insurer: when it is set to not required they are cleared, so nothing is left behind (the boxes themselves go away, see schema.js). */
   var NOT_REQUIRED = { fna_req: { vals: ['Not required', 'No FNA done'], clear: ['fna_type', 'fna_ins'] }, sf_req: { vals: ['Not required'], clear: ['sf_type', 'sf_ins'] },
-    bf_fna_req: { vals: ['Not required', 'No FNA done'], clear: ['bf_fna_type'] }, bf_sf_req: { vals: ['Not required'], clear: ['bf_sf_type'] } };
+    bf_fna_req: { vals: ['Not required', 'No FNA done'], clear: ['bf_fna_type'] }, bf_sf_req: { vals: ['Not required'], clear: ['bf_sf_type'] },
+    has_risk: { vals: ['No'], clear: ['ps_risk', 'ps_risk_ot'] }, has_group: { vals: ['No'], clear: ['ps_grp', 'ps_grp_ot'] }, has_ra: { vals: ['No'], clear: ['ps_ra', 'ps_ra_ot'] },       // nothing there, so no policy schedules to request
+    has_pp: { vals: ['No'], clear: ['ps_pp', 'ps_pp_ot'] }, has_inv: { vals: ['No'], clear: ['ps_inv', 'ps_inv_ot'] } };
   /* "Other" in a policy schedule list opens its small box: when Other is not ticked any more, what was typed there goes. */
   var PS_OTHER_BOX = { ps_risk: 'ps_risk_ot', ps_grp: 'ps_grp_ot', ps_ra: 'ps_ra_ot', ps_pp: 'ps_pp_ot', ps_inv: 'ps_inv_ot' };
   function setField(state, id, v, st) {
@@ -66,6 +68,17 @@
     if (PS_OTHER_BOX[id] && state.f[PS_OTHER_BOX[id]] && String(v).split(';').map(function (x) { return x.trim(); }).indexOf('Other') < 0) state.f[PS_OTHER_BOX[id]] = { v: '', st: 'empty' };
     if (NOT_REQUIRED[id] && NOT_REQUIRED[id].vals.indexOf(v) >= 0) NOT_REQUIRED[id].clear.forEach(function (d) { if (state.f[d]) state.f[d] = { v: '', st: 'empty' }; });
     if (id === 'sname' || id === 'gender') followFather(state, was);
+    if (calc.DUTY_IDS.indexOf(id) >= 0) settleDuties(state);
+  }
+  /* Duties split: once the boxes that are filled add up to 100%, the boxes still empty are set to 0 (shown as a default, status "preset": nothing was heard). When the total moves off 100% again, those automatic
+     zeros are taken away, so a box the adviser or the client really answered (typed, said, or a 0 typed by hand) is never touched. */
+  function settleDuties(state) {
+    var ids = calc.DUTY_IDS, total = ids.reduce(function (a, id) { return a + util.num(state.f[id].v); }, 0), full = Math.abs(total - 100) < 0.001;
+    ids.forEach(function (id) {
+      var c = state.f[id];
+      if (full && c.v === '') state.f[id] = { v: '0', st: 'preset' };
+      else if (!full && c.st === 'preset' && c.v === '0') state.f[id] = { v: '', st: 'empty' };
+    });
   }
   function addRow(state, key, data, st) {
     var d = {};

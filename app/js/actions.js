@@ -10,6 +10,9 @@
     (b.fields || []).forEach(function (f) { blockOfField[f.id] = b; });
     if (b.list && !blockOfList[b.list]) blockOfList[b.list] = b;
   }); });
+  /* the notes boxes (Notes at the foot of a page): id and the page they are on. Claude reads them for the action points and decides what is something to do and what is only information. */
+  var NOTE_BOXES = [];
+  schema.sections.forEach(function (s) { s.blocks.forEach(function (b) { (b.fields || []).forEach(function (f) { if (f.opt && f.t === 'area' && /^n_/.test(f.id)) NOTE_BOXES.push({ id: f.id, page: s.title, sec: s }); }); }); });
   var CLIENT = 'Requested from client in meeting', ASTUTE = 'Draw from Astute (with signed LOA)', OTHER = 'Other';
   /* the policy schedule lists: box, its "Other" box, what to call the policies, and the list they are in */
   var SCHEDS = [['ps_risk', 'ps_risk_ot', 'personal risk policies', 'risk'], ['ps_grp', 'ps_grp_ot', 'group risk benefits', 'grp'], ['ps_ra', 'ps_ra_ot', 'retirement annuities', 'ret_ra'],
@@ -30,21 +33,24 @@
     if (ts) return 'at ' + ts + ' (date to be agreed)';
     return '';
   }
-  /* What the form holds for the action points: { client, letter_of_authority, schedules, credit_life, quotes, preferred_monthly_spend, referrals, undecided, instructions, appointment }.
+  /* What the form holds for the action points: { client, letter_of_authority, schedules, credit_life, quotes, preferred_monthly_spend, referrals, undecided, instructions, appointment, notes }.
      A life quote (FNA, Shortfall, Reduced) says which kind it is: "BrightRock Fractured" (insurer BrightRock, built on the calculation page) or "Standard" (one or more insurers). */
   function facts(state) {
     var ctx = store.ctxFor(state), v = function (id) { return String(state.f[id] && state.f[id].v != null ? state.f[id].v : '').trim(); };
     var shows = function (id) { var f = schema.fieldsById[id], b = blockOfField[id]; return !!f && (!b || calc.showIf(b.cond, ctx)) && calc.showIf(f.cond, ctx); };
     var listOn = function (key) { var b = blockOfList[key]; return !b || calc.showIf(b.cond, ctx); };
-    var out = { client: v('fname') || 'the client', letter_of_authority: v('loa') || 'not asked yet', schedules: [], credit_life: [], quotes: [], referrals: [], undecided: [], instructions: [], appointment: appointmentText(v), preferred_monthly_spend: v('pref_spend') };
+    var out = { client: v('fname') || 'the client', letter_of_authority: v('loa') || 'not asked yet', schedules: [], credit_life: [], quotes: [], referrals: [], undecided: [], instructions: [], appointment: appointmentText(v), preferred_monthly_spend: v('pref_spend'), notes: [] };
 
     SCHEDS.forEach(function (c) {
       if (!shows(c[0])) return;
       var rows = [].concat(c[3]).reduce(function (a, k) { return a.concat(state.l[k] || []); }, []), held = rows.map(function (r) { return String(r.d.prov || '').trim(); }).filter(Boolean), choice = v(c[0]).split(';').map(function (x) { x = x.trim(); return x === schema.psClient[c[0].slice(3)] ? CLIENT : x; }).filter(Boolean);       // the area's own wording ("Requested Personal Risk Covers in meeting, await client response") is the "requested from client" choice
+      if (choice.length && choice.every(function (x) { return x === schema.psNoSend; })) return;       // "Client does not need to send through": nothing for the assistant to chase
+      choice = choice.filter(function (x) { return x !== schema.psNoSend; });
       var known = rows.length || (c[0] === 'ps_risk' && v('has_risk') === 'Yes') || (c[0] === 'ps_grp' && v('has_group') === 'Yes');
       if (!choice.length && !known) return;                                                      // a choice that was made always counts; "not asked yet" is chased only where the client is known to have the policies (a Yes, or a policy recorded)
       out.schedules.push({ what: c[2], held: held, requested: choice.length ? choice : ['not asked yet'], other: choice.indexOf(OTHER) >= 0 ? v(c[1]) : '' });
     });
+    NOTE_BOXES.forEach(function (n) { var t = v(n.id).replace(/\s+\n/g, '\n').slice(0, 2000); if (t && shows(n.id) && calc.showIf(n.sec.cond, ctx)) out.notes.push({ page: n.page, note: t }); });
     var lifeOff = v(schema.panelsById.life.dec) === schema.NOT_PRIORITY;                          // credit life is part of the Life area: when it is not a priority, nothing is chased
     (state.l.debts || []).forEach(function (r) {
       var d = r.d, cl = String(d.cl || '').trim();

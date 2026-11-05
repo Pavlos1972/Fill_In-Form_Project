@@ -308,24 +308,27 @@ test('the Life area is headed "Personal Risk Covers", with the same words under 
 
 /* ---------- Request Current Policy Schedule(s), the LOA question and the Admin page ---------- */
 const A = require('../app/js/actions.js');
-const PS = ['risk', 'grp', 'ra', 'pp', 'inv'], CL = area => schema.psClient[area], AS = 'Draw from Astute (with signed LOA)';
+const PS = ['risk', 'grp', 'ra', 'pp', 'inv'], CL = area => schema.psClient[area], AS = 'Draw from Astute (with signed LOA)', NOSEND = 'Client does not need to send through';
 
 test('each of the five sections that hold policies ends with a "Request Current Policy Schedule(s)" tick-box list and a small Other box', () => {
   PS.forEach(k => {
     const f = schema.fieldsById['ps_' + k], o = schema.fieldsById['ps_' + k + '_ot'], blk = schema.sections.reduce((a, s) => a.concat(s.blocks), []).find(b => (b.fields || []).some(x => x.id === 'ps_' + k));
-    assert.strictEqual(f.t, 'multi'); assert.strictEqual(blk.title, 'Request Current Policy Schedule(s)'); assert.ok(!blk.cond && !blk.grey && !blk.condMsg);        // never locked
-    assert.deepStrictEqual(f.o, k === 'grp' ? [CL(k), 'Other'] : [CL(k), AS, 'Other'], k);                                      // group risk has no Astute; "Client does not agree" is gone from all
+    assert.strictEqual(f.t, 'multi'); assert.strictEqual(blk.title, 'Request Current Policy Schedule(s)'); assert.ok(blk.cond && blk.grey && blk.pdfMsg && blk.condMsg === 'No policy schedules to request');        // greyed out when the Yes/No above is No
+    assert.deepStrictEqual(f.o, k === 'grp' ? [CL(k), NOSEND, 'Other'] : [CL(k), AS, NOSEND, 'Other'], k);                      // group risk has no Astute; "Client does not agree" is gone from all; "Client does not need to send through" is in all
     assert.ok(!f.o.some(x => /agree/i.test(x)) && o.t === 'txt' && o.cond.has === 'Other' && o.grey);
   });
   assert.strictEqual(schema.sections.find(x => x.id === 'inv').blocks.slice(-2)[0].fields[0].id, 'ps_inv');            // the last item of the section, before its Notes
 });
 
-test('no schedule list is ever locked, whatever the client has or has not been asked; the box for "Other" opens with its tick', () => {
+test('a schedule list is open until the Yes/No above it says No, and then it greys out and is cleared; the box for "Other" opens with its tick', () => {
   const s = fresh(), blk = id => schema.sections.reduce((a, x) => a.concat(x.blocks), []).find(b => (b.fields || []).some(f => f.id === id));
-  const open = () => PS.every(k => !blk('ps_' + k).cond && show(s, blk('ps_' + k).cond));
-  assert.ok(open());                                                                                                      // nothing recorded, nothing asked
-  set(s, 'has_risk', 'No'); set(s, 'has_group', 'Not sure'); assert.ok(open());                                          // even when the answer is No or Not sure
-  store.addRow(s, 'ret_ra', { prov: 'Allan Gray' }); assert.ok(open());
+  const open = k => show(s, blk('ps_' + k).cond);
+  const gate = { risk: 'has_risk', grp: 'has_group', ra: 'has_ra', pp: 'has_pp', inv: 'has_inv' };
+  assert.ok(PS.every(open));                                                                                              // nothing recorded, nothing asked
+  PS.forEach(k => { set(s, gate[k], 'Yes'); assert.ok(open(k), k); });
+  PS.forEach(k => { set(s, 'ps_' + k, CL(k)); set(s, gate[k], 'No'); assert.ok(!open(k), k + ' greyed out'); assert.strictEqual(s.f['ps_' + k].v, '', k + ' cleared'); });
+  set(s, 'has_group', 'Not sure'); assert.ok(open('grp'), 'Not sure is not No: group risk stays open');
+  store.addRow(s, 'ret_ra', { prov: 'Allan Gray' }); assert.ok(open('ra'), 'a policy typed in makes the list Yes, so the box opens again');
   const other = schema.fieldsById.ps_ra_ot;
   assert.ok(!show(s, other.cond));
   set(s, 'ps_ra', CL('ra') + '; Other'); assert.ok(show(s, other.cond));
@@ -338,7 +341,8 @@ test('the action points follow a schedule choice that was made, with or without 
   set(s, 'ps_ra', CL('ra'));                                                                                                    // ticked before the retirement annuity was typed in
   assert.ok(A.local(s).includes('Follow up with the client Thandi for the current policy schedules, asked for in the meeting, for the retirement annuities: await client response.'));
   set(s, 'ps_inv', AS); set(s, 'loa', 'Yes'); assert.ok(A.local(s).some(l => /^Draw the current policy schedules for the investments from Astute/.test(l)));
-  set(s, 'has_risk', 'No'); set(s, 'ps_risk', CL('risk')); assert.ok(A.local(s).some(l => /personal risk policies/.test(l)));  // a choice made on purpose counts
+  set(s, 'has_risk', 'Yes'); set(s, 'ps_risk', CL('risk')); assert.ok(A.local(s).some(l => /personal risk policies/.test(l)));  // a choice made on purpose counts
+  set(s, 'has_risk', 'No'); assert.ok(!A.local(s).some(l => /personal risk policies/.test(l)), 'No policies: no schedules to request, and the choice is cleared');
   set(s, 'ps_risk', ''); assert.ok(!A.local(s).some(l => /personal risk policies/.test(l)));                              // unticked and not a policy the client has: nothing
   set(s, 'has_risk', 'Yes'); assert.ok(A.local(s).includes('Ask the client Thandi how the current policy schedules for the personal risk policies will be provided.'));
   store.addRow(s, 'ret_pp', { prov: 'Sanlam' }); assert.ok(A.local(s).includes('Ask the client Thandi how the current policy schedules for the pension and provident funds (Sanlam) will be provided.'));
@@ -431,9 +435,22 @@ test('the action points request: only the facts go to Claude, with rules for wha
   let sent = null;
   const out = await AI.actionPoints({ ask: (system, content) => { sent = { system, content: JSON.parse(content) }; return Promise.resolve('{"points": ["- Send Thandi the LOA to sign.", "  Ask Valerie to contact the client Thandi about medical aid.  ", "", 5]}'); }, model: 'm', facts: f });
   assert.deepStrictEqual(out, ['Send the client Thandi the LOA to sign.', 'Ask Valerie to contact the client Thandi about medical aid.', '5']);
-  assert.deepStrictEqual(Object.keys(sent.content.facts).sort(), ['appointment', 'client', 'credit_life', 'instructions', 'letter_of_authority', 'preferred_monthly_spend', 'quotes', 'referrals', 'schedules', 'undecided']);
+  assert.deepStrictEqual(Object.keys(sent.content.facts).sort(), ['appointment', 'client', 'credit_life', 'instructions', 'letter_of_authority', 'notes', 'preferred_monthly_spend', 'quotes', 'referrals', 'schedules', 'undecided']);
   assert.match(sent.system, /Sitamah Nathoo/); assert.match(sent.system, /point form/); assert.match(sent.system, /never "he", "she", "his" or "her"/); assert.match(sent.system, /no signed LOA/);
   await assert.rejects(AI.actionPoints({ ask: () => Promise.reject(new Error('no connection')), model: 'm', facts: f }), /no connection/);
+});
+test('the notes boxes go to Claude with the judgement rule: only what Sitamah must do, never pure information', async () => {
+  const s = pa();
+  assert.deepStrictEqual(A.facts(s).notes, [], 'no notes, no entry');
+  store.setField(s, 'n_income', 'She gets a bonus in March.\nPlease ask her for her last three payslips.'); store.setField(s, 'n_cover', '   ');
+  store.setField(s, 'n_prio', 'Wants to think about it over the weekend.');
+  assert.deepStrictEqual(A.facts(s).notes, [{ page: 'Income & household', note: 'She gets a bonus in March.\nPlease ask her for her last three payslips.' }, { page: 'Client priorities and quotes needed', note: 'Wants to think about it over the weekend.' }]);
+  assert.notStrictEqual(A.key(A.facts(s)), (() => { const t = pa(); return A.key(A.facts(t)); })(), 'a changed note makes the points out of date, so they are written again');
+  store.setField(s, 'n_income', 'Call 082 454 1751 about the payslips');
+  let sent = null; await AI.actionPoints({ ask: (system, content) => { sent = { system, content: JSON.parse(content) }; return Promise.resolve('{"points": []}'); }, model: 'm', facts: A.facts(s) });
+  assert.ok(sent.content.facts.notes.length === 2 && !/082 454 1751/.test(JSON.stringify(sent.content)), 'a phone number in a note is scrubbed before it is sent');
+  assert.match(sent.system, /judgement call/); assert.match(sent.system, /something Sitamah must DO/); assert.match(sent.system, /Leave out pure information/);
+  assert.ok(!A.local(s).some(l => /payslips|bonus|weekend/.test(l)), 'the plain points (no Claude) never guess from a note');
 });
 test('the action points are saved with the file, and their state (written for what, by whom, typed over) with them', () => {
   const s = pa(); store.setField(s, 'pa_actions', '- Something'); store.setPa(s, 'abc123', 'claude'); s.pa.edited = true;

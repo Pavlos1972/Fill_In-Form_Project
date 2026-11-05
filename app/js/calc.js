@@ -35,6 +35,13 @@
     return { insured: insured, rows: rows, total: total, all: all, on: on, count: rows.length, rest: insured == null ? null : insured - total, over: insured != null && total > insured + 0.004, elsewhere: elsewhere, elsewhereTotal: elsewhereTotal };
   }
 
+  var OTHER_INCOME = ['rent', 'spinc', 'maint'];
+  function totalIncome(ctx) {
+    var any = !!ctx.v('net'), t = ctx.v('net') ? ctx.n('net') : 0;
+    OTHER_INCOME.forEach(function (k) { if (ctx.v(k)) { any = true; t += ctx.n(k); } });
+    return any ? t : null;
+  }
+
   var fieldCalcs = {
     /* The day of the week of the next appointment's date: Friday. */
     weekday: function (ctx) { var d = util.parseDate(ctx.v('next_appt')); return d ? util.weekdayName(d) : ''; },
@@ -50,7 +57,10 @@
       var r = tax.monthlyNet(g, clientAge(ctx), tax.taxYearFor(meetingDate(ctx)));
       return util.money2(r.net);
     },
-    disp: function (ctx) { return ctx.v('net') && ctx.v('exp') ? util.money(ctx.n('net') - ctx.n('exp')) : ''; },
+    /* Total Income: the take-home net income plus the rental, spousal and child maintenance income (a box left empty counts as nothing). Blank until there is something to add up. */
+    tinc: function (ctx) { return totalIncome(ctx) == null ? '' : util.money(totalIncome(ctx)); },
+    /* Disposable income: Total Income less the monthly expenses. The BrightRock Insured amount is not touched by this: it stays the take-home net income alone. */
+    disp: function (ctx) { var t = totalIncome(ctx); return t != null && ctx.v('exp') ? util.money(t - ctx.n('exp')) : ''; },
     d_tot: function (ctx) {
       var any = false, t = 0;
       DUTY_IDS.forEach(function (k) { if (ctx.v(k) !== '') { any = true; t += ctx.n(k); } });
@@ -107,5 +117,5 @@
     return cond.f ? [cond.f] : [];
   }
 
-  return { paidByClient: paidByClient, ipSplit: ipSplit, field: field, rowCalc: rowCalc, showIf: showIf, condFields: condFields, clientAge: clientAge, meetingDate: meetingDate, DUTY_IDS: DUTY_IDS };
+  return { paidByClient: paidByClient, ipSplit: ipSplit, field: field, rowCalc: rowCalc, showIf: showIf, condFields: condFields, clientAge: clientAge, meetingDate: meetingDate, DUTY_IDS: DUTY_IDS, totalIncome: totalIncome };
 });
