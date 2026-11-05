@@ -96,7 +96,7 @@ test('opening a file saved before these rules: Duties zeros, an empty Broker on 
   assert.strictEqual(s.l.inv[0].d.broker, 'Other broker'); assert.strictEqual(s.l.ret_ra[0].d.broker, 'Paul K', 'a broker that is there is not changed');
   assert.deepStrictEqual([s.f.will_broker.v, s.f.will_broker.st, s.f.sti_broker.v], ['Other broker', 'preset', ''], 'Will is Yes so its broker opens with the default; short-term is No so it does not');
   const again = store.fromJSON(store.toJSON(s));
-  assert.deepStrictEqual(D.map(id => again.f[id].v), D.map(id => s.f[id].v)); assert.strictEqual(store.toJSON(again).replace(/"(created|modified|at)":"[^"]*"/g, ''), store.toJSON(s).replace(/"(created|modified|at)":"[^"]*"/g, ''), 'a second opening changes nothing');
+  assert.deepStrictEqual(D.map(id => again.f[id].v), D.map(id => s.f[id].v)); assert.strictEqual(store.toJSON(again).replace(/"(created|modified|at)":\s*"[^"]*"/g, ''), store.toJSON(s).replace(/"(created|modified|at)":\s*"[^"]*"/g, ''), 'a second opening changes nothing');
   const under = JSON.parse(store.toJSON(fresh())); under.f.d_desk = { v: '90', st: 'heard' }; under.f.d_trav = { v: '5', st: 'heard' };
   assert.deepStrictEqual(D.map(id => store.fromJSON(JSON.stringify(under)).f[id].v), ['90', '', '5', '', '', '', ''], 'not 100%: nothing is added');
 });
