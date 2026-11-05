@@ -54,7 +54,7 @@
   function segmenter(o) {
     o = o || {};
     var FR = Math.round(RATE * 0.03), END = Math.round((o.endMs || 600) / 30), MIN = Math.round((o.minMs || 240) / 30), MAX = Math.round((o.maxMs || 14000) / 30), PRE = Math.round((o.preMs || 300) / 30);
-    var rest = new Float32Array(0), pre = [], cur = null, quiet = 0, run = 0, spoken = 0, floor = 0.003, last = 0;
+    var rest = new Float32Array(0), pre = [], cur = null, quiet = 0, run = 0, spoken = 0, floor = 0.003, last = 0, now = o.now || Date.now, curSince = 0;
     function line() { return cur && spoken >= MIN ? join(cur.slice(0, Math.min(cur.length, cur.length - quiet + 7))) : null; }   // the speech, with 0.2 s of the pause; a blip shorter than a short word is not a line
     function frame(fr) {
       var r = rms(fr), speech = r > Math.max(0.008, floor * 3.5), done = null;
@@ -62,7 +62,7 @@
       if (!cur) {
         if (speech) run++; else { run = 0; floor = Math.max(0.002, floor * 0.95 + r * 0.05); }
         pre.push(fr); if (pre.length > PRE + 2) pre.shift();
-        if (run >= 2) { cur = pre.slice(); pre = []; quiet = 0; spoken = run; run = 0; }
+        if (run >= 2) { curSince = now() - pre.length * 30; cur = pre.slice(); pre = []; quiet = 0; spoken = run; run = 0; }                  // when this speech began, for putting two speakers' lines in the order they began
       } else {
         cur.push(fr);
         if (speech) spoken++;
@@ -79,7 +79,8 @@
         return out;
       },
       flush: function () { var d = line(); cur = null; quiet = 0; pre = []; return d; },
-      level: function () { return last; }
+      level: function () { return last; },
+      since: function () { return cur ? curSince : 0; }                                  // when the speech being heard now began (0: nobody is speaking)
     };
   }
   /* When Whisper is given noise it can get stuck repeating itself ("more, get, more, get, ..."): a few words said over and over is not speech. */
@@ -501,7 +502,20 @@
      sent as a short WAV with a hint list (o.prompt(): the names on the form and the terms of the trade), and the words that come back go through the same clean-up. Lines are shown in the order they were
      said even when one takes longer to come back. The sound leaves this computer for OpenAI (never for Anthropic). h: as for the other engines. */
   function openaiEngine(o, h) {
-    var mic = null, seg = segmenter(), call = null, callNote = '', segC = segmenter(), callOn = false, peakC = 0, watchC = null, said = [], alive = false, chain = Promise.resolve(), fails = 0, peak = 0, watch = null, last = '', f = o.fetchImpl || (typeof fetch !== 'undefined' ? fetch.bind(typeof window !== 'undefined' ? window : globalThis) : null);
+    var clock = o.now || Date.now, held = [], holdT = null;
+    var mic = null, seg = segmenter({ now: clock }), call = null, callNote = '', segC = segmenter({ now: clock }), callOn = false, peakC = 0, watchC = null, said = [], alive = false, chain = Promise.resolve(), fails = 0, peak = 0, watch = null, last = '', f = o.fetchImpl || (typeof fetch !== 'undefined' ? fetch.bind(typeof window !== 'undefined' ? window : globalThis) : null);
+    /* Two speakers talking at once: the line of the one who began first goes first, even when the other, shorter, line is finished first ("Mm-hmm" said over the client's answer is not read before the answer). A finished line waits
+       while the other source is in the middle of speech that began before it did (at most holdMs, 5 seconds): then both go, the earlier one first. Nothing waits when only one person talks. */
+    function give(u, who, other) {
+      var start = clock() - u.length / RATE * 1000, since = callOn && other ? other.since() : 0;
+      if (since && since < start) { held.push({ u: u, who: who, other: other }); clearTimeout(holdT); holdT = setTimeout(function () { release(true); }, o.holdMs || 5000); return; }
+      send(u, who);
+    }
+    function release(force) {
+      var keep = [];
+      held.forEach(function (x) { if (force || !x.other.since()) send(x.u, x.who); else keep.push(x); });
+      held = keep; if (!held.length) clearTimeout(holdT);
+    }
     function send(u, who) {
       var secs = u.length / RATE, t0 = Date.now(), pk = peakOf(u), form = new FormData(), hint = '', req;
       try { hint = o.prompt ? String(o.prompt(last) || '') : ''; } catch (e) { hint = ''; }
@@ -535,16 +549,28 @@
         last = text; h.text(text, { audio: secs, took: (now - t0) / 1000, where: 'OpenAI', peak: pk, who: who });
       });
     }
+    /* The first answer of a session used to take about 13 seconds (the service starts cold). A half second of silence is sent as soon as Listen starts, so that the first real line is not the one that waits: its answer is thrown away
+       and it is counted on the speech meter like any other (a fraction of a cent). */
+    function warmUp() {
+      if (o.openaiWarm === false) return;
+      try {
+        var form = new FormData(), quiet = new Float32Array(Math.round(RATE * 0.6));
+        form.append('file', wavBlob(quiet, RATE), 'speech.wav'); form.append('model', o.openaiModel || 'gpt-4o-transcribe'); form.append('language', 'en'); form.append('response_format', 'json'); form.append('temperature', '0');
+        f('https://api.openai.com/v1/audio/transcriptions', { method: 'POST', headers: { Authorization: 'Bearer ' + o.openaiKey }, body: form }).then(function (res) {
+          if (res.ok && o.usage) { try { o.usage(0.6, o.openaiModel || 'gpt-4o-transcribe'); } catch (e) { /* the meter must never stop a line */ } }
+        }, function () { /* a failed warm-up costs nothing and says nothing */ });
+      } catch (e) { /* the warm-up is only a help */ }
+    }
     return {
       start: function () {
         if (!o.openaiKey) return Promise.reject(new Error('Add your OpenAI key in Settings first (Speech source: OpenAI).'));
         if (!f) return Promise.reject(new Error('This browser cannot reach OpenAI.'));
-        alive = true;
+        alive = true; warmUp();
         /* The call's sound is asked for first, while the click that pressed Listen still counts (Chrome only opens the share window for a click). A refusal leaves the microphone on its own. */
         var callP = o.call ? (o.callCapture || openCall)(function (x) {
           var lv = rms(x); if (lv > peakC) peakC = lv;
           if (h.callLevel) h.callLevel(meter(lv));
-          if (alive && callOn) segC.push(x).forEach(function (u) { send(u, 'client'); });
+          if (alive && callOn) { segC.push(x).forEach(function (u) { give(u, 'client', seg); }); release(false); }
         }).then(function (c) {
           call = c; callOn = true;
           if (c.onEnded) c.onEnded(function () { if (alive && callOn) { callOn = false; if (h.note) h.note('The call\'s sound stopped (sharing was stopped in Chrome), so the client is no longer heard. Press Listen to stop and again to share it.'); if (h.event) h.event('call sound stopped', '', true); } });
@@ -556,7 +582,7 @@
             var lv = rms(x); if (lv > peak) peak = lv;
             h.level(meter(lv));
             if (!alive) return;
-            seg.push(x).forEach(function (u) { send(u, callOn ? 'me' : undefined); });
+            seg.push(x).forEach(function (u) { give(u, callOn ? 'me' : undefined, segC); }); release(false);
           });
         }).then(function (m) {
           mic = m;
@@ -566,8 +592,8 @@
           if (callNote && h.note) h.note(callNote);                                                // after the status line, which would otherwise replace it
         });
       },
-      stop: function () { if (alive && h.event) h.event('listening stopped', 'by the page or by you', false); alive = false; clearTimeout(watch); clearTimeout(watchC); seg = segmenter(); segC = segmenter(); peak = peakC = 0; said = []; callOn = false; if (mic) mic.close(); mic = null; if (call) call.close(); call = null; },
-      feed: function (x) { if (alive) { seg.push(x).forEach(function (u) { send(u, callOn ? 'me' : undefined); }); h.level(meter(seg.level())); } }       // used by the tests
+      stop: function () { if (alive && h.event) h.event('listening stopped', 'by the page or by you', false); alive = false; clearTimeout(watch); clearTimeout(watchC); clearTimeout(holdT); held = []; seg = segmenter({ now: clock }); segC = segmenter({ now: clock }); peak = peakC = 0; said = []; callOn = false; if (mic) mic.close(); mic = null; if (call) call.close(); call = null; },
+      feed: function (x) { if (alive) { seg.push(x).forEach(function (u) { give(u, callOn ? 'me' : undefined, segC); }); release(false); h.level(meter(seg.level())); } }       // used by the tests
     };
   }
 

@@ -497,7 +497,7 @@ test('the prompt says: one answer only, list boxes by "cell", calculated figures
   assert.ok(/never a second object/.test(AI.SYSTEM));
   assert.ok(/only ever filled with a "cell" action/.test(AI.SYSTEM));
   assert.ok(/Direct Net Income" \(dnet\)/.test(AI.SYSTEM) && /not the take-home pay/.test(AI.SYSTEM));
-  assert.ok(/left with 90 000 after all my expenses/.test(AI.SYSTEM) && /net minus that amount/.test(AI.SYSTEM));
+  assert.ok(/left with 90 000 after all my expenses/.test(AI.SYSTEM) && /total income minus that amount/.test(AI.SYSTEM) && /Rental Income/.test(AI.SYSTEM) && /Child Maintenance Income/.test(AI.SYSTEM) && /agreed on the call/.test(AI.SYSTEM));
 });
 
 test('a slow answer is raced by a second request and the first answer back is used; without hedging nothing is sent twice', async () => {
@@ -522,5 +522,5 @@ test('the catch-up request carries the notes and the facts already offered, and 
   assert.deepStrictEqual(body.notes, { health: '- Has gout' });
   assert.deepStrictEqual(body.listed, ['Blood pressure 140 over 180']);
   assert.ok(/already in "notes" or in "listed" is never reported again/.test(req.system));
-  assert.ok(/net minus that amount/.test(req.system));
+  assert.ok(/total income \(net plus any rent, spinc and maint in "filled"\) minus that amount/.test(req.system));
 });

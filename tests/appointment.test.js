@@ -96,3 +96,18 @@ test('voice: the time box, a date and a time said together, and a time said to t
   assert.deepStrictEqual(acts('my next appointment is the sixth of November 2026'), [['next_appt', '06/11/2026']]);
   assert.strictEqual(V.plan('what time shall we meet', idx, st()).actions.find(a => a.do === 'ask').field, 'next_time');
 });
+
+test('a date said without a year is counted from the date of the form, and an appointment is never before the meeting', () => {
+  let meeting = '04/11/2026'; V.setMeetingSource(() => meeting);
+  const r = t => V.interpret(idx.byId.next_appt, t);
+  assert.deepStrictEqual(r('Thursday the 19th'), { value: '19/11/2026', status: 'verify' }, 'the first 19th on or after the form date that is a Thursday');
+  assert.deepStrictEqual(r('Thursday the 19th at 8:30 in the morning'), { value: '19/11/2026', status: 'verify', extra: [{ id: 'next_time', value: '08:30', status: 'verify' }] });
+  assert.strictEqual(r('the 19th').value, '19/11/2026'); assert.strictEqual(r('the nineteenth of November').value, '19/11/2026'); assert.strictEqual(r('the 5th').value, '05/11/2026', 'the form date itself counts');
+  assert.strictEqual(r('Tuesday the 3rd').value, '03/12/2026', 'no Tuesday the 3rd within a few months: the weekday was misspoken, so the next 3rd is taken');
+  assert.strictEqual(r('Friday the 19th').value, '19/02/2027', 'Friday the 19th is February 2027, three months on, which still fits');
+  assert.deepStrictEqual(r('2025-06-19'), { error: 'before-meeting', note: 'the date of the form is 04/11/2026' }, 'a year from memory that is before the meeting is not filled');
+  assert.strictEqual(r('the sixth of November 2026').value, '06/11/2026', 'a full date after the meeting is fine');
+  assert.strictEqual(r('Thursday').error, 'no-date', 'a weekday alone is no date');
+  meeting = '28/12/2026'; assert.strictEqual(r('the 3rd').value, '03/01/2027', 'the next month, and the next year when it must');
+  meeting = ''; V.setMeetingSource(null);
+});
