@@ -108,3 +108,30 @@ test('Claude is told today\'s date in every request: the voice line, the catch-u
   assert.match(p, /^Today's date is (?:Sun|Mon|Tues|Wednes|Thurs|Fri|Satur)day \d\d\/\d\d\/\d{4}\. Search the web/);
   assert.match(L.buildRequest('Paul K', 'person', 'm', null, { org: 'Acme' }).messages[0].content, /^Today's date is /);
 });
+
+test('a schedule is sent with the notes of its own page, so "No need to send through" and "she already emailed it" are read against it', () => {
+  const s = fresh(); set(s, 'fname', 'Roquelle'); set(s, 'has_risk', 'Yes'); set(s, 'ps_risk', schema.psClient.risk); set(s, 'has_inv', 'Yes'); set(s, 'has_ra', 'Yes'); set(s, 'has_pp', 'No');
+  store.addRow(s, 'risk', { prov: 'Liberty' }); store.addRow(s, 'inv', { prov: 'FNB' }); store.addRow(s, 'ret_ra', { prov: 'Allan Gray' });
+  set(s, 'n_cover', '- Client already sent the Liberty policy schedule to us via email\n- Needs to check emails'); set(s, 'n_inv', 'No need to send through'); set(s, 'n_retire', '   ');
+  const by = {}; A.facts(s).schedules.forEach(x => { by[x.what] = x; });
+  assert.strictEqual(by['personal risk policies'].note_on_this_page, '- Client already sent the Liberty policy schedule to us via email\n- Needs to check emails');
+  assert.deepStrictEqual([by['investments'].note_on_this_page, by['investments'].requested], ['No need to send through', ['not asked yet']]);
+  assert.ok(!('note_on_this_page' in by['retirement annuities']), 'an empty note adds nothing');
+  assert.ok(A.facts(s).notes.some(n => n.page === 'Investments' && n.note === 'No need to send through'), 'and it is still in the notes of all the pages');
+  set(s, 'n_inv', 'Other note'); assert.notStrictEqual(A.key(A.facts(s)), A.key((() => { set(s, 'n_inv', 'No need to send through'); return A.facts(s); })()), 'a changed note makes the points out of date');
+});
+
+test('the action points prompt says the notes decide: no point for a schedule noted "no need to send through", check the inbox first when she says she already sent it', () => {
+  const sys = AI.ACTIONS_SYSTEM;
+  assert.match(sys, /THE NOTES DECIDE/); assert.match(sys, /note_on_this_page/); assert.match(sys, /the note wins/);
+  assert.match(sys, /No need to send through[^.]*write NO point for it, even when it says "not asked yet"/);
+  assert.match(sys, /ALREADY sent the schedule[^.]*first check whether it has arrived/);
+  assert.match(AI.FOCUS_SYSTEM, /notes/); assert.match(AI.FOCUS_SYSTEM, /already emailed a schedule means checking for it first/);
+});
+
+test('a green area is sent with the notes of its own pages', () => {
+  const s = fresh(); set(s, 'fname', 'Roquelle'); set(s, 'pr_life', GO); set(s, 'pr_will', GO); set(s, 'pr_st', GO);
+  set(s, 'n_cover', 'Liberty schedule: client says she emailed it'); set(s, 'n_will', 'Draft not signed'); set(s, 'n_sti', ''); set(s, 'n_inv', 'No need to send through');
+  const a = A.focusFacts(s).areas;
+  assert.deepStrictEqual(a.map(x => [x.number, x.notes]), [[1, ['Liberty schedule: client says she emailed it']], [7, ['Draft not signed']], [8, undefined]]);
+});

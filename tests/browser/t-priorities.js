@@ -71,6 +71,23 @@ let bad = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if
   await p.selectOption('[data-f="will_broker"]', 'Through company'); await p.selectOption('[data-f="ma"]', 'None'); await p.waitForTimeout(250);
   ok((await val(p, 'ma_broker')) === '' && (await val(p, 'will_broker')) === 'Through company', 'None takes the untouched default away; a chosen broker stays');
   await p.screenshot({ path: process.argv[4] + '/priorities-broker.png' });
+  // ---- a file saved before these rules existed (the Roquelle file) ----
+  p = await fresh();
+  const json = await p.evaluate(() => {
+    const s = FF.store.blank(), set = (id, v, st) => { s.f[id] = { v, st: st || 'heard' }; };
+    set('fname', 'Roquelle'); set('d_desk', '90'); set('d_trav', '10'); set('pr_life', FF.schema.PRIORITY, 'confirmed'); set('pr_med', FF.schema.PRIORITY, 'confirmed'); set('has_risk', 'Yes'); set('has_inv', 'Yes'); set('ma', 'Medical aid'); set('pr_life_cm', 'First priority: relook at the risk covers');
+    s.l.risk = [{ d: { prov: 'Liberty', spend: 'R 2 231.35', broker: '', notes: '' }, st: 'heard' }];
+    s.l.inv = [{ d: { type: 'Other', prov: 'FNB', val: 'R 11 000.00', prem: 'R 200.00', broker: '' }, st: 'confirmed' }];
+    const o = JSON.parse(FF.store.toJSON(s)); delete o.focus; return JSON.stringify(o);
+  });
+  await p.evaluate(j => { FF.app.setState(FF.store.fromJSON(j)); }, json);
+  await nav(p, 'occ');
+  ok((await Promise.all(['d_desk', 'd_supo', 'd_trav', 'd_sups', 'd_light', 'd_mod', 'd_heavy'].map(id => val(p, id)))).join(',') === '90,0,10,0,0,0,0', 'an older file opens with 0 in the empty duties when the others add up to 100%');
+  await nav(p, 'prio'); await p.waitForTimeout(2200);
+  t = await val(p, 'focus');
+  ok(/^1\. Personal Risk Covers\n/.test(t) && /\n\n6\. Medical Aid\n/.test(t), 'on arriving at the priorities page the box writes itself for the green areas, with no Refresh and no change: ' + JSON.stringify(t.slice(0, 60)));
+  ok(await p.evaluate(() => FF.app.state.l.risk[0].d.broker === 'Other broker' && FF.app.state.l.inv[0].d.broker === 'Other broker' && FF.app.state.f.ma_broker.v === 'Other broker'), 'and the empty Broker on record in its policy rows, and in the Medical aid box, are Other broker');
+
   ok(errs.length === 0, 'no page errors ' + errs.join('|'));
   console.log(bad ? bad + ' FAILED' : 'all pass'); await b.close(); process.exit(bad ? 1 : 0);
 })();

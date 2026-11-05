@@ -473,6 +473,7 @@
     if (focusBusy) return 'Claude is writing these points…';
     if (!n) return fo.edited ? 'Edited by you. No priority is green now. Refresh empties the box.' : 'No priority is green yet. The points appear here as the client agrees to a priority.';
     if (fo.edited) return 'Edited by you: these points no longer follow the form. Refresh writes them again, over what you typed.';
+    if (!state.f.focus.v) return 'Writing the points for the green priorities…';
     if (fo.by === 'claude') return 'Written by Claude' + (fo.at ? ', ' + new Date(fo.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '') + ', from the green priorities. They follow the form until you type in the box.';
     return vmAIReady() ? 'Plain points from the green priorities. Refresh for Claude to write them.' : 'Plain points from the green priorities. Claude writes these when the Anthropic key is in Settings.';
   }
@@ -544,6 +545,7 @@
     main.innerHTML = sectionHTML(sec);
     if (cur === 'prio' && drawn !== 'prio') sumSoon();                                       // Claude writes the summaries when the page is opened
     if (cur === 'admin') paSoon();                                                           // and the action points, while the box is not the adviser's own
+    if (cur === 'prio') focusSoon();                                                         // and the Priorities to be Focused on (also for a file opened with a green priority and no points yet)
     drawn = cur;
     refreshChrome(); refreshWarnings();
     if (vm.on) vmMarkWait();
