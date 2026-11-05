@@ -28,7 +28,7 @@
   function rememberHandle(h) { return idb(function (st, done) { var r = h ? st.put(h, 'current') : st.delete('current'); r.onsuccess = function () { done(true); }; r.onerror = function () { done(null); }; }); }
   function recallHandle() { return idb(function (st, done) { var r = st.get('current'); r.onsuccess = function () { done(r.result || null); }; r.onerror = function () { done(null); }; }); }
   function loadDraft() { try { var t = localStorage.getItem(DRAFT_KEY); return t ? store.fromJSON(t) : null; } catch (e) { return null; } }
-  function touch() { dirty = true; onDisk = false; saveDraft(); refreshChrome(); if (cur === 'admin' && typeof paSoon === 'function') paSoon(); }
+  function touch() { dirty = true; onDisk = false; saveDraft(); refreshChrome(); if (cur === 'admin' && typeof paSoon === 'function') paSoon(); if (cur === 'prio' && typeof focusSoon === 'function') focusSoon(); }
   /* A South African ID number holds the date of birth (YYMMDD), and the date of birth always follows it: when the ID number is entered or changed,
      the date goes into the date of birth box, replacing whatever was there (a date entered before the ID, or the date of the previous ID), and a note says so.
      A date typed or said after the ID is left as it is (the Checks panel warns when it does not match). The date takes the status of the ID number:
@@ -337,7 +337,7 @@
     if (!ok && !own && b.condMsg && !b.nomsg) h += '<div class="note">' + esc(b.condMsg) + '</div>';
     var inner = '';
     if (b.help) inner += '<p class="help">' + esc(b.help) + '</p>';
-    if (b.protector) inner += protectorHTML(b, c); else if (b.actions) inner += paHTML(b, c); else if (b.fields) inner += gridHTML(b, c);
+    if (b.protector) inner += protectorHTML(b, c); else if (b.actions) inner += paHTML(b, c); else if (b.focus) inner += focusHTML(b, c); else if (b.fields) inner += gridHTML(b, c);
     if (b.list) { if (!b.title && !notitle && schema.lists[b.list].title !== sec.title) inner += '<div class="block-title">' + esc(schema.lists[b.list].title) + '</div>'; inner += listHTML(b.list); }
     if (b.note) inner += '<p class="blocknote">' + esc(b.note) + '</p>';
     return h + (ok ? inner : '<div class="off" inert>' + inner + '</div>');
@@ -378,7 +378,7 @@
     var applies = calc.showIf(P.cond, c);
     var chip = !P.dec ? (applies ? 'Business owner' : 'Not applicable') : cls === ' p1' ? 'Priority' : cls === ' p2' ? 'Not a priority' : cls === ' p3' ? (v === schema.BUDGET ? 'Needs to check budget' : 'Needs to think about it') : 'Not yet discussed';
     var blocks = sec.blocks.filter(function (b) { return b.pri === id; }), head = blocks.filter(function (b) { return b.head; })[0], rest = blocks.filter(function (b) { return !b.head; });
-    var h = '<section class="prio' + cls + (applies ? '' : ' na') + '" data-prio="' + id + '"><header><h3>' + esc(P.title) + '</h3><span class="sub">' + esc(applies ? P.sub : P.condMsg) + '</span>' +
+    var h = '<section class="prio' + cls + (applies ? '' : ' na') + '" data-prio="' + id + '"><header><h3>' + esc(schema.areaTitle(P)) + '</h3><span class="sub">' + esc(applies ? P.sub : P.condMsg) + '</span>' +
       (applies ? '' : '<button type="button" class="btn ghost" data-sec="occ">Go to Occupation</button>') + '<span class="chip">' + chip + '</span></header>';
     if (!applies) return h + '</section>';
     var hb = head;
@@ -442,6 +442,8 @@
     if (st) st.textContent = paStatus(); if (bt) { bt.disabled = paBusy; bt.textContent = state.pa.edited ? 'Refresh (replaces what I typed)' : 'Refresh'; }
     if (ta && ta.value !== state.f.pa_actions.v && !(document.activeElement === ta && state.pa.edited)) ta.value = state.f.pa_actions.v;     // never over what is being typed
   }
+  /* The status line and the button after a key typed in the box (the text itself is never touched while it is being typed). */
+  function paLabels() { var st = document.getElementById('paStatus'), bt = document.getElementById('paRefresh'); if (st) st.textContent = paStatus(); if (bt) bt.textContent = state.pa.edited ? 'Refresh (replaces what I typed)' : 'Refresh'; }
   function paWrite(lines, key, by) {
     store.setField(state, 'pa_actions', FF.actions.text(lines, state)); store.setPa(state, key, by);
     touch(); paPaint();
@@ -461,6 +463,46 @@
     }, function (e) { paBusy = false; paPaint(); if (manual) toast('Claude could not write the points (' + ((e && e.message) || 'no answer') + '). Plain points were written from the form.'); });
   }
   function paSoon() { clearTimeout(paTimer); paTimer = setTimeout(function () { if (cur === 'admin') paRefresh(false); }, 600); }
+
+  /* ---------- Priorities to be Focused on (top of Client priorities and quotes needed) ----------
+     Written from the green priorities only, the same way as the action points: plain points at once, then Claude's, for as long as the adviser has not typed in the box; with no green priority the box is empty
+     and says so; Refresh writes it again in one tap. */
+  var focusBusy = false, focusTimer = null;
+  function focusStatus() {
+    var fo = state.focus || {}, n = FF.actions.focusFacts(state).areas.length;
+    if (focusBusy) return 'Claude is writing these points…';
+    if (!n) return fo.edited ? 'Edited by you. No priority is green now. Refresh empties the box.' : 'No priority is green yet. The points appear here as the client agrees to a priority.';
+    if (fo.edited) return 'Edited by you: these points no longer follow the form. Refresh writes them again, over what you typed.';
+    if (fo.by === 'claude') return 'Written by Claude' + (fo.at ? ', ' + new Date(fo.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '') + ', from the green priorities. They follow the form until you type in the box.';
+    return vmAIReady() ? 'Plain points from the green priorities. Refresh for Claude to write them.' : 'Plain points from the green priorities. Claude writes these when the Anthropic key is in Settings.';
+  }
+  function focusHTML(b, c) {
+    var f = b.fields[0];
+    return fieldHTML(f, false) + '<div class="apstatus"><span id="focusStatus">' + esc(focusStatus()) + '</span><button type="button" class="link-btn" id="focusRefresh"' + (focusBusy ? ' disabled' : '') + '>' + (state.focus.edited ? 'Refresh (replaces what I typed)' : 'Refresh') + '</button></div>';
+  }
+  function focusPaint() {
+    var st = document.getElementById('focusStatus'), ta = document.querySelector('[data-f="focus"]'), bt = document.getElementById('focusRefresh');
+    if (st) st.textContent = focusStatus(); if (bt) { bt.disabled = focusBusy; bt.textContent = state.focus.edited ? 'Refresh (replaces what I typed)' : 'Refresh'; }
+    if (ta && ta.value !== state.f.focus.v && !(document.activeElement === ta && state.focus.edited)) ta.value = state.f.focus.v;
+  }
+  function focusLabels() { var st = document.getElementById('focusStatus'), bt = document.getElementById('focusRefresh'); if (st) st.textContent = focusStatus(); if (bt) bt.textContent = state.focus.edited ? 'Refresh (replaces what I typed)' : 'Refresh'; }
+  function focusWrite(text, key, by) { store.setField(state, 'focus', text); store.setFocus(state, key, by); touch(); focusPaint(); }
+  /* manual: the Refresh button. Otherwise only while the points are the form's own (not typed over) and the green priorities have changed since they were written. */
+  function focusRefresh(manual) {
+    if (!FF.actions) return;
+    var f = FF.actions.focusFacts(state), key = FF.actions.key(f);
+    if (!manual && (state.focus.edited || (state.focus.key === key && (state.f.focus.v || !f.areas.length)))) return;
+    focusWrite(FF.actions.focusText(f), key, 'form');
+    if (!f.areas.length) return;
+    if (!VAI || !VAI.focusPoints || !vmAIReady()) { if (manual) toast('Claude writes these points: put the Anthropic key in Settings. Plain points were written from the form.'); return; }
+    focusBusy = true; focusPaint();
+    var set = FF.lookup.getSettings();
+    VAI.focusPoints({ apiKey: set.apiKey, ask: !set.apiKey && FF.voiceBackend && FF.voiceBackend.available ? FF.voiceBackend.ask : null, model: set.voiceModel, facts: f, fetchImpl: meteredFetch }).then(function (byArea) {
+      focusBusy = false;
+      if (Object.keys(byArea).some(function (k) { return byArea[k].length; }) && (manual || (!state.focus.edited && state.focus.key === key))) focusWrite(FF.actions.focusText(f, byArea), key, 'claude'); else focusPaint();
+    }, function (e) { focusBusy = false; focusPaint(); if (manual) toast('Claude could not write the points (' + ((e && e.message) || 'no answer') + '). Plain points were written from the form.'); });
+  }
+  function focusSoon() { clearTimeout(focusTimer); focusTimer = setTimeout(function () { if (cur === 'prio') focusRefresh(false); }, 1200); }
 
   /* ---------- the summaries on the Client priorities page ---------- */
   var sumBusy = {}, sumTimer = null;
@@ -590,13 +632,16 @@
     var b = e.target.closest && e.target.closest('[data-msb]');
     if (b) { var id = b.dataset.msb; msOpen = msOpen === id ? '' : id; msFree = {}; redraw(); return; }
     if (msOpen && !(e.composedPath ? e.composedPath() : []).some(function (n) { return n.classList && n.classList.contains('ms'); })) msClose();       // the path was taken before the list was redrawn
-    if (e.target.id === 'paRefresh') paRefresh(true);                    // one tap: it writes the points again, over what was typed
+    if (e.target.id === 'paRefresh') paRefresh(true);
+    if (e.target.id === 'focusRefresh') focusRefresh(true);                    // one tap: it writes the points again, over what was typed
   });
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape') msClose(); });
   document.addEventListener('toggle', function (e) { if (e.target.classList && e.target.classList.contains('sqd')) sqdOpen = e.target.open; }, true);
   document.addEventListener('input', function (e) {                                                       // the first key typed in the action points makes them the adviser's own
-    var t = e.target; if (!t.dataset || t.dataset.f !== 'pa_actions') return;
-    state.pa.edited = t.value !== ''; paPaint();
+    var t = e.target; if (!t.dataset) return;
+    if (t.dataset.f === 'focus') { state.focus.edited = t.value !== ''; focusLabels(); return; }       // and so does the first key typed in the Priorities to be Focused on
+    if (t.dataset.f !== 'pa_actions') return;
+    state.pa.edited = t.value !== ''; paLabels();
   });
   document.addEventListener('change', function (e) {
     var t = e.target; if (!t.dataset || !t.dataset.ck) return;
@@ -668,7 +713,8 @@
       if (def && def.money) { val = util.formatMoney(val); t.value = val; }
       if (def && def.date) { var pd = util.parseDate(val); if (pd) { val = util.formatDate(pd); t.value = val; } }
       if (def && def.time) { var pt = util.parseTime(val); if (pt) { val = util.formatTime(pt); t.value = val; } }              // "2pm" and "2:30 pm" become 14:30
-      if (t.dataset.f === 'pa_actions') { state.pa.edited = val !== ''; }                  // typed over: the points are the adviser's own until Refresh
+      if (t.dataset.f === 'pa_actions') { state.pa.edited = val !== ''; }
+      if (t.dataset.f === 'focus') { state.focus.edited = val !== ''; }                  // typed over: the points are the adviser's own until Refresh
       store.setField(state, t.dataset.f, val);
       var dobSet = (t.dataset.f === 'idno' || t.dataset.f === 'idtype') && autoDob();        // the date of birth follows the ID number (and the ID type going back to ID)
       var sexSet = (t.dataset.f === 'idno' || t.dataset.f === 'idtype') && autoGender();      // and so does an empty gender box
@@ -1172,7 +1218,7 @@
   /* The rows at the end of a list that hold nothing at all are taken away (the talk about the list is over). */
   function vmDropEmptyTail(key) {
     var rows = state.l[key], gone = false;
-    while (rows && rows.length && Object.keys(rows[rows.length - 1].d).every(function (k) { var x = rows[rows.length - 1].d[k]; return x === '' || x == null; })) { store.delRow(state, key, rows.length - 1); gone = true; }
+    while (rows && rows.length && store.rowBlank(key, rows[rows.length - 1])) { store.delRow(state, key, rows.length - 1); gone = true; }
     if (gone) { vm.rowCur[key] = Math.max(Math.min(vm.rowCur[key] == null ? 0 : vm.rowCur[key], rows.length - 1), 0); touch(); redraw(); }
   }
   function vmDropPointed(nextId) {
@@ -1181,7 +1227,7 @@
     if (nc && nc.list === p.list && nc.i === p.i) return;                    // still on that row
     vm.pointed = null;
     var rows = state.l[p.list], r = rows && rows[p.i];
-    if (!r || p.i !== rows.length - 1 || !Object.keys(r.d).every(function (k) { return r.d[k] === '' || r.d[k] == null; })) return;
+    if (!r || p.i !== rows.length - 1 || !store.rowBlank(p.list, r)) return;
     store.delRow(state, p.list, p.i);
     if (vm.rowCur[p.list] === p.i) vm.rowCur[p.list] = Math.max(p.i - 1, 0);
     touch(); redraw();
@@ -1444,7 +1490,7 @@
     delete vm.done[L.sec];
     if (cur !== L.sec && !vmQuiet) { var fromR = cur; cur = L.sec; vm.secGlow = false; vmPulseNav(); vmMoved(); vmEnter(fromR); }
     var rows = state.l[list], i = -1, r;
-    if (values) for (r = 0; r < rows.length; r++) if (!Object.keys(rows[r].d).some(function (k) { return rows[r].d[k] !== ''; })) { i = r; break; }
+    if (values) for (r = 0; r < rows.length; r++) if (store.rowBlank(list, rows[r])) { i = r; break; }
     if (i < 0) { store.addRow(state, list, {}, 'heard'); i = rows.length - 1; vm.undo.push({ kind: 'addrow', list: list, i: i }); }
     var row = rows[i], flashed = [], last = null;
     vm.rowCur[list] = i;
@@ -1529,7 +1575,7 @@
     vidx.fields.forEach(function (f) {
       if (f.list || !vmVisible(f)) return;
       var c = state.f[f.id];
-      if (!c || c.v === '') return;
+      if (!c || c.v === '' || c.st === 'preset') return;                                  // a default (Broker on record: Other broker) is not an answer yet
       if (V.PRIVATE_IDS.indexOf(f.id) >= 0 && !vmShareOn()) priv.push(f.id); else filled[f.id] = String(c.v);
     });
     return { filled: filled, filledPrivate: priv };
@@ -1549,7 +1595,7 @@
       if (vidx.lists[key].sec !== cur) return;
       state.l[key].forEach(function (r, i) {
         if (r.st !== 'heard' && r.st !== 'verify') return;
-        if (Object.keys(r.d).some(function (k) { return r.d[k] !== '' && r.d[k] != null; })) out.push({ list: key, row: i + 1, label: vidx.lists[key].title + ' ' + (i + 1) });
+        if (store.rowFilled(key, r)) out.push({ list: key, row: i + 1, label: vidx.lists[key].title + ' ' + (i + 1) });
       });
     });
     return { awaiting: out, held: held };
@@ -2356,7 +2402,7 @@
     if (!row) { vmUnplace({ text: L.title + ': ' + def.label + ' ' + a.value, why: 'there is no such row on the form', sec: L.sec }); return 0; }
     if (!x || x.error) { vmUnplace({ text: L.title + ' ' + (ri + 1) + ': ' + def.label + ' ' + a.value, why: 'could not be read as an answer for that box', sec: L.sec }); return 0; }
     var cur0 = row.d[a.col] == null ? '' : String(row.d[a.col]);
-    if (!Object.keys(row.d).some(function (k) { return row.d[k] !== '' && row.d[k] != null; })) { vmUnplace({ text: L.title + ': ' + def.label + ' ' + x.value, why: 'the row is still empty (it was only pointed at)', sec: L.sec }); return 0; }
+    if (store.rowBlank(a.list, row)) { vmUnplace({ text: L.title + ': ' + def.label + ' ' + x.value, why: 'the row is still empty (it was only pointed at)', sec: L.sec }); return 0; }
     if (cur0 === '') { var rc = vm.rowCur[a.list]; var ok = vmApplyCell({ list: a.list, i: ri, k: a.col }, id, { kind: 'fill', value: x.value, status: 'verify' }); vm.rowCur[a.list] = rc; if (ok) vmLog('filled (missed earlier) ' + L.title + ' ' + (ri + 1) + ': ' + def.label + ': ' + x.value); return ok ? 1 : 0; }
     if (!vmSame(cur0, x.value)) vmUnplace({ text: L.title + ' ' + (ri + 1) + ': the conversation says ' + def.label + ' ' + x.value, why: 'the box holds "' + cur0 + '"', sec: L.sec });
     return 0;

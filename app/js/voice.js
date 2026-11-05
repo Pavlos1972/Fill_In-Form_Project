@@ -913,15 +913,17 @@
       if (/ partnership /.test(s)) return 'Partnership';
       if (/ trust /.test(s)) return 'Trust';
       return null;
-    },
-    sti_broker: function (t) { return / (cameron|maritz) /.test(' ' + t + ' ') ? 'Cameron Maritz' : null; }
+    }
   };
-  ['ma_broker', 'gap_broker', 'will_broker'].forEach(function (id) {
+  /* Broker on record (Medical aid, Gap cover, Will, Short-term and the policy lists): the same four choices everywhere. "No broker" is None; "Cameron" (the short-term broker) is not Paul, so Other broker. */
+  ['ma_broker', 'gap_broker', 'will_broker', 'sti_broker', 'risk.broker', 'grp.broker', 'ret_ra.broker', 'ret_pp.broker', 'inv.broker', 'bizpol.broker'].forEach(function (id) {
     SPECIAL[id] = function (t) {
       var s = ' ' + t + ' ';
+      if (/ (another|other|different|someone else|somebody else|someone else's) broker /.test(s) || / other broker /.test(s)) return 'Other broker';
       if (/ (through|via) (my |the )?(company|employer|work) /.test(s) || / through company /.test(s)) return 'Through company';
-      if (/ no broker /.test(s)) return 'Privately paid, no broker';
+      if (/ (no broker|none|nobody|no one) /.test(s)) return 'None';
       if (/ (paul|paul k) /.test(s)) return 'Paul K';
+      if (id === 'sti_broker' && / (cameron|maritz) /.test(s)) return 'Other broker';
       return null;
     };
   });
