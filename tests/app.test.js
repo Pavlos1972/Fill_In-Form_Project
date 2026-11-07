@@ -25,8 +25,8 @@ test('a new Fact Find starts blank apart from the preset values', () => {
   assert.strictEqual(schema.advisor, 'Paul Kafentzis');
   assert.strictEqual(s.f.fname.st, 'empty');
   assert.strictEqual(s.f.h_chol.v, '');           // no silent "No"
-  assert.strictEqual(s.f.dd_cover.v, 'R 500 000.00'); assert.strictEqual(s.f.dd_cover.st, 'preset');       // dread disease starts at R 500 000.00 with a term of WOL
-  assert.strictEqual(s.f.dd_term.v, 'WOL'); assert.strictEqual(s.f.dds_cover.v, 'R 500 000.00'); assert.strictEqual(s.f.dds_term.v, 'WOL');
+  assert.strictEqual(s.f.dd_cover.v, 'R 0.00'); assert.strictEqual(s.f.dd_cover.st, 'preset');       // dread disease starts at R 0.00 with a term of WOL
+  assert.strictEqual(s.f.dd_term.v, 'WOL'); assert.strictEqual(s.f.dds_cover.v, 'R 0.00'); assert.strictEqual(s.f.dds_term.v, 'WOL');
 });
 test('Direct Net Income follows the TaxTim figure and the take-home stays separate', () => {
   const s = fresh(); set(s, 'gross', 'R 40 000'); set(s, 'net', '32 000');
@@ -218,8 +218,8 @@ test('the risk calculation boxes start with the agreed defaults', () => {
   const s = store.blank(), want = {
     lc_f_aci: 'Fixed', lc_f_aciv: '?', lc_wol: '3%', lc_ccabi: '5%',
     pd_f_aci: 'Fixed', pd_f_aciv: '?', pd_ccabi: '5%',
-    dd_aci: 'Fixed', dd_aciv: '?', dd_abiv: '3%', dd_cover: 'R 500 000.00', dd_term: 'WOL',
-    dds_aci: 'Fixed', dds_aciv: '?', dds_abiv: '3%', dds_cover: 'R 500 000.00', dds_term: 'WOL',
+    dd_aci: 'Fixed', dd_aciv: '?', dd_abiv: '3%', dd_cover: 'R 0.00', dd_term: 'WOL',
+    dds_aci: 'Fixed', dds_aciv: '?', dds_abiv: '3%', dds_cover: 'R 0.00', dds_term: 'WOL',
     ip_age: '65', ips_age: '65', ip_aci: 'Fixed', ip_aciv: '?', ip_abiv: '5%', ips_aci: 'Fixed', ips_aciv: '?', ips_abiv: '5%'
   };
   Object.keys(want).forEach(id => { assert.strictEqual(s.f[id].v, want[id], id); assert.strictEqual(s.f[id].st, 'preset', id); });
@@ -488,7 +488,7 @@ test('the Standard Quotes have an income protection and a dread disease quote of
   const back = store.fromJSON(JSON.stringify(old));
   assert.strictEqual(back.f.dd_cover.v, 'R 250 000.00'); assert.strictEqual(back.f.ip_wait.v, '1 month');             // what was typed stays
   assert.strictEqual(back.f.dd_term.v, '');                                                                          // and a box left empty in the old file is not filled behind the adviser's back
-  assert.strictEqual(back.f.dds_cover.v, 'R 500 000.00');
+  assert.strictEqual(back.f.dds_cover.v, 'R 0.00');
 });
 
 test('the OpenAI speech cost is kept with the Fact Find, like the Claude cost, and an older file has none', () => {

@@ -14,6 +14,7 @@ const set = (s, id, v) => store.setField(s, id, v);
 const ctx = s => store.ctxFor(s);
 const at = (s, id) => validate.check(ctx(s)).filter(w => w.id === id);
 const idx = V.buildIndex(schema);
+V.setMeetingSource(() => '01/11/2026');                                   // the form's date for these tests, so they do not depend on what day they are run (an appointment before it is refused)
 const time = x => { const t = util.parseTime(x); return t ? util.formatTime(t) : null; };
 
 test('a time is read the ways it is typed, in the 24-hour clock', () => {
@@ -109,5 +110,5 @@ test('a date said without a year is counted from the date of the form, and an ap
   assert.strictEqual(r('the sixth of November 2026').value, '06/11/2026', 'a full date after the meeting is fine');
   assert.strictEqual(r('Thursday').error, 'no-date', 'a weekday alone is no date');
   meeting = '28/12/2026'; assert.strictEqual(r('the 3rd').value, '03/01/2027', 'the next month, and the next year when it must');
-  meeting = ''; V.setMeetingSource(null);
+  meeting = ''; V.setMeetingSource(() => '01/11/2026');
 });

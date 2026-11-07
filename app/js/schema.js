@@ -64,10 +64,10 @@
     ];
   }
 
-  /* Dread disease cover starts at R 500 000.00 with a term of WOL (typed over when different); p is the prefix of the ids (dd: fractured cover, dds: standard quote). */
+  /* Dread disease cover starts at R 0.00 with a term of WOL (typed over when different); p is the prefix of the ids (dd: fractured cover, dds: standard quote). */
   function dread(p) {
     return [
-      { id: p + '_cover', money: 1, l: 'Dread disease cover (R)', t: 'txt', opt: 1, preset: 'R 500 000.00', s: 3 },
+      { id: p + '_cover', money: 1, l: 'Dread disease cover (R)', t: 'txt', opt: 1, preset: 'R 0.00', s: 3 },
       { id: p + '_term', l: 'Term', t: 'sel', o: ['WOL', 'Specified Age', 'Other'], opt: 1, preset: 'WOL', s: 3 },
       { id: p + '_termv', l: 'Term value', t: 'txt', opt: 1, s: 3 },
       { id: p + '_aci', l: 'ACI', t: 'sel', o: ['Fixed', 'Age-rated', 'Other'], opt: 1, preset: 'Fixed', s: 3 },
