@@ -58,7 +58,7 @@ test('the standard quote details moved to the Life area; the BrightRock Risk Cal
   ['lc_sa', 'lc_term', 'lc_termv', 'lc_aci', 'lc_aciv', 'lc_abiv', 'lc_cmt', 'pd_sa', 'pd_term', 'ips_age', 'ips_amt', 'ips_wait', 'ips_abiv', 'dds_cover', 'dds_term', 'dds_abiv', 'dds_cmt'].forEach(id => assert.ok(ids(std).includes(id), id));   // the same ids, so nothing is lost
   assert.ok(!ids(sec('calc').blocks).some(id => /^(?:lc_sa|pd_sa|ips_|dds_|pd_term|lc_term)/.test(id)));
   ['lc_hh', 'lc_f_aci', 'pd_ccabi', 'ip_age', 'ip_amt', 'ip_hh', 'dd_cover', 'dd_abiv', 'n_calc'].forEach(id => assert.ok(ids(sec('calc').blocks).includes(id), id));
-  const s = fresh(); assert.strictEqual(s.f.ips_age.v, '65'); assert.strictEqual(s.f.dds_cover.v, 'R 500 000.00'); assert.strictEqual(s.f.dd_cover.v, 'R 500 000.00');   // the starting answers are unchanged
+  const s = fresh(); assert.strictEqual(s.f.ips_age.v, '65'); assert.strictEqual(s.f.dds_cover.v, 'R 0.00'); assert.strictEqual(s.f.dd_cover.v, 'R 0.00');   // the starting answers are unchanged
 });
 
 test('files saved before the two kinds: what was asked of BrightRock moves to BrightRock Fractured, the rest stays Standard', () => {

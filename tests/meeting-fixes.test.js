@@ -96,8 +96,8 @@ test('a Next appointment date sits on the Admin page (not Client priorities) and
   assert.ok(!schema.sections.find(x => x.id === 'prio').blocks.some(b => b.title === 'Next appointment'));
   const f = schema.fieldsById.next_appt;
   assert.ok(f.date && f.cal && idx.byId.next_appt);
-  const r = V.interpret(idx.byId.next_appt, 'the fifth of November 2026');
-  assert.strictEqual(r.value, '05/11/2026');
+  const r = V.interpret(idx.byId.next_appt, 'the fifth of November 2099');                                 // far ahead: an appointment before the date of the form is refused
+  assert.strictEqual(r.value, '05/11/2099');
   const m = V.matchQuestion('When can we meet again for the next appointment?', idx, { cur: 'prio' });
   assert.strictEqual(m && m.id, 'next_appt');
 });
