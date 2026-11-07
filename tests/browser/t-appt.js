@@ -30,7 +30,8 @@ srv.listen(0, async () => {
   for (const [typed, shown] of [['2pm', '14:00'], ['2:30 pm', '14:30'], ['14h30', '14:30'], ['9h', '09:00']]) { await type('next_time', typed); ok((await val('next_time')) === shown, 'time "' + typed + '" is shown as ' + shown + ': ' + (await val('next_time'))); }
   await type('next_time', '2:30 pm');
 
-  // Checks
+  // Checks (the form's date is set, so this does not depend on the day it is run: an appointment before the form's date is warned about)
+  await p.evaluate(() => { FF.store.setField(FF.app.state, 'date', '01/11/2026'); FF.app.redraw(); });
   const checks = () => p.evaluate(() => [...document.querySelectorAll('#checks button')].map(e => e.textContent));
   ok(!(await checks()).some(t => /next appointment/i.test(t)), 'a date and a time: nothing to warn about');
   await type('next_time', '');
