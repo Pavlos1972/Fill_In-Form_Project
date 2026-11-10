@@ -63,9 +63,9 @@ let bad = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if
   ok(await p.evaluate(() => FF.app.state.l.risk[0].d.broker) === 'Paul K', 'and it can be changed');
   await nav(p, 'other');
   const boxes = ['ma_broker', 'gap_broker', 'will_broker', 'sti_broker'];
-  ok((await Promise.all(boxes.map(id => val(p, id)))).every(v => v === ''), 'the four boxes in Medical, will & short-term are empty until their answer opens them');
+  ok((await Promise.all(boxes.map(id => val(p, id)))).every(v => v === 'Other broker'), 'the four boxes in Medical, will & short-term start as Other broker, before any answer is given');
   await p.selectOption('[data-f="ma"]', 'Medical aid'); await p.selectOption('[data-f="gap"]', 'Yes'); await p.selectOption('[data-f="will"]', 'Yes'); await p.selectOption('[data-f="sti"]', 'Yes'); await p.waitForTimeout(300);
-  ok((await Promise.all(boxes.map(id => val(p, id)))).every(v => v === 'Other broker'), 'each opens with Other broker');
+  ok((await Promise.all(boxes.map(id => val(p, id)))).every(v => v === 'Other broker'), 'and they stay Other broker when the answers above them open the boxes');
   const labels = await p.evaluate(() => [...document.querySelectorAll('.main .f .l > span:first-child')].map(e => e.textContent.trim()).filter(x => /broker/i.test(x)));
   ok(labels.length === 4 && labels.every(x => x === 'Broker on record'), 'all four are labelled Broker on record: ' + labels.join(' | '));
   await p.selectOption('[data-f="will_broker"]', 'Through company'); await p.selectOption('[data-f="ma"]', 'None'); await p.waitForTimeout(250);

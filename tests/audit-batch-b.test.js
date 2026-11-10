@@ -65,7 +65,7 @@ test('boxes under an answer are greyed, and not counted, until the answer opens 
   ['ma_prov', 'ma_plan', 'ma_broker'].forEach(id => assert.strictEqual(shown(s, id), true, id));              // not answered yet: asked
   set(s, 'ma', 'None'); set(s, 'gap', 'No'); set(s, 'will', 'No'); set(s, 'sti', 'No');
   ['ma_prov', 'ma_plan', 'ma_broker', 'gap_prov', 'gap_broker', 'will_up', 'will_where', 'will_broker', 'will_date', 'sti_broker', 'sti_car', 'sti_house', 'sti_struct', 'sti_personal', 'sti_biz'].forEach(id => assert.strictEqual(shown(s, id), false, id));
-  assert.ok(cnt(s, 'other').tot <= c0.tot - 13, c0.tot + ' -> ' + cnt(s, 'other').tot);
+  assert.ok(cnt(s, 'other').tot <= c0.tot - 10, c0.tot + ' -> ' + cnt(s, 'other').tot);                          // the four Broker on record boxes start as a default and are not counted, so ten counted boxes go, not thirteen
   set(s, 'sti', 'Handled by spouse'); assert.strictEqual(shown(s, 'sti_car'), false);
   set(s, 'sti', 'Yes'); assert.strictEqual(shown(s, 'sti_car'), true); assert.strictEqual(shown(s, 'sti_biz'), false);       // the business row needs a business owner
   set(s, 'bizowner', 'Yes'); assert.strictEqual(shown(s, 'sti_biz'), true); assert.strictEqual(shown(s, 'sti_biz_spend'), false);

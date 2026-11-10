@@ -36,11 +36,14 @@ test('a row that holds only the default broker is empty: it is not counted, does
   assert.strictEqual(store.fromJSON(JSON.stringify(old)).f.has_inv.v, '', 'a file with only a default row does not say Yes');
 });
 
-test('Medical aid, Gap cover, Will and Short-term: the broker starts as Other broker when the answer above opens the boxes, and goes again when it closes them', () => {
+test('Medical aid, Gap cover, Will and Short-term: the broker starts as Other broker (also before the answer above is given), and goes when the answer closes the boxes', () => {
   const s = fresh();
-  Object.values(BOXES).forEach(id => assert.strictEqual(s.f[id].v, '', id + ' empty until its answer opens it'));
+  Object.values(BOXES).forEach(id => assert.deepStrictEqual([s.f[id].v, s.f[id].st], ['Other broker', 'preset'], id + ' starts as Other broker, shown as a default'));
+  Object.values(BOXES).forEach(id => assert.strictEqual(schema.fieldsById[id].voice, 1, id + ' can still be filled by voice'));
   set(s, 'ma', 'Medical aid'); assert.deepStrictEqual([s.f.ma_broker.v, s.f.ma_broker.st], ['Other broker', 'preset']);
   set(s, 'ma', 'None'); assert.strictEqual(s.f.ma_broker.v, '', 'None: the untouched default goes, nothing is left under it');
+  set(s, 'ma', ''); assert.deepStrictEqual([s.f.ma_broker.v, s.f.ma_broker.st], ['Other broker', 'preset'], 'an answer taken away again is not a No: the default is back');
+  set(s, 'ma', 'None');
   set(s, 'gap', 'Not sure'); assert.strictEqual(s.f.gap_broker.v, 'Other broker', 'Not sure opens the gap boxes');
   set(s, 'gap', 'No'); assert.strictEqual(s.f.gap_broker.v, '');
   set(s, 'will', 'Yes'); assert.strictEqual(s.f.will_broker.v, 'Other broker');
@@ -94,7 +97,8 @@ test('opening a file saved before these rules: Duties zeros, an empty Broker on 
   assert.deepStrictEqual([s.f.d_supo.st, s.f.d_desk.st], ['preset', 'heard']);
   assert.strictEqual(s.l.risk[0].d.broker, 'Other broker'); assert.strictEqual(s.l.risk[1].d.broker, '', 'a row with nothing in it stays empty');
   assert.strictEqual(s.l.inv[0].d.broker, 'Other broker'); assert.strictEqual(s.l.ret_ra[0].d.broker, 'Paul K', 'a broker that is there is not changed');
-  assert.deepStrictEqual([s.f.will_broker.v, s.f.will_broker.st, s.f.sti_broker.v], ['Other broker', 'preset', ''], 'Will is Yes so its broker opens with the default; short-term is No so it does not');
+  assert.deepStrictEqual([s.f.will_broker.v, s.f.will_broker.st, s.f.sti_broker.v], ['Other broker', 'preset', ''], 'Will is Yes so its broker has the default; short-term is No so it does not');
+  assert.deepStrictEqual([s.f.ma_broker.v, s.f.gap_broker.v], ['Other broker', 'Other broker'], 'Medical aid and Gap cover are not answered yet: they have the default too');
   const again = store.fromJSON(store.toJSON(s));
   assert.deepStrictEqual(D.map(id => again.f[id].v), D.map(id => s.f[id].v)); assert.strictEqual(store.toJSON(again).replace(/"(created|modified|at)":\s*"[^"]*"/g, ''), store.toJSON(s).replace(/"(created|modified|at)":\s*"[^"]*"/g, ''), 'a second opening changes nothing');
   const under = JSON.parse(store.toJSON(fresh())); under.f.d_desk = { v: '90', st: 'heard' }; under.f.d_trav = { v: '5', st: 'heard' };
