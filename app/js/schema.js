@@ -64,10 +64,10 @@
     ];
   }
 
-  /* Dread disease cover starts at R 0.00 with a term of WOL (typed over when different); p is the prefix of the ids (dd: fractured cover, dds: standard quote). */
-  function dread(p) {
+  /* Dread disease cover starts at the amount given (BrightRock fractured cover, dd: R 500 000.00; standard quote, dds: R 0.00) with a term of WOL (typed over when different); p is the prefix of the ids (dd: fractured cover, dds: standard quote). */
+  function dread(p, cover) {
     return [
-      { id: p + '_cover', money: 1, l: 'Dread disease cover (R)', t: 'txt', opt: 1, preset: 'R 0.00', s: 3 },
+      { id: p + '_cover', money: 1, l: 'Dread disease cover (R)', t: 'txt', opt: 1, preset: cover, s: 3 },
       { id: p + '_term', l: 'Term', t: 'sel', o: ['WOL', 'Specified Age', 'Other'], opt: 1, preset: 'WOL', s: 3 },
       { id: p + '_termv', l: 'Term value', t: 'txt', opt: 1, s: 3 },
       { id: p + '_aci', l: 'ACI', t: 'sel', o: ['Fixed', 'Age-rated', 'Other'], opt: 1, preset: 'Fixed', s: 3 },
@@ -329,7 +329,7 @@
         { id: 'ips_abiv', l: 'ABI', t: 'txt', opt: 1, preset: '5%' },
         N('ips_cmt', 'Comments')
       ] },
-      { pri: 'life', sqd: 'dd', sq: { name: 'Dread disease', amt: 'dds_cover', term: ['dds_term', 'dds_termv'], aci: ['dds_aci', 'dds_aciv'], abi: 'dds_abiv', cmt: 'dds_cmt' }, title: 'Dread disease: standard', fields: dread('dds') },
+      { pri: 'life', sqd: 'dd', sq: { name: 'Dread disease', amt: 'dds_cover', term: ['dds_term', 'dds_termv'], aci: ['dds_aci', 'dds_aciv'], abi: 'dds_abiv', cmt: 'dds_cmt' }, title: 'Dread disease: standard', fields: dread('dds', 'R 0.00') },
       { pri: 'life', fields: [{ id: 'pref_spend', money: 1, l: 'Preferred monthly spend (R)', t: 'txt', opt: 1, voice: 1 }] },
       HEAD('ra'),
       { pri: 'ra', title: 'Retirement annuity quotes', list: 'raq' },
@@ -406,7 +406,7 @@
         { id: 'ip_abiv', l: 'ABI', t: 'txt', opt: 1, preset: '5%', s: 3 },
         N('ip_cmt', 'Comments', 1)
       ] },
-      { title: 'Dread disease: fractured cover', layout: 'g12', fields: dread('dd') },
+      { title: 'Dread disease: fractured cover', layout: 'g12', fields: dread('dd', 'R 500 000.00') },
       { fields: [N('n_calc', 'Notes', 2)] }
     ] },
 
