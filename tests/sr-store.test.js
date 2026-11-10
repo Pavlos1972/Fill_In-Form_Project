@@ -55,16 +55,106 @@ test('boxes are tidied as they are entered: premium as Rand, dates as day/month/
   assert.strictEqual(s.f.idno.st, 'empty');
 });
 
-test('Cover lines follows the Product type until it is chosen by hand', () => {
+test('Product type: Personal Covers, Joint-Life, Buy & Sell, Contingent Liability, Keyman Cover and Other (Business Covers is gone); Cover lines is gone', () => {
+  assert.deepStrictEqual(schema.products, ['Personal Covers', 'Joint-Life', 'Buy & Sell', 'Contingent Liability', 'Keyman Cover', 'Other']);
+  assert.ok(!schema.fieldsById.lines, 'no Cover lines box');
+  assert.strictEqual(schema.fieldsById.product.t, 'sel');
+  assert.ok(!schema.fieldsById.product.free, 'a closed list');
+});
+
+test('Other counts only while Product type is Other, is asked for then, and is cleared when the product changes', () => {
   const s = store.blank();
-  set(s, 'product', 'Personal Covers');
-  assert.deepStrictEqual(s.f.lines, { v: 'Personal', st: 'preset' });
-  set(s, 'product', 'Keyman Cover');
-  assert.strictEqual(s.f.lines.v, 'Business');
-  set(s, 'lines', 'Personal');                      // chosen by hand: it stays
-  set(s, 'product', 'Buy & Sell');
-  assert.strictEqual(s.f.lines.v, 'Personal');
-  Object.keys(schema.linesOf).forEach(p => assert.ok(schema.products.includes(p), p));
+  assert.strictEqual(store.shown(s, 'other'), false);
+  set(s, 'product', 'Other');
+  assert.strictEqual(store.shown(s, 'other'), true);
+  assert.ok(check.run(s).missing.some(m => m.id === 'other'), 'Other must be filled in');
+  set(s, 'other', 'Funeral Plan');
+  assert.ok(check.run(s).missing.every(m => m.id !== 'other'));
+  set(s, 'product', 'Joint-Life');
+  assert.strictEqual(s.f.other.v, '');
+  assert.strictEqual(store.shown(s, 'other'), false);
+  assert.ok(check.run(s).missing.every(m => m.id !== 'other'));
+});
+
+test('Owner of the policy starts as The client (preset); the owner’s own boxes count only for someone else, and are asked for then', () => {
+  const s = store.blank();
+  assert.deepStrictEqual(s.f.owner, { v: 'The client', st: 'preset' });
+  assert.deepStrictEqual(schema.owners, ['The client', 'The client’s spouse', 'The client’s business partner', 'Another person']);
+  ['ow_fn', 'ow_sn', 'ow_id', 'ow_cell'].forEach(id => assert.strictEqual(store.shown(s, id), false, id));
+  assert.ok(check.run(s).missing.every(m => !/^ow_/.test(m.id)));
+  set(s, 'owner', 'Another person');
+  ['ow_fn', 'ow_sn', 'ow_id', 'ow_cell'].forEach(id => { assert.strictEqual(store.shown(s, id), true, id); assert.ok(check.run(s).missing.some(m => m.id === id), id); });
+  set(s, 'ow_fn', 'Hendrik'); set(s, 'ow_sn', 'Visser'); set(s, 'ow_cell', '0835550202');
+  set(s, 'owner', schema.owners[1]);                                  // another choice: the last owner’s details are cleared
+  ['ow_fn', 'ow_sn', 'ow_id', 'ow_cell'].forEach(id => assert.strictEqual(s.f[id].v, '', id));
+  set(s, 'ow_fn', 'Maria'); set(s, 'owner', 'The client');
+  assert.strictEqual(s.f.ow_fn.v, '', 'the client owns it: nothing else is kept');
+});
+
+test('the owner’s ID number is checked like the client’s, and the cell number like the other phone boxes, but only while they count', () => {
+  const s = store.blank();
+  set(s, 'ow_id', '1234567890123'); set(s, 'ow_cell', '12');
+  assert.deepStrictEqual(check.run(s).problems.filter(p => /^ow_/.test(p.f)), [], 'the client owns it: the boxes do not count');
+  set(s, 'owner', 'Another person'); set(s, 'ow_id', '1234567890123'); set(s, 'ow_cell', '12');
+  assert.deepStrictEqual(check.run(s).problems.filter(p => /^ow_/.test(p.f)).map(p => p.f).sort(), ['ow_cell', 'ow_id']);
+  set(s, 'ow_id', VALID_ID); set(s, 'ow_cell', '083 555 0202');
+  assert.deepStrictEqual(check.run(s).problems.filter(p => /^ow_/.test(p.f)), []);
+  assert.strictEqual(s.f.ow_id.v, VALID_ID);
+});
+
+test('the owner from the Fact Find: the spouse fills by itself (one candidate), business partners are chosen from, the ID is never taken from a spouse', () => {
+  const f = ffStore.blank();
+  ffStore.setField(f, 'fname', 'Johan'); ffStore.setField(f, 'sname', 'Kuiper'); ffStore.setField(f, 'sp_name', 'Maria Kuiper'); ffStore.setField(f, 'sp_tel', '082 555 0101');
+  ffStore.addRow(f, 'shares'); ffStore.setCell(f, 'shares', 0, 'name', 'Pieter Venter'); ffStore.setCell(f, 'shares', 0, 'id', '7001015800087'); ffStore.setCell(f, 'shares', 0, 'cell', '082 111 2222');
+  ffStore.addRow(f, 'shares'); ffStore.setCell(f, 'shares', 1, 'name', 'Sarel Smit'); ffStore.setCell(f, 'shares', 1, 'cell', '083 333 4444');
+  const text = ffStore.toJSON(f), s = store.blank();
+  store.loadFromFactFind(s, text, 'x.json');
+  assert.strictEqual(s.f.ow_fn.v, '', 'the client owns it: nothing is filled');
+  assert.deepStrictEqual(store.ownerCandidates(s), []);
+  set(s, 'owner', schema.owners[1]);
+  assert.deepStrictEqual(store.ownerCandidates(s).map(c => c.name), ['Maria Kuiper']);
+  assert.deepStrictEqual(['ow_fn', 'ow_sn', 'ow_id', 'ow_cell'].map(id => s.f[id].v), ['Maria', 'Kuiper', '', '082 555 0101']);
+  assert.deepStrictEqual(['ow_fn', 'ow_sn', 'ow_cell'].map(id => s.f[id].st), ['verify', 'verify', 'verify']);
+  assert.strictEqual(s.f.ow_id.st, 'empty', 'the Fact Find has no spouse ID number: it is typed');
+  set(s, 'owner', schema.owners[2]);
+  assert.deepStrictEqual(store.ownerCandidates(s).map(c => c.name), ['Pieter Venter', 'Sarel Smit']);
+  assert.strictEqual(s.f.ow_fn.v, '', 'two partners: nothing is filled until one is chosen');
+  assert.ok(store.fillOwnerFrom(s, 1));
+  assert.deepStrictEqual(['ow_fn', 'ow_sn', 'ow_id', 'ow_cell'].map(id => s.f[id].v), ['Sarel', 'Smit', '', '083 333 4444']);
+  assert.ok(store.fillOwnerFrom(s, 0));
+  assert.deepStrictEqual(['ow_fn', 'ow_sn', 'ow_id', 'ow_cell'].map(id => s.f[id].v), ['Pieter', 'Venter', '7001015800087', '082 111 2222']);
+  set(s, 'owner', 'Another person');
+  assert.deepStrictEqual(store.ownerCandidates(s), []);
+  assert.strictEqual(store.fillOwnerFrom(s, 0), false);
+  const back = store.fromJSON(store.toJSON(s));
+  assert.deepStrictEqual(back.ff, s.ff, 'what the Fact Find knew is kept in the file');
+});
+
+test('with exactly one partner in the Fact Find, choosing business partner fills the owner’s boxes at once; a Fact Find with nobody fills nothing', () => {
+  const f = ffStore.blank(); ffStore.addRow(f, 'shares'); ffStore.setCell(f, 'shares', 0, 'name', 'Pieter van der Merwe'); ffStore.setCell(f, 'shares', 0, 'cell', '082 111 2222');
+  const s = store.blank(); store.loadFromFactFind(s, ffStore.toJSON(f), 'x.json'); set(s, 'owner', schema.owners[2]);
+  assert.deepStrictEqual(['ow_fn', 'ow_sn'].map(id => s.f[id].v), ['Pieter', 'van der Merwe'], 'a surname with particles stays together');
+  assert.strictEqual(s.f.ow_fn.v, 'Pieter'); assert.strictEqual(s.f.ow_cell.v, '082 111 2222'); assert.strictEqual(s.f.ow_fn.st, 'verify');
+  const none = store.blank(); store.loadFromFactFind(none, ffStore.toJSON(ffStore.blank()), 'x.json'); set(none, 'owner', schema.owners[1]);
+  assert.strictEqual(none.f.ow_fn.v, '');
+  assert.deepStrictEqual(store.ownerCandidates(none), []);
+});
+
+test('Confirmation of Cover Call: Day follows the Date and cannot be typed, Time is tidied to 24 hours, all three are optional', () => {
+  const s = store.blank(), sec = schema.sectionsById.call;
+  assert.strictEqual(sec.title, 'Confirmation of Cover Call | Tele-underwriting Call');
+  assert.deepStrictEqual(sec.fields.map(f => f.l), ['Day of call', 'Date of call', 'Time of call']);
+  assert.ok(sec.fields.every(f => f.opt), 'optional');
+  assert.ok(!schema.fieldsById.best_time && !schema.fieldsById.best_day, 'the old two boxes are gone');
+  assert.deepStrictEqual(check.run(s).missing.filter(m => /^call_/.test(m.id)), []);
+  set(s, 'call_date', '2026-11-25'); set(s, 'call_time', '2:30 pm');
+  assert.strictEqual(s.f.call_date.v, '25/11/2026'); assert.strictEqual(s.f.call_day.v, 'Wednesday'); assert.strictEqual(s.f.call_time.v, '14:30');
+  set(s, 'call_date', '26/11/2026'); assert.strictEqual(s.f.call_day.v, 'Thursday');
+  set(s, 'call_date', ''); assert.strictEqual(s.f.call_day.v, '');
+  set(s, 'call_date', '25/11/2026');
+  assert.strictEqual(store.fromJSON(store.toJSON(s)).f.call_day.v, 'Wednesday', 'the Day is worked out again when a file is opened');
+  set(s, 'call_time', 'tomorrow'); set(s, 'call_date', '31/02/2026');
+  assert.deepStrictEqual(check.run(s).problems.map(p => p.f).sort(), ['call_date', 'call_time']);
 });
 
 test('the old policy boxes count only while the policy is replaced, and are cleared when it is not', () => {
@@ -108,6 +198,17 @@ test('file name: Insurer - Product Application - dd.mm.yy - R amount p.m. - (Fir
   assert.strictEqual(store.pdfFileName(s), 'OM - Buy & Sell Application - 20.11.26 - R 12,345.50 p.m. - (Sitamah Nathoo)');
   set(s, 'insurer', 'Momentum');
   assert.ok(store.pdfFileName(s).startsWith('Momentum - Buy & Sell Application'), 'an insurer with no short name is written out');
+});
+
+test('file name: for the Other product the file is named with what is typed in the Other box', () => {
+  const s = store.blank();
+  set(s, 'insurer', 'Old Mutual'); set(s, 'date', '20/11/2026'); set(s, 'premium', '300'); set(s, 'fname', 'Anna'); set(s, 'sname', 'Kuiper'); set(s, 'product', 'Other');
+  assert.strictEqual(store.pdfFileName(s), 'OM - Other Application - 20.11.26 - R 300.00 p.m. - (Anna Kuiper)');
+  set(s, 'other', 'Funeral Plan');
+  assert.strictEqual(store.pdfFileName(s), 'OM - Funeral Plan Application - 20.11.26 - R 300.00 p.m. - (Anna Kuiper)');
+  assert.strictEqual(store.productName(s), 'Funeral Plan');
+  set(s, 'product', 'Joint-Life');
+  assert.strictEqual(store.pdfFileName(s), 'OM - Joint-Life Application - 20.11.26 - R 300.00 p.m. - (Anna Kuiper)');
 });
 
 test('file name before the boxes are filled: nothing is invented, and characters Windows refuses are left out', () => {
@@ -209,10 +310,10 @@ test('progress: filled, to verify, and what is still to answer (optional boxes d
   const s = store.blank();
   const c0 = store.counts(s), required = schema.fieldIds.filter(id => !schema.fieldsById[id].opt && store.shown(s, id) && s.f[id].v === '').length;   // the date is already there
   assert.strictEqual(c0.left, required);
-  assert.strictEqual(c0.filled, 1);                          // the date
+  assert.strictEqual(c0.filled, 2);                          // the date and the owner (The client)
   set(s, 'work', '0115550000');
   assert.strictEqual(store.counts(s).left, required);       // Work is optional
-  assert.strictEqual(store.counts(s).filled, 2);
+  assert.strictEqual(store.counts(s).filled, 3);
   set(s, 'fname', 'Anna');
   assert.strictEqual(store.counts(s).left, required - 1);
   assert.strictEqual(store.leftIn(s, schema.sections.find(x => x.id === 'client')), 3);
@@ -220,7 +321,7 @@ test('progress: filled, to verify, and what is still to answer (optional boxes d
 
 test('checks: a filled, correct application has nothing missing and no problem', () => {
   const s = store.blank();
-  const v = { insurer: 'Brightrock', quote: 'Q-1', product: 'Personal Covers', premium: '1500', owner: 'Anna Kuiper', ownerpays: 'Yes', title: 'Mrs', fname: 'Anna', sname: 'Kuiper', idno: VALID_ID,
+  const v = { insurer: 'Brightrock', quote: 'Q-1', product: 'Personal Covers', premium: '1500', ownerpays: 'Yes', title: 'Mrs', fname: 'Anna', sname: 'Kuiper', idno: VALID_ID,
     cell: '0821234567', email: 'anna@example.com', street_no: '5', street: 'Main Road', suburb: 'Sandton', city: 'Johannesburg', postal: '2196',
     acc_holder: 'A Kuiper', bank: 'FNB', branch_code: '250655', acc_type: 'Cheque', debit_date: '25', acc_no: '62012345678', insolvent: 'No', debt_review: 'No', debt_help: 'No', replace: 'No' };
   Object.keys(v).forEach(id => set(s, id, v[id]));
@@ -261,8 +362,8 @@ test('checks: a child or beneficiary without a name, or with a wrong ID number, 
   assert.deepStrictEqual(p.map(x => x.i), [0, 1]);
 });
 
-test('checks: Cover lines that disagree with the Product type, and a policy owner who does not pay, are flagged', () => {
+test('checks: a policy owner who does not pay is flagged', () => {
   const s = store.blank();
-  set(s, 'product', 'Personal Covers'); set(s, 'lines', 'Business'); set(s, 'ownerpays', 'No');
-  assert.deepStrictEqual(check.run(s).problems.map(p => p.f).sort(), ['lines', 'ownerpays']);
+  set(s, 'ownerpays', 'No');
+  assert.deepStrictEqual(check.run(s).problems.map(p => p.f), ['ownerpays']);
 });

@@ -140,16 +140,21 @@
   }
   function fieldClass(f) {
     var b = state.f[f.id], bad = problemsFor(f.id).some(function (p) { return p.level === 'bad'; });
-    return 'f s-' + b.st + (f.opt ? ' is-opt' : '') + (f.wide ? ' wide' : '') + (store.shown(state, f.id) ? '' : ' off') + (bad ? ' has-bad' : '');
+    return 'f s-' + b.st + (f.opt ? ' is-opt' : '') + (f.wide ? ' wide' : '') + (f.newrow ? ' newrow' : '') + (f.calc ? ' calc' : '') + (store.shown(state, f.id) ? '' : ' off') + (bad ? ' has-bad' : '');
   }
   function noteHTML(id) {
     var p = problemsFor(id)[0];
     return p ? '<div class="note-line ' + p.level + '" data-note="' + id + '">' + esc(p.text) + '</div>' : '<div class="note-line" data-note="' + id + '" hidden></div>';
   }
+  /* "From the Fact Find": the people the chosen owner could be (the spouse, the business partners), one tap fills the owner's boxes. It sits above the owner's boxes and shows only when there is somebody to offer. */
+  function helpHTML() {
+    var c = store.ownerCandidates(state);
+    return c.length ? '<div class="ffhelp" data-ffhelp>From the Fact Find: ' + c.map(function (x, i) { return '<button type="button" data-ffpick="' + i + '">' + esc(x.name) + '</button>'; }).join('') + '</div>' : '<div class="ffhelp" data-ffhelp hidden></div>';
+  }
   function fieldHTML(f) {
-    var b = state.f[f.id];
-    return '<label class="' + fieldClass(f) + '" data-field="' + f.id + '"><span class="l"><span>' + esc(f.l) + '</span>' + (f.opt ? '<span class="opt">optional</span>' : '') + '</span>' +
-      '<div class="box">' + inputHTML('data-f="' + f.id + '"' + (store.shown(state, f.id) ? '' : ' disabled'), f, b.v, 'dl-' + f.id) + '<span class="st">' + badge(b.st, 'f:' + f.id, f.opt) + '</span></div>' + noteHTML(f.id) + '</label>';
+    var b = state.f[f.id], opt = f.opt ? '<span class="opt">optional</span>' : '', cal = f.cal ? '<button type="button" class="calbtn" data-cal="' + f.id + '" tabindex="-1">calendar</button>' : '';
+    return (f.id === 'ow_fn' ? helpHTML() : '') + '<label class="' + fieldClass(f) + '" data-field="' + f.id + '"><span class="l"><span>' + esc(f.l) + '</span>' + (f.cal ? '<span class="rt">' + cal + opt + '</span>' : opt) + '</span>' +
+      '<div class="box">' + inputHTML('data-f="' + f.id + '"' + (store.shown(state, f.id) ? '' : ' disabled') + (f.calc ? ' readonly tabindex="-1"' : ''), f, b.v, 'dl-' + f.id) + (f.cal ? '<input type="date" class="calpick" data-calpick="' + f.id + '" tabindex="-1" aria-hidden="true">' : '') + '<span class="st">' + badge(b.st, 'f:' + f.id, f.opt) + '</span></div>' + noteHTML(f.id) + '</label>';
   }
   function rowHTML(key, r, i) {
     var L = schema.lists[key], bad = problemsOfRow(key, i).some(function (p) { return p.level === 'bad'; }) || problemsOfRow(key, i).length;
@@ -205,6 +210,7 @@
     if (note) { note.hidden = !p; note.textContent = p ? p.text : ''; note.className = 'note-line' + (p ? ' ' + p.level : ''); }
   }
   function paintAll() {
+    var help = document.querySelector('[data-ffhelp]'); if (help) help.outerHTML = helpHTML();
     var p = schema.pages.filter(function (x) { return x.id === cur; })[0];
     p.sections.forEach(function (sid) {
       var s = schema.sectionsById[sid];
@@ -271,12 +277,19 @@
     else if (lp) { var q = pathOf(lp), row = state.l[q[0]][+q[1]]; if (row) { row.d[q[2]] = el.value; row.st = 'confirmed'; dirty = true; onDisk = false; } }
   });
   $('#main').addEventListener('change', function (e) {
-    var el = e.target, id = el.getAttribute('data-f'), lp = el.getAttribute('data-l');
+    var el = e.target, id = el.getAttribute('data-f'), lp = el.getAttribute('data-l'), cp = el.getAttribute('data-calpick');
+    if (cp) { store.setField(state, cp, el.value); touch(); paintAll(); return; }
     if (id) { store.setField(state, id, el.value); touch(); paintAll(); }
     else if (lp) { var q = pathOf(lp); store.setCell(state, q[0], +q[1], q[2], el.value); touch(); el.value = state.l[q[0]][+q[1]].d[q[2]]; paintAll(); }
   });
   $('#main').addEventListener('click', function (e) {
-    var t = e.target.closest('[data-accept],[data-add],[data-del],[data-go]'); if (!t) return;
+    var t = e.target.closest('[data-accept],[data-add],[data-del],[data-go],[data-cal],[data-ffpick]'); if (!t) return;
+    if (t.hasAttribute('data-ffpick')) { if (store.fillOwnerFrom(state, +t.getAttribute('data-ffpick'))) { touch(); paintAll(); } return; }
+    if (t.hasAttribute('data-cal')) {
+      var cid = t.getAttribute('data-cal'), pk = document.querySelector('[data-calpick="' + cid + '"]'), d = util.parseDate(state.f[cid].v);
+      if (pk) { pk.value = d ? d.y + '-' + (d.m < 10 ? '0' : '') + d.m + '-' + (d.d < 10 ? '0' : '') + d.d : ''; try { pk.showPicker(); } catch (x) { pk.click(); } }
+      return;
+    }
     if (t.hasAttribute('data-accept')) { store.accept(state, t.getAttribute('data-accept')); touch(); paintAll(); return; }
     if (t.hasAttribute('data-go')) { cur = t.getAttribute('data-go'); drawNav(); drawPage(); refreshChrome(); window.scrollTo({ top: 0 }); return; }
     if (t.hasAttribute('data-add')) {

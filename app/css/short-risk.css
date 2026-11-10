@@ -41,3 +41,17 @@
 .side .meta { word-break: break-word; }
 .side .meta .fn { font: 12px var(--mono); color: var(--ink); }
 .nav .ck { color: var(--ok); }
+
+/* a box that starts a new row of the grid (the owner's own boxes, under the owner) */
+.main .f.newrow { grid-column-start: 1; }
+/* "From the Fact Find": the people the owner could be, one tap fills the owner's boxes */
+.main .ffhelp { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; font-size: 13px; color: var(--muted); }
+.main .ffhelp[hidden] { display: none; }
+.main .ffhelp button { font: inherit; font-size: 13px; background: var(--surface); color: var(--accent); border: 1px solid var(--line); border-radius: 6px; padding: 4px 10px; cursor: pointer; }
+.main .ffhelp button:hover { background: var(--accent-soft); border-color: var(--brand); }
+.main .ffhelp b { color: var(--ink); font-weight: 500; }
+.main .f input.calpick { position: absolute; left: 0; bottom: 0; width: 1px; height: 1px; min-height: 0; padding: 0; border: 0; opacity: 0; pointer-events: none; }
+.main .f.off .st { display: none; }
+.main .f.calc input { background: var(--calc-soft); color: var(--calc); border-style: solid; }
+/* the call section is one row of three on a wide screen: Day, Date, Time */
+@media (min-width: 1200px) { .main [data-sec="call"] .grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
