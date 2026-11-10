@@ -23,6 +23,7 @@
       rows.push(r); pending = [];
     }
     items.forEach(function (it) {
+      if (it.newrow) flush();
       if (it.wide) { flush(); rows.push([{ content: it.label, colSpan: 2 * n - 1, styles: { textColor: MUTED, fillColor: PALE, fontSize: 7.5 } }, it.value]); return; }
       pending.push([it.label, it.value]);
       if (pending.length === n) flush();
@@ -55,7 +56,7 @@
     doc.setFont('helvetica', 'bold'); doc.setFontSize(16); doc.setTextColor.apply(doc, INK); doc.text('SHORT RISK APPLICATION', W - M, 12, { align: 'right' });
     doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor.apply(doc, MUTED);
     doc.text('General short application for all insurers', W - M, 16.5, { align: 'right' });
-    doc.text(t(name) + '  |  ' + t(state.f.insurer.v || 'Insurer') + '  |  ' + t(state.f.product.v || 'Product type'), W - M, 21, { align: 'right' });
+    doc.text(t(name) + '  |  ' + t(state.f.insurer.v || 'Insurer') + '  |  ' + t(store.productName(state) || 'Product type'), W - M, 21, { align: 'right' });
     doc.setDrawColor.apply(doc, ACCENT); doc.setLineWidth(0.6); doc.line(M, 7 + lh + 2, W - M, 7 + lh + 2);
     y = 7 + lh + 5;
 
@@ -66,7 +67,7 @@
       y += 5.8;
     }
     function fieldsSection(s) {
-      var items = s.fields.filter(function (f) { return store.shown(state, f.id); }).map(function (f) { return { label: t(f.l), value: t(state.f[f.id].v), wide: !!f.wide }; });
+      var items = s.fields.filter(function (f) { return store.shown(state, f.id); }).map(function (f) { return { label: t(f.l), value: t(state.f[f.id].v), wide: !!f.wide, newrow: !!f.newrow }; });
       var n = s.cols === 3 ? 3 : 2;
       table({ body: fieldRows(items, n), columnStyles: n === 3 ? TRIPLE_COLS : PAIR_COLS });
     }

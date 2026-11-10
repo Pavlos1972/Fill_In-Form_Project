@@ -35,10 +35,11 @@
     });
 
     if (v('idno') && !util.saIdValid(v('idno'))) warn('The client’s ID number is not a valid South African ID number. Check each digit.', { f: 'idno' });
-    ['cell', 'work', 'dr_tel', 'bank_contact'].forEach(function (id) {
-      if (v(id) && !phoneOk(v(id))) warn(schema.fieldsById[id].l + ': ' + v(id) + ' does not look like a phone number (10 digits, starting 0).', { f: id });
+    ['cell', 'work', 'dr_tel', 'bank_contact', 'ow_cell'].forEach(function (id) {
+      if (store.shown(state, id) && v(id) && !phoneOk(v(id))) warn(schema.fieldsById[id].l + ': ' + v(id) + ' does not look like a phone number (10 digits, starting 0).', { f: id });
     });
     ['email', 'bank_email'].forEach(function (id) { if (v(id) && !emailOk(v(id))) warn(schema.fieldsById[id].l + ' does not look like an e-mail address.', { f: id }); });
+    if (store.shown(state, 'ow_id') && v('ow_id') && !util.saIdValid(v('ow_id'))) warn('The owner\u2019s ID number is not a valid South African ID number. Check each digit.', { f: 'ow_id' });
     if (v('postal') && digits(v('postal')).length !== 4) warn('The postal code is four digits.', { f: 'postal' });
     if (v('branch_code') && digits(v('branch_code')).length !== 6) warn('A branch code is six digits.', { f: 'branch_code' });
     if (v('acc_no') && (!/^[\d\s-]+$/.test(v('acc_no')) || digits(v('acc_no')).length < 6 || digits(v('acc_no')).length > 16)) warn('The account number should be 6 to 16 digits.', { f: 'acc_no' });
@@ -48,8 +49,9 @@
       else if (dd >= 10 && dd <= 14) bad('The debit date cannot be the 10th to the 14th. Choose another day.', { f: 'debit_date' });
     }
     if (v('premium') && !(util.num(v('premium')) > 0)) bad('The monthly premium must be more than R 0.00.', { f: 'premium' });
+    if (v('call_date') && !util.parseDate(v('call_date'))) bad('The call date is not a date (day/month/year).', { f: 'call_date' });
+    if (v('call_time') && !util.parseTime(v('call_time'))) warn('The time of the call is not a time. Write it like 14:30.', { f: 'call_time' });
     if (v('date') && !util.parseDate(v('date'))) bad('The application date is not a date (day/month/year).', { f: 'date' });
-    if (v('product') && v('lines') && schema.linesOf[v('product')] && schema.linesOf[v('product')] !== v('lines')) warn('Cover lines is ' + v('lines') + ', but ' + v('product') + ' is normally ' + schema.linesOf[v('product')] + '.', { f: 'lines' });
     if (v('ownerpays') === 'No') warn('The policy owner is not paying: the banking details must be those of the person who pays the premium.', { f: 'ownerpays' });
     if (v('insolvent') === 'Yes' || v('debt_review') === 'Yes' || v('debt_help') === 'Yes') warn('An insolvency or debt answer is Yes. The insurer will ask for the details; write them in the client’s notes.', { f: v('insolvent') === 'Yes' ? 'insolvent' : v('debt_review') === 'Yes' ? 'debt_review' : 'debt_help' });
 

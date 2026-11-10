@@ -13,6 +13,9 @@ function factFindText() {
   ffStore.setField(f, 'fname', 'Anna Maria'); ffStore.setField(f, 'sname', 'Kuiper'); ffStore.setField(f, 'idno', '8001015009087'); ffStore.setField(f, 'cell', '0821234567'); ffStore.setField(f, 'pemail', 'anna@example.com');
   ffStore.addRow(f, 'kids'); ffStore.setCell(f, 'kids', 0, 'name', 'Mia'); ffStore.setCell(f, 'kids', 0, 'sname', 'Kuiper');
   ffStore.addRow(f, 'kids'); ffStore.setCell(f, 'kids', 1, 'name', 'Piet'); ffStore.setCell(f, 'kids', 1, 'sname', 'Kuiper');
+  ffStore.setField(f, 'sp_name', 'Maria Kuiper'); ffStore.setField(f, 'sp_tel', '082 555 0101');                                   // the people who could own the policy
+  ffStore.addRow(f, 'shares'); ffStore.setCell(f, 'shares', 0, 'name', 'Pieter Venter'); ffStore.setCell(f, 'shares', 0, 'id', '7001015800087'); ffStore.setCell(f, 'shares', 0, 'cell', '082 111 2222');
+  ffStore.addRow(f, 'shares'); ffStore.setCell(f, 'shares', 1, 'name', 'Sarel Smit'); ffStore.setCell(f, 'shares', 1, 'cell', '083 333 4444');
   return ffStore.toJSON(f);
 }
 srv.listen(0, async () => {
@@ -32,6 +35,8 @@ srv.listen(0, async () => {
   const page = n => p.click('.nav button[data-page="' + n + '"]').then(() => p.waitForTimeout(150));
   const toast = () => p.evaluate(() => document.querySelector('#toast').textContent);
   const checks = () => p.evaluate(() => document.querySelector('#checks').innerText.replace(/\s+/g, ' '));
+  const screenshotCover = async () => { await page('client'); await p.evaluate(() => document.activeElement && document.activeElement.blur()); await p.screenshot({ path: shots + '/sr-cover.png' }); };
+  const screenshotHome = async () => { await p.evaluate(() => document.activeElement && document.activeElement.blur()); await p.screenshot({ path: shots + '/sr-home.png' }); };
 
   // 1. the page
   ok(await p.title() === 'Short Risk Application', 'the page is called Short Risk Application: ' + await p.title());
@@ -41,17 +46,38 @@ srv.listen(0, async () => {
   ok(await p.evaluate(() => +document.querySelector('#sEmpty').textContent === SR.store.counts(SR.app.state).left && +document.querySelector('#sEmpty').textContent > 0), 'the Progress card counts the boxes still to answer');
   ok(await p.evaluate(() => document.querySelector('[data-f="date"]').value === FF.util.todayDMY()), 'the date of application starts as today');
 
-  // 2. linked boxes and the file name
+  // 2. Product type, Other, and the file name
+  const off = id => p.evaluate(i => { const e = document.querySelector('[data-f="' + i + '"]'); return e.disabled && e.closest('.f').classList.contains('off'); }, id);
+  ok(await p.evaluate(() => [...document.querySelector('[data-f="product"]').options].map(o => o.textContent.trim()).filter(Boolean).join('|')) === 'Personal Covers|Joint-Life|Buy & Sell|Contingent Liability|Keyman Cover|Other', 'Product type offers Personal Covers, Joint-Life, Buy & Sell, Contingent Liability, Keyman Cover and Other (no Business Covers)');
+  ok(await p.evaluate(() => !document.querySelector('[data-f="lines"]')), 'there is no Cover lines box');
   await pick('product', 'Personal Covers');
-  ok(await val('[data-f="lines"]') === 'Personal', 'Cover lines follows the Product type');
+  ok(await off('other'), 'Other is greyed out while Product type is not Other');
+  await pick('product', 'Other');
+  ok(!await off('other'), 'Other wakes when Product type is Other');
+  await type('other', 'Funeral Plan');
+  ok(/Funeral Plan Application/.test(await p.evaluate(() => document.querySelector('#meta .fn').textContent)), 'the file name uses what is typed in Other: ' + await p.evaluate(() => document.querySelector('#meta .fn').textContent));
   await pick('product', 'Keyman Cover');
-  ok(await val('[data-f="lines"]') === 'Business', 'and follows it again when the product changes');
+  ok(await val('[data-f="other"]') === '' && await off('other'), 'choosing another product clears Other and greys it out');
   await pick('product', 'Personal Covers'); await pick('insurer', 'Old Mutual');
   await type('premium', '1500'); ok(await val('[data-f="premium"]') === 'R 1 500.00', 'the premium is shown as Rand: ' + await val('[data-f="premium"]'));
   await type('fname', 'Anna'); await type('sname', 'Kuiper'); await type('date', '2026-11-20');
   ok(await val('[data-f="date"]') === '20/11/2026', 'a date is shown day/month/year');
   ok(await p.evaluate(() => document.querySelector('#meta .fn').textContent) === 'OM - Personal Covers Application - 20.11.26 - R 1,500.00 p.m. - (Anna Kuiper)', 'the card says the name the files will be saved under: ' + await p.evaluate(() => document.querySelector('#meta .fn').textContent));
   ok(await p.evaluate(() => document.querySelector('#clientName').textContent) === 'Anna Kuiper', 'the client\'s name is at the top');
+
+  // 2b. Owner of the policy
+  const ow = ['ow_fn', 'ow_sn', 'ow_id', 'ow_cell'], vals = () => p.evaluate(ids => ids.map(i => document.querySelector('[data-f="' + i + '"]').value), ow);
+  ok(await p.evaluate(() => [...document.querySelector('[data-f="owner"]').options].map(o => o.textContent.trim()).filter(Boolean).join('|')) === 'The client|The client\u2019s spouse|The client\u2019s business partner|Another person', 'Owner of the policy: the client, their spouse, their business partner or another person');
+  ok(await val('[data-f="owner"]') === 'The client' && await p.evaluate(() => document.querySelector('[data-field="owner"]').classList.contains('s-preset')), 'the owner starts as The client (preset)');
+  ok(await p.evaluate(ids => ids.every(i => document.querySelector('[data-f="' + i + '"]').disabled), ow), 'the four owner boxes are greyed out while the client owns the policy');
+  ok(await p.evaluate(() => !document.querySelector('[data-ffhelp]') || document.querySelector('[data-ffhelp]').hidden), 'and nothing is offered from a Fact Find that is not loaded');
+  await pick('owner', 'Another person');
+  ok(await p.evaluate(ids => ids.every(i => !document.querySelector('[data-f="' + i + '"]').disabled), ow), 'Another person wakes the four owner boxes');
+  ok(/Owner.s full names/.test(await checks()) || /to answer/.test(await checks()), 'and the Checks ask for them');
+  await type('ow_fn', 'Hendrik'); await type('ow_id', '123');
+  ok(/owner.s ID number is not a valid/i.test(await checks()), 'an owner ID number that is not valid is flagged');
+  await pick('owner', 'The client');
+  ok((await vals()).join('') === '' , 'back to The client: the owner\'s boxes are empty again');
 
   // 3. the old policy boxes wait for "replace"
   await page('decl');
@@ -106,13 +132,45 @@ srv.listen(0, async () => {
   await p.setInputFiles('#ffIn', { name: 'x.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify({ app: 'wr-short-risk' })) }); await p.waitForTimeout(200);
   ok(/not a Wealth Revolution Fact Find/.test(await toast()), 'a file that is not a Fact Find is refused: ' + await toast());
 
+  // 6b. the owner, from the Fact Find
+  await page('client');
+  const ffbtn = () => p.evaluate(() => [...document.querySelectorAll('[data-ffpick]')].map(b => b.textContent).join(','));
+  await pick('owner', 'The client’s spouse');
+  ok((await vals()).join('|') === 'Maria|Kuiper||082 555 0101' && (await st()).f.ow_fn.st === 'verify' && (await st()).f.ow_id.st === 'empty', 'the spouse: name, surname and cell are filled from the Fact Find in amber; the ID number is left to type: ' + (await vals()).join('|'));
+  ok(await ffbtn() === 'Maria Kuiper', 'a button offers the Fact Find\'s spouse');
+  await pick('owner', 'The client’s business partner');
+  ok((await vals()).join('') === '' && await ffbtn() === 'Pieter Venter,Sarel Smit', 'two business partners: nothing is filled until one is chosen, and both are offered: ' + await ffbtn());
+  await p.click('[data-ffpick="1"]'); await p.waitForTimeout(100);
+  ok((await vals()).join('|') === 'Sarel|Smit||083 333 4444', 'one tap fills the boxes from that partner: ' + (await vals()).join('|'));
+  await p.click('[data-ffpick="0"]'); await p.waitForTimeout(100);
+  ok((await vals()).join('|') === 'Pieter|Venter|7001015800087|082 111 2222', 'and from the other, with the ID number a partner has: ' + (await vals()).join('|'));
+  await pick('owner', 'The client');
+  ok(await p.evaluate(() => document.querySelector('[data-ffhelp]').hidden), 'the buttons go when the client owns the policy');
+  await screenshotCover();
+
+  // 6c. Confirmation of Cover Call | Tele-underwriting Call: Day, Date and Time
+  await page('home');
+  ok(await p.evaluate(() => document.querySelector('[data-sec="call"] .block-title').textContent) === 'Confirmation of Cover Call | Tele-underwriting Call', 'the heading is Confirmation of Cover Call | Tele-underwriting Call');
+  ok(await p.evaluate(() => [...document.querySelectorAll('[data-sec="call"] .f > .l > span:first-child')].map(e => e.textContent).join('|')) === 'Day of call|Date of call|Time of call', 'it holds Day, Date and Time of the call');
+  ok(await p.evaluate(() => document.body.innerText.indexOf('Best time for us to phone you') < 0 && document.body.innerText.indexOf('Best work day') < 0), 'the two old boxes are gone');
+  ok(await p.evaluate(() => document.querySelector('[data-f="call_day"]').readOnly), 'the Day is worked out and cannot be typed over');
+  await type('call_date', '25/11/2026'); await type('call_time', '2:30pm');
+  ok(await val('[data-f="call_day"]') === 'Wednesday' && await val('[data-f="call_time"]') === '14:30', 'the Day follows the Date, and the Time is shown on the 24-hour clock: ' + await val('[data-f="call_day"]') + ', ' + await val('[data-f="call_time"]'));
+  ok(await p.evaluate(() => !!document.querySelector('[data-cal="call_date"]')), 'the Date has a calendar to pick from');
+  await p.evaluate(() => { const i = document.querySelector('[data-calpick="call_date"]'); i.value = '2026-12-04'; i.dispatchEvent(new Event('change', { bubbles: true })); });
+  await p.waitForTimeout(100);
+  ok(await val('[data-f="call_date"]') === '04/12/2026' && await val('[data-f="call_day"]') === 'Friday', 'a date picked in the calendar fills the Date and the Day: ' + await val('[data-f="call_date"]') + ', ' + await val('[data-f="call_day"]'));
+  await type('call_time', 'tomorrow'); ok(/not a time/.test(await checks()), 'a time that is not a time is flagged'); await type('call_time', '09h30');
+  ok(await val('[data-f="call_time"]') === '09:30', 'Time 09h30 is 09:30');
+  await type('call_date', ''); ok(await val('[data-f="call_day"]') === '', 'no Date, no Day'); await type('call_date', '25/11/2026');
+  await screenshotHome();
+
   // 7. fill the rest, then save
-  const rest = { quote: 'Q-1', owner: 'Anna Kuiper', street_no: '5', street: 'Main Road', suburb: 'Sandton', city: 'Johannesburg', postal: '2196', acc_holder: 'A Kuiper', acc_no: '62012345678', title: 'Mrs' };
+  const rest = { quote: 'Q-1', street_no: '5', street: 'Main Road', suburb: 'Sandton', city: 'Johannesburg', postal: '2196', acc_holder: 'A Kuiper', acc_no: '62012345678', title: 'Mrs' };
   for (const k of Object.keys(rest)) { await page(await p.evaluate(id => SR.schema.pageOf[SR.schema.sectionOf[id]], k)); if (k === 'title') await p.fill('[data-f="title"]', 'Mrs'), await p.press('[data-f="title"]', 'Tab'); else await type(k, rest[k]); }
   await page('bank'); await pick('bank', 'FNB'); await pick('acc_type', 'Cheque');
   await page('client'); await pick('ownerpays', 'Yes');
   await page('decl'); await pick('insolvent', 'No'); await pick('debt_review', 'No'); await pick('debt_help', 'No'); await pick('replace', 'No');
-  await page('client'); await pick('lines', 'Personal');
   ok(/Complete\. Nothing is missing/.test(await checks()), 'a complete application: the Checks say so: ' + await checks());
   ok(await p.evaluate(() => +document.querySelector('#sEmpty').textContent) === 0, 'and nothing is left to answer');
   await p.screenshot({ path: shots + '/sr-complete.png' });
@@ -147,7 +205,7 @@ srv.listen(0, async () => {
   }
   const missing = screen.filter(x => x && !txt.includes(norm(x.replace(/\d+$/, '').trim() || x)) && !/^(Child|Beneficiary)\s*\d*$/i.test(x));
   ok(missing.length === 0, 'every heading and label on the five screens is in the PDF' + (missing.length ? ': missing ' + missing.join(' | ') : ' (' + screen.length + ' texts)'));
-  const answers = ['Kuiper', 'OldMutual', 'Personal Covers', '62012345678', 'FNB', 'Zoe Kuiper', 'Jan Kuiper', 'Spouse', '60%', '8001015009087', 'R 1 500.00'].filter(x => !txt.includes(norm(x)));
+  const answers = ['Kuiper', 'OldMutual', 'Personal Covers', '62012345678', 'FNB', 'Zoe Kuiper', 'Jan Kuiper', 'Spouse', '60%', '8001015009087', 'R 1 500.00', 'Wednesday', '25/11/2026', '09:30'].filter(x => !txt.includes(norm(x)));
   ok(answers.length === 0, 'the answers on the screen are in the PDF' + (answers.length ? ': missing ' + answers.join(' | ') : ''));
   ok(await p.evaluate(() => SR.app.makePdf().getNumberOfPages()) === 1, 'two children and two beneficiaries (here three children and two beneficiaries) fit one page: ' + await p.evaluate(() => SR.app.makePdf().getNumberOfPages()) + ' page(s)');
   ok(await p.evaluate(() => { const s = SR.app.state; for (let i = 0; i < 8; i++) SR.store.addRow(s, 'kids', { name: 'Extra Child ' + i, id: '' }); const n = SR.app.makePdf().getNumberOfPages(); s.l.kids.splice(3, 8); return n === 2; }), 'with many more children the PDF grows to a second page');
@@ -164,7 +222,7 @@ srv.listen(0, async () => {
   ok(/not a Wealth Revolution Short Risk Application/.test(await toast()) && (await st()).f.fname.v === 'Anna', 'a Fact Find file given to Open is refused and the application stays: ' + await toast());
 
   // 10. unsaved work is offered back, never shown on a blank form until chosen
-  await page('client'); await type('owner', 'Changed owner');
+  await page('client'); await type('quote', 'Q-CHANGED');
   await p.reload(); await p.waitForTimeout(400);
   const q = await p.evaluate(() => { const dl = document.getElementById('restoreDraft'); return dl && dl.open ? dl.innerText.replace(/\s+/g, ' ') : null; });
   ok(q && /Unsaved changes found/.test(q) && /Anna Kuiper/.test(q), 'the unsaved changes are offered back: ' + q);
@@ -172,7 +230,7 @@ srv.listen(0, async () => {
   await p.keyboard.press('Escape'); await p.waitForTimeout(100);
   ok(await p.evaluate(() => { const dl = document.getElementById('restoreDraft'); return !!dl && dl.open; }), 'Escape does not close it: a choice is needed');
   await p.click('#restoreYes'); await p.waitForTimeout(300);
-  ok(await p.evaluate(() => SR.app.state.f.owner.v === 'Changed owner' && SR.app.state.l.kids.length === 3), 'Restore brings the application back');
+  ok(await p.evaluate(() => SR.app.state.f.quote.v === 'Q-CHANGED' && SR.app.state.l.kids.length === 3), 'Restore brings the application back');
   await p.reload(); await p.waitForTimeout(400); await p.click('#restoreNew'); await p.waitForTimeout(300);
   await p.reload(); await p.waitForTimeout(400);
   ok(await p.evaluate(() => !document.getElementById('restoreDraft') && SR.app.state.f.fname.v === ''), 'Start a new application gives a blank form and the old draft is gone');

@@ -1,6 +1,6 @@
 /* The Short Risk Application (Wealth Revolution's General Short Risk Application, used for all insurers): every section, box, choice and list. Change the form here.
    Box: id, l (label), t ('txt' by default, 'sel' a list of choices, 'money', 'date'), o (the choices), free (a value that is not in the list may be typed), opt (not needed for the application to be complete),
-   cond (the box only counts while another box holds a value), preset ('@today'), wide (a full row), hint (a grey example in the empty box).
+   cond (the box only counts while another box holds a value: { f, eq } or { f, ne }), preset ('@today', or the value the box starts with), wide (a full row), newrow (starts a new row), cal (a calendar to pick the date from), calc (worked out from another box, cannot be typed over), t 'time' (a time of day, shown as 14:30), hint (a grey example in the empty box).
    Section: id, title, fields or list, cols (3: the PDF puts three boxes on a row instead of two), note (a line of guidance under the heading; screen only, it is not in the PDF). Page: the sections shown together on one screen. */
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
@@ -8,23 +8,29 @@
 })(typeof self !== 'undefined' ? self : this, function () {
   var YN = ['Yes', 'No'];
   var INSURERS = ['Momentum', 'Brightrock', 'Discovery', 'Old Mutual', 'Liberty', 'Sanlam', 'Stanlib'];
-  /* The product type is part of the file name. It also says whether the cover is for the person or the business (Cover lines). */
-  var PRODUCTS = ['Personal Covers', 'Business Covers', 'Buy & Sell', 'Contingent Liability', 'Keyman Cover'];
-  var LINES_OF = { 'Personal Covers': 'Personal', 'Business Covers': 'Business', 'Buy & Sell': 'Business', 'Contingent Liability': 'Business', 'Keyman Cover': 'Business' };
+  /* The product type is part of the file name; for Other, what is typed in the Other box is. */
+  var PRODUCTS = ['Personal Covers', 'Joint-Life', 'Buy & Sell', 'Contingent Liability', 'Keyman Cover', 'Other'];
+  /* The client is always the Life Assured (it is the client's application); the policy can be owned by the client or by someone else. */
+  var OWNERS = ['The client', 'The client\u2019s spouse', 'The client\u2019s business partner', 'Another person'];
   var ABBR = { 'Old Mutual': 'OM', 'Brightrock': 'BR' };                                              // the insurers that have a short name in the application file name; the others are written out
   var BANKS = ['ABSA', 'African Bank', 'Bidvest Bank', 'Capitec', 'Discovery Bank', 'FNB', 'Investec', 'Nedbank', 'Standard Bank', 'TymeBank'];
   var YES = { cond: { f: 'replace', eq: 'Yes' } };
+  var OWN_ELSE = { f: 'owner', ne: OWNERS[0] };                                                      // the owner's own boxes count while the owner is not the client
 
   var sections = [
     { id: 'cover', title: 'Cover info', fields: [
       { id: 'insurer', l: 'Insurer', t: 'sel', o: INSURERS },
       { id: 'quote', l: 'Quote number' },
-      { id: 'product', l: 'Product type', t: 'sel', o: PRODUCTS, free: 1 },
-      { id: 'lines', l: 'Cover lines', t: 'sel', o: ['Business', 'Personal'] },
+      { id: 'product', l: 'Product type', t: 'sel', o: PRODUCTS },
+      { id: 'other', l: 'Other', hint: 'What is the cover?', cond: { f: 'product', eq: 'Other' } },
       { id: 'premium', l: 'Monthly premium (R p.m.)', t: 'money' },
-      { id: 'owner', l: 'Owner of the policy' },
+      { id: 'owner', l: 'Owner of the policy', t: 'sel', o: OWNERS, preset: OWNERS[0] },
+      { id: 'ow_fn', l: 'Owner\u2019s full names', cond: OWN_ELSE, newrow: 1 },
+      { id: 'ow_sn', l: 'Owner\u2019s surname', cond: OWN_ELSE },
+      { id: 'ow_id', l: 'Owner\u2019s ID number', cond: OWN_ELSE },
+      { id: 'ow_cell', l: 'Owner\u2019s cell number', cond: OWN_ELSE },
       { id: 'ownerpays', l: 'The policy owner is responsible for paying the monthly premium', t: 'sel', o: YN, wide: 1 },
-      { id: 'date', l: 'Date of application', t: 'date', preset: '@today' }
+      { id: 'date', l: 'Date of application', t: 'date', preset: '@today', newrow: 1 }
     ] },
     { id: 'client', title: 'Client details', fields: [
       { id: 'title', l: 'Title', t: 'sel', o: ['Mr', 'Mrs', 'Ms', 'Miss', 'Dr', 'Prof'], free: 1 },
@@ -47,9 +53,10 @@
       { id: 'region', l: 'Region', opt: 1 },
       { id: 'postal', l: 'Postal code' }
     ] },
-    { id: 'phone', title: 'Contact day & time', fields: [
-      { id: 'best_time', l: 'Best time for us to phone you', opt: 1 },
-      { id: 'best_day', l: 'Best work day for us to phone you', opt: 1 }
+    { id: 'call', cols: 3, title: 'Confirmation of Cover Call | Tele-underwriting Call', fields: [
+      { id: 'call_day', l: 'Day of call', calc: 1, opt: 1 },
+      { id: 'call_date', l: 'Date of call', t: 'date', cal: 1, opt: 1 },
+      { id: 'call_time', l: 'Time of call', t: 'time', hint: 'e.g. 14:30', opt: 1 }
     ] },
     { id: 'doctor', cols: 3, title: 'Doctor’s details', fields: [
       { id: 'dr', l: 'Doctor', opt: 1 },
@@ -97,7 +104,7 @@
 
   var pages = [
     { id: 'client', title: 'Cover & client', sections: ['cover', 'client', 'contact'] },
-    { id: 'home', title: 'Home & doctor', sections: ['address', 'phone', 'doctor'] },
+    { id: 'home', title: 'Home & doctor', sections: ['address', 'call', 'doctor'] },
     { id: 'bank', cols: 3, title: 'Banking', sections: ['bank'] },
     { id: 'family', title: 'Family', sections: ['kids', 'benef'] },
     { id: 'decl', title: 'Declarations', sections: ['decl', 'existing'] }
@@ -109,6 +116,6 @@
   var fieldsById = {}, fieldIds = [], sectionOf = {};
   sections.forEach(function (s) { (s.fields || []).forEach(function (f) { fieldsById[f.id] = f; fieldIds.push(f.id); sectionOf[f.id] = s.id; }); });
 
-  return { version: '1.0', released: 'November 2026', title: 'Short Risk Application', sections: sections, sectionsById: sectionsById, pages: pages, pageOf: pageOf, lists: lists, fieldsById: fieldsById, fieldIds: fieldIds, sectionOf: sectionOf,
-    insurers: INSURERS, products: PRODUCTS, linesOf: LINES_OF, abbr: ABBR, banks: BANKS };
+  return { version: '1.1', released: 'November 2026', title: 'Short Risk Application', sections: sections, sectionsById: sectionsById, pages: pages, pageOf: pageOf, lists: lists, fieldsById: fieldsById, fieldIds: fieldIds, sectionOf: sectionOf,
+    insurers: INSURERS, products: PRODUCTS, owners: OWNERS, abbr: ABBR, banks: BANKS };
 });
