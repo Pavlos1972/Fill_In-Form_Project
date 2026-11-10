@@ -73,13 +73,14 @@
     if (calc.DUTY_IDS.indexOf(id) >= 0) settleDuties(state);
     if (BROKER_OF[id]) brokerDefault(state, id);
   }
-  /* "Broker on record" in Medical aid, Gap cover, Will and Short-term insurance starts as Other broker when the answer above it opens the boxes (Medical aid not None, Gap cover not No, and so on), shown as a default (status
-     "preset"). When the answer closes them again, a default that was not touched goes, so nothing is left under a No. A broker the adviser or the client chose is never changed. */
+  /* "Broker on record" in Medical aid, Gap cover, Will and Short-term insurance starts as Other broker, shown as a default (status "preset"): on a new form, and again whenever the answer above it does not close the boxes
+     (Medical aid not None, Gap cover not No, and so on; an answer not given yet does not close them). When the answer closes them (None, No), a default that was not touched goes, so nothing is left under a No.
+     A broker the adviser or the client chose is never changed. */
   var BROKER_OF = { ma: ['ma_broker', ['None']], gap: ['gap_broker', ['No']], will: ['will_broker', ['No']], sti: ['sti_broker', ['No', 'Handled by spouse']] };
   function brokerDefault(state, id) {
     var b = BROKER_OF[id], gate = state.f[id].v, box = state.f[b[0]];
     if (!box) return;
-    if (gate !== '' && b[1].indexOf(gate) < 0) { if (box.v === '') state.f[b[0]] = { v: schema.defaultBroker, st: 'preset' }; }
+    if (b[1].indexOf(gate) < 0) { if (box.v === '') state.f[b[0]] = { v: schema.defaultBroker, st: 'preset' }; }               // an answer not given yet ('') does not close the boxes
     else if (box.st === 'preset' && box.v === schema.defaultBroker) state.f[b[0]] = { v: '', st: 'empty' };
   }
   /* Duties split: once the boxes that are filled add up to 100%, the boxes still empty are set to 0 (shown as a default, status "preset": nothing was heard). When the total moves off 100% again, those automatic
@@ -233,7 +234,7 @@
     ['ma_broker', 'gap_broker', 'will_broker', 'sti_broker'].forEach(function (id) { var c = s.f[id]; if (c && old.hasOwnProperty(c.v)) c.v = old[c.v]; });
   }
   /* The rules that start a box off by itself (the Duties zeros, Broker on record: Other broker) also apply to a file that is opened, because it may have been saved before they existed: a Duties split that adds up to
-     100% gets 0 in the empty boxes; every policy row that has something in it and no broker gets Other broker; and the broker box of Medical aid, Gap cover, Will and Short-term insurance gets it when its answer opens it.
+     100% gets 0 in the empty boxes; every policy row that has something in it and no broker gets Other broker; and the broker box of Medical aid, Gap cover, Will and Short-term insurance gets it unless its answer closes it.
      Nothing that is there is changed, and a second opening changes nothing more. */
   function openDefaults(s) {
     settleDuties(s);

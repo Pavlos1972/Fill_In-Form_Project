@@ -18,7 +18,7 @@
   if (typeof module === 'object' && module.exports) module.exports = factory();
   else { root.FF = root.FF || {}; root.FF.schema = factory(); }
 })(typeof self !== 'undefined' ? self : this, function () {
-  var YN = ['Yes', 'No'], BROKER = ['Paul K', 'Other broker', 'Through company', 'None'], DEFAULT_BROKER = 'Other broker';        // every "Broker on record" starts as Other broker (a new row, or a box that has just opened); the adviser changes it when it is different
+  var YN = ['Yes', 'No'], BROKER = ['Paul K', 'Other broker', 'Through company', 'None'], DEFAULT_BROKER = 'Other broker';        // every "Broker on record" starts as Other broker (a new row, or one of the four boxes in Medical, will & short-term from the start); the adviser changes it when it is different
   var QTYPE = ['New Business', 'Servicing', 'N/A'];                         // what kind of quote it is
   var INS = ['Old Mutual', 'Momentum', 'Liberty', 'Sanlam', 'Discovery', 'BrightRock', 'Hollard', 'Assupol', 'Clientele', 'Other'];
   var INS_STD = ['Old Mutual', 'Momentum', 'Liberty', 'Sanlam', 'Discovery', 'Hollard', 'Assupol', 'Clientele', 'BrightRock (standard)', 'Other'];     // the insurers a standard quote can be asked of (BrightRock too: it does standard as well as fractured)
@@ -230,13 +230,13 @@
         { id: 'ma', l: 'Medical aid', t: 'sel', o: ['Medical aid', 'Hospital plan', 'None'], s: 6 },
         { id: 'ma_prov', l: 'Medical aid provider', t: 'sel', free: 1, o: MED_SCHEMES, cond: MA_ON, grey: 1, s: 6 },
         { id: 'ma_plan', l: 'Plan', t: 'txt', risky: 1, cond: MA_ON, grey: 1, s: 6 },
-        { id: 'ma_broker', l: 'Broker on record', vl: 'Medical aid broker on record', t: 'sel', o: BROKER, cond: MA_ON, grey: 1, s: 6 },
+        { id: 'ma_broker', l: 'Broker on record', vl: 'Medical aid broker on record', t: 'sel', o: BROKER, preset: DEFAULT_BROKER, voice: 1, cond: MA_ON, grey: 1, s: 6 },
         N('n_ma', 'Notes', 2)
       ] },
       { title: 'Gap cover', half: 1, layout: 'g12', fields: [
         { id: 'gap', l: 'Gap cover', t: 'sel', o: ['Yes', 'No', 'Not sure'], s: 6 },
         { id: 'gap_prov', l: 'Gap cover provider', t: 'sel', free: 1, o: GAP_PROVIDERS, cond: GAP_ON, grey: 1, s: 6 },
-        { id: 'gap_broker', l: 'Broker on record', vl: 'Gap cover broker on record', t: 'sel', o: BROKER, cond: GAP_ON, grey: 1, s: 6 },
+        { id: 'gap_broker', l: 'Broker on record', vl: 'Gap cover broker on record', t: 'sel', o: BROKER, preset: DEFAULT_BROKER, voice: 1, cond: GAP_ON, grey: 1, s: 6 },
         N('n_gap', 'Notes', 2)
       ] },
       { title: 'Will', layout: 'g12', fields: [
@@ -244,13 +244,13 @@
         { id: 'will_up', l: 'Will is up to date', t: 'sel', o: YN, cond: WILL_ON, grey: 1, s: 4 },
         { id: 'will_where', l: 'Held with', t: 'sel', o: ['Capital Legacy', 'Other provider'], cond: WILL_ON, grey: 1, s: 4 },
         { id: 'will_where_other', l: 'Other', t: 'txt', cond: { all: [WILL_ON, { f: 'will_where', eq: 'Other provider' }] }, grey: 1, s: 4 },
-        { id: 'will_broker', l: 'Broker on record', vl: 'Will broker on record', t: 'sel', o: BROKER, cond: WILL_ON, grey: 1, s: 4 },
+        { id: 'will_broker', l: 'Broker on record', vl: 'Will broker on record', t: 'sel', o: BROKER, preset: DEFAULT_BROKER, voice: 1, cond: WILL_ON, grey: 1, s: 4 },
         { id: 'will_date', l: 'Last updated', t: 'txt', date: 1, cond: WILL_ON, grey: 1, s: 4 },
         N('n_will', 'Notes', 2)
       ] },
       { title: 'Short-term insurance', layout: 'g12', fields: [
         { id: 'sti', l: 'Has short-term insurance', t: 'sel', o: ['Yes', 'No', 'Handled by spouse'], s: 3 },
-        { id: 'sti_broker', l: 'Broker on record', vl: 'Short-term broker on record', t: 'sel', o: BROKER, cond: STI_ON, grey: 1, s: 3 },
+        { id: 'sti_broker', l: 'Broker on record', vl: 'Short-term broker on record', t: 'sel', o: BROKER, preset: DEFAULT_BROKER, voice: 1, cond: STI_ON, grey: 1, s: 3 },
         { id: 'sti_car', l: 'Car', t: 'sel', o: YN, cond: STI_ON, grey: 1, s: 3 },
         { id: 'sti_house', l: 'Household contents', t: 'sel', o: YN, cond: STI_ON, grey: 1, s: 3 },
         { id: 'sti_struct', l: 'Structural', t: 'sel', o: YN, cond: STI_ON, grey: 1, s: 3 },
