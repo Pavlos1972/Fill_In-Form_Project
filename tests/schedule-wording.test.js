@@ -7,17 +7,17 @@ const A = require('../app/js/actions.js');
 const V = require('../app/js/voice.js');
 
 const AREAS = { risk: 'Personal Risk Covers', grp: 'Group Risk Covers', ra: 'Retirement Annuities', pp: 'Pension and Provident Funds', inv: 'Investments' };
-const OLD = 'Requested from client in meeting', ASTUTE = 'Draw from Astute (with signed LOA)', NOSEND = 'Client does not need to send through';
+const OLD = 'Requested from client in meeting', ASTUTE = 'Draw from Astute (with signed LOA)', NOSEND = 'Client does not need to send through', SAVED = 'Policy Schedules saved in Client File';
 const fresh = () => store.blank();
 const set = (s, id, v) => store.setField(s, id, v);
 const idx = V.buildIndex(schema);
 
-test('each of the five boxes has its own wording for the first choice, and the other choices are as they were', () => {
+test('each of the five boxes has its own wording for the first choice, then Policy Schedules saved in Client File, Astute (not for group risk) and Other', () => {
   Object.keys(AREAS).forEach(k => {
     const want = 'Requested ' + AREAS[k] + ' in meeting, await client response';
     assert.strictEqual(schema.psClient[k], want);
-    assert.deepStrictEqual(schema.fieldsById['ps_' + k].o, k === 'grp' ? [want, NOSEND, 'Other'] : [want, ASTUTE, NOSEND, 'Other'], k);
-    assert.ok(!schema.fieldsById['ps_' + k].o.includes(OLD));
+    assert.deepStrictEqual(schema.fieldsById['ps_' + k].o, k === 'grp' ? [want, SAVED, 'Other'] : [want, SAVED, ASTUTE, 'Other'], k);
+    assert.ok(!schema.fieldsById['ps_' + k].o.includes(OLD) && !schema.fieldsById['ps_' + k].o.includes(NOSEND), 'the old choices are gone');
   });
   assert.strictEqual(schema.psClient.risk, 'Requested Personal Risk Covers in meeting, await client response');            // the example given
   assert.strictEqual(new Set(Object.values(schema.psClient)).size, 5);
@@ -64,19 +64,24 @@ test('voice ticks the first choice of the box that is being asked about', () => 
   assert.strictEqual(V.mergeMulti(schema.psClient.risk, ASTUTE, idx.byId.ps_risk.options), schema.psClient.risk + '; ' + ASTUTE);
 });
 
-test('"Client does not need to send through": every box has it, voice picks it only when it is said, and the action points chase nothing for it', () => {
+test('"Policy Schedules saved in Client File": every box has it, voice picks it when it is said, the action points chase nothing for it, and the removed choice opens as it', () => {
   Object.keys(AREAS).forEach(k => {
-    assert.ok(schema.fieldsById['ps_' + k].o.includes(NOSEND), k);
+    assert.ok(schema.fieldsById['ps_' + k].o.includes(SAVED), k);
     const f = idx.byId['ps_' + k];
-    assert.strictEqual(V.interpret(f, 'the client does not need to send them through').value, NOSEND, k);
-    assert.strictEqual(V.interpret(f, 'there is no need to send anything').value, NOSEND, k);
+    ['we already have the schedules', 'the schedule is saved in the client file', 'it is on file', 'we have them on file', 'the client does not need to send them through', 'there is no need to send anything'].forEach(t =>
+      assert.strictEqual(V.interpret(f, t).value, SAVED, k + ': "' + t + '"'));
     assert.strictEqual(V.interpret(f, 'the client will send them').value, schema.psClient[k], k + ': "the client will send them" is the first choice, never this one');
   });
-  const s = fresh(); set(s, 'fname', 'Thandi'); set(s, 'ps_ra', NOSEND);
+  const s = fresh(); set(s, 'fname', 'Thandi'); set(s, 'ps_ra', SAVED);
   assert.deepStrictEqual(A.facts(s).schedules, []);
   assert.ok(!A.local(s).some(p => /schedules/.test(p)), A.local(s).join(' | '));
-  set(s, 'ps_ra', schema.psClient.ra + '; ' + NOSEND);                                                                       // with another choice, the other choice is what counts
+  set(s, 'ps_ra', schema.psClient.ra + '; ' + SAVED);                                                                       // with another choice, the other choice is what counts
   assert.deepStrictEqual(A.facts(s).schedules.map(x => x.requested), [[OLD]]);
+  const t = fresh(); set(t, 'ps_risk', NOSEND); set(t, 'ps_inv', schema.psClient.inv + '; ' + NOSEND + '; ' + ASTUTE); set(t, 'ps_ra', OLD + '; ' + NOSEND);
+  const o = store.fromJSON(store.toJSON(t));
+  assert.strictEqual(o.f.ps_risk.v, SAVED, 'a file that held "Client does not need to send through" opens with Policy Schedules saved in Client File');
+  assert.strictEqual(o.f.ps_inv.v, schema.psClient.inv + '; ' + SAVED + '; ' + ASTUTE, 'in place, with the other choices kept');
+  assert.strictEqual(o.f.ps_ra.v, schema.psClient.ra + '; ' + SAVED, 'both older wordings are moved');
 });
 
 test('Request Current Policy Schedule(s) greys out when the Yes/No above is No, says so, and the PDF says so too', () => {

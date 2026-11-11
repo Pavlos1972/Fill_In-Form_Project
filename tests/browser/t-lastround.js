@@ -54,7 +54,7 @@ let bad = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if
   ok(!(await sch()).off, 'Yes opens it again');
   await p.click('.msb[data-msb="ps_risk"]'); await p.waitForTimeout(200);
   const opts = await p.evaluate(() => [...document.querySelectorAll('.msp label')].map(l => l.textContent.trim()));
-  ok(opts.includes('Client does not need to send through'), 'the new choice is in the list: ' + opts.join(' | '));
+  ok(opts.includes('Policy Schedules saved in Client File') && !opts.includes('Client does not need to send through'), 'the new choice is in the list, the removed one is not: ' + opts.join(' | '));
   await p.keyboard.press('Escape');
   await nav(p, 'retire'); await p.selectOption('[data-f="has_ra"]', 'No'); await p.selectOption('[data-f="has_pp"]', 'No'); await p.waitForTimeout(250);
   ok(await p.evaluate(() => document.body.innerText.split('No policy schedules to request').length - 1) === 2, 'retirement annuities and pension and provident funds both grey out');

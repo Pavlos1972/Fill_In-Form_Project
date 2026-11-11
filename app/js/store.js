@@ -257,8 +257,9 @@
   /* Files saved when every schedule box said "Requested from client in meeting": each box now says it in the words of its own area (Requested Personal Risk Covers in meeting, await client response, ...). */
   function scheduleWording(s) {
     Object.keys(schema.psClient).forEach(function (area) {
-      var c = s.f['ps_' + area]; if (!c || String(c.v).indexOf(schema.psClientOld) < 0) return;
-      c.v = String(c.v).split(';').map(function (x) { x = x.trim(); return x === schema.psClientOld ? schema.psClient[area] : x; }).filter(Boolean).join('; ');
+      var c = s.f['ps_' + area]; if (!c || (String(c.v).indexOf(schema.psClientOld) < 0 && String(c.v).indexOf(schema.psNoSend) < 0)) return;
+      var seen = {};
+      c.v = String(c.v).split(';').map(function (x) { x = x.trim(); return x === schema.psClientOld ? schema.psClient[area] : x === schema.psNoSend ? schema.psSaved : x; }).filter(function (x) { if (!x || seen[x]) return false; seen[x] = 1; return true; }).join('; ');      // "Client does not need to send through" is gone: it opens as Policy Schedules saved in Client File
     });
   }
   /* The referral boxes no longer have the choices that only said what is asked elsewhere on the page: "Client has own broker" is the short-term broker box (Other broker) and "Has updated will" is the will boxes. A file that holds
