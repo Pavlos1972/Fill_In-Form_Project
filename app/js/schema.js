@@ -172,8 +172,9 @@
         { id: 'dnet', l: 'Direct Net Income (R p.m.)', t: 'txt', calc: 'dnet', link: ['Check on TaxTim', 'https://www.taxtim.com/za/calculators/income-tax'] },
         { id: 'net', money: 1, l: 'Take-home net income (R p.m.)', t: 'txt', risky: 1 },
         { id: 'rent', money: 1, l: 'Rental Income', t: 'txt', opt: 1, voice: 1 },
-        { id: 'spinc', money: 1, l: 'Spousal Income', t: 'txt', opt: 1, voice: 1 },
-        { id: 'maint', money: 1, l: 'Child Maintenance Income', t: 'txt', opt: 1, voice: 1 },
+        { id: 'spmaint', money: 1, l: 'Spousal Maintenance', t: 'txt', opt: 1, voice: 1 },
+        { id: 'maint', money: 1, l: 'Child Maintenance', t: 'txt', opt: 1, voice: 1 },
+        { id: 'spinc', money: 1, l: 'Spouse\u2019s income (earlier form)', t: 'txt', opt: 1, legacy: 1, cond: { f: 'spinc', nin: [''] } },      // the old Spousal Income box (what a current spouse earns): kept so an old file is never misread, shown only while it holds an answer, never filled by voice
         { id: 'tinc', l: 'Total Income', t: 'txt', calc: 'tinc' },
         { id: 'exp', money: 1, l: 'Monthly expenses / budget (R)', t: 'txt', risky: 1 },
         { id: 'disp', l: 'Disposable income (R)', t: 'txt', calc: 'disp' },
@@ -535,5 +536,5 @@
   var byId = {};
   sections.forEach(function (s) { s.blocks.forEach(function (b) { (b.fields || []).forEach(function (f) { byId[f.id] = f; }); }); });
 
-  return { version: '3.0', released: 'October 2026', sections: sections, lists: lists, panels: panels, panelsById: panelsById, advisor: ADVISOR, brBasis: BR_BASIS, areaTitle: areaTitle, psClient: PS_CLIENT, defaultBroker: DEFAULT_BROKER, psNoSend: PS_NOSEND, psNone: PS_NONE, psClientOld: PS_CLIENT_OLD, PRIORITY: PRIORITY, NOT_PRIORITY: NOT_PRIORITY, UNSURE: UNSURE, BUDGET: BUDGET, fieldsById: byId };
+  return { version: '3.1', released: 'November 2026', sections: sections, lists: lists, panels: panels, panelsById: panelsById, advisor: ADVISOR, brBasis: BR_BASIS, areaTitle: areaTitle, psClient: PS_CLIENT, defaultBroker: DEFAULT_BROKER, psNoSend: PS_NOSEND, psNone: PS_NONE, psClientOld: PS_CLIENT_OLD, PRIORITY: PRIORITY, NOT_PRIORITY: NOT_PRIORITY, UNSURE: UNSURE, BUDGET: BUDGET, fieldsById: byId };
 });

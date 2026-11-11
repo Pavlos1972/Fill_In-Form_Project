@@ -14,9 +14,9 @@ const income = schema.sections.find(x => x.id === 'income');
 
 test('Income & household: the four new boxes are there, in the order Paul gave, with exactly his words', () => {
   const ids = income.blocks[0].fields.map(x => x.id);
-  assert.deepStrictEqual(ids.slice(0, 9), ['gross', 'dnet', 'net', 'rent', 'spinc', 'maint', 'tinc', 'exp', 'disp']);
-  assert.deepStrictEqual(['rent', 'spinc', 'maint', 'tinc', 'exp', 'disp'].map(id => schema.fieldsById[id].l), ['Rental Income', 'Spousal Income', 'Child Maintenance Income', 'Total Income', 'Monthly expenses / budget (R)', 'Disposable income (R)']);
-  ['rent', 'spinc', 'maint'].forEach(id => assert.ok(schema.fieldsById[id].money && schema.fieldsById[id].opt, id + ' is a money box and optional'));
+  assert.deepStrictEqual(ids.slice(0, 10), ['gross', 'dnet', 'net', 'rent', 'spmaint', 'maint', 'spinc', 'tinc', 'exp', 'disp']);
+  assert.deepStrictEqual(['rent', 'spmaint', 'maint', 'tinc', 'exp', 'disp'].map(id => schema.fieldsById[id].l), ['Rental Income', 'Spousal Maintenance', 'Child Maintenance', 'Total Income', 'Monthly expenses / budget (R)', 'Disposable income (R)']);
+  ['rent', 'spmaint', 'maint', 'spinc'].forEach(id => assert.ok(schema.fieldsById[id].money && schema.fieldsById[id].opt, id + ' is a money box and optional'));
   assert.ok(schema.fieldsById.tinc.calc === 'tinc' && schema.fieldsById.disp.calc === 'disp');
   assert.strictEqual(schema.fieldsById.net.l, 'Take-home net income (R p.m.)');
 });
@@ -26,15 +26,15 @@ test('Total Income is the take-home net income plus the rental, spousal and chil
   assert.strictEqual(f(s, 'tinc'), '');
   set(s, 'net', 'R 20 000.00'); assert.strictEqual(f(s, 'tinc'), 'R 20 000.00');
   set(s, 'rent', 'R 3 000.00'); assert.strictEqual(f(s, 'tinc'), 'R 23 000.00');
-  set(s, 'spinc', 'R 10 000.00'); set(s, 'maint', 'R 16 000.00'); assert.strictEqual(f(s, 'tinc'), 'R 49 000.00');
+  set(s, 'spmaint', 'R 10 000.00'); set(s, 'maint', 'R 16 000.00'); assert.strictEqual(f(s, 'tinc'), 'R 49 000.00');
   assert.strictEqual(f(s, 'disp'), '', 'no expenses yet, no disposable income');
   set(s, 'exp', 'R 19 000.00'); assert.strictEqual(f(s, 'disp'), 'R 30 000.00');
-  set(s, 'rent', ''); set(s, 'spinc', ''); set(s, 'maint', ''); assert.strictEqual(f(s, 'tinc'), 'R 20 000.00'); assert.strictEqual(f(s, 'disp'), 'R 1 000.00');
+  set(s, 'rent', ''); set(s, 'spmaint', ''); set(s, 'maint', ''); assert.strictEqual(f(s, 'tinc'), 'R 20 000.00'); assert.strictEqual(f(s, 'disp'), 'R 1 000.00');
   const o = fresh(); set(o, 'maint', 'R 5 000.00'); assert.strictEqual(f(o, 'tinc'), 'R 5 000.00', 'other income alone still adds up');
 });
 
 test('the BrightRock Insured amount (income protection) and the household figures stay the take-home net income alone', () => {
-  const s = fresh(); set(s, 'net', 'R 20 000.00'); set(s, 'rent', 'R 3 000.00'); set(s, 'spinc', 'R 10 000.00'); set(s, 'maint', 'R 16 000.00');
+  const s = fresh(); set(s, 'net', 'R 20 000.00'); set(s, 'rent', 'R 3 000.00'); set(s, 'spmaint', 'R 10 000.00'); set(s, 'maint', 'R 16 000.00');
   assert.strictEqual(f(s, 'ip_amt'), 'R 20 000.00'); assert.strictEqual(f(s, 'hh'), 'R 20 000.00'); assert.strictEqual(f(s, 'need'), 'R 20 000.00');
   assert.strictEqual(calc.ipSplit(store.ctxFor(s)).insured, 20000);
 });
@@ -49,11 +49,12 @@ test('the new income boxes are optional: left empty they cost nothing in the pro
 
 test('voice: the three income boxes are asked for and filled by their own words', () => {
   const idx = V.buildIndex(schema);
-  ['rent', 'spinc', 'maint'].forEach(id => assert.ok(idx.byId[id], id + ' is in the voice index'));
+  ['rent', 'spmaint', 'maint'].forEach(id => assert.ok(idx.byId[id], id + ' is in the voice index'));
+  assert.ok(!idx.byId.spinc, 'the earlier Spousal Income box is never filled by voice');
   const v = (id, t) => { const r = V.interpret(idx.byId[id], t); return r && (r.error ? 'ERR:' + r.error : r.value); };
   assert.strictEqual(v('maint', 'R16 000 a month'), 'R 16 000.00');
   assert.strictEqual(v('rent', 'R3 500'), 'R 3 500.00');
-  assert.strictEqual(v('spinc', 'about R12 000'), 'R 12 000.00');
+  assert.strictEqual(v('spmaint', 'about R12 000'), 'R 12 000.00');
   assert.strictEqual(V.interpret(idx.byId.exp, 'the monthly budget is 5000 plus 950').value, 'R 5 950.00', 'an amount said as a sum is added up');
 });
 
@@ -79,4 +80,15 @@ test('Duties split: a 0 that was typed or said is never taken away, and the duti
   const filled = () => store.counts(s, info).fill;
   assert.ok(filled() >= 0);
   const reopened = store.fromJSON(store.toJSON(s)); assert.deepStrictEqual(D.map(id => reopened.f[id].v), D.map(id => s.f[id].v), 'saved and opened again, the same');
+});
+
+test('the earlier Spousal Income box (spinc) is kept for old files: it shows only while it holds an answer, is still added into Total Income, and is never filled by voice', () => {
+  const s = fresh(), calcMod = calc, ctx = () => store.ctxFor(s);
+  assert.strictEqual(calcMod.showIf(schema.fieldsById.spinc.cond, ctx()), false, 'a new form does not show it');
+  const old = JSON.parse(store.toJSON(fresh())); old.f.net = { v: 'R 20 000.00', st: 'confirmed' }; old.f.spinc = { v: 'R 10 000.00', st: 'confirmed' };
+  const o = store.fromJSON(JSON.stringify(old));
+  assert.strictEqual(o.f.spinc.v, 'R 10 000.00', 'the old answer is kept');
+  assert.strictEqual(calcMod.showIf(schema.fieldsById.spinc.cond, store.ctxFor(o)), true, 'and shown while it holds an answer');
+  assert.strictEqual(calcMod.field('tinc', store.ctxFor(o)), 'R 30 000.00', 'and still added up as before');
+  assert.strictEqual(o.f.spmaint.v, '', 'the new Spousal Maintenance box starts empty: an old spouse income is never read as maintenance');
 });
