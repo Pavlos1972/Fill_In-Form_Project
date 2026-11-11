@@ -4,6 +4,12 @@ A dated list of what changed in the form's boxes, newest first. **One line for e
 
 The version is `version` in `app/js/schema.js` (the Fact Find) and `app/js/sr-schema.js` (the Short Risk Application); a saved file carries it as `schema`. Earlier changes are in the README and in the git history; this list starts with 3.1.
 
+## 3.2: 11 November 2026 (Fact Find 3.1 to 3.2)
+
+Fact Find, ids:
+- **Added** `cc_notes`: **Current Client File Summary Notes** (Admin, section **Current Client**; optional; a large text box). The section is active only when `ref` (Referral from) is "Current client", greyed out otherwise. A skill writes the summary of the client's AdviceTech Basic Info notes into it in the saved file, as points, with status `verify`; never filled by voice, never read for the action points, printed in the PDF only while active.
+- **Relabelled / removed**: none. **Sums, tax tables, list columns, choices**: no change.
+
 ## 3.1: 11 November 2026 (Fact Find 3.0 to 3.1, Short Risk Application 1.1 to 1.2)
 
 Fact Find, ids:
