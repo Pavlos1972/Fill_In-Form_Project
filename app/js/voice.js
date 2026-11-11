@@ -1546,8 +1546,8 @@
   function debtNumber(t) {
     var m = /\bdebt (?:number |no |num |nr |nu )?(\d{1,2}|one|two|three|four|five|six|seven|eight|nine|ten)\b/.exec(t) || /\b(?:loan|liability) (?:number |no )?(\d{1,2})\b/.exec(t);
     if (m) return /^\d/.test(m[1]) ? +m[1] : DEBT_NUM[m[1]];
-    m = /\b(first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth) (?:debt|loan|liability)\b/.exec(t);
-    return m ? DEBT_ORD[m[1]] : 0;
+    m = /\b(first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth) (?:debt|loan|liability|one)\b/.exec(t) || /\b(?:number|no|num|nr|row) (\d{1,2})\b/.exec(t);
+    return m ? (DEBT_ORD[m[1]] || +m[1] || 0) : 0;
   }
   function debtRef(text, rows, cur) {
     var t = norm(text), n = rows.length, num = debtNumber(t), kinds;
