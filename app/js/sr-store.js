@@ -144,6 +144,15 @@
   function baseFileName(state) { return pdfFileName(state); }
 
   /* ---------- saving and opening ---------- */
+  /* A file saved by version 1.0 had Owner of the policy as a box to type in. It opens with the owner as the client (empty, or the client's own name), or as Another person with the typed name put in Owner's full names
+     (to verify), so nothing typed is lost and the four owner boxes are not left asking for an answer the file never had. */
+  function oldOwner(s, typed) {
+    typed = String(typed == null ? '' : typed).trim();
+    var me = clientName(s).toLowerCase().replace(/\s+/g, ' '), t = typed.toLowerCase().replace(/\s+/g, ' ');
+    if (t === '' || t === me || /^(?:the )?client$|^same$|^self$|^himself$|^herself$|^myself$/.test(t) || (t && me && (me.indexOf(t) === 0 || t.indexOf(me) === 0))) { s.f.owner = { v: schema.owners[0], st: 'preset' }; return; }
+    s.f.owner = { v: schema.owners[3], st: 'confirmed' };
+    s.f.ow_fn = { v: typed, st: 'verify' };
+  }
   function toJSON(state) { state.modified = new Date().toISOString(); return JSON.stringify(state, null, 2); }
   function fromJSON(text) {
     var j = JSON.parse(text);
@@ -155,6 +164,7 @@
       var v = tidy(id, j.f[id].v), st = j.f[id].st;
       s.f[id] = { v: v, st: v === '' ? (schema.fieldsById[id].preset && st === 'preset' ? 'preset' : 'empty') : (st === 'verify' || st === 'preset' ? st : 'confirmed') };
     });
+    if (String(j.schema || '') === '1.0') oldOwner(s, j.f && j.f.owner && j.f.owner.v);
     Object.keys(j.l || {}).forEach(function (k) {
       if (!schema.lists[k]) return;
       s.l[k] = (j.l[k] || []).map(function (r) {

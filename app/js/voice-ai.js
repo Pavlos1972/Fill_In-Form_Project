@@ -66,10 +66,17 @@
     '- Speech recognition garbles names and South African terms: "pt1 limited" is (Pty) Ltd, "chair holding" is shareholding, "University" is annuity, "text number" is tax number, "cold well" is wealth. When the line holds a word that sounds like a name already in "filled" (for example "confesses" or "offenses" for Kafentzis), use the spelling in "filled".',
     '- A box of a list ("debts", "kids", "risk" and so on, position.field such as "debts.prov") is only ever filled with a "cell" action (or a new row with "row"), never with "fill" and never with a field id like "debts.prov".',
     '- The form works out "Direct Net Income" (dnet) and "Disposable income" (disp) itself. When the adviser reads such a figure out ("according to the SARS calculator your direct net income is 291 757") it is not something the client said and it is not the take-home pay: give {"actions": []}. Take-home pay (net) is only what the client says they actually receive.',
-    '- Money left over: "I am left with 90 000 after all my expenses" is NOT the expenses. When "filled" holds the take-home pay (net), the expenses (exp) are the total income minus that amount: the take-home pay plus any rent (rent), spouse income (spinc) and child maintenance (maint) that is in "filled" (net 290 000 minus 90 000 is 200 000): fill exp with the result. When net is not on the form yet, put it in "unplaced" instead.',
-    '- Other income. Besides the take-home pay (net) there are three boxes for money the client receives each month: "Rental Income" (rent: rent from a property), "Spousal Income" (spinc: what the spouse or partner earns, when said) and "Child Maintenance Income" (maint: maintenance or a monthly lump sum the ex-spouse or ex-partner pays the client towards the children). The form adds them to the take-home pay as Total Income and takes the expenses off that for the disposable income, so never add them up yourself and never put them in net.',
+    '- Money left over: "I am left with 90 000 after all my expenses" is NOT the expenses. When "filled" holds the take-home pay (net), the expenses (exp) are the total income minus that amount: the take-home pay plus any rent (rent), spousal maintenance (spmaint), child maintenance (maint) and the earlier spouse-income box (spinc) that is in "filled" (net 290 000 minus 90 000 is 200 000): fill exp with the result. When net is not on the form yet, put it in "unplaced" instead.',
+    '- Other income. Besides the take-home pay (net) there are three boxes for money the client receives each month: "Rental Income" (rent: rent from a property), "Spousal Maintenance" (spmaint: money an ex-spouse or ex-partner pays the client each month for the client herself or himself) and "Child Maintenance" (maint: maintenance or a monthly lump sum the ex-spouse or ex-partner pays the client towards the children). What the client\'s current spouse or partner earns is not an income box: it is not "Spousal Maintenance", so leave it out of the boxes. The form adds them to the take-home pay as Total Income and takes the expenses off that for the disposable income, so never add them up yourself and never put them in net.',
     '- Childcare ("kids.cost", Childcare (R p.m.)) is whatever amount is agreed on the call for that child: the amount the client says it costs her, or the figure the adviser states he will use ("child care amount will be R5,000 plus R950" is 5 950: an amount said as a sum is added up). The full school fees of a child are not it until a figure is agreed; a later agreed amount replaces an earlier one.',
-    '- Asset value (debts.asset) is only for a debt secured on something the client owns: the property of a home loan, the car of vehicle finance. A credit card, an overdraft, a personal loan, revolving credit or a store account has NO asset: never fill Asset value for them, whatever amount was said (the balance goes in Balance). "There is no asset value" is not an amount to fill.',
+    '- Term left (debts.term) is a NUMBER OF MONTHS on the form, and the page works the months out itself: give the term in the words the client or the adviser used, WITH the unit said ("20 years", "18 months", "5 years 6 months", "until my age 65", "until age 65"): never convert it, never work out an age, and never give a bare number without its unit. "Max term" is put in for a credit card and revolving credit by the page (they have no term): fill nothing in Term left for them.',
+    '- Asset value (debts.asset) is only for a loan secured on a property: the house, flat or land of a home loan (or another loan on a property). Vehicle finance, a credit card, an overdraft, a personal loan, revolving credit and a store account have NO asset value (the form puts R 0.00 there itself): never fill Asset value for them, whatever amount was said (the balance goes in Balance). "There is no asset value" is not an amount to fill.',
+    '- Take-home pay (net) is what the client receives each month, so it is never more than the gross income (gross) when that is on the form: a figure above it is not take-home pay (it may be the total income, the expenses or the disposable income): fill nothing for net and put it in "unplaced". "Overheads", "obligations", "commitments", "what goes out" and "living costs" are the expenses (exp), never the take-home pay.',
+    '- An exact figure that is already agreed in "filled" is never replaced by a rounder version of it: "about 33,000 odd" or "around 33 thousand" does not change an agreed R 33 288.36. Only a figure the client or the adviser gives as the right one ("no, it is 31 000") replaces it, as a correction.',
+    '- A bank, insurer or other provider is filled only when the newest line (or the answer to the question just asked) names it or a word that sounds like it ("Nedbank", "Absa", "absent", "Old Mutual"): "that is with me", "with them" and "the same one" name nobody, so leave the provider empty. Never carry a name over from an earlier line.',
+    '- Amounts in an "unplaced" point are figures that were actually said, as said: never work out, guess or round one ("about even a month" has no figure, so write no amount).',
+    '- Two people can be on the client\'s side of the call: the client and the client\'s spouse or partner, and nothing in the lines tells them apart (both come as "client" or "unclear"). When the adviser says who is on the call ("this is your wife Marie-Louise", "is your husband there?"), fill "on_call" with the name and the relation ("Marie-Louise (the client\'s spouse)"). Work out who is speaking and who is being spoken to from the names the adviser uses and from what is said. Facts a person gives about THEMSELVES belong to them, not to the client: what the spouse earns, her own medical aid or her own policies are not the client\'s. In a note, say who an instruction was for ("for the client\'s spouse Marie-Louise: set up a separate meeting about the Liberty policy").',
+    '- Medical aid (ma) is about the client. When the client is covered on the SPOUSE\'s medical aid (the spouse pays it or it is in the spouse\'s name) fill ma with "Medical aid" (or "Hospital plan" when that is what it is) and add a note saying it is the spouse\'s: never "None", because the client does have cover. When only the spouse has a medical aid and the client is not on it, the client\'s box is "None" and a note says the spouse has one.',
     '- A child\'s second name or middle name ("his second name is Dumitru", "her middle name is Theresa") is added after the first name in the child\'s Name box ("Raul Dumitru"), never put in the Surname box. The child\'s surname is only filled when a surname is said or "same surname" is agreed.',
     '- Remarks about the form or the software itself ("that\'s a definite error", "the program ...", "it did not look up the company", "testing") are not facts, answers or questions: give {"actions": []}.',
     '- One line can move to another part of the form and carry on there: "let\'s talk about your investments. Do you have a tax free? Yes, an Old Mutual one, R3400 a month" is [section, row]. Everything said after the move',
@@ -117,7 +124,7 @@
     'Dates. "meeting_date" is the day of this meeting. A date said without a year ("Thursday the 19th", "the 19th of the month") is the first such day on or after the meeting date (when a weekday is said it must fall on that weekday): give a full date for it, with the year worked out from the meeting date, never a year from memory. The next appointment is never before the meeting date.',
     'Policy schedules. The boxes ps_risk, ps_grp, ps_ra, ps_pp and ps_inv ("Request Current Policy Schedule(s)" for the personal risk policies, group risk, retirement annuities, pension and provident funds, investments) are tick-box boxes (marked "multi": true):',
     'they take one or more of their options, given joined with "; " ("Requested Personal Risk Covers in meeting, await client response; Draw from Astute (with signed LOA)"), and are empty while it has not been asked. The first choice of each box is worded for its own area (Requested Personal Risk Covers / Group Risk Covers / Retirement Annuities / Pension and Provident Funds / Investments in meeting, await client response): use the first option exactly as the box lists it. "The client will send them" is that first choice;',
-    '"we will get them from Astute", "through Astute" is "Draw from Astute (with signed LOA)" (group risk has no Astute option); something else ("her employer will email it") is "Other", with the words in the box ps_..._ot (ps_risk_ot, ps_grp_ot and so on). "The client does not need to send anything", "there is no need to send them through" is "Client does not need to send through" (every box has it).',
+    '"we will get them from Astute", "through Astute" is "Draw from Astute (with signed LOA)" (group risk has no Astute option); something else ("her employer will email it") is "Other", with the words in the box ps_..._ot (ps_risk_ot, ps_grp_ot and so on). "We already have them", "it is on file", "saved in the client file", "the client does not need to send anything", "there is no need to send them through" is "Policy Schedules saved in Client File" (every box has it; there is no "does not need to send" choice).',
     'When the Yes/No above a schedule box is No (no personal risk cover, no group risk, no retirement annuities, no pension or provident funds, no investments) the box is switched off: there are no schedules to request, so give nothing for it.',
     'Only ever give the options that were said; a later "and Astute as well" adds to what is there. "Can we send you a LOA to sign?" is the box loa (Yes, No, Not now: "not now", "maybe later" is "Not now").',
     '',
@@ -385,30 +392,31 @@
         var b = { do: a.do === 'fill' ? 'cell' : a.do, list: list, col: col, row: a.row == null ? 'last' : a.row };
         if (a.value != null) b.value = a.value;
         if (a.correction === true) b.correction = true;
+        if (typeof a.said === 'string') b.said = a.said;
         return b;
       };
       if (Array.isArray(raw.actions)) raw.actions.map(listForm).forEach(function (a) {
         if (!a || typeof a !== 'object') return;
-        var v, vals;
-        if (a.do === 'ask' && okAny(a.field)) acts.push({ do: 'ask', field: a.field });
-        else if (a.do === 'section' && okSec(a.section)) acts.push({ do: 'section', section: a.section });
-        else if (a.do === 'fill' && okAny(a.field) && (v = clean(a.field, a.value)) != null) acts.push({ do: 'fill', field: a.field, value: v, explicit: a.correction === true });
-        else if (a.do === 'confirm' && okAny(a.field)) { if (agreeable(a.field)) acts.push({ do: 'confirm', field: a.field }); }
-        else if (a.do === 'confirm' && okList(a.list)) acts.push({ do: 'confirm', list: a.list, row: rowRef(a.row, false) });
-        else if (a.do === 'note' && typeof a.text === 'string' && (v = a.text.replace(/\[((?:N|E)\d+)\]/g, function (m, k) { return vault && vault[k] != null ? vault[k] : ''; }).replace(/[ \t]+\n/g, '\n').trim())) acts.push({ do: 'note', text: v, ready: true });   // the points Claude wrote for the notes box (a number or address that was held back is put back here, on this computer)
-        else if (a.do === 'fill' && okAny(a.field) && typeof a.value === 'string' && !a.value.trim()) acts.push({ do: 'empty', field: a.field });                      // an empty value, or "empty": one box is to be emptied ("delete his name")
-        else if (a.do === 'empty' && okAny(a.field)) acts.push({ do: 'empty', field: a.field });
-        else if ((a.do === 'cell' || a.do === 'empty') && okList(a.list) && okCol(a.list, a.col) && (a.do === 'empty' || (typeof a.value === 'string' && !a.value.trim()))) acts.push({ do: 'empty', list: a.list, row: rowRef(a.row, false), col: a.col });
-        else if (a.do === 'wait') acts.push({ do: 'wait' });
-        else if (a.do === 'done' && (okSec(a.section) || okList(a.list) || (a.section == null && a.list == null))) acts.push({ do: 'done', section: okSec(a.section) ? a.section : null, list: okList(a.list) ? a.list : null, via: 'claude' });       // a section (or one list of it) is finished
-        else if (a.do === 'cmd' && a.cmd === 'notes') acts.push({ do: 'cmd', cmd: { type: 'notes', retro: a.retro === true, box: null } });
-        else if (a.do === 'cmd' && typeof a.cmd === 'string' && CMDS.hasOwnProperty(a.cmd)) acts.push({ do: 'cmd', cmd: { type: CMDS[a.cmd].type } });
+        var v, vals, push = function (x) { if (typeof a.said === 'string') x.said = a.said.slice(0, 300); acts.push(x); };      // the catch-up check gives the words it took each value from
+        if (a.do === 'ask' && okAny(a.field)) push({ do: 'ask', field: a.field });
+        else if (a.do === 'section' && okSec(a.section)) push({ do: 'section', section: a.section });
+        else if (a.do === 'fill' && okAny(a.field) && (v = clean(a.field, a.value)) != null) push({ do: 'fill', field: a.field, value: v, explicit: a.correction === true });
+        else if (a.do === 'confirm' && okAny(a.field)) { if (agreeable(a.field)) push({ do: 'confirm', field: a.field }); }
+        else if (a.do === 'confirm' && okList(a.list)) push({ do: 'confirm', list: a.list, row: rowRef(a.row, false) });
+        else if (a.do === 'note' && typeof a.text === 'string' && (v = a.text.replace(/\[((?:N|E)\d+)\]/g, function (m, k) { return vault && vault[k] != null ? vault[k] : ''; }).replace(/[ \t]+\n/g, '\n').trim())) push({ do: 'note', text: v, ready: true });   // the points Claude wrote for the notes box (a number or address that was held back is put back here, on this computer)
+        else if (a.do === 'fill' && okAny(a.field) && typeof a.value === 'string' && !a.value.trim()) push({ do: 'empty', field: a.field });                      // an empty value, or "empty": one box is to be emptied ("delete his name")
+        else if (a.do === 'empty' && okAny(a.field)) push({ do: 'empty', field: a.field });
+        else if ((a.do === 'cell' || a.do === 'empty') && okList(a.list) && okCol(a.list, a.col) && (a.do === 'empty' || (typeof a.value === 'string' && !a.value.trim()))) push({ do: 'empty', list: a.list, row: rowRef(a.row, false), col: a.col });
+        else if (a.do === 'wait') push({ do: 'wait' });
+        else if (a.do === 'done' && (okSec(a.section) || okList(a.list) || (a.section == null && a.list == null))) push({ do: 'done', section: okSec(a.section) ? a.section : null, list: okList(a.list) ? a.list : null, via: 'claude' });       // a section (or one list of it) is finished
+        else if (a.do === 'cmd' && a.cmd === 'notes') push({ do: 'cmd', cmd: { type: 'notes', retro: a.retro === true, box: null } });
+        else if (a.do === 'cmd' && typeof a.cmd === 'string' && CMDS.hasOwnProperty(a.cmd)) push({ do: 'cmd', cmd: { type: CMDS[a.cmd].type } });
         else if (a.do === 'row' && okList(a.list) && a.values && typeof a.values === 'object') {
           vals = {}; Object.keys(a.values).forEach(function (k) { if (okCol(a.list, k) && (v = clean(a.list + '.' + k, a.values[k])) != null) vals[k] = v; });
-          if (Object.keys(vals).length) acts.push({ do: 'row', list: a.list, values: vals });
+          if (Object.keys(vals).length) push({ do: 'row', list: a.list, values: vals });
         }
-        else if (a.do === 'cell' && okList(a.list) && okCol(a.list, a.col) && (v = clean(a.list + '.' + a.col, a.value)) != null) acts.push({ do: 'cell', list: a.list, row: rowRef(a.row, false), col: a.col, value: v, explicit: a.correction === true });
-        else if (a.do === 'ask' && okList(a.list) && okCol(a.list, a.col)) acts.push({ do: 'ask', list: a.list, row: rowRef(a.row, true), col: a.col });
+        else if (a.do === 'cell' && okList(a.list) && okCol(a.list, a.col) && (v = clean(a.list + '.' + a.col, a.value)) != null) push({ do: 'cell', list: a.list, row: rowRef(a.row, false), col: a.col, value: v, explicit: a.correction === true });
+        else if (a.do === 'ask' && okList(a.list) && okCol(a.list, a.col)) push({ do: 'ask', list: a.list, row: rowRef(a.row, true), col: a.col });
       });
       else {                                                    // an answer in the older shape is still understood
         if (okField(raw.field)) acts.push({ do: 'ask', field: raw.field }); else if (okSec(raw.section)) acts.push({ do: 'section', section: raw.section });
@@ -523,15 +531,16 @@
     '"notes" (what is already written in the notes box of each section) and "listed" (facts already offered to the adviser as "heard but not placed").',
     'Find every FACT in the transcript that belongs in a box that is EMPTY now (not in "filled"), and give it. Reply with ONE JSON object and nothing else:',
     '{"actions": [ ... ], "unplaced": [ ... ]}. Each action is one of:',
-    '  {"do":"fill","field":"<id>","value":"..."}                                   a value for a box that is empty now',
-    '  {"do":"cell","list":"<list id>","row":<row number>,"col":"<column id>","value":"..."}   a value for an empty box of a row that is already in "lists"',
-    '  {"do":"row","list":"<list id>","values":{"<column id>":"<value>", ...}}     a person or item that was talked about but has NO row in "lists" (a child, a loan, a policy)',
+    '  {"do":"fill","field":"<id>","value":"...","said":"<the exact words>"}                                   a value for a box that is empty now',
+    '  {"do":"cell","list":"<list id>","row":<row number>,"col":"<column id>","value":"...","said":"<the exact words>"}   a value for an empty box of a row that is already in "lists"',
+    '  {"do":"row","list":"<list id>","values":{"<column id>":"<value>", ...},"said":"<the exact words>"}     a person or item that was talked about but has NO row in "lists" (a child, a loan, a policy)',
+    'EVERY action carries "said": the exact words from the transcript that the value was taken from, copied as they stand (a short stretch, one or two sentences at most). The page looks the words up in the transcript: an action whose words are not there, or that has no "said", is thrown away. Give nothing you cannot quote. A value that only fits because of what you assume (a marital status, a relation, a "yes" nobody said) cannot be quoted: leave it out.',
     'Rules:',
     '- Facts count whoever says them. When "focus" is a section id, give only facts for the boxes and lists of that section; when it is null, the whole form.',
     '- Only the LAST version of a fact counts: when something is corrected ("sorry, it is 61 449, not 61 000"), give the final value. Speech recognition garbles South African speech ("tax fee" is tax free, "absent" is Absa, "random" is rand); use the conversation to decide.',
     '- A fact that is already in "notes" or in "listed" is never reported again, neither as an action nor in "unplaced". Report each fact once, even when it was said, corrected and said again.',
-    '- Money left over: "I am left with 90 000 after all my expenses" is NOT the expenses. When "filled" holds the take-home pay (net) and exp is empty, fill exp with the total income (net plus any rent, spinc and maint in "filled") minus that amount; otherwise report the fact in "unplaced".',
-    '- Other income: rent (Rental Income), spinc (Spousal Income) and maint (Child Maintenance Income: what an ex-spouse or ex-partner pays the client each month towards the children) are boxes of their own; the form adds them to the take-home pay (net). Never put them in net.',
+    '- Money left over: "I am left with 90 000 after all my expenses" is NOT the expenses. When "filled" holds the take-home pay (net) and exp is empty, fill exp with the total income (net plus any rent, spmaint, maint and spinc in "filled") minus that amount; otherwise report the fact in "unplaced".',
+    '- Other income: rent (Rental Income), spmaint (Spousal Maintenance: what an ex-spouse or ex-partner pays the client each month for the client) and maint (Child Maintenance: what an ex-spouse or ex-partner pays the client each month towards the children) are boxes of their own; what a current spouse earns is not one of them; the form adds them to the take-home pay (net). Never put them in net.',
     '- Childcare (kids.cost) is whatever amount is agreed on the call for that child (an amount said as a sum, "R5,000 plus R950", is added up: 5 950); a later agreed amount replaces an earlier one.',
     '- The form works out "Direct Net Income" (dnet) and "Disposable income" (disp) itself: a figure the adviser reads out from the calculator is not a fact about the client and is not the take-home pay.',
     '- Never fill a box that already has a value in "filled" (even if the conversation says something different: then put that in "unplaced" as {"text":"<Box label>: the conversation says <value>, the form has <value>","section":"<id>"}). Never invent a value that was not said.',
@@ -544,6 +553,10 @@
     '- Do not report in "unplaced" a fact that a box in "filled" already holds (a priority decision, a request for an analysis, a retirement age). Report each fact once.',
     '- The "comments" boxes of the Client priorities page (labels ending "comments (the reason, or your instructions)") hold a reason or an instruction in a short sentence, never a fragment: leave them empty unless the reason was clearly given.',
     '- A box or column marked "free": true takes any value as said when none of its options fits. Use "Other" only when a name was said that is not among the options; when no name was said, leave the box empty. A range ("between 30 and 40") is not a value.',
+    '- Term left (debts.term) is given in the words and unit that were said ("20 years", "18 months", "until my age 65"), never as a bare number and never converted: the page works the months out. A credit card and revolving credit have no term.',
+    '- Take-home pay (net) is never more than the gross income (gross) when that is on the form: a figure above it is not take-home pay. "Overheads", "obligations", "commitments" and "living costs" are the expenses (exp). An exact figure that is already in "filled" is never replaced by a rounder one ("33,000 odd" for an agreed 33 288).',
+    '- A bank, insurer or provider is filled only when the words you quote name it or sound like it: "that is with me" and "with them" name nobody. Amounts in an "unplaced" point are figures that were actually said, as said: never work out, guess or round one.',
+    '- Two people can be on the client\'s side of the call (the client and the client\'s spouse or partner) and the lines do not say which one speaks. What the spouse says about themselves (earnings, their own medical aid or policies) is not the client\'s. When the client is covered on the spouse\'s medical aid, ma is "Medical aid" with a note, never "None".',
     '- Be careful rather than generous: a fact you are not sure of goes in "unplaced" (or nowhere), not in a box. When there is nothing to add reply {"actions": []}.'
   ].join('\n');
   /* opts: { idx, transcript: [{who, text}], filled: {id: value}, listRows(key), focus: section id | null, model }. -> the request (nothing private leaves: lines are scrubbed, private boxes are not listed). */
@@ -564,9 +577,59 @@
     };
     return withThinking({ model: opts.model, max_tokens: 6000, output_config: { effort: 'medium' }, system: SWEEP_SYSTEM, messages: [{ role: 'user', content: JSON.stringify(body) }] });
   }
+  /* ---------- what was really said: figures, and the words a value came from ---------- */
+  var NUM_WORDS = /^(?:zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand|million)$/;
+  /* Every figure in a stretch of talk, as numbers: "R33,000", "33 000", "six thousand", "R1.2 million", "85k" -> [33000, 33000, 6000, 1200000, 85000]. */
+  function numbersSaid(text) {
+    var t = V.norm(String(text == null ? '' : text)).replace(/\br\s*(?=\d)/g, '').replace(/\b(\d{1,3})((?: \d{3})+)\b/g, function (m, a, rest) { return a + rest.replace(/ /g, ''); });
+    var tk = t.split(' ').filter(Boolean), out = [], run = [], i;
+    var isDigits = function (w) { return /^\d+(?:\.\d+)?[km]?$/.test(w); }, isWord = function (w) { return NUM_WORDS.test(w); };
+    var flush = function () { if (run.length) { var v = V.wordsToNumber(run.join(' ')); if (v != null && !isNaN(v)) out.push(v); run = []; } };
+    for (i = 0; i < tk.length; i++) {
+      if (isDigits(tk[i])) {                                                                        // a figure in digits is one number; "1.2 million" and "85 thousand" go with their word
+        flush();
+        if (/^(?:hundred|thousand|million)$/.test(tk[i + 1] || '')) { run = [tk[i], tk[i + 1]]; i++; flush(); } else { var v1 = V.wordsToNumber(tk[i]); if (v1 != null) out.push(v1); }
+      } else if (isWord(tk[i])) run.push(tk[i]);
+      else if (tk[i] === 'and' && run.length && isWord(tk[i + 1] || '')) run.push('and');
+      else flush();
+    }
+    flush();
+    return out;
+  }
+  /* An amount in a "heard but not placed" note that nobody said: "about even a month" has no figure, so "R 6 000" in its note was made up. Figures under 100 (ages, years, counts) are not checked. -> true when one is not in the talk. */
+  function ungroundedAmount(itemText, saidText) {
+    var said = numbersSaid(saidText), found = [], re = /R\s?\d[\d\s,.]*(?:\s?(?:k|m|million))?|\b\d{1,3}(?:[ ,]\d{3})+(?:\.\d+)?\b|\b\d{3,}(?:\.\d+)?(?:\s?(?:k|m|million))?\b/gi, m;
+    while ((m = re.exec(String(itemText == null ? '' : itemText)))) found.push(m[0]);
+    return found.some(function (x) {
+      var v = numbersSaid(x.replace(/^R\s?/i, '')); v = v.length ? v[0] : null;
+      if (v == null || v < 100) return false;
+      return said.every(function (n) { return Math.abs(n - v) > 0.5; });
+    });
+  }
+  /* The catch-up check gives, with each value, the exact words it took it from. A value whose words are not in the conversation was made up (a marital status nobody gave), and is dropped.
+     -> { actions, unplaced, dropped: [what was left out and why] } */
+  function verifySaid(res, transcript) {
+    var said = V.norm((transcript || []).map(function (l) { return scrub(l.text); }).join(' . ')), dropped = [];
+    var res2 = { kind: res.kind };
+    if (res.kind === 'actions') {
+      res2.actions = res.actions.filter(function (a) {
+        if (a.do !== 'fill' && a.do !== 'cell' && a.do !== 'row') return true;
+        var q = V.norm(a.said || '');
+        if (q.length < 4 || (' ' + said + ' ').indexOf(' ' + q + ' ') < 0) { dropped.push((a.field || a.list || '?') + ': the words it was taken from were not said' + (a.said ? ' ("' + String(a.said).slice(0, 60) + '")' : '')); return false; }
+        return true;
+      });
+      res2.kind = res2.actions.length ? 'actions' : 'none'; if (res2.kind === 'none') delete res2.actions;
+    }
+    if (res.unplaced) {
+      var keep = res.unplaced.filter(function (u) { if (ungroundedAmount(u.text, (transcript || []).map(function (l) { return l.text; }).join(' . '))) { dropped.push('"' + String(u.text).slice(0, 60) + '": the amount was not said'); return false; } return true; });
+      if (keep.length) res2.unplaced = keep;
+    }
+    if (dropped.length) res2.dropped = dropped;
+    return res2;
+  }
   function sweep(opts) {
     var o = Object.assign({}, opts, { timeoutMs: opts.timeoutMs || 120000 });
-    return callModel(o, sweepRequest(opts)).then(function (text) { return normalize(extractJson(text), opts.idx, 'auto', { _line: '', _sent: '', _held: {} }); });
+    return callModel(o, sweepRequest(opts)).then(function (text) { return verifySaid(normalize(extractJson(text), opts.idx, 'auto', { _line: '', _sent: '', _held: {} }), opts.transcript); });
   }
 
   /* File notes in point form. opts: { apiKey | ask, model, text, topic, fetchImpl } -> Promise of an array of short points (maybe empty). */
@@ -632,18 +695,21 @@
     'You receive JSON "facts" taken from the client\'s Fact Find: "client" (first name), "letter_of_authority" (the answer to "Can we send you a LOA to sign?": Yes, No, Not now or not asked yet),',
     '"schedules" (for each kind of policy the client has: what it is, who it is with ("held"), and what the adviser noted on its page ("note_on_this_page") and how the current policy schedule is to be got ("requested": "Requested from client in meeting" (the box words it for its own area, for example "Requested Personal Risk Covers in meeting, await client response"), "Draw from Astute (with signed LOA)", "Other" with the words in "other", or "not asked yet")),',
     '"credit_life" (debts with credit life through the lender: "Yes", or "not asked yet" when it is not known), "quotes" (quotes and analyses the adviser must have requested), "referrals" (who must contact the client), "undecided" (areas where the client needs time),',
-    '"preferred_monthly_spend" (what the client prefers to spend each month on life cover, empty when not given), "instructions" (the adviser\'s own notes on an area) and "notes" (what the adviser typed or dictated in the Notes box of a page of the form: "page" and "note"), and "appointment" (the day, date and time of the next appointment, for example "Friday 06/11/2026 at 14:30"; a part that is not yet known is said to be still to be agreed; empty when none is set).',
+    '"preferred_monthly_spend" (what the client prefers to spend each month on life cover, empty when not given), "instructions" (the adviser\'s own comment on a priority area: "id", "area", "comment") and "notes" (everything the adviser typed or dictated as free text, each with an "id", "page" (where on the form it is, including the debt or policy it was written on) and "note": the Notes box of every page, the Health notes, the comments of the quote tables and of the BrightRock calculation, the notes written on a debt or a policy, what the voice heard but could not place on the form ("Heard but not placed"), and the Priorities to be Focused on box when the adviser typed in it), and "appointment" (the day, date and time of the next appointment, for example "Friday 06/11/2026 at 14:30"; a part that is not yet known is said to be still to be agreed; empty when none is set).',
+    'Sometimes "people_on_the_call" says who else was on the call besides the client (for example the client\'s spouse, by name). The adviser speaks to each of them: a note such as "set up a separate meeting about his policy" may have been said to the spouse, not to the client.',
     'Write the points Sitamah must act on, and nothing else:',
     '- Information still to get from the client: the current policy schedules, and the LOA. "Requested from client in meeting": follow up with the client for them and end the point with "await client response". "Draw from Astute (with signed LOA)": draw them from Astute once the signed LOA is back; when the LOA is "No" there will be no signed LOA, so ask the client for the schedules directly. "Other": say what the arrangement is.',
     '  "not asked yet": ask the client how the schedules will be provided. Letter of authority "Yes": send it to the client to sign; "Not now": do not send it yet, raise it again later. Credit life "Yes": ask the client for the credit life details with that lender; "not asked yet": ask whether there is credit life on that debt.',
     '- New quotes: one point for each quote or analysis in "quotes", with what is needed (type, insurer, amounts as given). When "preferred_monthly_spend" is given and there is a life quote, add one instruction to note what the client prefers to spend, for the quotes. A life quote has a "kind": "BrightRock Fractured" (the quote is from BrightRock alone: say "BrightRock Fractured"; it also has a "basis", for example "BR FNA Quote based on Fact Find": write the basis in the point exactly as given, and never write one for a quote that has none) or "Standard" (say "standard", and name every insurer in "insurers": one point can cover several insurers). Contact: one point for each "referrals" entry, asking that person to contact the client about it.',
     '- Anything in "undecided" or "instructions" that needs action (follow up after the client has checked the budget, an instruction from the adviser). Leave out an instruction that is only a remark.',
     '- THE NOTES DECIDE. Before you write a point about a schedule, read its "note_on_this_page" and let it change the point; the adviser wrote the note with the client on the call, so when a note and another fact disagree, the note wins: (1) "No need to send through", "does not need to send them" or similar means nothing is to be requested for that schedule: write NO point for it, even when it says "not asked yet" or "Requested from client in meeting". (2) A note that the client says she ALREADY sent the schedule (for example by email) means Sitamah must first check whether it has arrived and, only if it has not, ask the client to send it again: write that one point (for example "Check whether the Liberty policy schedule the client says she emailed has arrived; if not, ask the client Thandi to send it again") instead of a plain follow-up. (3) A note that the client will send it now or soon keeps the follow-up: "await client response". (4) A note can in the same way cancel, replace or add to any other point (the quotes, the credit life, a referral, the appointment).',
-    '- The notes. Read every note and make a judgement call: is it something Sitamah must DO (send, request, follow up, chase, book, draft, check, find out), or is it only information? Write a point only for what she must do, in the note\'s own facts. Leave out pure information: background, the client\'s circumstances, feelings or reasons, what the form already says, what the adviser or the client will do themselves, and anything already covered by another point. When a note holds both, keep only the action. When it is not clear that Sitamah has to do anything, leave it out.',
+    '- The notes. Read EVERY note, every instruction and every comment of an undecided area, wherever on the form it is, and make a judgement call on each: is it something Sitamah must DO (send, request, follow up, chase, book, draft, check, find out, prepare, arrange), or is it only information? Write a point for what she must do, in the note\'s own facts. Nothing is missed and nothing is written twice: when two notes, or a note and another fact, ask for the same thing, write ONE point. Leave out pure information: background, the client\'s circumstances, feelings or reasons, and what the form already says. When a note holds both, keep only the action. When it is not clear that Sitamah has to do anything, it is information.',
+    '- A task for the adviser himself, or for the client or another person to do, is NOT left off: write the part Sitamah can do for it (book it in the adviser\'s diary, arrange the meeting or the call, prepare or send the document, request the figures, remind the adviser). Never write "Paul will ..." or "the client will ...": write what Sitamah does. A task for the client\'s spouse or partner, or for anyone else named, names that person: "Set up a separate meeting with the client\'s spouse Marie-Louise about the Liberty policy" (the name is in "people_on_the_call" or in the note), never the client by mistake.',
     '- Last, the follow-up appointment: set one up for the day, date and time in "appointment" (use its words as they are), or say the date and time are still to be agreed when it is empty.',
     'Rules: every point is a clear, complete action in plain words, starting with a verb, one action each, in point form. Use only the facts given: never invent a name, a date, an amount or a task. Refer to the client only as "the client" followed by the first name, for example "the client Thandi" (the first name alone could be mistaken for the assistant\'s, whose name may be similar), never "he", "she", "his" or "her". Never write "Sitamah" in a point: she is the one reading it. The line that addresses her is added for you: do not write one.',
     'Keep names, amounts and dates exactly as given. Leave out anything that is not an action for the assistant: no summary of what the client has, no advice, no repeating of the form. Where the facts hold nothing for a kind of point, write nothing for it.',
-    'Keep the order above (LOA and schedules, credit life, quotes, referrals, follow-ups, then the appointment). Reply with ONE JSON object and nothing else: {"points": ["...", "..."]}.'
+    'Keep the order above (LOA and schedules, credit life, quotes, referrals, follow-ups, then the appointment).',
+    'Reply with ONE JSON object and nothing else: {"points": ["...", "..."], "notes": [{"id": "n_income", "status": "action"}]}. "notes" holds one entry for EVERY "id" in "notes", "instructions" and the "undecided" areas that have one: status "action" (you wrote a point for it), "covered" (another point you wrote already asks for the same thing, so no second point) or "info" (information only: nothing for Sitamah to do). Copy each id exactly as given.'
   ].join('\n');
   /* The "Priorities to be Focused on" box (top of Client priorities and quotes needed): for each green priority, what is needed, in point form. The form puts the headings (number and area) in itself: Claude gives only the points. */
   var FOCUS_SYSTEM = [
@@ -672,13 +738,38 @@
     if (name) p = p.replace(new RegExp('(?<!the client )(?<![A-Za-z])' + name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?![A-Za-z])', 'g'), 'the client ' + name);
     return p;
   }
-  function actionPoints(opts) {
-    var req = withThinking({ model: opts.model, max_tokens: 1400, output_config: { effort: 'low' }, system: ACTIONS_SYSTEM, messages: [{ role: 'user', content: JSON.stringify({ today: todayText(), facts: scrubData(opts.facts) }) }] });
-    return callModel(opts, req).then(function (text) {
-      var raw = extractJson(text), list = raw && Array.isArray(raw.points) ? raw.points : [];
-      return list.map(function (p) { return directToSitamah(String(p == null ? '' : p).replace(/^[\s\-•*]+/, '').replace(/\s+/g, ' ').trim().slice(0, 300), opts.facts && opts.facts.client); }).filter(Boolean).slice(0, 40);
+  /* The same point in other words is not a second point: compared on its letters and numbers only. */
+  function pointKey(p) { return String(p).toLowerCase().replace(/[^a-z0-9]+/g, ''); }
+  function tidyPoint(p, client) { return directToSitamah(String(p == null ? '' : p).replace(/^[\s\-•*]+/, '').replace(/\s+/g, ' ').trim().slice(0, 300), client); }
+  var NOTE_VERDICTS = { action: 1, covered: 1, info: 1 };
+  /* The ids of every note Claude has to give a verdict on: the notes, the priority comments and the comments of the undecided areas. */
+  function judgeIds(facts) {
+    return [].concat(facts && facts.notes || [], facts && facts.instructions || [], (facts && facts.undecided || []).filter(function (u) { return u && u.comment; })).map(function (x) { return x && x.id; }).filter(Boolean);
+  }
+  function takeVerdicts(raw, into, ids) {
+    (raw && Array.isArray(raw.notes) ? raw.notes : []).forEach(function (n) { if (n && ids.indexOf(String(n.id)) >= 0 && NOTE_VERDICTS[n.status]) into[String(n.id)] = n.status; });
+  }
+  /* Claude reads every note and writes the points: { points, notes } (notes: { id: 'action'|'covered'|'info' }, unchecked: the ids it gave no verdict on, even when asked again). A note without a verdict is asked about once more;
+     points are never repeated. The caller sees what was not checked, so a note is never silently missed. */
+  function actionPointsFull(opts) {
+    var facts = scrubData(opts.facts), client = opts.facts && opts.facts.client, ids = judgeIds(facts), verdict = {}, points = [], seen = {};
+    function add(list) { list.forEach(function (p) { var t = tidyPoint(p, client), k = pointKey(t); if (t && !seen[k]) { seen[k] = 1; points.push(t); } }); }
+    function ask(extra) {
+      var body = Object.assign({ today: todayText(), facts: facts }, extra || {});
+      var req = withThinking({ model: opts.model, max_tokens: 1800, output_config: { effort: 'low' }, system: ACTIONS_SYSTEM, messages: [{ role: 'user', content: JSON.stringify(body) }] });
+      return callModel(opts, req).then(function (text) {
+        var raw = extractJson(text); add(raw && Array.isArray(raw.points) ? raw.points : []); takeVerdicts(raw, verdict, ids);
+      });
+    }
+    return ask().then(function () {
+      var missing = ids.filter(function (id) { return !verdict[id]; });
+      if (!missing.length) return null;
+      return ask({ still_to_judge: missing, points_already_written: points.slice() }).catch(function () { return null; });      // a second look at the notes it skipped; if that fails the first answer stands
+    }).then(function () {
+      return { points: points.slice(0, 40), notes: verdict, unchecked: ids.filter(function (id) { return !verdict[id]; }) };
     });
   }
+  function actionPoints(opts) { return actionPointsFull(opts).then(function (r) { return r.points; }); }
 
-  return { POINTS_SYSTEM: POINTS_SYSTEM, todayText: todayText, setClock: setClock, focusPoints: focusPoints, FOCUS_SYSTEM: FOCUS_SYSTEM, actionPoints: actionPoints, directToSitamah: directToSitamah, ACTIONS_SYSTEM: ACTIONS_SYSTEM, summarise: summarise, SUMMARY_SYSTEM: SUMMARY_SYSTEM, decide: decide, sweep: sweep, sweepRequest: sweepRequest, SWEEP_SYSTEM: SWEEP_SYSTEM, points: points, warm: warm, reconcile: reconcile, setShare: setShare, sharing: sharing, thinkingFor: thinkingFor, prepare: prepare, buildRequest: buildRequest, cachedRequest: cachedRequest, normalize: normalize, extractJson: extractJson, scrub: scrub, shield: shield, SYSTEM: SYSTEM };
+  return { POINTS_SYSTEM: POINTS_SYSTEM, todayText: todayText, setClock: setClock, focusPoints: focusPoints, FOCUS_SYSTEM: FOCUS_SYSTEM, actionPoints: actionPoints, actionPointsFull: actionPointsFull, numbersSaid: numbersSaid, ungroundedAmount: ungroundedAmount, verifySaid: verifySaid, directToSitamah: directToSitamah, ACTIONS_SYSTEM: ACTIONS_SYSTEM, summarise: summarise, SUMMARY_SYSTEM: SUMMARY_SYSTEM, decide: decide, sweep: sweep, sweepRequest: sweepRequest, SWEEP_SYSTEM: SWEEP_SYSTEM, points: points, warm: warm, reconcile: reconcile, setShare: setShare, sharing: sharing, thinkingFor: thinkingFor, prepare: prepare, buildRequest: buildRequest, cachedRequest: cachedRequest, normalize: normalize, extractJson: extractJson, scrub: scrub, shield: shield, SYSTEM: SYSTEM };
 });

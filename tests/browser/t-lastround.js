@@ -18,9 +18,9 @@ let bad = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if
   let p = await fresh();
   await nav(p, 'income');
   const labels = await p.evaluate(() => [...document.querySelectorAll('.main .f .l > span:first-child')].map(e => e.textContent.trim()));
-  const at = ['Take-home net income (R p.m.)', 'Rental Income', 'Spousal Income', 'Child Maintenance Income', 'Total Income', 'Monthly expenses / budget (R)', 'Disposable income (R)'].map(x => labels.indexOf(x));
-  ok(at.every((x, i) => x >= 0 && (i === 0 || x > at[i - 1])), 'Income & household shows take-home, rental, spousal, child maintenance, Total Income, expenses and Disposable income, in that order: ' + at.join(','));
-  await type(p, 'net', '20000'); await type(p, 'rent', '3000'); await type(p, 'spinc', '10000'); await type(p, 'maint', '16000'); await type(p, 'exp', '19000');
+  const at = ['Take-home net income (R p.m.)', 'Rental Income', 'Spousal Maintenance', 'Child Maintenance', 'Total Income', 'Monthly expenses / budget (R)', 'Disposable income (R)'].map(x => labels.indexOf(x));
+  ok(at.every((x, i) => x >= 0 && (i === 0 || x > at[i - 1])), 'Income & household shows take-home, rental, spousal maintenance, child maintenance, Total Income, expenses and Disposable income, in that order: ' + at.join(','));
+  await type(p, 'net', '20000'); await type(p, 'rent', '3000'); await type(p, 'spmaint', '10000'); await type(p, 'maint', '16000'); await type(p, 'exp', '19000');
   ok((await val(p, 'tinc')) === 'R 49 000.00', 'Total Income adds the four: ' + (await val(p, 'tinc')));
   ok((await val(p, 'disp')) === 'R 30 000.00', 'Disposable income is Total Income less the expenses: ' + (await val(p, 'disp')));
   ok(await p.evaluate(() => ['tinc', 'disp'].every(id => { const e = document.querySelector('[data-f="' + id + '"]'); return e.readOnly || e.disabled; })), 'both are calculated, not typed');
@@ -54,7 +54,7 @@ let bad = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if
   ok(!(await sch()).off, 'Yes opens it again');
   await p.click('.msb[data-msb="ps_risk"]'); await p.waitForTimeout(200);
   const opts = await p.evaluate(() => [...document.querySelectorAll('.msp label')].map(l => l.textContent.trim()));
-  ok(opts.includes('Client does not need to send through'), 'the new choice is in the list: ' + opts.join(' | '));
+  ok(opts.includes('Policy Schedules saved in Client File') && !opts.includes('Client does not need to send through'), 'the new choice is in the list, the removed one is not: ' + opts.join(' | '));
   await p.keyboard.press('Escape');
   await nav(p, 'retire'); await p.selectOption('[data-f="has_ra"]', 'No'); await p.selectOption('[data-f="has_pp"]', 'No'); await p.waitForTimeout(250);
   ok(await p.evaluate(() => document.body.innerText.split('No policy schedules to request').length - 1) === 2, 'retirement annuities and pension and provident funds both grey out');
@@ -95,19 +95,19 @@ let bad = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if
   // ---- voice: no asset value on an overdraft or a card; a child's second name is a middle name ----
   p = await fresh(`(s, b) => { const t = b.newest.text; const A = x => JSON.stringify({ actions: x });
     if (/^asset 1/.test(t)) return A([{ do: 'cell', list: 'debts', row: 1, col: 'asset', value: '30000' }]);
-    if (/^asset 2/.test(t)) return A([{ do: 'cell', list: 'debts', row: 2, col: 'asset', value: '50000' }]);
+    if (/asset value for debt 2/.test(t)) return A([{ do: 'cell', list: 'debts', row: 2, col: 'asset', value: '50000' }]);
     if (/^it is an overdraft/.test(t)) return A([{ do: 'cell', list: 'debts', row: 2, col: 'desc', value: 'Overdraft' }]);
     if (/second name/.test(t)) return A([{ do: 'cell', list: 'kids', row: 1, col: 'sname', value: 'Dumitru' }]);
     return A([]); }`);
   await p.click('#btnVoice'); await p.waitForTimeout(200);
-  await p.evaluate(() => { const st = FF.app.state; FF.store.addRow(st, 'debts', { type: 'Credit card', prov: 'FNB' }, 'heard'); FF.store.addRow(st, 'debts', { type: 'Other', prov: 'FNB', bal: 'R 50 000.00' }, 'heard'); FF.store.addRow(st, 'kids', { name: 'Raul' }, 'heard'); FF.app.redraw(); document.querySelector('.nav button[data-sec="debts"]').click(); });
+  await p.evaluate(() => { const st = FF.app.state; FF.store.addRow(st, 'debts', { type: 'Credit card', prov: 'FNB' }, 'heard'); FF.store.addRow(st, 'debts', { type: 'Other', desc: 'Townhouse loan', prov: 'FNB', bal: 'R 50 000.00' }, 'heard'); FF.store.addRow(st, 'kids', { name: 'Raul' }, 'heard'); FF.app.redraw(); document.querySelector('.nav button[data-sec="debts"]').click(); });
   const say3 = t => p.evaluate(t => FF.app.voiceHear(t, 'client'), t).then(() => p.waitForTimeout(500));
   await say3('asset 1 is thirty thousand');
-  ok(await p.evaluate(() => FF.app.state.l.debts[0].d.asset) === '', 'a credit card gets no asset value');
-  await say3('asset 2 is fifty thousand');
-  ok(await p.evaluate(() => FF.app.state.l.debts[1].d.asset) !== '', 'a debt that is not known to be unsecured takes the asset value said');
+  ok(await p.evaluate(() => FF.app.state.l.debts[0].d.asset) === 'R 0.00', 'a credit card gets no asset value: voice leaves the R 0.00 it starts with');
+  await say3('the asset value for debt 2 is fifty thousand');
+  ok(await p.evaluate(() => FF.app.state.l.debts[1].d.asset) === 'R 50 000.00', 'a debt on a property (an Other that says townhouse) takes the asset value said: ' + await p.evaluate(() => FF.app.state.l.debts[1].d.asset));
   await say3('it is an overdraft');
-  ok(await p.evaluate(() => FF.app.state.l.debts[1].d.asset) === '', 'when it turns out to be an overdraft the asset value voice put in is taken out again');
+  ok(await p.evaluate(() => FF.app.state.l.debts[1].d.asset) === 'R 0.00', 'when it turns out to be an overdraft the asset value voice put in goes back to R 0.00');
   await p.evaluate(() => document.querySelector('.nav button[data-sec="kids"]').click());
   await say3('and his second name is Dumitru');
   const kid = await p.evaluate(() => FF.app.state.l.kids[0].d);

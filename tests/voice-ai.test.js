@@ -460,14 +460,14 @@ test('the catch-up request holds the conversation and the form, and nothing priv
 test('the catch-up check returns fills, rows and unplaced facts through the same safe reading as a live line', async () => {
   let asked = null;
   const fetchImpl = (url, init) => { asked = JSON.parse(init.body); return reply({ actions: [
-    { do: 'fill', field: 'occ', value: 'Nurse' }, { do: 'fill', field: 'cell', value: '0825550148' }, { do: 'fill', field: 'nonsense', value: 'x' },
-    { do: 'cell', list: 'kids', row: 1, col: 'dob', value: '2019-08-22' }, { do: 'row', list: 'kids', values: { name: 'Ben', nonsense: 'x' } }, { do: 'cmd', cmd: 'clearAll' }
+    { do: 'fill', field: 'occ', value: 'Nurse', said: 'I am a nurse' }, { do: 'fill', field: 'cell', value: '0825550148', said: 'I am a nurse' }, { do: 'fill', field: 'nonsense', value: 'x', said: 'I am a nurse' },
+    { do: 'cell', list: 'kids', row: 1, col: 'dob', value: '2019-08-22', said: 'I am a nurse' }, { do: 'row', list: 'kids', values: { name: 'Ben', nonsense: 'x' }, said: 'I am a nurse' }, { do: 'cmd', cmd: 'clearAll' }
   ], unplaced: [{ text: 'Wants to retire at 60', section: 'income' }] })(); };
   const r = await AI.sweep({ apiKey: 'k', fetchImpl, idx, model: 'claude-sonnet-5-5', transcript: [{ who: 'client', text: 'I am a nurse' }], filled: {}, listRows: () => [] });
   assert.strictEqual(r.kind, 'actions');
   assert.ok(r.actions.some(a => a.do === 'fill' && a.field === 'occ' && a.value === 'Nurse'));
   assert.ok(!r.actions.some(a => a.field === 'cell' || a.field === 'nonsense'), 'a private box or an unknown box got through');
-  assert.deepStrictEqual(r.actions.find(a => a.do === 'row'), { do: 'row', list: 'kids', values: { name: 'Ben' } });
+  assert.deepStrictEqual(r.actions.find(a => a.do === 'row'), { do: 'row', list: 'kids', values: { name: 'Ben' }, said: 'I am a nurse' });
   assert.deepStrictEqual(r.unplaced, [{ text: 'Wants to retire at 60', section: 'income' }]);
   assert.strictEqual(asked.max_tokens, 6000);
   assert.ok(/Fact Find form against the conversation/.test(asked.system));
@@ -497,7 +497,7 @@ test('the prompt says: one answer only, list boxes by "cell", calculated figures
   assert.ok(/never a second object/.test(AI.SYSTEM));
   assert.ok(/only ever filled with a "cell" action/.test(AI.SYSTEM));
   assert.ok(/Direct Net Income" \(dnet\)/.test(AI.SYSTEM) && /not the take-home pay/.test(AI.SYSTEM));
-  assert.ok(/left with 90 000 after all my expenses/.test(AI.SYSTEM) && /total income minus that amount/.test(AI.SYSTEM) && /Rental Income/.test(AI.SYSTEM) && /Child Maintenance Income/.test(AI.SYSTEM) && /agreed on the call/.test(AI.SYSTEM));
+  assert.ok(/left with 90 000 after all my expenses/.test(AI.SYSTEM) && /total income minus that amount/.test(AI.SYSTEM) && /Rental Income/.test(AI.SYSTEM) && /Spousal Maintenance/.test(AI.SYSTEM) && /Child Maintenance"/.test(AI.SYSTEM) && /agreed on the call/.test(AI.SYSTEM));
 });
 
 test('a slow answer is raced by a second request and the first answer back is used; without hedging nothing is sent twice', async () => {
@@ -522,5 +522,5 @@ test('the catch-up request carries the notes and the facts already offered, and 
   assert.deepStrictEqual(body.notes, { health: '- Has gout' });
   assert.deepStrictEqual(body.listed, ['Blood pressure 140 over 180']);
   assert.ok(/already in "notes" or in "listed" is never reported again/.test(req.system));
-  assert.ok(/total income \(net plus any rent, spinc and maint in "filled"\) minus that amount/.test(req.system));
+  assert.ok(/total income \(net plus any rent, spmaint, maint and spinc in "filled"\) minus that amount/.test(req.system));
 });

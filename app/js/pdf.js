@@ -127,6 +127,11 @@
         return;
       }
       if (!calc.showIf(b.cond, ctx)) { if (b.pdfMsg && b.condMsg && !calc.showIf('own' in b ? b.own : b.cond, ctx)) { if (b.title) blockTitle(b.title); table({ body: [[{ content: t(b.condMsg), styles: { fontStyle: 'italic', textColor: MUTED } }]] }); } return; }    // a block that does not apply says so when it asks to
+      if (b.endline) {                                                                // the line under the last debt ("No more debts"): only when it has been said, and then on its own line
+        var endText = String((state.f[b.endline] || {}).v || '').trim();
+        if (endText && (state.l.debts || []).length) { ensure(10); table({ body: [[{ content: t(endText), styles: { fontStyle: 'bolditalic', textColor: INK } }]], columnStyles: { 0: { cellWidth: CW } } }); }
+        return;
+      }
       if (b.fields && b.fields.length && b.fields.every(function (f) { return f.nopdf; })) return;     // a block of boxes that are left off the PDF has no heading either
       if (b.title && !notitle) blockTitle(lanePrefix(b) + b.title);                                // a life quote says which kind it is
       if (b.help) noteText(b.help);

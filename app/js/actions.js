@@ -14,7 +14,10 @@
   var NOTE_BOXES = [];
   /* The notes box of the page each policy schedule belongs to: what the adviser noted there is sent with the schedule, so a note such as "No need to send through" or "she says she emailed it" is read against it. */
   var SCHED_NOTE = { ps_risk: 'n_cover', ps_grp: 'n_cover', ps_ra: 'n_retire', ps_pp: 'n_retire', ps_inv: 'n_inv' };
-  schema.sections.forEach(function (s) { s.blocks.forEach(function (b) { (b.fields || []).forEach(function (f) { if (f.opt && f.t === 'area' && /^n_/.test(f.id)) NOTE_BOXES.push({ id: f.id, page: s.title, sec: s }); }); }); });
+  /* Every box the adviser writes free text in that is not an answer: the Notes box of each page, the Health notes, the comments boxes of the quote tables and of the BrightRock calculation. (Not the action points box itself, not the "Priorities to be Focused on" box (see focusNote), not a box kept off the PDF, and not the priority comments, which go with the areas as "instructions".) */
+  schema.sections.forEach(function (s) { s.blocks.forEach(function (b) { (b.fields || []).forEach(function (f) { if (f.opt && f.t === 'area' && !f.nopdf && f.id !== 'pa_actions' && f.id !== 'focus') NOTE_BOXES.push({ id: f.id, page: s.title + (b.title ? ' / ' + b.title : ''), sec: s, block: b }); }); }); });
+  var NOTE_COLS = [];                                                                                     // the notes columns of the lists (a debt's Notes, a policy's Notes ...): list, column, what the list is
+  Object.keys(schema.lists).forEach(function (k) { schema.lists[k].cols.forEach(function (c) { if (c.t === 'area' || c.k === 'notes') NOTE_COLS.push({ list: k, col: c.k, title: schema.lists[k].title || k, one: schema.lists[k].one || 'row' }); }); });
   var CLIENT = 'Requested from client in meeting', ASTUTE = 'Draw from Astute (with signed LOA)', OTHER = 'Other';
   /* the policy schedule lists: box, its "Other" box, what to call the policies, and the list they are in */
   var SCHEDS = [['ps_risk', 'ps_risk_ot', 'personal risk policies', 'risk'], ['ps_grp', 'ps_grp_ot', 'group risk benefits', 'grp'], ['ps_ra', 'ps_ra_ot', 'retirement annuities', 'ret_ra'],
@@ -46,15 +49,34 @@
     SCHEDS.forEach(function (c) {
       if (!shows(c[0])) return;
       var rows = [].concat(c[3]).reduce(function (a, k) { return a.concat(state.l[k] || []); }, []), held = rows.map(function (r) { return String(r.d.prov || '').trim(); }).filter(Boolean), choice = v(c[0]).split(';').map(function (x) { x = x.trim(); return x === schema.psClient[c[0].slice(3)] ? CLIENT : x; }).filter(Boolean);       // the area's own wording ("Requested Personal Risk Covers in meeting, await client response") is the "requested from client" choice
-      if (choice.length && choice.every(function (x) { return x === schema.psNoSend; })) return;       // "Client does not need to send through": nothing for the assistant to chase
-      choice = choice.filter(function (x) { return x !== schema.psNoSend; });
+      var onFile = function (x) { return x === schema.psSaved || x === schema.psNoSend; };                // Policy Schedules saved in Client File (and the choice it replaced): nothing for the assistant to chase
+      if (choice.length && choice.every(onFile)) return;
+      choice = choice.filter(function (x) { return !onFile(x); });
       var known = rows.length || (c[0] === 'ps_risk' && v('has_risk') === 'Yes') || (c[0] === 'ps_grp' && v('has_group') === 'Yes');
       if (!choice.length && !known) return;                                                      // a choice that was made always counts; "not asked yet" is chased only where the client is known to have the policies (a Yes, or a policy recorded)
       var sch = { what: c[2], held: held, requested: choice.length ? choice : ['not asked yet'], other: choice.indexOf(OTHER) >= 0 ? v(c[1]) : '' }, nt = v(SCHED_NOTE[c[0]]).replace(/\s+\n/g, '\n').slice(0, 1200);
       if (nt) sch.note_on_this_page = nt;
       out.schedules.push(sch);
     });
-    NOTE_BOXES.forEach(function (n) { var t = v(n.id).replace(/\s+\n/g, '\n').slice(0, 2000); if (t && shows(n.id) && calc.showIf(n.sec.cond, ctx)) out.notes.push({ page: n.page, note: t }); });
+    NOTE_BOXES.forEach(function (n) { var t = v(n.id).replace(/\s+\n/g, '\n').slice(0, 2000); if (t && shows(n.id) && calc.showIf(n.sec.cond, ctx)) out.notes.push({ id: n.id, page: n.page, note: t }); });
+    /* the notes written on a row of a list (a debt, a policy, a business policy): which row is said in the page, so a note on "Debt 2" is read against that debt */
+    NOTE_COLS.forEach(function (c) {
+      if (!listOn(c.list)) return;
+      (state.l[c.list] || []).forEach(function (r, i) {
+        var t = String(r.d[c.col] || '').replace(/\s+\n/g, '\n').trim().slice(0, 800); if (!t) return;
+        var who = [r.d.type, r.d.prov || r.d.desc || r.d.name].filter(function (x) { return x && String(x).trim(); }).map(function (x) { return String(x).trim(); }).join(', ');
+        out.notes.push({ id: c.list + ':' + (i + 1) + ':' + c.col, page: c.title + ', ' + c.one.toLowerCase() + ' ' + (i + 1) + (who ? ' (' + who + ')' : ''), note: t });
+      });
+    });
+    /* what the voice heard and could not place on the form, still open: it may well be something to do */
+    (state.unplaced || []).forEach(function (u) {
+      var t = String(u.text || '').trim(); if (!t) return;
+      var sec = u.sec ? (schema.sections.filter(function (x) { return x.id === u.sec; })[0] || {}).title : '';
+      out.notes.push({ id: 'unplaced:' + (u.id || out.notes.length), page: 'Heard but not placed' + (sec ? ' (' + sec + ')' : ''), note: t.slice(0, 300) });
+    });
+    /* the "Priorities to be Focused on" box is written from the rest of the form, so what is in it is already in these facts: it is read only when the adviser has typed in it himself */
+    if (state.focus && state.focus.edited && v('focus')) out.notes.push({ id: 'focus', page: 'Priorities to be Focused on (typed by the adviser)', note: v('focus').replace(/\s+\n/g, '\n').slice(0, 2000) });
+    if (v('on_call')) out.people_on_the_call = v('on_call');
     var lifeOff = v(schema.panelsById.life.dec) === schema.NOT_PRIORITY;                          // credit life is part of the Life area: when it is not a priority, nothing is chased
     (state.l.debts || []).forEach(function (r) {
       var d = r.d, cl = String(d.cl || '').trim();
@@ -83,8 +105,8 @@
     schema.panels.forEach(function (P) {
       if (!P.dec) return;
       var d = v(P.dec), cm = v(P.cm);
-      if (d === schema.UNSURE || d === schema.BUDGET) out.undecided.push(clean({ area: P.title, answer: d === schema.BUDGET ? 'needs to check the budget' : 'needs to think about it', comment: cm }));
-      else if (d !== schema.NOT_PRIORITY && cm) out.instructions.push({ area: P.title, comment: cm });
+      if (d === schema.UNSURE || d === schema.BUDGET) out.undecided.push(clean({ id: cm ? P.cm : '', area: P.title, answer: d === schema.BUDGET ? 'needs to check the budget' : 'needs to think about it', comment: cm }));
+      else if (d !== schema.NOT_PRIORITY && cm) out.instructions.push({ id: P.cm, area: P.title, comment: cm });
     });
     return out;
   }
@@ -147,6 +169,10 @@
     }).join('\n\n');
   }
   function focusLocal(state) { return focusText(focusFacts(state)); }
+  /* Every note the facts hold that Claude has to give a verdict on (action, covered, info): the ids of the notes, of the priority comments (instructions) and of the comments of the undecided areas. */
+  function noteIds(f) {
+    return [].concat(f && f.notes || [], f && f.instructions || [], (f && f.undecided || []).filter(function (u) { return u.comment; })).map(function (x) { return x.id; }).filter(Boolean);
+  }
   /* What the points were written from: they are out of date when this has changed. */
   function key(f) {
     var s = JSON.stringify(f), h = 5381, i;
@@ -221,5 +247,5 @@
     });
   }
 
-  return { facts: facts, key: key, local: local, focusFacts: focusFacts, focusLocal: focusLocal, focusText: focusText, text: text, header: header, clientRef: clientRef, ASSISTANT: ASSISTANT, brightRockAsked: brightRockAsked };
+  return { facts: facts, noteIds: noteIds, key: key, local: local, focusFacts: focusFacts, focusLocal: focusLocal, focusText: focusText, text: text, header: header, clientRef: clientRef, ASSISTANT: ASSISTANT, brightRockAsked: brightRockAsked };
 });

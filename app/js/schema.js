@@ -82,11 +82,13 @@
   var PS_CLIENT_OLD = 'Requested from client in meeting', PS_ASTUTE = 'Draw from Astute (with signed LOA)', PS_OTHER = 'Other';
   var PS_CLIENT = { risk: 'Requested Personal Risk Covers in meeting, await client response', grp: 'Requested Group Risk Covers in meeting, await client response', ra: 'Requested Retirement Annuities in meeting, await client response',
     pp: 'Requested Pension and Provident Funds in meeting, await client response', inv: 'Requested Investments in meeting, await client response' };
-  var PS_NOSEND = 'Client does not need to send through', PS_NONE = 'No policy schedules to request';
+  /* The choices of a schedule box, in this order: what was asked of the client (the area's own words), Policy Schedules saved in Client File (nothing to chase), Draw from Astute (not for group risk), Other.
+     "Client does not need to send through" is no longer a choice (PS_NOSEND): a file that holds it opens with Policy Schedules saved in Client File (store.js). */
+  var PS_SAVED = 'Policy Schedules saved in Client File', PS_NOSEND = 'Client does not need to send through', PS_NONE = 'No policy schedules to request';
   /* gate: the Yes/No above (has_risk, has_group, has_ra, has_pp, has_inv). When it says No there is nothing to request: the block greys out under PS_NONE (on screen and in the PDF), the points are left out and the choices are cleared (store.js). */
   function PS(id, group, gate) {
     return { title: 'Request Current Policy Schedule(s)', layout: 'g12', cond: gate, grey: 1, condMsg: PS_NONE, pdfMsg: 1, fields: [
-      { id: 'ps_' + id, l: 'Schedule(s) requested', t: 'multi', o: group ? [PS_CLIENT[id], PS_NOSEND, PS_OTHER] : [PS_CLIENT[id], PS_ASTUTE, PS_NOSEND, PS_OTHER], s: 7 },
+      { id: 'ps_' + id, l: 'Schedule(s) requested', t: 'multi', o: group ? [PS_CLIENT[id], PS_SAVED, PS_OTHER] : [PS_CLIENT[id], PS_SAVED, PS_ASTUTE, PS_OTHER], s: 7 },
       { id: 'ps_' + id + '_ot', l: 'Other schedule arrangement', t: 'txt', opt: 1, voice: 1, cond: { f: 'ps_' + id, has: PS_OTHER }, grey: 1, s: 5 }
     ] };
   }
@@ -98,7 +100,8 @@
         { id: 'consent', l: 'Consent to record and transcribe', t: 'sel', o: YN, s: 3 },
         { id: 'date', l: 'Date completed', t: 'txt', date: 1, preset: '@today', s: 3 },
         { id: 'meet', l: 'Type of meeting', t: 'sel', o: ['Teams Meeting', 'Telephonic Meeting', 'Physical Meeting', 'Other'], preset: 'Teams Meeting', s: 3 },
-        { id: 'ref', l: 'Referral from', t: 'sel', o: ['D&R Marketing', 'Current client', 'Referral prospect', 'Spouse', 'Other'], s: 3 }
+        { id: 'ref', l: 'Referral from', t: 'sel', o: ['D&R Marketing', 'Current client', 'Referral prospect', 'Spouse', 'Other'], s: 3 },
+        { id: 'on_call', l: 'Others on the call', t: 'txt', opt: 1, voice: 1, hint: 'e.g. Marie-Louise (the client\u2019s spouse)', s: 12 }
       ] },
       { title: 'Client', layout: 'g12', fields: [
         { id: 'fname', l: 'First name', t: 'txt', s: 3 },
@@ -172,8 +175,9 @@
         { id: 'dnet', l: 'Direct Net Income (R p.m.)', t: 'txt', calc: 'dnet', link: ['Check on TaxTim', 'https://www.taxtim.com/za/calculators/income-tax'] },
         { id: 'net', money: 1, l: 'Take-home net income (R p.m.)', t: 'txt', risky: 1 },
         { id: 'rent', money: 1, l: 'Rental Income', t: 'txt', opt: 1, voice: 1 },
-        { id: 'spinc', money: 1, l: 'Spousal Income', t: 'txt', opt: 1, voice: 1 },
-        { id: 'maint', money: 1, l: 'Child Maintenance Income', t: 'txt', opt: 1, voice: 1 },
+        { id: 'spmaint', money: 1, l: 'Spousal Maintenance', t: 'txt', opt: 1, voice: 1 },
+        { id: 'maint', money: 1, l: 'Child Maintenance', t: 'txt', opt: 1, voice: 1 },
+        { id: 'spinc', money: 1, l: 'Spouse\u2019s income (earlier form)', t: 'txt', opt: 1, legacy: 1, cond: { f: 'spinc', nin: [''] } },      // the old Spousal Income box (what a current spouse earns): kept so an old file is never misread, shown only while it holds an answer, never filled by voice
         { id: 'tinc', l: 'Total Income', t: 'txt', calc: 'tinc' },
         { id: 'exp', money: 1, l: 'Monthly expenses / budget (R)', t: 'txt', risky: 1 },
         { id: 'disp', l: 'Disposable income (R)', t: 'txt', calc: 'disp' },
@@ -188,7 +192,7 @@
       { fields: [N('n_income')] }
     ] },
 
-    { id: 'debts', title: 'Debts', blocks: [{ fields: [{ id: 'has_debts', l: 'Has debts', t: 'sel', o: YN }] }, { list: 'debts', help: 'In the BrightRock calculation only the debts the client pays (Payer: Client, or not set) come off the take-home income. Debts paid by the spouse, jointly, by the business or by an ex-spouse or partner are left out.', cond: HAS_DEBTS, grey: 1, condMsg: 'No debts, so there is nothing to record.' }, { fields: [N('n_debts')] }] },
+    { id: 'debts', title: 'Debts', blocks: [{ fields: [{ id: 'has_debts', l: 'Has debts', t: 'sel', o: YN }] }, { list: 'debts', help: 'In the BrightRock calculation only the debts the client pays (Payer: Client, or not set) come off the take-home income. Debts paid by the spouse, jointly, by the business or by an ex-spouse or partner are left out.', cond: HAS_DEBTS, grey: 1, condMsg: 'No debts, so there is nothing to record.' }, { cond: HAS_DEBTS, endline: 'debts_end', fields: [{ id: 'debts_end', l: 'No more debts', t: 'txt', opt: 1, line: 1, cond: { f: 'debts_end', nin: [''] } }] }, { fields: [N('n_debts')] }] },
 
     { id: 'kids', title: 'Children', blocks: [{ fields: [{ id: 'has_kids', l: 'Has children', t: 'sel', o: YN }] }, { list: 'kids', help: 'Childcare (R p.m.) is whatever amount is agreed on the call for each child (crèche, aftercare, nanny, day mother and the like). It comes off the take-home income in the BrightRock calculation.', cond: HAS_KIDS, grey: 1, condMsg: 'No children, so there is nobody to record.' }, { fields: [N('n_kids')] }] },
 
@@ -495,7 +499,7 @@
     ], sum: {} },
     debts: { need: 1, cards: 'Debt', title: 'Debts', add: 'Add debt', cols: [
       { k: 'type', l: 'Type', o: ['Home loan', 'Vehicle finance', 'Credit card', 'Personal loan', 'Revolving credit', 'Other'] }, { k: 'prov', l: 'Loan provider / bank', o: BANKS, free: 1 },
-      { k: 'desc', l: 'Description' }, { k: 'owner', l: 'Owner', o: WHO }, { k: 'payer', l: 'Payer', o: WHO }, { k: 'term', l: 'Term left' },
+      { k: 'desc', l: 'Description' }, { k: 'owner', l: 'Owner', o: WHO }, { k: 'payer', l: 'Payer', o: WHO }, { k: 'term', l: 'Term left (months)' },
       { k: 'inst', money: 1, l: 'Instalment (R p.m.)', num: 1 }, { k: 'bal', money: 1, l: 'Balance (R)', num: 1 }, { k: 'asset', money: 1, l: 'Asset value (R)', num: 1 },
       { k: 'cl', l: 'Credit life with lender', o: YN }, { k: 'surety', l: 'Surety signed', o: ['Yes', 'No', 'Unsure'] },
       { k: 'notes', l: 'Notes', t: 'area', wide: 1 }
@@ -535,5 +539,5 @@
   var byId = {};
   sections.forEach(function (s) { s.blocks.forEach(function (b) { (b.fields || []).forEach(function (f) { byId[f.id] = f; }); }); });
 
-  return { version: '3.0', released: 'October 2026', sections: sections, lists: lists, panels: panels, panelsById: panelsById, advisor: ADVISOR, brBasis: BR_BASIS, areaTitle: areaTitle, psClient: PS_CLIENT, defaultBroker: DEFAULT_BROKER, psNoSend: PS_NOSEND, psNone: PS_NONE, psClientOld: PS_CLIENT_OLD, PRIORITY: PRIORITY, NOT_PRIORITY: NOT_PRIORITY, UNSURE: UNSURE, BUDGET: BUDGET, fieldsById: byId };
+  return { version: '3.1', released: 'November 2026', sections: sections, lists: lists, panels: panels, panelsById: panelsById, advisor: ADVISOR, brBasis: BR_BASIS, areaTitle: areaTitle, psClient: PS_CLIENT, defaultBroker: DEFAULT_BROKER, psNoSend: PS_NOSEND, psSaved: PS_SAVED, psNone: PS_NONE, psClientOld: PS_CLIENT_OLD, PRIORITY: PRIORITY, NOT_PRIORITY: NOT_PRIORITY, UNSURE: UNSURE, BUDGET: BUDGET, fieldsById: byId };
 });

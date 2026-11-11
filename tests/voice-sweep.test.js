@@ -22,6 +22,7 @@ const SAMPLE = f => {
   if (vid(f) === 'idno') return '8001015800087';
   if (vid(f) === 'tax') return '1234567890';
   if (vid(f) === 'years') return 'eight years';
+  if (vid(f) === 'debts.term') return 'twenty years';                                                         // Term left is always months: said with its unit
   if (/^d_|biz_pct/.test(vid(f))) return 'forty percent';
   if (f.k === 'name') return 'Thandi Dlamini';
   if (f.t === 'area') return 'Looks after the books and the staff';
@@ -75,7 +76,7 @@ test('every section with a notes box can be told to take notes, and each box is 
 
 test('in every free-text box, lead-in words are never typed and a sentence that stops short fills nothing', () => {
   const misses = [];
-  const typed = ['dob', 'will_date', 'marr_date', 'next_appt', 'next_time', 'cell', 'work', 'home', 'sp_tel', 'pemail', 'wemail', 'idno', 'tax', 'years'];
+  const typed = ['dob', 'will_date', 'marr_date', 'next_appt', 'next_time', 'cell', 'work', 'home', 'sp_tel', 'pemail', 'wemail', 'idno', 'tax', 'years', 'debts.term'];
   idx.fields.filter(f => f.t === 'txt' && !f.options && !f.money && !f.date && !typed.includes(vid(f)) && !/^d_|biz_pct/.test(vid(f))).forEach(f => {
     const lab = (f.list ? nounOf(f) : '') + labelOf(f);
     // 1. stops at "is": nothing goes into the box (while it waits, or with nothing waiting)

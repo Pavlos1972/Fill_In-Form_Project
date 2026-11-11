@@ -183,6 +183,25 @@
   /* The date of the form (Date completed): what a date said without a year is counted from. */
   var meetingSrc = null;
   function setMeetingSource(fn) { meetingSrc = fn; }
+  /* Term left on a debt is said in years, months or "until my age 65" and always filled as months (util.termMonths). The date of birth and the date of the form come from the page; the words of the line being read
+     are used when Claude gives a bare number for "twenty years" (no unit): the line says which. */
+  var termSrc = null, lineSrc = null;
+  function setTermSource(fn) { termSrc = fn; }
+  function setLineSource(fn) { lineSrc = fn; }
+  function termOpts() { var o = termSrc ? termSrc() || {} : {}; return { dob: util.parseDate(o.dob), on: util.parseDate(o.date) || undefined }; }
+  function termFromLine(value) {
+    var v = String(value == null ? '' : value).trim(), line = lineSrc ? String(lineSrc() || '') : '';
+    if (!line || !/^\d+(?:\.\d+)?$/.test(v)) return value;
+    var n = parseFloat(v), hit = null;
+    [line].concat(line.split(/[.,;!?]|\bbut\b|\band then\b/i)).forEach(function (cl) {                // the whole line first ("5 years, 6 months"), then each part of it
+      if (hit != null) return;
+      var r = util.termMonths(cl, termOpts());
+      if (!r || r.months == null || /^\s*\d+\s*$/.test(cl)) return;
+      if (String(r.months) === v) hit = value;                                                  // Claude already gave the months
+      else if (Math.abs(n * 12 - r.months) <= 12) hit = String(r.months);                       // "20" for "twenty years": the line says years
+    });
+    return hit != null ? hit : value;
+  }
   function meetingDate() { var v = meetingSrc ? meetingSrc() : ''; return util.parseDate(v) || util.parseDate(util.isoToday()); }
   function before(dmy, ref) { var p = util.parseDate(dmy); return !!(p && ref && (p.y * 10000 + p.m * 100 + p.d) < (ref.y * 10000 + ref.m * 100 + ref.d)); }
   /* A date said without a year, for the next appointment: "Thursday the 19th", "the 19th", "the nineteenth of November", "19 November". It is the first such day on or after the date of the form (and,
@@ -262,6 +281,7 @@
   var ALIASES = {
     consent: ['consent', 'okay to record', 'record this', 'record that', 'record it', 'record the call', 'record our', 'record the conversation', 'recording', 'recorded', 'transcribe', 'go ahead and record', 'happy for us to record', 'happy for me to record', 'happy to be recorded', 'permission to record', 'mind if we record'],
     ref: ['referred', 'referral', 'who referred', 'how did you hear', 'where did you hear'],
+    on_call: ['who else is on the call', 'who is on the call', 'who else is on the line', 'who is on the line', 'who is on the call with you', 'who is with you', 'who else is with you', 'on the call with you', 'is on the call', 'joined the call', 'joining the call', 'joining us', 'is with me', 'is sitting with me', 'is next to me', 'is here with me'],
     lc_term: ['life cover term', 'standard life cover term', 'term of the life cover', 'term for the life cover'], lc_termv: ['life cover term value', 'standard life cover term value'],
     lc_aci: ['life cover aci', 'standard life cover aci', 'aci for the life cover'], lc_aciv: ['life cover aci value', 'standard life cover aci value'], lc_abiv: ['life cover abi', 'standard life cover abi', 'abi for the life cover'],
     fna_type: TYPE_Q('fna'), sf_type: TYPE_Q('shortfall'), 'redq.type': TYPE_Q('reduced'), bf_fna_type: TYPE_Q('fna'), bf_sf_type: TYPE_Q('shortfall'), 'bfred.type': TYPE_Q('reduced'),
@@ -280,7 +300,7 @@
     'debts.desc': ['what is it for', 'what was it for', 'description'],
     'debts.owner': ['who owns', 'whose name is it in', 'who is the owner'],
     'debts.payer': ['who pays', 'who is paying', 'who is the payer'],
-    'debts.term': ['term left', 'how long is left', 'years left', 'how long left', 'how many years left'],
+    'debts.term': ['term left', 'how long is left', 'years left', 'how long left', 'how many years left', 'months left', 'how many months left', 'how many months', 'until what age', 'until which age', 'term in months'],
     'debts.inst': ['instalment', 'installment', 'monthly payment', 'repayment', 'pay per month', 'how much do you pay'],
     'debts.bal': ['balance', 'outstanding', 'how much is outstanding', 'how much do you owe', 'owe'],
     'debts.asset': ['asset value', 'value of the asset', 'what is it worth', 'what is the car worth', 'what is the house worth'],
@@ -339,8 +359,8 @@
     gross: ['gross', 'gross income', 'gross salary', 'before tax', 'salary before', 'how much do you earn', 'earn', 'earning'],
     net: ['take home', 'net income', 'net salary', 'nett', 'paid into your account', 'hits your account', 'in your pocket'],
     rent: ['rental income', 'rent income', 'rental', 'rent from a property', 'rent from a flat', 'rent you receive', 'income from rent', 'tenant pays'],
-    spinc: ['spousal income', 'spouse income', 'spouse earns', 'spouse salary', 'what does your wife earn', 'what does your husband earn', 'what does your partner earn', 'partner income', 'partner earns'],
-    maint: ['child maintenance', 'maintenance income', 'maintenance', 'child support', 'maintenance from your ex', 'maintenance you receive'],
+    spmaint: ['spousal maintenance', 'spouse maintenance', 'alimony', 'maintenance from your ex wife', 'maintenance from your ex husband', 'maintenance from your ex spouse', 'maintenance from your ex partner for you'],
+    maint: ['child maintenance', 'child support', 'maintenance for the children', 'maintenance for the kids', 'maintenance for your children'],
     exp: ['expenses', 'monthly expenses', 'budget', 'how much do you spend', 'living expenses', 'spend a month', 'monthly spend'],
     marital: ['marital status', 'married', 'single', 'relationship status', 'are you married'],
     sp_name: ['spouse name', 'partner name', 'name of your spouse', 'name of your partner', 'wife', 'husband'],
@@ -1030,15 +1050,17 @@
     return Math.round(total * 100) / 100;
   }
   var MULTI_NOSEND = / (?:(?:does not|doesn't|doesnt|do not|don't|dont|need not|no need to|not need to|does not have to|doesn't have to|no need for (?:him|her|them|the client) to|nothing for (?:him|her|them|the client) to) (?:need to |have to )?send|no need (?:to send|for (?:them|it|those|the schedules?))|(?:don't|dont|do not|doesn't|doesnt|does not) need (?:them|it|those|the schedules?)|nothing to send|no schedules (?:are )?(?:needed|required)|need not send) /;
+  /* "We already have them", "it is on file", "saved in the client file": the schedule is already there, so there is nothing to ask for (Policy Schedules saved in Client File). */
+  var MULTI_SAVED = / (?:(?:already|we) (?:have|got|hold|saved|stored|filed|received|kept) (?:it|them|the (?:policy )?schedules?|a copy|copies|those)|(?:it is|they are|its|theyre|it s|they re|schedules? (?:is|are)) (?:already )?(?:saved|stored|filed|kept|on file|in (?:the |his |her |their |our )?(?:client )?(?:file|folder))|(?:saved|stored|filed|kept) (?:in|on) (?:the |his |her |their |our )?(?:client )?(?:file|folder)|on (?:the )?(?:client )?file|in (?:the |his |her |their |our )?client (?:file|folder)|policy schedules? (?:are |is )?saved) /;
   function interpretMulti(f, t) {
     var s = ' ' + t + ' ', opts = f.options || [], picked = {}, hasAstute = opts.some(function (o) { return /astute/i.test(o); });
     var both = / both /.test(s) && hasAstute, astuteNo = /\b(?:not|no|dont|don't|without|cannot|can't)\b[^.]{0,24}\bastute\b/.test(s);
-    var noSend = MULTI_NOSEND.test(s);                                                                // "the client does not need to send anything through": that choice alone, not "the client will send them"
+    var noSend = MULTI_NOSEND.test(s), saved = MULTI_SAVED.test(s);                                    // "the client does not need to send anything through" or "we have them on file": the saved choice alone, not "the client will send them"
     opts.forEach(function (o) {
       var on = norm(o.replace(/\(.*?\)/g, ' ')), hit = false;
       if (/astute/i.test(o)) hit = (/ astute /.test(s) && !astuteNo) || both || has(t, on);
-      else if (/does not need to send/i.test(o)) hit = noSend;
-      else if (/client/i.test(o)) hit = !noSend && (both || has(t, on) || MULTI_CLIENT.test(s));
+      else if (/saved in client file/i.test(o)) hit = saved || noSend;
+      else if (/client/i.test(o)) hit = !noSend && !saved && (both || has(t, on) || MULTI_CLIENT.test(s));
       else if (/^other$/i.test(o)) hit = / (?:other|something else|some other|another way) /.test(s);
       if (hit) picked[o] = 1;
     });
@@ -1113,6 +1135,13 @@
       if (y == null) return { error: 'no-number' };
       if (/month/.test(t) && !/year/.test(t)) y = Math.round(y / 12 * 10) / 10;
       return { value: String(y), status: 'heard' };
+    }
+    if (f.id === 'debts.term') {                                                          // always months: "20 years" is 240, "until my age 65" is worked out from the date of birth
+      var tm = util.termMonths(termFromLine(raw), termOpts());
+      if (tm && tm.months != null) return { value: String(tm.months), status: 'verify' };
+      if (tm && tm.needs) return { value: String(raw).trim().replace(/^./, function (ch) { return ch.toUpperCase(); }), status: 'verify', note: 'the date of birth is needed to work out the months until age ' + tm.age };
+      if (tm && tm.keep) return { value: 'Max term', status: 'heard' };
+      return { error: 'no-term', note: 'say the term in years or months' };
     }
     var c = cleanText(f, raw);
     if (!c) return { error: 'lead-in-only' };
@@ -1528,9 +1557,112 @@
     return res;
   }
 
+  /* ---------- the debts: which debt a line is about, removing one, and "no more debts" ----------
+     The program, not Claude, holds the debt the talk is on: it stays on that debt until a line says to move ("debt two", "the second debt", "the next debt", "another debt", "add debt three", "the credit card").
+     rows: the cells of each debt ({ type, prov, desc, ... }), cur: the index of the debt the talk is on (-1 when none). -> { kind: 'same' } | { kind: 'goto', i } | { kind: 'new' }. */
+  var DEBT_NUM = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10 };
+  var DEBT_ORD = { first: 1, second: 2, third: 3, fourth: 4, fifth: 5, sixth: 6, seventh: 7, eighth: 8, ninth: 9, tenth: 10 };
+  var DEBT_KINDS = [
+    { type: 'Home loan', re: /\b(?:home loans?|house loans?|home bonds?|bonds?|mortgages?|(?:loan|debt) (?:for|on) the (?:house|home|flat|property))\b/ },
+    { type: 'Vehicle finance', re: /\b(?:vehicle (?:finance|loan|debt)|car (?:finance|loan|debt|payment|instalment)|(?:debt|loan|finance) (?:for|on) the (?:car|vehicle))\b/ },
+    { type: 'Credit card', re: /\bcredit cards?\b/ },
+    { type: 'Personal loan', re: /\bpersonal loans?\b/ },
+    { type: 'Revolving credit', re: /\brevolving credit\b/ },
+    { type: 'Overdraft', re: /\boverdrafts?\b/ }
+  ];
+  function debtKinds(t) { return DEBT_KINDS.filter(function (k) { return k.re.test(t); }).map(function (k) { return k.type; }); }
+  function debtNumber(t) {
+    var m = /\bdebt (?:number |no |num |nr |nu )?(\d{1,2}|one|two|three|four|five|six|seven|eight|nine|ten)\b/.exec(t) || /\b(?:loan|liability) (?:number |no )?(\d{1,2})\b/.exec(t);
+    if (m) return /^\d/.test(m[1]) ? +m[1] : DEBT_NUM[m[1]];
+    m = /\b(first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth) (?:debt|loan|liability|one)\b/.exec(t) || /\b(?:number|no|num|nr|row) (\d{1,2})\b/.exec(t);
+    return m ? (DEBT_ORD[m[1]] || +m[1] || 0) : 0;
+  }
+  function debtRef(text, rows, cur) {
+    var t = norm(text), n = rows.length, num = debtNumber(t), kinds;
+    if (num) return num <= n ? { kind: 'goto', i: num - 1 } : { kind: 'new' };
+    if (/\b(?:next|following) (?:debt|loan|liability|one)\b/.test(t)) return cur + 1 < n ? { kind: 'goto', i: cur + 1 } : { kind: 'new' };
+    if (/\b(?:add|adding|another|new|one more|an extra|an additional|a further|a second|a third|a fourth|other) (?:a |one |the )?(?:debt|loan|liability)\b/.test(t) || /\b(?:add|adding) (?:a |another |one )?(?:debt|loan)\b/.test(t) ||
+      /\b(?:another|one more|an extra|an additional) one\b/.test(t) || /\b(?:there|he|she|they|we|i)(?: also)?(?: has| have| had| got| is| are)?(?: also)? (?:a|an|one) (?:more |other |further |extra |additional |second )?(?:debt|loan)\b/.test(t)) return { kind: 'new' };
+    kinds = debtKinds(t);
+    if (kinds.length === 1 && cur >= 0 && cur < n) {                                        // "the credit card": only when the debt the talk is on is not already that kind (and has a kind)
+      var now = String(rows[cur].type || '');
+      if (now && now !== 'Other' && now !== kinds[0]) {
+        var at = -1; rows.forEach(function (r, i) { if (at < 0 && i !== cur && r.type === kinds[0]) at = i; });
+        return at >= 0 ? { kind: 'goto', i: at } : { kind: 'new' };
+      }
+    }
+    return { kind: 'same' };
+  }
+  /* "remove debt 2", "delete the second debt", "take out the car debt", "remove the debt for the car", "get rid of this debt": the debt to take away. -> null (not such an instruction), { i } or { error } (it names no debt that is there). */
+  var REMOVE_OPEN = /^(?:(?:ok|okay|alright|all right|right|so|and|now|then|please|lets|let us|can you|could you|you can|go ahead and|just|i want you to|we can|we must|we should|we need to|you must|you need to|you should|can we|paul) )*(?:remove|delete|take out|get rid of|scratch|erase) (.+)$/;
+  var REMOVE_NOT = /\b(?:next|last) (?:year|month|week)\b|\b(?:when|once|after|before|because|if|unless|until|soon|later|eventually|will|would|might|plans?|planning|wants?|going to)\b/;        // advice or a plan about a debt ("once it is paid we will remove the card") is not the instruction
+  function removeDebtRef(text, rows, cur) {
+    var m = REMOVE_OPEN.exec(norm(text)); if (!m) return null;
+    var t = m[1], n = rows.length, num = debtNumber(t), kinds = debtKinds(t), i, hits;
+    var generic = /\b(?:debt|debts|loan|liability)\b/.test(t) || kinds.length;
+    if (!generic) return null;                                                              // "scratch that": not about a debt (undo handles it)
+    if (/\b(?:all|every|each|everything)\b/.test(t) || REMOVE_NOT.test(t) || t.split(' ').length > 8) return null;      // wiping a whole section is another command, with its own question
+    if (num) return num <= n ? { i: num - 1 } : { error: 'there is no debt ' + num };
+    if (/\b(?:this|that|the current|the present) (?:debt|loan|liability|one)\b/.test(t)) return cur >= 0 && cur < n ? { i: cur } : { error: 'no debt is open' };
+    if (/\b(?:the last|the latest|the final|the previous|the one before) (?:debt|loan|liability|one)\b/.test(t)) return n ? { i: /\bprevious|one before\b/.test(t) ? Math.max(cur - 1, 0) : n - 1 } : { error: 'there are no debts' };
+    if (kinds.length === 1) {
+      hits = []; rows.forEach(function (r, ix) { if (r.type === kinds[0]) hits.push(ix); });
+      if (!hits.length) {                                                                   // "the car debt" on a debt that was typed as Other: its description says what it is
+        var w = kinds[0] === 'Vehicle finance' ? /\b(?:car|vehicle)\b/ : kinds[0] === 'Home loan' ? /\b(?:house|home|flat|bond|mortgage|property)\b/ : new RegExp('\\b' + kinds[0].toLowerCase().split(' ')[0] + '\\b');
+        rows.forEach(function (r, ix) { if (w.test(norm([r.desc, r.notes, r.prov].join(' ')))) hits.push(ix); });
+      }
+      if (hits.length === 1) return { i: hits[0] };
+      return hits.length ? { error: 'there is more than one ' + kinds[0].toLowerCase() + ': say which debt number' } : { error: 'there is no ' + kinds[0].toLowerCase() + ' on the form' };
+    }
+    if (n === 1 && /^(?:the |this |that )?(?:debt|loan)$/.test(t)) return { i: 0 };
+    return { error: 'say which debt (for example "remove debt 2")' };
+  }
+  /* "no more debts", "that's all the debts", "there are no other debts": the debts are complete. */
+  var NO_MORE_DEBTS = /\b(?:no|not any|nothing) (?:more|other|further|additional|extra) (?:debts?|loans?|liabilit(?:y|ies))\b|\bthat(?: is| s)? (?:all|it) (?:for |on |with )?(?:the |his |her |your |our |my )?(?:debts?|loans?)\b|\bthat(?: is| s)? all the (?:debts?|loans?)\b|\b(?:does not|doesn t|do not|don t|has no|have no|i have no|he has no|she has no) (?:have )?(?:any )?(?:more|other|further|additional) (?:debts?|loans?)\b|\bno debts? (?:other than|besides|apart from|except) (?:that|these|those|this|the)\b|\bthose are (?:all|the only) (?:the |his |her |my |our )?(?:debts?|loans?)\b/;
+  function noMoreDebts(text) {
+    var raw = String(text == null ? '' : text).trim(), t = norm(raw).replace(/'/g, ' ');
+    if (/\?\s*$/.test(raw) || /^(?:(?:and|so|ok|okay|right|now) )*(?:is|are|does|do|did|any|anything|how)\b/.test(t)) return false;      // a question to the client ("any more debts?", "is that all the debts?") is not the statement
+    return NO_MORE_DEBTS.test(t);
+  }
+
+  /* ---------- guards on what Claude fills ---------- */
+  var APPROX = /\b(?:odd|about|around|roughly|approximately|approx|or so|ish|give or take|nearly|almost|somewhere (?:around|near)|in the region of|plus minus|thereabouts)\b/;
+  function zeros(n) { var x = Math.round(Math.abs(n)), z = 0; if (!x) return 0; while (x % 10 === 0) { x /= 10; z++; } return z; }
+  /* A rounder version of an exact figure that is already on the form ("33,000 odd" for an agreed R 33 288.36) never replaces it. Said as a correction, with no "about" in the line, a nearby rounder figure may.
+     held: what the box holds, value: what is to go in, line: the words said. -> true when the figure on the form is kept. */
+  function keepExact(held, value, line, explicit) {
+    var a = wordsToNumber(String(held == null ? '' : held)), b = wordsToNumber(String(value == null ? '' : value));
+    if (a == null || b == null || !a || !b || a === b) return false;
+    var near = Math.abs(a - b) / Math.abs(a), approx = APPROX.test(norm(line));
+    if (approx && near <= 0.1 && zeros(b) >= zeros(a)) return true;                                                 // "33,000 odd", "about 33 thousand"
+    if (!explicit && near <= 0.05 && zeros(b) > zeros(a)) return true;                                              // a rounder figure within 5%, not given as a correction
+    return false;
+  }
+  /* A bank, insurer or provider is only put in a box when the line holds a word that is it or sounds like it ("Nedbank", "absent" for Absa, "OM" for Old Mutual): "that is with me" names nobody. */
+  function lev(a, b) {
+    var m = [], i, j;
+    for (i = 0; i <= a.length; i++) { m[i] = [i]; }
+    for (j = 1; j <= b.length; j++) m[0][j] = j;
+    for (i = 1; i <= a.length; i++) for (j = 1; j <= b.length; j++) m[i][j] = Math.min(m[i - 1][j] + 1, m[i][j - 1] + 1, m[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    return m[a.length][b.length];
+  }
+  function namesProvider(value, line) {
+    var vt = norm(value).split(' ').filter(Boolean), lt = norm(line).split(' ').filter(Boolean);
+    if (!vt.length) return true;
+    var acro = vt.map(function (w) { return w.charAt(0); }).join('');
+    return lt.some(function (w) {
+      if (w.length >= 2 && w === acro) return true;                                                 // "OM", "BR", "FNB" for the first letters
+      return vt.some(function (v) {
+        if (v.length < 3 || w.length < 3) return v === w;
+        if (w === v || w.indexOf(v) === 0 || (v.indexOf(w) === 0 && w.length >= 4) || (v.length >= 4 && w.length >= 4 && w.slice(0, 3) === v.slice(0, 3))) return true;      // the first three letters carry a garbled name ("absent" for Absa)
+        return lev(v, w) <= (v.length >= 7 ? 3 : v.length >= 5 ? 2 : 1);
+      });
+    });
+  }
+
   return {
-    norm: norm, wordsToNumber: wordsToNumber, spokenDigits: spokenDigits, spokenDate: spokenDate, yearlessDate: yearlessDate, setMeetingSource: setMeetingSource, spokenTime: spokenTime, spokenEmail: spokenEmail, yesNo: yesNo,
+    norm: norm, wordsToNumber: wordsToNumber, spokenDigits: spokenDigits, spokenDate: spokenDate, yearlessDate: yearlessDate, setMeetingSource: setMeetingSource, setTermSource: setTermSource, setLineSource: setLineSource, termFromLine: termFromLine, spokenTime: spokenTime, spokenEmail: spokenEmail, yesNo: yesNo,
     buildIndex: buildIndex, parseCommand: parseCommand, wrapUp: wrapUp, mergeMulti: mergeMulti, endsNotes: endsNotes, splitNotesEnd: splitNotesEnd, mentionsNotes: mentionsNotes, mayEndNotes: mayEndNotes, wipeAnswer: wipeAnswer, looksLikeQuestion: looksLikeQuestion, isChatter: isChatter, plan: plan, pointForm: pointForm, LIST_NOUNS: LIST_NOUNS, matchQuestion: matchQuestion, interpret: interpret, titleCase: titleCase,
-    isConfirm: isConfirm, answerFor: answerFor, clauses: clauses, PRIVATE_IDS: PRIVATE_IDS, yearsValue: yearsValue
+    isConfirm: isConfirm, answerFor: answerFor, clauses: clauses, PRIVATE_IDS: PRIVATE_IDS, yearsValue: yearsValue, debtRef: debtRef, removeDebtRef: removeDebtRef, noMoreDebts: noMoreDebts, keepExact: keepExact, namesProvider: namesProvider
   };
 });

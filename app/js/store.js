@@ -72,6 +72,41 @@
     if (id === 'sname' || id === 'gender') followFather(state, was);
     if (calc.DUTY_IDS.indexOf(id) >= 0) settleDuties(state);
     if (BROKER_OF[id]) brokerDefault(state, id);
+    if (id === 'edu') eduDefault(state);
+    if (id === 'employed') employerDefault(state);
+    if (id === 'dob' || id === 'date') termsFollow(state);                                                   // a term said as an age becomes months once the date of birth is known
+  }
+  /* Defaults that follow another answer, shown as defaults (status "preset") and never put over an answer that was typed or said: Qualification details starts as N/A when the highest education is Matric,
+     and Employer as N/A when the client is not employed. When the answer above changes, a default that was not touched goes again. */
+  var NA = 'N/A', MAX_TERM = 'Max term', NO_ASSET = 'R 0.00';
+  function followDefault(state, id, gateOn, value) {
+    var box = state.f[id]; if (!box) return;
+    if (gateOn) { if (box.v === '') state.f[id] = { v: value, st: 'preset' }; }
+    else if (box.st === 'preset' && box.v === value) state.f[id] = { v: '', st: 'empty' };
+  }
+  function eduDefault(state) { followDefault(state, 'edu_notes', state.f.edu.v === 'Matric', NA); }
+  function employerDefault(state) { followDefault(state, 'employer', state.f.employed.v === 'No', NA); }
+  /* A debt on a property (a Home loan, or an Other debt that says house, flat, townhouse and the like) has an Asset value. Every other debt has none. */
+  function isPropertyDebt(d) {
+    var t = String(d.type || '');
+    return t === 'Home loan' || (t === 'Other' && /\b(?:house|home|flat|apartment|townhouse|property|farm|erf|stand|land|cottage|bond)\b/i.test(String(d.desc || '') + ' ' + String(d.notes || '')));
+  }
+  /* Term left on a debt is always a number of months: "20 years" is kept as 240, "5 years 6 months" as 66, "until age 65" as the months from the date of the form to the client's 65th birthday (from the date of birth;
+     until that is on the form the words stay, and they become months when it is). Digits alone are months; "Max term" stays; anything else is left as typed. */
+  function termOpts(state) { return { dob: util.parseDate(state.f.dob && state.f.dob.v), on: util.parseDate(state.f.date && state.f.date.v) || undefined }; }
+  function termValue(state, raw) {
+    var r = util.termMonths(raw, termOpts(state));
+    return r && r.months != null ? String(r.months) : raw;
+  }
+  function termsFollow(state) { (state.l.debts || []).forEach(function (r) { var t = String(r.d.term || ''); if (t && !/^\d+$/.test(t)) r.d.term = termValue(state, t); }); }
+  /* Debts: a credit card or revolving credit starts with the Term left "Max term"; a debt that is not on a property starts with the Asset value R 0.00 (there is no asset). Only empty boxes are filled, a typed answer is
+     never changed, and an R 0.00 left by this rule goes again when the debt turns out to be on a property. */
+  function debtDefaults(r) {
+    var d = r.d, t = String(d.type || ''); if (!t) return;
+    var card = t === 'Credit card' || t === 'Revolving credit';                                      // these two have no term: "Max term" is the default whenever one of them is chosen, and goes again when the type is another
+    if (card && String(d.term || '').trim() === '') d.term = MAX_TERM; else if (!card && d.term === MAX_TERM) d.term = '';
+    if (isPropertyDebt(d)) { if (d.asset === NO_ASSET) d.asset = ''; }
+    else if (String(d.asset || '').trim() === '') d.asset = NO_ASSET;
   }
   /* "Broker on record" in Medical aid, Gap cover, Will and Short-term insurance starts as Other broker, shown as a default (status "preset"): on a new form, and again whenever the answer above it does not close the boxes
      (Medical aid not None, Gap cover not No, and so on; an answer not given yet does not close them). When the answer closes them (None, No), a default that was not touched goes, so nothing is left under a No.
@@ -99,16 +134,22 @@
     if (key === 'kids' && !d.sname) d.sname = fatherSurname(state);
     if (key === 'invq' && !d.req) d.req = 'Request a quote';                                         // a row in the investment quotes is a quote asked for until it says otherwise
     var r = { d: d, st: st || 'confirmed' };
+    if (key === 'debts') { if (r.d.term) r.d.term = termValue(state, r.d.term); debtDefaults(r); }
     state.l[key].push(r);
+    if (key === 'debts' && state.f.debts_end && state.f.debts_end.v) state.f.debts_end = { v: '', st: 'empty' };      // a debt added: it was not the last, so "No more debts" goes
     LIST_GATES.forEach(function (g) { if (g[1] === key && state.f[g[0]] && state.f[g[0]].v !== 'Yes') state.f[g[0]] = { v: 'Yes', st: 'confirmed' }; });      // a row added is a Yes to "Has debts", "Has children" and the like
     return r;
   }
-  function delRow(state, key, i) { state.l[key].splice(i, 1); }
+  function delRow(state, key, i) {
+    state.l[key].splice(i, 1);
+    if (key === 'debts' && !state.l.debts.length && state.f.debts_end && state.f.debts_end.v) state.f.debts_end = { v: '', st: 'empty' };      // no debt left: nothing for the line to be under
+  }
   /* The instalment protector (BrightRock Risk Calculation): a debt is protected unless it is switched off (row.off). The switch is kept on the debt itself, so it goes with the row; a status such as "verify" is not touched. */
   function setProtect(state, i, on) { var r = state.l.debts[i]; if (!r) return; if (on) delete r.off; else r.off = true; }
   function setProtectAll(state, on) { (state.l.debts || []).forEach(function (r, i) { setProtect(state, i, on); }); }
   function setCell(state, key, i, k, v, st) {
-    var r = state.l[key][i]; r.d[k] = v; r.st = st || 'confirmed';
+    var r = state.l[key][i]; if (key === 'debts' && k === 'term') v = termValue(state, v); r.d[k] = v; r.st = st || 'confirmed';
+    if (key === 'debts' && (k === 'type' || k === 'desc' || k === 'notes')) debtDefaults(r);
     if ((key === 'redq' || key === 'bfred') && k === 'req' && v === 'Not required') { r.d.type = ''; r.d.amt = ''; if ('ins' in r.d) r.d.ins = ''; }        // a reduced quote that is not required keeps nothing
   }
   function accept(state, target) {
@@ -216,8 +257,9 @@
   /* Files saved when every schedule box said "Requested from client in meeting": each box now says it in the words of its own area (Requested Personal Risk Covers in meeting, await client response, ...). */
   function scheduleWording(s) {
     Object.keys(schema.psClient).forEach(function (area) {
-      var c = s.f['ps_' + area]; if (!c || String(c.v).indexOf(schema.psClientOld) < 0) return;
-      c.v = String(c.v).split(';').map(function (x) { x = x.trim(); return x === schema.psClientOld ? schema.psClient[area] : x; }).filter(Boolean).join('; ');
+      var c = s.f['ps_' + area]; if (!c || (String(c.v).indexOf(schema.psClientOld) < 0 && String(c.v).indexOf(schema.psNoSend) < 0)) return;
+      var seen = {};
+      c.v = String(c.v).split(';').map(function (x) { x = x.trim(); return x === schema.psClientOld ? schema.psClient[area] : x === schema.psNoSend ? schema.psSaved : x; }).filter(function (x) { if (!x || seen[x]) return false; seen[x] = 1; return true; }).join('; ');      // "Client does not need to send through" is gone: it opens as Policy Schedules saved in Client File
     });
   }
   /* The referral boxes no longer have the choices that only said what is asked elsewhere on the page: "Client has own broker" is the short-term broker box (Other broker) and "Has updated will" is the will boxes. A file that holds
@@ -247,6 +289,8 @@
       });
     });
     Object.keys(BROKER_OF).forEach(function (id) { if (s.f[id]) brokerDefault(s, id); });
+    eduDefault(s); employerDefault(s);
+    (s.l.debts || []).forEach(function (r) { if (!rowBlank('debts', r)) { if (r.d.term) r.d.term = termValue(s, r.d.term); debtDefaults(r); } });      // a file saved with "20 years" opens with 240
   }
   /* The notes boxes of the old advisor pages (quotes, referrals, buy & sell) are now one notes box on the Client priorities page (the Risk calculation page keeps its own): what was written in them is kept there, each under its old heading. */
   var LEGACY_NOTES = [['n_q_risk', 'Personal risk quotes'], ['n_q_ret', 'Retirement & investment quotes'], ['n_ref', 'Referrals'], ['n_bs', 'Buy & Sell']];
@@ -328,7 +372,16 @@
     var it = list.splice(i, 1)[0]; if (seen) seen[unplacedKey(it)] = 1;
     return it;
   }
-  function toJSON(state) { state.modified = new Date().toISOString(); return JSON.stringify(state, null, 2); }
+  /* The worked-out figures (worked.js) are written beside the answers in the saved file, under "worked", on a copy of the state: the form's own state never holds them, and opening a file never reads them back. */
+  var workedBuilder = null;
+  function useWorked(fn) { workedBuilder = fn; }
+  function toJSON(state) {
+    state.modified = new Date().toISOString();
+    var out = state, w = null;
+    if (workedBuilder) { try { w = workedBuilder(state); } catch (e) { w = null; } }
+    if (w) { out = Object.assign({}, state); out.worked = w; }
+    return JSON.stringify(out, null, 2);
+  }
 
   /* A policy schedule request is not an answer to count when the Yes/No above it says there is nothing to ask for. */
   var PS_GATE = { ps_risk: [['has_risk', 'No']], ps_grp: [['has_group', 'No']], ps_ra: [['has_ra', 'No']], ps_pp: [['has_pp', 'No']], ps_inv: [['has_inv', 'No']] };      // every Yes/No listed says No
@@ -368,5 +421,5 @@
     return { tot: tot, fill: fill, ver: ver };
   }
 
-  return { rowBlank: rowBlank, rowFilled: rowFilled, setProtect: setProtect, setProtectAll: setProtectAll, setPa: setPa, setFocus: setFocus, blankPa: blankPa, cleanPa: cleanPa, setSum: setSum, cleanSum: cleanSum, addUnplaced: addUnplaced, closeUnplaced: closeUnplaced, unplacedKey: unplacedKey, blank: blank, blankTally: blankTally, blankSpeech: blankSpeech, ctxFor: ctxFor, setField: setField, addRow: addRow, delRow: delRow, setCell: setCell, accept: accept, clientName: clientName, idClash: idClash, idKey: idKey, fatherSurname: fatherSurname, baseFileName: baseFileName, pdfFileName: pdfFileName, fromJSON: fromJSON, toJSON: toJSON, counts: counts };
+  return { termValue: termValue, useWorked: useWorked, isPropertyDebt: isPropertyDebt, debtDefaults: debtDefaults, rowBlank: rowBlank, rowFilled: rowFilled, setProtect: setProtect, setProtectAll: setProtectAll, setPa: setPa, setFocus: setFocus, blankPa: blankPa, cleanPa: cleanPa, setSum: setSum, cleanSum: cleanSum, addUnplaced: addUnplaced, closeUnplaced: closeUnplaced, unplacedKey: unplacedKey, blank: blank, blankTally: blankTally, blankSpeech: blankSpeech, ctxFor: ctxFor, setField: setField, addRow: addRow, delRow: delRow, setCell: setCell, accept: accept, clientName: clientName, idClash: idClash, idKey: idKey, fatherSurname: fatherSurname, baseFileName: baseFileName, pdfFileName: pdfFileName, fromJSON: fromJSON, toJSON: toJSON, counts: counts };
 });
