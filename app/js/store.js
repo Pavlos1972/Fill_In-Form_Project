@@ -74,6 +74,7 @@
     if (BROKER_OF[id]) brokerDefault(state, id);
     if (id === 'edu') eduDefault(state);
     if (id === 'employed') employerDefault(state);
+    if (id === 'dob' || id === 'date') termsFollow(state);                                                   // a term said as an age becomes months once the date of birth is known
   }
   /* Defaults that follow another answer, shown as defaults (status "preset") and never put over an answer that was typed or said: Qualification details starts as N/A when the highest education is Matric,
      and Employer as N/A when the client is not employed. When the answer above changes, a default that was not touched goes again. */
@@ -90,11 +91,20 @@
     var t = String(d.type || '');
     return t === 'Home loan' || (t === 'Other' && /\b(?:house|home|flat|apartment|townhouse|property|farm|erf|stand|land|cottage|bond)\b/i.test(String(d.desc || '') + ' ' + String(d.notes || '')));
   }
+  /* Term left on a debt is always a number of months: "20 years" is kept as 240, "5 years 6 months" as 66, "until age 65" as the months from the date of the form to the client's 65th birthday (from the date of birth;
+     until that is on the form the words stay, and they become months when it is). Digits alone are months; "Max term" stays; anything else is left as typed. */
+  function termOpts(state) { return { dob: util.parseDate(state.f.dob && state.f.dob.v), on: util.parseDate(state.f.date && state.f.date.v) || undefined }; }
+  function termValue(state, raw) {
+    var r = util.termMonths(raw, termOpts(state));
+    return r && r.months != null ? String(r.months) : raw;
+  }
+  function termsFollow(state) { (state.l.debts || []).forEach(function (r) { var t = String(r.d.term || ''); if (t && !/^\d+$/.test(t)) r.d.term = termValue(state, t); }); }
   /* Debts: a credit card or revolving credit starts with the Term left "Max term"; a debt that is not on a property starts with the Asset value R 0.00 (there is no asset). Only empty boxes are filled, a typed answer is
      never changed, and an R 0.00 left by this rule goes again when the debt turns out to be on a property. */
   function debtDefaults(r) {
     var d = r.d, t = String(d.type || ''); if (!t) return;
-    if ((t === 'Credit card' || t === 'Revolving credit') && String(d.term || '').trim() === '') d.term = MAX_TERM;
+    var card = t === 'Credit card' || t === 'Revolving credit';                                      // these two have no term: "Max term" is the default whenever one of them is chosen, and goes again when the type is another
+    if (card && String(d.term || '').trim() === '') d.term = MAX_TERM; else if (!card && d.term === MAX_TERM) d.term = '';
     if (isPropertyDebt(d)) { if (d.asset === NO_ASSET) d.asset = ''; }
     else if (String(d.asset || '').trim() === '') d.asset = NO_ASSET;
   }
@@ -124,7 +134,7 @@
     if (key === 'kids' && !d.sname) d.sname = fatherSurname(state);
     if (key === 'invq' && !d.req) d.req = 'Request a quote';                                         // a row in the investment quotes is a quote asked for until it says otherwise
     var r = { d: d, st: st || 'confirmed' };
-    if (key === 'debts') debtDefaults(r);
+    if (key === 'debts') { if (r.d.term) r.d.term = termValue(state, r.d.term); debtDefaults(r); }
     state.l[key].push(r);
     if (key === 'debts' && state.f.debts_end && state.f.debts_end.v) state.f.debts_end = { v: '', st: 'empty' };      // a debt added: it was not the last, so "No more debts" goes
     LIST_GATES.forEach(function (g) { if (g[1] === key && state.f[g[0]] && state.f[g[0]].v !== 'Yes') state.f[g[0]] = { v: 'Yes', st: 'confirmed' }; });      // a row added is a Yes to "Has debts", "Has children" and the like
@@ -138,7 +148,7 @@
   function setProtect(state, i, on) { var r = state.l.debts[i]; if (!r) return; if (on) delete r.off; else r.off = true; }
   function setProtectAll(state, on) { (state.l.debts || []).forEach(function (r, i) { setProtect(state, i, on); }); }
   function setCell(state, key, i, k, v, st) {
-    var r = state.l[key][i]; r.d[k] = v; r.st = st || 'confirmed';
+    var r = state.l[key][i]; if (key === 'debts' && k === 'term') v = termValue(state, v); r.d[k] = v; r.st = st || 'confirmed';
     if (key === 'debts' && (k === 'type' || k === 'desc' || k === 'notes')) debtDefaults(r);
     if ((key === 'redq' || key === 'bfred') && k === 'req' && v === 'Not required') { r.d.type = ''; r.d.amt = ''; if ('ins' in r.d) r.d.ins = ''; }        // a reduced quote that is not required keeps nothing
   }
@@ -279,7 +289,7 @@
     });
     Object.keys(BROKER_OF).forEach(function (id) { if (s.f[id]) brokerDefault(s, id); });
     eduDefault(s); employerDefault(s);
-    (s.l.debts || []).forEach(function (r) { if (!rowBlank('debts', r)) debtDefaults(r); });
+    (s.l.debts || []).forEach(function (r) { if (!rowBlank('debts', r)) { if (r.d.term) r.d.term = termValue(s, r.d.term); debtDefaults(r); } });      // a file saved with "20 years" opens with 240
   }
   /* The notes boxes of the old advisor pages (quotes, referrals, buy & sell) are now one notes box on the Client priorities page (the Risk calculation page keeps its own): what was written in them is kept there, each under its old heading. */
   var LEGACY_NOTES = [['n_q_risk', 'Personal risk quotes'], ['n_q_ret', 'Retirement & investment quotes'], ['n_ref', 'Referrals'], ['n_bs', 'Buy & Sell']];
@@ -410,5 +420,5 @@
     return { tot: tot, fill: fill, ver: ver };
   }
 
-  return { useWorked: useWorked, isPropertyDebt: isPropertyDebt, debtDefaults: debtDefaults, rowBlank: rowBlank, rowFilled: rowFilled, setProtect: setProtect, setProtectAll: setProtectAll, setPa: setPa, setFocus: setFocus, blankPa: blankPa, cleanPa: cleanPa, setSum: setSum, cleanSum: cleanSum, addUnplaced: addUnplaced, closeUnplaced: closeUnplaced, unplacedKey: unplacedKey, blank: blank, blankTally: blankTally, blankSpeech: blankSpeech, ctxFor: ctxFor, setField: setField, addRow: addRow, delRow: delRow, setCell: setCell, accept: accept, clientName: clientName, idClash: idClash, idKey: idKey, fatherSurname: fatherSurname, baseFileName: baseFileName, pdfFileName: pdfFileName, fromJSON: fromJSON, toJSON: toJSON, counts: counts };
+  return { termValue: termValue, useWorked: useWorked, isPropertyDebt: isPropertyDebt, debtDefaults: debtDefaults, rowBlank: rowBlank, rowFilled: rowFilled, setProtect: setProtect, setProtectAll: setProtectAll, setPa: setPa, setFocus: setFocus, blankPa: blankPa, cleanPa: cleanPa, setSum: setSum, cleanSum: cleanSum, addUnplaced: addUnplaced, closeUnplaced: closeUnplaced, unplacedKey: unplacedKey, blank: blank, blankTally: blankTally, blankSpeech: blankSpeech, ctxFor: ctxFor, setField: setField, addRow: addRow, delRow: delRow, setCell: setCell, accept: accept, clientName: clientName, idClash: idClash, idKey: idKey, fatherSurname: fatherSurname, baseFileName: baseFileName, pdfFileName: pdfFileName, fromJSON: fromJSON, toJSON: toJSON, counts: counts };
 });

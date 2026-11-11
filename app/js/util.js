@@ -117,5 +117,54 @@
     for (var i = 12; i >= 0; i--) { var n = +s[i]; if (alt) { n *= 2; if (n > 9) n -= 9; } sum += n; alt = !alt; }
     return sum % 10 === 0;
   }
-  return { sexFromSaId: sexFromSaId, splitFullName: splitFullName, num: num, money: money, money2: money2, formatMoney: formatMoney, parseDate: parseDate, weekdayName: weekdayName, parseTime: parseTime, formatTime: formatTime, ageAt: ageAt, isoToday: isoToday, formatDate: formatDate, todayDMY: todayDMY, longDate: longDate, dobFromSaId: dobFromSaId, saIdValid: saIdValid };
+  /* ---------- Term left on a debt: always a number of months ----------
+     "20 years" is 240, "5 years 6 months" is 66, "18 months" is 18, "two and a half years" is 30, "until my age 65" is the months from the meeting date to the client's 65th birthday (needs the date of birth).
+     A bare number is months. "Max term" (the default for a credit card and revolving credit, which have no term) is left as it is.
+     raw: what was said or typed. opts: { dob: {y,m,d}, on: {y,m,d} (the meeting date; today when missing) }.
+     -> { months: n } | { needs: 'dob', age: n } (an age was given and the date of birth is not on the form yet) | { keep: true } (Max term) | null (not a term: left as typed). */
+  var TERM_SMALL = { zero: 0, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12, thirteen: 13, fourteen: 14, fifteen: 15, sixteen: 16, seventeen: 17, eighteen: 18, nineteen: 19 };
+  var TERM_TENS = { twenty: 20, thirty: 30, forty: 40, fifty: 50, sixty: 60, seventy: 70, eighty: 80, ninety: 90 };
+  /* Number words in a stretch of text become digits: "twenty five years" -> "25 years", "a hundred and twenty months" -> "120 months". */
+  function termDigits(t) {
+    var tk = t.split(/\s+/), out = [], i = 0;
+    var isW = function (w) { return TERM_SMALL.hasOwnProperty(w) || TERM_TENS.hasOwnProperty(w) || w === 'hundred'; };
+    while (i < tk.length) {
+      if (isW(tk[i]) || (tk[i] === 'a' && tk[i + 1] === 'hundred')) {
+        var cur = 0, any = false;
+        while (i < tk.length) {
+          var w = tk[i];
+          if (TERM_SMALL.hasOwnProperty(w)) { cur += TERM_SMALL[w]; any = true; }
+          else if (TERM_TENS.hasOwnProperty(w)) { cur += TERM_TENS[w]; any = true; }
+          else if (w === 'hundred') { cur = (cur || 1) * 100; any = true; }
+          else if (w === 'a' && tk[i + 1] === 'hundred') { /* "a hundred" */ }
+          else if (w === 'and' && any && isW(tk[i + 1] || '') && /hundred/.test(tk[i - 1] || '')) { /* "a hundred and twenty" */ }
+          else break;
+          i++;
+        }
+        out.push(String(cur));
+      } else { out.push(tk[i]); i++; }
+    }
+    return out.join(' ');
+  }
+  function monthsBetween(a, b) { return (b.y - a.y) * 12 + (b.m - a.m) + (b.d - a.d) / 30.4375; }
+  function termMonths(raw, opts) {
+    var t = String(raw == null ? '' : raw).toLowerCase().replace(/[‘’`]/g, "'").replace(/[,;]/g, ' ').replace(/\s+/g, ' ').trim(), m;
+    if (!t) return null;
+    if (/^max(?:imum)?\s+term$/.test(t)) return { keep: true };
+    if (/^\d+(?:\.\d+)?$/.test(t)) return { months: Math.round(parseFloat(t)) };                          // typed digits alone: months
+    t = t.replace(/\ba year and a half\b/g, '1.5 years').replace(/\bhalf a year\b/g, '0.5 years').replace(/\ba year\b/g, '1 year').replace(/\ba month\b/g, '1 month');
+    t = termDigits(t).replace(/(\d+(?:\.\d+)?) and a half\b/g, function (x, n) { return (parseFloat(n) + 0.5) + ''; });
+    var re = /(\d+(?:\.\d+)?)\s*(years?|yrs?|months?|mths?)\b/g, total = 0, found = false;
+    while ((m = re.exec(t))) { total += parseFloat(m[1]) * (/^y/.test(m[2]) ? 12 : 1); found = true; }
+    if (found) { var mo = Math.round(total); return mo >= 0 && mo <= 1200 ? { months: mo } : null; }
+    var age = /\b(?:until|till|til|up until|up to|to|by)\b([^0-9]{0,30}?)\b(\d{2,3})(?:st|nd|rd|th)?\b/.exec(t);
+    if (age && +age[2] >= 18 && +age[2] <= 100 && !/\b(?:year|month|years|months)\b/.test(age[1])) {
+      var a = +age[2], dob = opts && opts.dob;
+      if (!dob) return { needs: 'dob', age: a };
+      var on = (opts && opts.on) || parseDate(isoToday()), mo2 = Math.round(monthsBetween(on, { y: dob.y + a, m: dob.m, d: dob.d }));
+      return mo2 >= 0 && mo2 <= 1200 ? { months: mo2 } : null;
+    }
+    return null;
+  }
+  return { sexFromSaId: sexFromSaId, splitFullName: splitFullName, num: num, money: money, money2: money2, formatMoney: formatMoney, parseDate: parseDate, weekdayName: weekdayName, parseTime: parseTime, formatTime: formatTime, ageAt: ageAt, isoToday: isoToday, termMonths: termMonths, formatDate: formatDate, todayDMY: todayDMY, longDate: longDate, dobFromSaId: dobFromSaId, saIdValid: saIdValid };
 });

@@ -12,7 +12,7 @@ test('a credit card or revolving credit starts with the Term left "Max term"; ot
   assert.strictEqual(debt(s, { type: 'Revolving credit' }).d.term, 'Max term');
   assert.strictEqual(debt(s, { type: 'Personal loan' }).d.term, '');
   assert.strictEqual(debt(s, { type: 'Home loan' }).d.term, '');
-  assert.strictEqual(debt(s, { type: 'Credit card', term: '24 months' }).d.term, '24 months', 'what was typed stays');
+  assert.strictEqual(debt(s, { type: 'Credit card', term: '24 months' }).d.term, '24', 'what was typed stays (as months)');
   const r = debt(s, {}); assert.strictEqual(r.d.term, '', 'no type yet, no default');
   store.setCell(s, 'debts', s.l.debts.length - 1, 'type', 'Credit card'); assert.strictEqual(r.d.term, 'Max term', 'the default comes when the type is chosen');
 });
