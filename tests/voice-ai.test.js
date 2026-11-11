@@ -522,5 +522,5 @@ test('the catch-up request carries the notes and the facts already offered, and 
   assert.deepStrictEqual(body.notes, { health: '- Has gout' });
   assert.deepStrictEqual(body.listed, ['Blood pressure 140 over 180']);
   assert.ok(/already in "notes" or in "listed" is never reported again/.test(req.system));
-  assert.ok(/total income \(net plus any rent, spinc and maint in "filled"\) minus that amount/.test(req.system));
+  assert.ok(/total income \(net plus any rent, spmaint, maint and spinc in "filled"\) minus that amount/.test(req.system));
 });

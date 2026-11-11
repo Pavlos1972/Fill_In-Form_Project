@@ -16,6 +16,14 @@ The README.md describes the app; this file keeps the rules that must not be lost
 - A PDF that was saved earlier is a picture of the form on the day it was saved: it does not change by itself. To bring one up to date, open the client's file and save the PDF again. Say so when a change would make an earlier PDF look different.
 - **The Short Risk Application page (`app/short-risk.html`, added November 2026) follows the same two rules.** Its README section is kept up to date in the same commit as any change to it, and its PDF (`app/js/sr-pdf.js`, drawn from `app/js/sr-schema.js`) mirrors its page: `tests/sr-pdf.test.js` and the browser check `tests/browser/t-sr.js` must pass. What is left off its PDF is only the line of guidance under the Banking heading (`note` in `sr-schema.js`). The `complete-applications-skill` is not connected to it yet (Paul will do that).
 
+## Ids, versions and the change log (set by Paul Kafentzis with the skills chat, always)
+
+- **An id never changes when only its label changes.** Skills and saved files read boxes by id. A box whose **meaning** changes gets a **new id**, and the old id is kept (marked `legacy` in `schema.js`, shown only while a file holds an answer in it) so older files and the skills still work.
+- **Every release that changes the form's boxes bumps `version` in `app/js/schema.js`** (and in `app/js/sr-schema.js` for the Short Risk Application). A saved file carries it as `schema`.
+- **`docs/FORM-CHANGES.md` is kept in the same commit:** dated, one line for each id added, removed or relabelled, each change to a sum or a tax table, and each list column added.
+- A renamed label is in the PDF too (it is drawn from the schema; check it).
+- **`app/js/worked.js` writes the figures the form works out into the saved file (`worked`) as the PDF prints them.** A new calculated box, list total, area total or change to the instalment protector is added there in the same commit; `tests/worked.test.js` proves the block equals the PDF text. Say in the README and in `docs/FORM-CHANGES.md` when the block changes.
+
 ## File naming (set by Paul Kafentzis, do not change unless asked)
 
 - **The Fact Find saved as a PDF and the saved Fact Find file (.json) have the same name**, only the ending differs:

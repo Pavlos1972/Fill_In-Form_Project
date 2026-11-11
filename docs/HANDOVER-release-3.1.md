@@ -18,7 +18,7 @@ Written 11 November 2026 so work can resume if the session's context runs out. B
 13. After the merge: build the installable copy (ZIP), tell Paul which files go into Company - Paul\Claude\Fact Find Documents\WR Fact Find - ZIP\WR Fact Find (js\schema.js, calc.js, tax.js and the rest), and give a 5-line summary for the skills chat (new version, ids added/removed/relabelled, shape of `worked`).
 
 ## Status
-(update as you go) nothing built yet.
+BUILT and committed on the work branch (items 1-12): defaults and labels (store.js, schema.js), `spmaint` + legacy `spinc`, `worked.js`, action points read all notes (`actions.js` facts with ids, `voice-ai.js` `actionPointsFull`), debt voice behaviour (`voice.js` `debtRef`/`removeDebtRef`/`noMoreDebts`, `ui.js` `vmSteerDebt`/`vmRemoveDebt`), `debts_end` line (schema, store, ui, pdf), the seven voice fixes, `on_call` box, Listen bar, Short Risk older files, README, CLAUDE.md, `docs/FORM-CHANGES.md`. Left: run the whole browser suite, push, ask Paul to merge; after the merge build the ZIP, tell Paul which files go where, give the 5-line summary for the skills chat, delete this note.
 
 ## Notes
 - Tests: `npm test`; browser suite `bash tests/browser/run.sh <outdir>` then `git checkout -- tests/browser/*.png`.
