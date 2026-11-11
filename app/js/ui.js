@@ -726,6 +726,7 @@
       if (PROFILE_SRC.indexOf(t.dataset.f) >= 0) autoProfileLookup();
       if (dobSet) paintField('dob');
       if (sexSet) paintField('gender');
+      if (t.dataset.f === 'edu') paintField('edu_notes'); if (t.dataset.f === 'employed') paintField('employer');           // the defaults that follow these answers (N/A)
       if (FF.calc.DUTY_IDS.indexOf(t.dataset.f) >= 0) FF.calc.DUTY_IDS.forEach(function (d) { if (d !== t.dataset.f) paintField(d); });       // the duties that were set to 0 (or taken back) when the total reached (or left) 100%
       if (condIds[t.dataset.f]) { redraw(); var again = document.querySelector('[data-f="' + t.dataset.f + '"]'); if (again) again.focus(); if ((state.unplaced || []).length && vmRetryUnplaced) vmRetryUnplaced(); } else refreshLive();
     } else if (t.dataset.l) {
@@ -746,6 +747,7 @@
         row0.d.stage = FF.calc.rowCalc('stage', row0, ctx());
         var sel = document.querySelector('[data-l="kids"][data-i="' + i + '"][data-k="stage"]'); if (sel) sel.value = row0.d.stage;
       }
+      if (key === 'debts' && (k === 'type' || k === 'desc' || k === 'notes')) ['term', 'asset'].forEach(function (dk) { var de = document.querySelector('[data-l="debts"][data-i="' + i + '"][data-k="' + dk + '"]'); if (de) de.value = row0.d[dk]; });      // the defaults that follow the type
       var row = t.closest('.rowcard, tr'); if (row) row.className = row.className.replace(/\bs-(heard|verify)\b/, 's-confirmed');
       touch(); refreshLive();
     }
@@ -1453,8 +1455,8 @@
   var voiceAsset = typeof WeakSet === 'function' ? new WeakSet() : null;       // the asset values that voice put in, never one that was typed by hand
   function debtNoAsset(row) {
     var t = String(row.d.type || ''), d = String(row.d.desc || '') + ' ' + String(row.d.notes || '');
-    if (/^(?:Home loan|Vehicle finance)$/.test(t)) return false;                                  // these are secured on the property or the car, whatever the notes mention
-    return /^(?:Credit card|Personal loan|Revolving credit)$/.test(t) || /\b(?:overdraft|store (?:card|account)|credit facility|credit card|revolving)\b/i.test(d);
+    if (t) return !store.isPropertyDebt(row.d);                                                    // only a debt on a property has an Asset value: a car, a card, a personal loan and the rest have none (R 0.00)
+    return /\b(?:overdraft|store (?:card|account)|credit facility|credit card|revolving|personal loan|vehicle|car)\b/i.test(d);      // no type yet: the words say
   }
   function vmApplyCell(c, id, res) {
     var rows = state.l[c.list];
@@ -1473,8 +1475,8 @@
       vm.undo.push({ kind: 'cell', list: c.list, i: c.i, k: c.k, prev: { v: prev, st: row.st } });
       store.setCell(state, c.list, c.i, c.k, value, res.status === 'verify' ? 'verify' : 'heard');
       if (c.list === 'debts' && c.k === 'asset' && voiceAsset) voiceAsset.add(row);
-      if (c.list === 'debts' && (c.k === 'type' || c.k === 'desc' || c.k === 'notes') && row.d.asset !== '' && voiceAsset && voiceAsset.has(row) && debtNoAsset(row)) {      // it turned out to be an overdraft or a card: the asset value voice put in is taken out again
-        vm.undo.push({ kind: 'cell', list: 'debts', i: c.i, k: 'asset', prev: { v: row.d.asset, st: row.st } }); row.d.asset = ''; voiceAsset['delete'](row); vm.noSweep['debts:' + c.i + ':asset'] = 1; vmLog('took out the Asset value: that debt is not secured on anything');
+      if (c.list === 'debts' && (c.k === 'type' || c.k === 'desc' || c.k === 'notes') && row.d.asset !== '' && row.d.asset !== 'R 0.00' && voiceAsset && voiceAsset.has(row) && debtNoAsset(row)) {      // it turned out to be an overdraft or a card: the asset value voice put in is taken out again
+        vm.undo.push({ kind: 'cell', list: 'debts', i: c.i, k: 'asset', prev: { v: row.d.asset, st: row.st } }); row.d.asset = 'R 0.00'; voiceAsset['delete'](row); vm.noSweep['debts:' + c.i + ':asset'] = 1; vmLog('took out the Asset value: that debt is not secured on anything');
       }
       if (c.list === 'kids' && c.k === 'name') kidsNameFix(row);                  // "Anna Kuiper" heard in the Name box: Anna, and Kuiper in Surname
       if (auto) row.d.stage = FF.calc.rowCalc('stage', row, ctx());

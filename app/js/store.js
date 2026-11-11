@@ -72,6 +72,31 @@
     if (id === 'sname' || id === 'gender') followFather(state, was);
     if (calc.DUTY_IDS.indexOf(id) >= 0) settleDuties(state);
     if (BROKER_OF[id]) brokerDefault(state, id);
+    if (id === 'edu') eduDefault(state);
+    if (id === 'employed') employerDefault(state);
+  }
+  /* Defaults that follow another answer, shown as defaults (status "preset") and never put over an answer that was typed or said: Qualification details starts as N/A when the highest education is Matric,
+     and Employer as N/A when the client is not employed. When the answer above changes, a default that was not touched goes again. */
+  var NA = 'N/A', MAX_TERM = 'Max term', NO_ASSET = 'R 0.00';
+  function followDefault(state, id, gateOn, value) {
+    var box = state.f[id]; if (!box) return;
+    if (gateOn) { if (box.v === '') state.f[id] = { v: value, st: 'preset' }; }
+    else if (box.st === 'preset' && box.v === value) state.f[id] = { v: '', st: 'empty' };
+  }
+  function eduDefault(state) { followDefault(state, 'edu_notes', state.f.edu.v === 'Matric', NA); }
+  function employerDefault(state) { followDefault(state, 'employer', state.f.employed.v === 'No', NA); }
+  /* A debt on a property (a Home loan, or an Other debt that says house, flat, townhouse and the like) has an Asset value. Every other debt has none. */
+  function isPropertyDebt(d) {
+    var t = String(d.type || '');
+    return t === 'Home loan' || (t === 'Other' && /\b(?:house|home|flat|apartment|townhouse|property|farm|erf|stand|land|cottage|bond)\b/i.test(String(d.desc || '') + ' ' + String(d.notes || '')));
+  }
+  /* Debts: a credit card or revolving credit starts with the Term left "Max term"; a debt that is not on a property starts with the Asset value R 0.00 (there is no asset). Only empty boxes are filled, a typed answer is
+     never changed, and an R 0.00 left by this rule goes again when the debt turns out to be on a property. */
+  function debtDefaults(r) {
+    var d = r.d, t = String(d.type || ''); if (!t) return;
+    if ((t === 'Credit card' || t === 'Revolving credit') && String(d.term || '').trim() === '') d.term = MAX_TERM;
+    if (isPropertyDebt(d)) { if (d.asset === NO_ASSET) d.asset = ''; }
+    else if (String(d.asset || '').trim() === '') d.asset = NO_ASSET;
   }
   /* "Broker on record" in Medical aid, Gap cover, Will and Short-term insurance starts as Other broker, shown as a default (status "preset"): on a new form, and again whenever the answer above it does not close the boxes
      (Medical aid not None, Gap cover not No, and so on; an answer not given yet does not close them). When the answer closes them (None, No), a default that was not touched goes, so nothing is left under a No.
@@ -99,6 +124,7 @@
     if (key === 'kids' && !d.sname) d.sname = fatherSurname(state);
     if (key === 'invq' && !d.req) d.req = 'Request a quote';                                         // a row in the investment quotes is a quote asked for until it says otherwise
     var r = { d: d, st: st || 'confirmed' };
+    if (key === 'debts') debtDefaults(r);
     state.l[key].push(r);
     LIST_GATES.forEach(function (g) { if (g[1] === key && state.f[g[0]] && state.f[g[0]].v !== 'Yes') state.f[g[0]] = { v: 'Yes', st: 'confirmed' }; });      // a row added is a Yes to "Has debts", "Has children" and the like
     return r;
@@ -109,6 +135,7 @@
   function setProtectAll(state, on) { (state.l.debts || []).forEach(function (r, i) { setProtect(state, i, on); }); }
   function setCell(state, key, i, k, v, st) {
     var r = state.l[key][i]; r.d[k] = v; r.st = st || 'confirmed';
+    if (key === 'debts' && (k === 'type' || k === 'desc' || k === 'notes')) debtDefaults(r);
     if ((key === 'redq' || key === 'bfred') && k === 'req' && v === 'Not required') { r.d.type = ''; r.d.amt = ''; if ('ins' in r.d) r.d.ins = ''; }        // a reduced quote that is not required keeps nothing
   }
   function accept(state, target) {
@@ -247,6 +274,8 @@
       });
     });
     Object.keys(BROKER_OF).forEach(function (id) { if (s.f[id]) brokerDefault(s, id); });
+    eduDefault(s); employerDefault(s);
+    (s.l.debts || []).forEach(function (r) { if (!rowBlank('debts', r)) debtDefaults(r); });
   }
   /* The notes boxes of the old advisor pages (quotes, referrals, buy & sell) are now one notes box on the Client priorities page (the Risk calculation page keeps its own): what was written in them is kept there, each under its old heading. */
   var LEGACY_NOTES = [['n_q_risk', 'Personal risk quotes'], ['n_q_ret', 'Retirement & investment quotes'], ['n_ref', 'Referrals'], ['n_bs', 'Buy & Sell']];
@@ -328,7 +357,16 @@
     var it = list.splice(i, 1)[0]; if (seen) seen[unplacedKey(it)] = 1;
     return it;
   }
-  function toJSON(state) { state.modified = new Date().toISOString(); return JSON.stringify(state, null, 2); }
+  /* The worked-out figures (worked.js) are written beside the answers in the saved file, under "worked", on a copy of the state: the form's own state never holds them, and opening a file never reads them back. */
+  var workedBuilder = null;
+  function useWorked(fn) { workedBuilder = fn; }
+  function toJSON(state) {
+    state.modified = new Date().toISOString();
+    var out = state, w = null;
+    if (workedBuilder) { try { w = workedBuilder(state); } catch (e) { w = null; } }
+    if (w) { out = Object.assign({}, state); out.worked = w; }
+    return JSON.stringify(out, null, 2);
+  }
 
   /* A policy schedule request is not an answer to count when the Yes/No above it says there is nothing to ask for. */
   var PS_GATE = { ps_risk: [['has_risk', 'No']], ps_grp: [['has_group', 'No']], ps_ra: [['has_ra', 'No']], ps_pp: [['has_pp', 'No']], ps_inv: [['has_inv', 'No']] };      // every Yes/No listed says No
@@ -368,5 +406,5 @@
     return { tot: tot, fill: fill, ver: ver };
   }
 
-  return { rowBlank: rowBlank, rowFilled: rowFilled, setProtect: setProtect, setProtectAll: setProtectAll, setPa: setPa, setFocus: setFocus, blankPa: blankPa, cleanPa: cleanPa, setSum: setSum, cleanSum: cleanSum, addUnplaced: addUnplaced, closeUnplaced: closeUnplaced, unplacedKey: unplacedKey, blank: blank, blankTally: blankTally, blankSpeech: blankSpeech, ctxFor: ctxFor, setField: setField, addRow: addRow, delRow: delRow, setCell: setCell, accept: accept, clientName: clientName, idClash: idClash, idKey: idKey, fatherSurname: fatherSurname, baseFileName: baseFileName, pdfFileName: pdfFileName, fromJSON: fromJSON, toJSON: toJSON, counts: counts };
+  return { useWorked: useWorked, isPropertyDebt: isPropertyDebt, debtDefaults: debtDefaults, rowBlank: rowBlank, rowFilled: rowFilled, setProtect: setProtect, setProtectAll: setProtectAll, setPa: setPa, setFocus: setFocus, blankPa: blankPa, cleanPa: cleanPa, setSum: setSum, cleanSum: cleanSum, addUnplaced: addUnplaced, closeUnplaced: closeUnplaced, unplacedKey: unplacedKey, blank: blank, blankTally: blankTally, blankSpeech: blankSpeech, ctxFor: ctxFor, setField: setField, addRow: addRow, delRow: delRow, setCell: setCell, accept: accept, clientName: clientName, idClash: idClash, idKey: idKey, fatherSurname: fatherSurname, baseFileName: baseFileName, pdfFileName: pdfFileName, fromJSON: fromJSON, toJSON: toJSON, counts: counts };
 });

@@ -367,3 +367,17 @@ test('checks: a policy owner who does not pay is flagged', () => {
   set(s, 'ownerpays', 'No');
   assert.deepStrictEqual(check.run(s).problems.map(p => p.f), ['ownerpays']);
 });
+
+test('a file saved by version 1.0 opens with the owner as the client (empty or the client\u2019s own name) or as Another person with the typed name to verify; newer files are left as they are', () => {
+  const base = (owner, extra) => JSON.stringify(Object.assign({ app: 'wr-short-risk', schema: '1.0', f: { fname: { v: 'Anna', st: 'confirmed' }, sname: { v: 'Kuiper', st: 'confirmed' }, owner: { v: owner, st: owner ? 'confirmed' : 'empty' }, lines: { v: 'Personal', st: 'preset' }, best_time: { v: '9am', st: 'confirmed' } }, l: {} }, extra));
+  let s = store.fromJSON(base(''));
+  assert.deepStrictEqual(s.f.owner, { v: 'The client', st: 'preset' }); assert.strictEqual(store.shown(s, 'ow_fn'), false);
+  s = store.fromJSON(base('Anna Kuiper')); assert.strictEqual(s.f.owner.v, 'The client'); assert.strictEqual(s.f.ow_fn.v, '');
+  s = store.fromJSON(base('client')); assert.strictEqual(s.f.owner.v, 'The client');
+  s = store.fromJSON(base('Maria Kuiper'));
+  assert.strictEqual(s.f.owner.v, 'Another person'); assert.deepStrictEqual(s.f.ow_fn, { v: 'Maria Kuiper', st: 'verify' }); assert.strictEqual(store.shown(s, 'ow_fn'), true);
+  assert.ok(!('lines' in s.f) && !('best_time' in s.f), 'the boxes that no longer exist are dropped');
+  const newer = store.fromJSON(JSON.stringify({ app: 'wr-short-risk', schema: '1.1', f: { owner: { v: '', st: 'empty' } }, l: {} }));
+  assert.strictEqual(newer.f.owner.v, '', 'a file saved by 1.1 or later is not migrated');
+  assert.strictEqual(schema.version, '1.2');
+});

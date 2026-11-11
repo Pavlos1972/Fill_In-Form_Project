@@ -497,7 +497,7 @@ test('the prompt says: one answer only, list boxes by "cell", calculated figures
   assert.ok(/never a second object/.test(AI.SYSTEM));
   assert.ok(/only ever filled with a "cell" action/.test(AI.SYSTEM));
   assert.ok(/Direct Net Income" \(dnet\)/.test(AI.SYSTEM) && /not the take-home pay/.test(AI.SYSTEM));
-  assert.ok(/left with 90 000 after all my expenses/.test(AI.SYSTEM) && /total income minus that amount/.test(AI.SYSTEM) && /Rental Income/.test(AI.SYSTEM) && /Child Maintenance Income/.test(AI.SYSTEM) && /agreed on the call/.test(AI.SYSTEM));
+  assert.ok(/left with 90 000 after all my expenses/.test(AI.SYSTEM) && /total income minus that amount/.test(AI.SYSTEM) && /Rental Income/.test(AI.SYSTEM) && /Spousal Maintenance/.test(AI.SYSTEM) && /Child Maintenance"/.test(AI.SYSTEM) && /agreed on the call/.test(AI.SYSTEM));
 });
 
 test('a slow answer is raced by a second request and the first answer back is used; without hedging nothing is sent twice', async () => {
