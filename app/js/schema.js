@@ -98,7 +98,8 @@
         { id: 'consent', l: 'Consent to record and transcribe', t: 'sel', o: YN, s: 3 },
         { id: 'date', l: 'Date completed', t: 'txt', date: 1, preset: '@today', s: 3 },
         { id: 'meet', l: 'Type of meeting', t: 'sel', o: ['Teams Meeting', 'Telephonic Meeting', 'Physical Meeting', 'Other'], preset: 'Teams Meeting', s: 3 },
-        { id: 'ref', l: 'Referral from', t: 'sel', o: ['D&R Marketing', 'Current client', 'Referral prospect', 'Spouse', 'Other'], s: 3 }
+        { id: 'ref', l: 'Referral from', t: 'sel', o: ['D&R Marketing', 'Current client', 'Referral prospect', 'Spouse', 'Other'], s: 3 },
+        { id: 'on_call', l: 'Others on the call', t: 'txt', opt: 1, voice: 1, hint: 'e.g. Marie-Louise (the client\u2019s spouse)', s: 12 }
       ] },
       { title: 'Client', layout: 'g12', fields: [
         { id: 'fname', l: 'First name', t: 'txt', s: 3 },
@@ -189,7 +190,7 @@
       { fields: [N('n_income')] }
     ] },
 
-    { id: 'debts', title: 'Debts', blocks: [{ fields: [{ id: 'has_debts', l: 'Has debts', t: 'sel', o: YN }] }, { list: 'debts', help: 'In the BrightRock calculation only the debts the client pays (Payer: Client, or not set) come off the take-home income. Debts paid by the spouse, jointly, by the business or by an ex-spouse or partner are left out.', cond: HAS_DEBTS, grey: 1, condMsg: 'No debts, so there is nothing to record.' }, { fields: [N('n_debts')] }] },
+    { id: 'debts', title: 'Debts', blocks: [{ fields: [{ id: 'has_debts', l: 'Has debts', t: 'sel', o: YN }] }, { list: 'debts', help: 'In the BrightRock calculation only the debts the client pays (Payer: Client, or not set) come off the take-home income. Debts paid by the spouse, jointly, by the business or by an ex-spouse or partner are left out.', cond: HAS_DEBTS, grey: 1, condMsg: 'No debts, so there is nothing to record.' }, { cond: HAS_DEBTS, endline: 'debts_end', fields: [{ id: 'debts_end', l: 'No more debts', t: 'txt', opt: 1, line: 1, cond: { f: 'debts_end', nin: [''] } }] }, { fields: [N('n_debts')] }] },
 
     { id: 'kids', title: 'Children', blocks: [{ fields: [{ id: 'has_kids', l: 'Has children', t: 'sel', o: YN }] }, { list: 'kids', help: 'Childcare (R p.m.) is whatever amount is agreed on the call for each child (crèche, aftercare, nanny, day mother and the like). It comes off the take-home income in the BrightRock calculation.', cond: HAS_KIDS, grey: 1, condMsg: 'No children, so there is nobody to record.' }, { fields: [N('n_kids')] }] },
 

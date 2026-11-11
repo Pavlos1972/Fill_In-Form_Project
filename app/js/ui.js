@@ -329,6 +329,23 @@
     var a = FF.actions.brightRockAsked(state);
     return '<div class="brstrip"><b>Asked for on Client priorities and quotes needed</b><span>' + (a.length ? 'BrightRock Fractured: ' + esc(a.join(', ')) : 'No BrightRock Fractured quote asked for yet.') + '</span><span class="grow"></span><button type="button" class="btn ghost" data-sec="prio">&larr; Back to Client priorities and quotes needed</button></div>';
   }
+  /* "No more debts": a line of its own under the last debt, put there by saying so (or by the link) and taken away by the x; a debt added takes it away too. It is saved with the file and printed in the PDF. */
+  var END_TEXT = 'No more debts';
+  function endLineHTML(b) {
+    var id = b.endline, v = String((state.f[id] || {}).v || '').trim();
+    if (!state.l.debts.length) return '';
+    return v ? '<div class="endline" data-endline="' + id + '"><span>' + esc(v) + '</span><button type="button" class="link-btn" data-endclear="' + id + '" title="Take this line away" aria-label="Take the line &quot;' + esc(v) + '&quot; away">&times;</button></div>'
+      : '<div class="endline none"><button type="button" class="link-btn" data-endset="' + id + '">Mark: ' + esc(END_TEXT.toLowerCase()) + '</button></div>';
+  }
+  function endLineSet(on, how) {
+    var c = state.f.debts_end; if (!c || (on && !state.l.debts.length)) return false;
+    var was = { v: c.v, st: c.st }, now = on ? END_TEXT : '';
+    if (c.v === now) return false;
+    if (how === 'voice') vm.undo.push({ kind: 'fill', id: 'debts_end', prev: was, extras: [] });
+    store.setField(state, 'debts_end', now, on ? (how === 'voice' ? 'heard' : 'confirmed') : 'empty');
+    touch(); redraw();
+    return true;
+  }
   function blockHTML(b, sec, c, notitle) {
     if (b.strip) return stripHTML();
     var ok = calc.showIf(b.cond, c), own = calc.showIf('own' in b ? b.own : b.cond, c), h = '';
@@ -337,7 +354,7 @@
     if (!ok && !own && b.condMsg && !b.nomsg) h += '<div class="note">' + esc(b.condMsg) + '</div>';
     var inner = '';
     if (b.help) inner += '<p class="help">' + esc(b.help) + '</p>';
-    if (b.protector) inner += protectorHTML(b, c); else if (b.actions) inner += paHTML(b, c); else if (b.focus) inner += focusHTML(b, c); else if (b.fields) inner += gridHTML(b, c);
+    if (b.protector) inner += protectorHTML(b, c); else if (b.actions) inner += paHTML(b, c); else if (b.focus) inner += focusHTML(b, c); else if (b.endline) inner += endLineHTML(b); else if (b.fields) inner += gridHTML(b, c);
     if (b.list) { if (!b.title && !notitle && schema.lists[b.list].title !== sec.title) inner += '<div class="block-title">' + esc(schema.lists[b.list].title) + '</div>'; inner += listHTML(b.list); }
     if (b.note) inner += '<p class="blocknote">' + esc(b.note) + '</p>';
     return h + (ok ? inner : '<div class="off" inert>' + inner + '</div>');
@@ -425,13 +442,15 @@
   /* ---------- the action points on the Admin page ----------
      The box holds the points for the personal assistant. They are written from the rest of the form (actions.js): at once as plain points, then by Claude when it can be reached, for as long as the adviser has not typed in the box.
      Typing in it makes the points the adviser's own: they no longer follow the form, until Refresh writes them again (one tap; the button says it replaces what was typed). */
-  var paBusy = false, paTimer = null;
+  var paBusy = false, paTimer = null, paUnchecked = 0;                                                     // paUnchecked: notes Claude gave no verdict on the last time it wrote the points
+  function paNoteCount() { return FF.actions && FF.actions.noteIds ? FF.actions.noteIds(FF.actions.facts(state)).length : 0; }
   function paStatus() {
-    var pa = state.pa || {}, ready = vmAIReady();
+    var pa = state.pa || {}, ready = vmAIReady(), n = paNoteCount();
     if (paBusy) return 'Claude is writing these points…';
     if (pa.edited) return 'Edited by you: these points no longer follow the form. Refresh writes them again, over what you typed.';
-    if (pa.by === 'claude') return 'Written by Claude' + (pa.at ? ', ' + new Date(pa.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '') + ', from the form. They follow the form until you type in the box.';
-    return ready ? 'Plain points from the form. Refresh for Claude to write them.' : 'Plain points from the form. Claude writes these when the Anthropic key is in Settings.';
+    if (pa.by === 'claude') return 'Written by Claude' + (pa.at ? ', ' + new Date(pa.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '') + ', from the form' + (n ? ', with all ' + n + ' note' + (n === 1 ? '' : 's') + ' read' : '') + '.' +
+      (paUnchecked ? ' ' + paUnchecked + ' note' + (paUnchecked === 1 ? ' was' : 's were') + ' not checked: press Refresh.' : '') + ' They follow the form until you type in the box.';
+    return (ready ? 'Plain points from the form. Refresh for Claude to write them' : 'Plain points from the form. Claude writes these when the Anthropic key is in Settings') + (n ? '; the ' + n + ' note' + (n === 1 ? ' is' : 's are') + ' read only then.' : '.');
   }
   function paHTML(b, c) {
     var f = b.fields[0];
@@ -454,12 +473,12 @@
     var f = FF.actions.facts(state), key = FF.actions.key(f);
     if (!manual && (state.pa.edited || (state.pa.key === key && state.f.pa_actions.v))) return;
     paWrite(FF.actions.local(state), key, 'form');
-    if (!VAI || !VAI.actionPoints || !vmAIReady()) { if (manual) toast('Claude writes these points: put the Anthropic key in Settings. Plain points were written from the form.'); return; }
+    if (!VAI || !VAI.actionPointsFull || !vmAIReady()) { if (manual) toast('Claude writes these points: put the Anthropic key in Settings. Plain points were written from the form.'); return; }
     paBusy = true; paPaint();
     var set = FF.lookup.getSettings();
-    VAI.actionPoints({ apiKey: set.apiKey, ask: !set.apiKey && FF.voiceBackend && FF.voiceBackend.available ? FF.voiceBackend.ask : null, model: set.voiceModel, facts: f, fetchImpl: meteredFetch }).then(function (lines) {
-      paBusy = false;
-      if (lines.length && (manual || (!state.pa.edited && state.pa.key === key))) paWrite(lines, key, 'claude'); else paPaint();
+    VAI.actionPointsFull({ apiKey: set.apiKey, ask: !set.apiKey && FF.voiceBackend && FF.voiceBackend.available ? FF.voiceBackend.ask : null, model: set.voiceModel, facts: f, fetchImpl: meteredFetch }).then(function (r) {
+      paBusy = false; paUnchecked = r.unchecked.length;
+      if (r.points.length && (manual || (!state.pa.edited && state.pa.key === key))) paWrite(r.points, key, 'claude'); else paPaint();
     }, function (e) { paBusy = false; paPaint(); if (manual) toast('Claude could not write the points (' + ((e && e.message) || 'no answer') + '). Plain points were written from the form.'); });
   }
   function paSoon() { clearTimeout(paTimer); paTimer = setTimeout(function () { if (cur === 'admin') paRefresh(false); }, 600); }
@@ -675,8 +694,10 @@
   schema.sections.forEach(function (s) { calc.condFields(s.cond).concat([].concat.apply([], s.blocks.map(function (b) { return calc.condFields(b.cond).concat([].concat.apply([], (b.fields || []).map(function (f) { return calc.condFields(f.cond); }))); }))).forEach(function (id) { condIds[id] = 1; }); });
 
   document.addEventListener('click', function (e) {
-    var t = e.target.closest('[data-sec],[data-accept],[data-add],[data-del],[data-goto],[data-usedob],[data-lookup],[data-cal],[data-sumrefresh],[data-ipt],[data-ipall]');
+    var t = e.target.closest('[data-sec],[data-accept],[data-add],[data-del],[data-goto],[data-usedob],[data-lookup],[data-cal],[data-sumrefresh],[data-ipt],[data-ipall],[data-endset],[data-endclear]');
     if (!t) return;
+    if (t.dataset.endset) { endLineSet(true, 'hand'); return; }                                                  // "No more debts" under the last debt
+    if (t.dataset.endclear) { endLineSet(false, 'hand'); return; }
     if (t.dataset.ipall) { var sp0 = calc.ipSplit(ctx()); store.setProtectAll(state, !(sp0.count && sp0.on === sp0.count)); touch(); redraw(); return; }                 // the master switch: all on, or (when all are on) all off
     if (t.dataset.ipt !== undefined) { var di = +t.dataset.ipt; store.setProtect(state, di, !!(state.l.debts[di] && state.l.debts[di].off)); touch(); redraw(); return; }       // one debt's switch
     if (t.dataset.sumrefresh) { sumRefresh([t.dataset.sumrefresh], true); return; }
@@ -1313,6 +1334,7 @@
       e.snap.claude = state.claude; e.snap.openai = state.openai; state = e.snap; fileBase = e.base; fileHandle = e.handle; rememberHandle(e.handle); dirty = e.dirty; onDisk = e.onDisk; cur = e.sec;
       vm.target = null; vm.answered = false; vm.secGlow = true; saveDraft(); redraw(); vmMarkWait(); toast('Everything is back as it was.'); return;
     }
+    if (e.kind === 'delrow') { state.l[e.list].splice(e.i, 0, e.row); if (e.end && state.f.debts_end) state.f.debts_end = { v: e.end.v, st: e.end.st }; vm.rowCur[e.list] = e.cur == null ? e.i : e.cur; touch(); redraw(); vmLog('brought back ' + vmDebtName(e.row, e.i)); return; }
     if (e.kind === 'addrow') { store.delRow(state, e.list, e.i); vm.rowCur[e.list] = Math.min(vm.rowCur[e.list] == null ? 0 : vm.rowCur[e.list], state.l[e.list].length - 1); touch(); redraw(); return; }
     if (e.kind === 'cell') { var ur = state.l[e.list][e.i]; if (e.prev.v === '' || e.prev.v == null) vm.noSweep[e.list + ':' + e.i + ':' + e.k] = 1; if (ur) { ur.d[e.k] = e.prev.v; ur.st = e.prev.st; } touch(); redraw(); return; }
     if (e.prev.v === '') vm.noSweep[e.id] = 1;                                  // taken back to empty: the catch-up check leaves it
@@ -1715,7 +1737,67 @@
       return r;
     } finally { vmQuiet = was; }
   }
+  /* ---------- the debts: the page holds which debt the talk is on ----------
+     It stays on that debt until a line says to move ("debt two", "the second debt", "the next debt", "another debt", "add debt three", "the credit card"); where Claude says a box belongs to another row is ignored.
+     A debt that is started without those words, while the one the talk is on holds something, is not made: what was said is put in the empty boxes of the debt the talk is on, and the rest goes to "Heard but not placed". */
+  function vmDebtName(r, i) {
+    var bits = [r.d.type, r.d.prov || r.d.desc].filter(function (x) { return x && String(x).trim(); }).map(function (x) { return String(x).trim(); });
+    return 'debt ' + (i + 1) + (bits.length ? ' (' + bits.join(', ') + ')' : '');
+  }
+  function vmSteerDebt(a) {
+    if (a.list !== 'debts' || !vmCur || !/^(?:cell|confirm|empty|ask|row|addrow)$/.test(a.do)) return a;
+    var rows = state.l.debts, cur = vm.rowCur.debts == null ? -1 : vm.rowCur.debts;
+    if (!vmCur.debtRef) {                                                                       // decided once for the line, before any of its boxes moves the pointer
+      vmCur.debtRef = V.debtRef(String(vmCur.text || ''), rows.map(function (r) { return r.d; }), cur);
+      if (vmCur.debtRef.kind === 'goto') { vm.rowCur.debts = vmCur.debtRef.i; cur = vmCur.debtRef.i; vmLog('on ' + vmDebtName(rows[cur], cur) + ' now: it was named'); }
+    }
+    var ref = vmCur.debtRef, adds = a.do === 'row' || a.do === 'addrow';
+    if (ref.kind === 'new' && !vmCur.debtNew) {                                                  // the line starts another debt: one new debt, and the line's boxes go into it
+      vmCur.debtNew = true;
+      if (adds) return a;
+      var made = vmAddRow('debts', null); if (made >= 0) vmLog('started debt ' + (made + 1) + ': the line said so');
+      return made >= 0 ? Object.assign({}, a, { row: made + 1 }) : null;
+    }
+    cur = vm.rowCur.debts == null ? -1 : vm.rowCur.debts;
+    if (cur < 0 || cur >= rows.length) return a;                                                // no debt is open yet: Claude's reading stands
+    var here = rows[cur], blank = store.rowBlank('debts', here);
+    if (!adds) return Object.assign({}, a, { row: cur + 1 });                                    // a box of the debt the talk is on, whatever row Claude gave
+    if (blank) return a;                                                                          // an empty debt is filled (the usual way)
+    if (a.do === 'addrow') { vmLog('stayed on ' + vmDebtName(here, cur) + ': another debt is only started when you say so ("next debt", "debt ' + (rows.length + 1) + '")'); return null; }
+    Object.keys(a.values || {}).forEach(function (k) {                                          // what Claude took for a new debt goes where it fits in this one
+      var v = a.values[k], def = vidx.byId['debts.' + k]; if (v == null || String(v).trim() === '' || !def) return;
+      if (here.d[k] === '' || here.d[k] == null) vmDo({ do: 'cell', list: 'debts', row: cur + 1, col: k, value: v });
+      else vmUnplace({ text: 'Debts, ' + vmDebtName(here, cur) + ', ' + def.label + ': ' + vmShown('debts:' + cur + ':' + k, v), why: 'the talk is still on ' + vmDebtName(here, cur) + '; it was not put in a new debt (say "next debt" to start one)', sec: 'debts' });
+    });
+    return null;
+  }
+  /* "Remove debt 2", "delete the car debt": the debt goes completely, the others are renumbered, nothing is asked first; "undo" brings it back. */
+  function vmRemoveDebt(text, entry) {
+    if (vm.noteMode || vm.wipe || (entry && entry.who === 'client') || !state.l.debts.length) return false;
+    var cur = vm.rowCur.debts == null ? -1 : vm.rowCur.debts, ref = V.removeDebtRef(text, state.l.debts.map(function (r) { return r.d; }), cur);
+    if (!ref) return false;
+    var was = vmCur; vmCur = entry || vmCur;
+    try {
+      if (ref.error) { vmLog('did not remove a debt: ' + ref.error); toast('No debt was removed: ' + ref.error + '.'); return true; }
+      var i = ref.i, r = state.l.debts[i], name = vmDebtName(r, i), end = state.f.debts_end ? { v: state.f.debts_end.v, st: state.f.debts_end.st } : null;
+      vm.undo.push({ kind: 'delrow', list: 'debts', i: i, row: JSON.parse(JSON.stringify(r)), cur: vm.rowCur.debts, end: end });
+      store.delRow(state, 'debts', i);
+      if (!state.l.debts.length) vm.rowCur.debts = null; else if (cur === i) vm.rowCur.debts = Math.max(i - 1, 0); else if (cur > i) vm.rowCur.debts = cur - 1;
+      vm.pointed = null; touch(); redraw();
+      vmLog('removed ' + name + ' completely; the debts after it are renumbered. Say "undo" to bring it back');
+      toast('Removed ' + name + '. Say "undo" to bring it back.');
+    } finally { vmCur = was; }
+    return true;
+  }
+  /* "No more debts": the line under the last debt (said by the adviser or the client, as a statement, not a question). */
+  function vmNoMoreDebts(text, entry) {
+    if (vm.noteMode || vm.wipe || !state.l.debts.length || !V.noMoreDebts(text)) return false;
+    var was = vmCur; vmCur = entry || vmCur;
+    try { if (endLineSet(true, 'voice')) vmLog('wrote "' + END_TEXT + '" under debt ' + state.l.debts.length); } finally { vmCur = was; }
+    return true;
+  }
   function vmDoNow(a) {
+    a = vmSteerDebt(a); if (!a) return null;
     var f = a.field ? vmField(a.field) : null;
     if (vm.noteMode && /^(?:section|ask|fill|cell|row|addrow|confirm|done)$/.test(a.do)) vmStopNotes();       // going to another box or section, or finishing the section, ends the notes
     switch (a.do) {
@@ -1767,6 +1849,7 @@
         if (!res && a.do === 'confirm') res = { kind: 'confirm' };
         if (!res) { var x = V.interpret(f, a.value); if (x && !x.error) res = { kind: 'fill', value: x.value, status: x.status, extra: x.extra, append: x.append && !a.explicit }; }   // a correction replaces the text; only a new fact is added to it
         if (!res) { if (a.do === 'fill' && a.value != null && String(a.value).trim()) vmUnplace({ text: f.label + ': ' + vmShown(a.field, a.value), why: 'could not be read as an answer for that box', field: vmPrivate(a.field) ? undefined : a.field, value: vmPrivate(a.field) ? undefined : String(a.value), sec: f.sec }); return; }
+        if (res.kind === 'fill' && !(vmCur && vmCur.sweep) && vmGuardFill(a, f, cell, res)) return;                                              // a rounder figure, take-home above gross, a provider nobody named
         if (res.kind === 'fill' && !res.extra && cell.v !== '' && String(res.value).trim().toLowerCase() === String(cell.v).trim().toLowerCase()) { if (a.field === vm.target && !vm.answered) { vm.answered = true; vmMarkWait(); } return; }   // the box already holds it, so it is answered; the same value again is not agreement (the adviser echoes what the client said: "950,000. Perfect."): the box stays as it is until the client says yes
         if (a.field !== vm.target && a.do !== 'confirm') {                  // agreeing to a box does not move the cursor: it turns green where it is
           if (!a.explicit && res.kind === 'fill' && cell.v !== '' && cell.st === 'confirmed') { if (!vmCellRef(a.field)) vmUnplace({ text: f.label + ': ' + vmShown(a.field, res.value), why: 'the box already holds a confirmed answer' + (vmPrivate(a.field) && !vmShareOn() ? '' : ' (' + cell.v + ')'), field: vmPrivate(a.field) ? undefined : a.field, value: vmPrivate(a.field) ? undefined : String(res.value), sec: f.sec }); return; }   // Claude's volunteered fact never overwrites a confirmed value: it is kept for the adviser
@@ -1775,6 +1858,36 @@
         if (res.kind === 'fill' && isNumBox(a.field) && vmHoldPartial(a.field, res.value)) return;
         if (vmApply(a.field, res)) vmLog((res.kind === 'confirm' ? 'confirmed ' : 'filled ') + [f.label || a.field].concat((res.extra || []).map(function (x) { var xf = vmField(x.id); return xf ? xf.label : x.id; })).join(', '));
     }
+  }
+  /* What Claude is not allowed to put in a box, whatever it read (release 3.1): a rounder figure over an agreed exact one, a take-home pay above the gross income, a bank or provider that nobody named.
+     -> true when the fill is refused (the reason is in the line's log, and a word under the box). */
+  var PROVIDER_IDS = { ma_prov: 1, gap_prov: 1, bs_ins: 1, cl_lender: 1 };
+  function vmMoneyBox(id) {
+    var cr = vmCellRef(id);
+    if (cr) { var c = schema.lists[cr.list].cols.filter(function (x) { return x.k === cr.k; })[0]; return !!(c && c.money); }
+    return !!(schema.fieldsById[id] && schema.fieldsById[id].money);
+  }
+  function vmProviderBox(id) { var cr = vmCellRef(id); return cr ? (cr.k === 'prov' || cr.k === 'ins') : !!PROVIDER_IDS[id]; }
+  function vmGuardFill(a, f, cell, res) {
+    var said = String((vmCur && (vmCur.shown || vmCur.text)) || ''), label = (f && f.label) || a.field, id = a.field;
+    if (!said) return false;
+    if (vmMoneyBox(id) && cell.v !== '' && (cell.st === 'confirmed' || cell.st === 'heard') && V.keepExact(cell.v, res.value, said, a.explicit)) {
+      vmLog('kept ' + label + ' ' + cell.v + ': the figure said (' + res.value + ') is a rounder version of it, not a correction');
+      if (id === vm.target && !vm.answered) { vm.answered = true; vmMarkWait(); }
+      return true;
+    }
+    if (id === 'net' && util.num(state.f.gross.v) > 0 && util.num(res.value) > util.num(state.f.gross.v)) {
+      vmLog('did not fill ' + label + ': ' + res.value + ' is more than the gross income (' + state.f.gross.v + '), so it is not take-home pay');
+      vmNote(id, 'More than the gross income: not take-home pay, so nothing was filled');
+      vmUnplace({ text: label + ': ' + res.value + ' was said, but it is more than the gross income (' + state.f.gross.v + ')', why: 'take-home pay cannot be more than the gross income', sec: f && f.sec });
+      return true;
+    }
+    if (vmProviderBox(id) && !String(res.value).split(';').some(function (part) { return V.namesProvider(part, said); })) {
+      vmLog('did not fill ' + label + ': nobody named ' + String(res.value) + ' in this line');
+      if (id === vm.target && !vm.answered) vmNote(id, 'Waiting for the name');
+      return true;
+    }
+    return false;
   }
   /* One named box is emptied ("delete his name"), whatever its status; "scratch that" brings it back. */
   function vmEmpty(a) {
@@ -2220,6 +2333,8 @@
         return closing.then(function () { return vmProcessAuto(rest, entry); });
       }
     }
+    if (vmRemoveDebt(text, entry)) return Promise.resolve();             // "remove debt 2": done here, never left to Claude
+    vmNoMoreDebts(text, entry);                                         // "no more debts": the line is written under the last debt, and the line is read as usual
     if (entry && entry.quick) return vmCheckQuick(text, entry);
     if (vmEditDigits(text)) return Promise.resolve();                    // "add an 8 to the end"
     if (vmClearNamed(text)) return Promise.resolve();                    // "scratch the first name and the surname"
@@ -2279,7 +2394,15 @@
     });
     unplacedRender();
   }
-  function vmTakeUnplaced(r) { if (r && r.unplaced) r.unplaced.forEach(function (u) { vmUnplace({ text: u.text, sec: u.section || cur }); }); }
+  /* A "heard but not placed" point may only hold figures that were said: the points Claude gave for the lines just heard are checked against those lines. */
+  function vmTakeUnplaced(r) {
+    if (!r || !r.unplaced) return;
+    var said = (vm.recent || []).slice(-8).map(function (e) { return e.text; }).join(' . ') + ' . ' + String((vmCur && vmCur.text) || '');
+    r.unplaced.forEach(function (u) {
+      if (VAI && VAI.ungroundedAmount && VAI.ungroundedAmount(u.text, said)) { vmLog('left out of "heard but not placed": it holds an amount nobody said (' + u.text.slice(0, 60) + ')'); return; }
+      vmUnplace({ text: u.text, sec: u.section || cur });
+    });
+  }
   /* What a value is shown as in the list: never a private one. */
   function vmShown(id, value) { return vmPrivate(id) && !vmShareOn() ? '(a value was said)' : String(value); }
   function unplacedNotesBox(it) {
@@ -2373,6 +2496,7 @@
   }
   function vmSweepApply(entry, r, o, manual) {
     var acts = r && r.kind === 'actions' ? r.actions : [], n = 0, was = vmCur, wasQuiet = vmQuiet, before = (state.unplaced || []).length;
+    ((r && r.dropped) || []).forEach(function (d) { entry.did.push('left out: ' + d); });                       // a value whose words were not in the conversation, or an amount nobody said
     vmCur = entry; vmQuiet = true;                                                           // nothing moves the highlight or the cursor
     try {
       acts.forEach(function (a) {
@@ -2566,7 +2690,16 @@
     load: function () { try { return JSON.parse(localStorage.getItem(MEETING_KEY)); } catch (e) { return null; } },
     save: function (o) { try { localStorage.setItem(MEETING_KEY, JSON.stringify(o)); } catch (e) { /* storage unavailable: the timer still runs on this page */ } }
   });
+  /* The meeting timer has been running for more than a minute and Listen is still off: nothing is being heard, and that is easy to forget with a client on the call. The bar goes when Listen starts or the timer stops. */
+  var NOLISTEN_MS = 60000, noListenSince = 0;
+  function noListenWatch() {
+    var bar = $('#nolisten'); if (!bar) return;
+    var quiet = meeting.running() && lsnState === 'off', now = Date.now();
+    if (!quiet) noListenSince = 0; else if (!noListenSince) noListenSince = now;
+    bar.hidden = !(quiet && now - noListenSince > NOLISTEN_MS);
+  }
   function meetingRender() {
+    noListenWatch();
     var b = $('#btnTimer'), r = $('#btnTimerReset'); if (!b) return;
     var run = meeting.running(), ms = meeting.ms();
     $('#tmText').textContent = meeting.text() + (!run && ms > 0 ? ' (paused)' : '');
@@ -2576,6 +2709,7 @@
   }
   if ($('#btnTimer')) {
     $('#btnTimer').addEventListener('click', function () { meeting.toggle(); meetingRender(); });
+    if ($('#nolistenBtn')) $('#nolistenBtn').addEventListener('click', function () { var lb = $('#btnListen'); if (lb) lb.click(); });
     $('#btnTimerReset').addEventListener('click', function () { if (window.confirm('Set the meeting timer back to zero? It is at ' + meeting.text() + '.')) { meeting.reset(); meetingRender(); } });
     setInterval(function () { meeting.tick(); meetingRender(); }, 250);                  // often enough that the seconds never lag behind the clock
     meetingRender();
