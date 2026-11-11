@@ -474,3 +474,6 @@ table.sqt .dash { color: var(--muted); display: inline-block; padding-top: 7px; 
 /* Listen is off while the meeting timer runs: nothing is being heard */
 #nolisten { background: var(--bad-soft); border-color: var(--bad); color: var(--bad); font-weight: 600; }
 #nolisten button { margin-left: auto; }
+
+/* a block of the Admin page that takes the whole width under the two columns (Current Client) */
+.admcol.full { grid-column: 1 / -1; }
