@@ -372,8 +372,8 @@ test('the tick-box lists are said any way, and more said later adds to what is t
 test('The Letter of Authority, the next appointment and the action points are on the Admin page, which is the last page and has no notes box', () => {
   const admin = sec('admin'), idx = V.buildIndex(schema);
   assert.ok(admin.adv && admin.title === 'Admin' && schema.sections[schema.sections.length - 1] === admin);
-  assert.deepStrictEqual(admin.blocks.map(b => b.title), ['Letter of Authority', 'Next appointment', 'Action Points for Personal Assistant']);
-  assert.strictEqual(admin.blocks[0].fields[0].id, 'loa'); assert.ok(admin.blocks[0].left && admin.blocks[1].left && !admin.blocks[2].left);        // the LOA and the appointment are stacked in the narrow column
+  assert.deepStrictEqual(admin.blocks.map(b => b.title), ['Letter of Authority', 'Next appointment', 'Action Points for Personal Assistant', 'Current Client']);
+  assert.strictEqual(admin.blocks[0].fields[0].id, 'loa'); assert.ok(admin.blocks[0].left && admin.blocks[1].left && !admin.blocks[2].left && !admin.blocks[3].left && admin.blocks[3].full);        // the LOA and the appointment are stacked in the narrow column
   assert.ok(!idx.notes.some(n => n.sec === 'admin') && !idx.byId.pa_actions);                                              // voice never writes in the action points
   assert.strictEqual(V.parseCommand('go to admin', idx).sec, 'admin');
   assert.ok(!sec('prio').blocks.some(b => b.title === 'Next appointment'));
