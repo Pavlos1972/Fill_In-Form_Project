@@ -24,7 +24,7 @@ srv.listen(0, async () => {
   // the list shows the area's wording
   await nav('cover'); await p.click('.msb[data-msb="ps_risk"]'); await p.waitForTimeout(200);
   const list = await p.evaluate(() => [...document.querySelectorAll('.msp label')].map(l => l.textContent.trim()));
-  ok(list.join('|') === '(not asked yet)|Requested Personal Risk Covers in meeting, await client response|Draw from Astute (with signed LOA)|Client does not need to send through|Other', 'the open list: ' + list.join(' | '));
+  ok(list.join('|') === '(not asked yet)|Requested Personal Risk Covers in meeting, await client response|Policy Schedules saved in Client File|Draw from Astute (with signed LOA)|Other', 'the open list: ' + list.join(' | '));
   ok(!list.some(x => /Requested from client in meeting/.test(x)), 'the old wording is gone');
 
   // an older file opens with the area's wording

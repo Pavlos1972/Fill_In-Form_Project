@@ -35,7 +35,7 @@
     return { insured: insured, rows: rows, total: total, all: all, on: on, count: rows.length, rest: insured == null ? null : insured - total, over: insured != null && total > insured + 0.004, elsewhere: elsewhere, elsewhereTotal: elsewhereTotal };
   }
 
-  var OTHER_INCOME = ['rent', 'spinc', 'maint'];
+  var OTHER_INCOME = ['rent', 'spmaint', 'spinc', 'maint'];                                          // spinc is the earlier Spousal Income box, still added up when an old file holds an answer
   function totalIncome(ctx) {
     var any = !!ctx.v('net'), t = ctx.v('net') ? ctx.n('net') : 0;
     OTHER_INCOME.forEach(function (k) { if (ctx.v(k)) { any = true; t += ctx.n(k); } });
@@ -57,7 +57,7 @@
       var r = tax.monthlyNet(g, clientAge(ctx), tax.taxYearFor(meetingDate(ctx)));
       return util.money2(r.net);
     },
-    /* Total Income: the take-home net income plus the rental, spousal and child maintenance income (a box left empty counts as nothing). Blank until there is something to add up. */
+    /* Total Income: the take-home net income plus the rental income, spousal maintenance and child maintenance (and the earlier Spousal Income box, when an old file holds an answer) (a box left empty counts as nothing). Blank until there is something to add up. */
     tinc: function (ctx) { return totalIncome(ctx) == null ? '' : util.money(totalIncome(ctx)); },
     /* Disposable income: Total Income less the monthly expenses. The BrightRock Insured amount is not touched by this: it stays the take-home net income alone. */
     disp: function (ctx) { var t = totalIncome(ctx); return t != null && ctx.v('exp') ? util.money(t - ctx.n('exp')) : ''; },
