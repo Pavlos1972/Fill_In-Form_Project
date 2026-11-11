@@ -49,8 +49,9 @@
     SCHEDS.forEach(function (c) {
       if (!shows(c[0])) return;
       var rows = [].concat(c[3]).reduce(function (a, k) { return a.concat(state.l[k] || []); }, []), held = rows.map(function (r) { return String(r.d.prov || '').trim(); }).filter(Boolean), choice = v(c[0]).split(';').map(function (x) { x = x.trim(); return x === schema.psClient[c[0].slice(3)] ? CLIENT : x; }).filter(Boolean);       // the area's own wording ("Requested Personal Risk Covers in meeting, await client response") is the "requested from client" choice
-      if (choice.length && choice.every(function (x) { return x === schema.psNoSend; })) return;       // "Client does not need to send through": nothing for the assistant to chase
-      choice = choice.filter(function (x) { return x !== schema.psNoSend; });
+      var onFile = function (x) { return x === schema.psSaved || x === schema.psNoSend; };                // Policy Schedules saved in Client File (and the choice it replaced): nothing for the assistant to chase
+      if (choice.length && choice.every(onFile)) return;
+      choice = choice.filter(function (x) { return !onFile(x); });
       var known = rows.length || (c[0] === 'ps_risk' && v('has_risk') === 'Yes') || (c[0] === 'ps_grp' && v('has_group') === 'Yes');
       if (!choice.length && !known) return;                                                      // a choice that was made always counts; "not asked yet" is chased only where the client is known to have the policies (a Yes, or a policy recorded)
       var sch = { what: c[2], held: held, requested: choice.length ? choice : ['not asked yet'], other: choice.indexOf(OTHER) >= 0 ? v(c[1]) : '' }, nt = v(SCHED_NOTE[c[0]]).replace(/\s+\n/g, '\n').slice(0, 1200);

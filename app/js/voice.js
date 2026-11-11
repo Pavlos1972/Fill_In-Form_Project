@@ -1050,15 +1050,17 @@
     return Math.round(total * 100) / 100;
   }
   var MULTI_NOSEND = / (?:(?:does not|doesn't|doesnt|do not|don't|dont|need not|no need to|not need to|does not have to|doesn't have to|no need for (?:him|her|them|the client) to|nothing for (?:him|her|them|the client) to) (?:need to |have to )?send|no need (?:to send|for (?:them|it|those|the schedules?))|(?:don't|dont|do not|doesn't|doesnt|does not) need (?:them|it|those|the schedules?)|nothing to send|no schedules (?:are )?(?:needed|required)|need not send) /;
+  /* "We already have them", "it is on file", "saved in the client file": the schedule is already there, so there is nothing to ask for (Policy Schedules saved in Client File). */
+  var MULTI_SAVED = / (?:(?:already|we) (?:have|got|hold|saved|stored|filed|received|kept) (?:it|them|the (?:policy )?schedules?|a copy|copies|those)|(?:it is|they are|its|theyre|it s|they re|schedules? (?:is|are)) (?:already )?(?:saved|stored|filed|kept|on file|in (?:the |his |her |their |our )?(?:client )?(?:file|folder))|(?:saved|stored|filed|kept) (?:in|on) (?:the |his |her |their |our )?(?:client )?(?:file|folder)|on (?:the )?(?:client )?file|in (?:the |his |her |their |our )?client (?:file|folder)|policy schedules? (?:are |is )?saved) /;
   function interpretMulti(f, t) {
     var s = ' ' + t + ' ', opts = f.options || [], picked = {}, hasAstute = opts.some(function (o) { return /astute/i.test(o); });
     var both = / both /.test(s) && hasAstute, astuteNo = /\b(?:not|no|dont|don't|without|cannot|can't)\b[^.]{0,24}\bastute\b/.test(s);
-    var noSend = MULTI_NOSEND.test(s);                                                                // "the client does not need to send anything through": that choice alone, not "the client will send them"
+    var noSend = MULTI_NOSEND.test(s), saved = MULTI_SAVED.test(s);                                    // "the client does not need to send anything through" or "we have them on file": the saved choice alone, not "the client will send them"
     opts.forEach(function (o) {
       var on = norm(o.replace(/\(.*?\)/g, ' ')), hit = false;
       if (/astute/i.test(o)) hit = (/ astute /.test(s) && !astuteNo) || both || has(t, on);
-      else if (/does not need to send/i.test(o)) hit = noSend;
-      else if (/client/i.test(o)) hit = !noSend && (both || has(t, on) || MULTI_CLIENT.test(s));
+      else if (/saved in client file/i.test(o)) hit = saved || noSend;
+      else if (/client/i.test(o)) hit = !noSend && !saved && (both || has(t, on) || MULTI_CLIENT.test(s));
       else if (/^other$/i.test(o)) hit = / (?:other|something else|some other|another way) /.test(s);
       if (hit) picked[o] = 1;
     });

@@ -308,13 +308,13 @@ test('the Life area is headed "Personal Risk Covers", with the same words under 
 
 /* ---------- Request Current Policy Schedule(s), the LOA question and the Admin page ---------- */
 const A = require('../app/js/actions.js');
-const PS = ['risk', 'grp', 'ra', 'pp', 'inv'], CL = area => schema.psClient[area], AS = 'Draw from Astute (with signed LOA)', NOSEND = 'Client does not need to send through';
+const PS = ['risk', 'grp', 'ra', 'pp', 'inv'], CL = area => schema.psClient[area], AS = 'Draw from Astute (with signed LOA)', SAVED = 'Policy Schedules saved in Client File';
 
 test('each of the five sections that hold policies ends with a "Request Current Policy Schedule(s)" tick-box list and a small Other box', () => {
   PS.forEach(k => {
     const f = schema.fieldsById['ps_' + k], o = schema.fieldsById['ps_' + k + '_ot'], blk = schema.sections.reduce((a, s) => a.concat(s.blocks), []).find(b => (b.fields || []).some(x => x.id === 'ps_' + k));
     assert.strictEqual(f.t, 'multi'); assert.strictEqual(blk.title, 'Request Current Policy Schedule(s)'); assert.ok(blk.cond && blk.grey && blk.pdfMsg && blk.condMsg === 'No policy schedules to request');        // greyed out when the Yes/No above is No
-    assert.deepStrictEqual(f.o, k === 'grp' ? [CL(k), NOSEND, 'Other'] : [CL(k), AS, NOSEND, 'Other'], k);                      // group risk has no Astute; "Client does not agree" is gone from all; "Client does not need to send through" is in all
+    assert.deepStrictEqual(f.o, k === 'grp' ? [CL(k), SAVED, 'Other'] : [CL(k), SAVED, AS, 'Other'], k);                      // group risk has no Astute; "Client does not agree" and "Client does not need to send through" are gone from all; Policy Schedules saved in Client File is in all
     assert.ok(!f.o.some(x => /agree/i.test(x)) && o.t === 'txt' && o.cond.has === 'Other' && o.grey);
   });
   assert.strictEqual(schema.sections.find(x => x.id === 'inv').blocks.slice(-2)[0].fields[0].id, 'ps_inv');            // the last item of the section, before its Notes

@@ -82,11 +82,13 @@
   var PS_CLIENT_OLD = 'Requested from client in meeting', PS_ASTUTE = 'Draw from Astute (with signed LOA)', PS_OTHER = 'Other';
   var PS_CLIENT = { risk: 'Requested Personal Risk Covers in meeting, await client response', grp: 'Requested Group Risk Covers in meeting, await client response', ra: 'Requested Retirement Annuities in meeting, await client response',
     pp: 'Requested Pension and Provident Funds in meeting, await client response', inv: 'Requested Investments in meeting, await client response' };
-  var PS_NOSEND = 'Client does not need to send through', PS_NONE = 'No policy schedules to request';
+  /* The choices of a schedule box, in this order: what was asked of the client (the area's own words), Policy Schedules saved in Client File (nothing to chase), Draw from Astute (not for group risk), Other.
+     "Client does not need to send through" is no longer a choice (PS_NOSEND): a file that holds it opens with Policy Schedules saved in Client File (store.js). */
+  var PS_SAVED = 'Policy Schedules saved in Client File', PS_NOSEND = 'Client does not need to send through', PS_NONE = 'No policy schedules to request';
   /* gate: the Yes/No above (has_risk, has_group, has_ra, has_pp, has_inv). When it says No there is nothing to request: the block greys out under PS_NONE (on screen and in the PDF), the points are left out and the choices are cleared (store.js). */
   function PS(id, group, gate) {
     return { title: 'Request Current Policy Schedule(s)', layout: 'g12', cond: gate, grey: 1, condMsg: PS_NONE, pdfMsg: 1, fields: [
-      { id: 'ps_' + id, l: 'Schedule(s) requested', t: 'multi', o: group ? [PS_CLIENT[id], PS_NOSEND, PS_OTHER] : [PS_CLIENT[id], PS_ASTUTE, PS_NOSEND, PS_OTHER], s: 7 },
+      { id: 'ps_' + id, l: 'Schedule(s) requested', t: 'multi', o: group ? [PS_CLIENT[id], PS_SAVED, PS_OTHER] : [PS_CLIENT[id], PS_SAVED, PS_ASTUTE, PS_OTHER], s: 7 },
       { id: 'ps_' + id + '_ot', l: 'Other schedule arrangement', t: 'txt', opt: 1, voice: 1, cond: { f: 'ps_' + id, has: PS_OTHER }, grey: 1, s: 5 }
     ] };
   }
@@ -537,5 +539,5 @@
   var byId = {};
   sections.forEach(function (s) { s.blocks.forEach(function (b) { (b.fields || []).forEach(function (f) { byId[f.id] = f; }); }); });
 
-  return { version: '3.1', released: 'November 2026', sections: sections, lists: lists, panels: panels, panelsById: panelsById, advisor: ADVISOR, brBasis: BR_BASIS, areaTitle: areaTitle, psClient: PS_CLIENT, defaultBroker: DEFAULT_BROKER, psNoSend: PS_NOSEND, psNone: PS_NONE, psClientOld: PS_CLIENT_OLD, PRIORITY: PRIORITY, NOT_PRIORITY: NOT_PRIORITY, UNSURE: UNSURE, BUDGET: BUDGET, fieldsById: byId };
+  return { version: '3.1', released: 'November 2026', sections: sections, lists: lists, panels: panels, panelsById: panelsById, advisor: ADVISOR, brBasis: BR_BASIS, areaTitle: areaTitle, psClient: PS_CLIENT, defaultBroker: DEFAULT_BROKER, psNoSend: PS_NOSEND, psSaved: PS_SAVED, psNone: PS_NONE, psClientOld: PS_CLIENT_OLD, PRIORITY: PRIORITY, NOT_PRIORITY: NOT_PRIORITY, UNSURE: UNSURE, BUDGET: BUDGET, fieldsById: byId };
 });
