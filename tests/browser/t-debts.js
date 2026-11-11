@@ -41,7 +41,7 @@ let bad = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if
 
   await say('the term left is twelve years', [{ do: 'fill', list: 'debts', row: 1, col: 'term', value: '12 years' }]);     // Claude jumps back to row 1
   d = await debts();
-  ok(d[1].term === '12 years' && !d[0].term, 'Claude\'s row 1 is ignored: the term goes on debt 2, where the talk is: ' + JSON.stringify(d));
+  ok(d[1].term === '144' && !d[0].term, 'Claude\'s row 1 is ignored: the term goes on debt 2, where the talk is: ' + JSON.stringify(d));
 
   await say('debt one again, the notes say bond is in both names', [{ do: 'fill', list: 'debts', row: 2, col: 'notes', value: 'Bond is in both names' }]);
   d = await debts();
@@ -102,6 +102,29 @@ let bad = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if
   ok(await endv() === 'No more debts' && await p.evaluate(() => !!document.querySelector('[data-endline="debts_end"]')), 'the link under the debts writes the line by hand');
   await p.click('[data-endclear="debts_end"]'); await p.waitForTimeout(150);
   ok(await endv() === '', 'and the x takes it away');
+  // Term left is always months
+  await p.evaluate(() => { FF.app.setState(FF.store.blank()); FF.app.voice.rowCur = {}; FF.app.voice.target = null; const st = FF.app.state; FF.store.setField(st, 'date', '11/11/2026', 'confirmed'); FF.store.setField(st, 'dob', '07/01/1974', 'confirmed'); FF.store.setField(st, 'has_debts', 'Yes'); FF.app.redraw(); const n = [...document.querySelectorAll('.nav button')].find(x => /Debts/.test(x.innerText)); if (n) n.click(); });
+  const term = i => p.evaluate(i => FF.app.state.l.debts[i] && FF.app.state.l.debts[i].d.term, i);
+  await say('debt one is a home loan with Nedbank and twenty years left', [{ do: 'row', list: 'debts', values: { type: 'Home loan', prov: 'Nedbank', term: '20 years' } }]);
+  ok(await term(0) === '240', 'twenty years left is 240 months: ' + await term(0));
+  await say('it is a vehicle loan with Wesbank and he has twenty years left', [{ do: 'row', list: 'debts', values: { type: 'Vehicle finance', prov: 'Wesbank' } }, { do: 'cell', list: 'debts', row: 2, col: 'term', value: '20' }]);
+  ok(await term(1) === '240', 'a bare 20 from Claude is read against the words said (years): ' + await term(1));
+  await say('debt three is a personal loan, eighteen months left', [{ do: 'row', list: 'debts', values: { type: 'Personal loan', term: '18 months' } }]);
+  ok(await term(2) === '18', 'eighteen months left is 18: ' + await term(2));
+  await say('debt four is another home loan, up until my age 65', [{ do: 'row', list: 'debts', values: { type: 'Home loan', term: 'until my age 65' } }]);
+  ok(await term(3) === '146', 'until my age 65 is worked out from the date of birth (07/01/1974) and the date of the form (11/11/2026): ' + await term(3));
+  await say('debt five is a credit card with FNB', [{ do: 'row', list: 'debts', values: { type: 'Credit card', prov: 'FNB' } }]);
+  ok(await term(4) === 'Max term', 'a credit card has Max term, whatever is said: ' + await term(4));
+  ok(await p.evaluate(() => FF.app.state.l.debts[4].d.asset === 'R 0.00' && FF.app.state.l.debts[0].d.asset === ''), 'a debt made from a spoken line gets the same defaults as one added by hand (asset R 0.00 for the card, none for the home loan)');
+  const typed = await p.evaluate(async () => { const e = document.querySelector('[data-l="debts"][data-i="2"][data-k="term"]'); if (!e) return null; e.value = '5 years 6 months'; e.dispatchEvent(new Event('change', { bubbles: true })); return [e.value, FF.app.state.l.debts[2].d.term]; });
+  ok(typed && typed[0] === '66' && typed[1] === '66', 'typed by hand, "5 years 6 months" becomes 66 in the box: ' + JSON.stringify(typed));
+  ok(await p.evaluate(() => /Term left \(months\)/.test(document.body.innerText)), 'the box is labelled Term left (months)');
+  // no date of birth yet: the words stay, and become months when it is entered
+  await p.evaluate(() => { FF.store.setField(FF.app.state, 'dob', ''); FF.store.addRow(FF.app.state, 'debts', { type: 'Home loan' }, 'confirmed'); FF.app.voice.rowCur.debts = 5; FF.app.redraw(); });
+  await say('debt six, up until my age 65', [{ do: 'cell', list: 'debts', row: 6, col: 'term', value: 'until my age 65' }]);
+  ok(/age 65/i.test(await term(5)), 'with no date of birth the words are kept: ' + await term(5));
+  await p.evaluate(() => { FF.store.setField(FF.app.state, 'dob', '07/01/1974'); });
+  ok(await term(5) === '146', 'and become months when the date of birth is entered: ' + await term(5));
   ok(errs.length === 0, 'no page errors ' + errs.join('|'));
   console.log(bad ? bad + ' FAILED' : 'all pass'); await b.close();
   process.exit(bad ? 1 : 0);

@@ -183,6 +183,25 @@
   /* The date of the form (Date completed): what a date said without a year is counted from. */
   var meetingSrc = null;
   function setMeetingSource(fn) { meetingSrc = fn; }
+  /* Term left on a debt is said in years, months or "until my age 65" and always filled as months (util.termMonths). The date of birth and the date of the form come from the page; the words of the line being read
+     are used when Claude gives a bare number for "twenty years" (no unit): the line says which. */
+  var termSrc = null, lineSrc = null;
+  function setTermSource(fn) { termSrc = fn; }
+  function setLineSource(fn) { lineSrc = fn; }
+  function termOpts() { var o = termSrc ? termSrc() || {} : {}; return { dob: util.parseDate(o.dob), on: util.parseDate(o.date) || undefined }; }
+  function termFromLine(value) {
+    var v = String(value == null ? '' : value).trim(), line = lineSrc ? String(lineSrc() || '') : '';
+    if (!line || !/^\d+(?:\.\d+)?$/.test(v)) return value;
+    var n = parseFloat(v), hit = null;
+    [line].concat(line.split(/[.,;!?]|\bbut\b|\band then\b/i)).forEach(function (cl) {                // the whole line first ("5 years, 6 months"), then each part of it
+      if (hit != null) return;
+      var r = util.termMonths(cl, termOpts());
+      if (!r || r.months == null || /^\s*\d+\s*$/.test(cl)) return;
+      if (String(r.months) === v) hit = value;                                                  // Claude already gave the months
+      else if (Math.abs(n * 12 - r.months) <= 12) hit = String(r.months);                       // "20" for "twenty years": the line says years
+    });
+    return hit != null ? hit : value;
+  }
   function meetingDate() { var v = meetingSrc ? meetingSrc() : ''; return util.parseDate(v) || util.parseDate(util.isoToday()); }
   function before(dmy, ref) { var p = util.parseDate(dmy); return !!(p && ref && (p.y * 10000 + p.m * 100 + p.d) < (ref.y * 10000 + ref.m * 100 + ref.d)); }
   /* A date said without a year, for the next appointment: "Thursday the 19th", "the 19th", "the nineteenth of November", "19 November". It is the first such day on or after the date of the form (and,
@@ -281,7 +300,7 @@
     'debts.desc': ['what is it for', 'what was it for', 'description'],
     'debts.owner': ['who owns', 'whose name is it in', 'who is the owner'],
     'debts.payer': ['who pays', 'who is paying', 'who is the payer'],
-    'debts.term': ['term left', 'how long is left', 'years left', 'how long left', 'how many years left'],
+    'debts.term': ['term left', 'how long is left', 'years left', 'how long left', 'how many years left', 'months left', 'how many months left', 'how many months', 'until what age', 'until which age', 'term in months'],
     'debts.inst': ['instalment', 'installment', 'monthly payment', 'repayment', 'pay per month', 'how much do you pay'],
     'debts.bal': ['balance', 'outstanding', 'how much is outstanding', 'how much do you owe', 'owe'],
     'debts.asset': ['asset value', 'value of the asset', 'what is it worth', 'what is the car worth', 'what is the house worth'],
@@ -1115,6 +1134,13 @@
       if (/month/.test(t) && !/year/.test(t)) y = Math.round(y / 12 * 10) / 10;
       return { value: String(y), status: 'heard' };
     }
+    if (f.id === 'debts.term') {                                                          // always months: "20 years" is 240, "until my age 65" is worked out from the date of birth
+      var tm = util.termMonths(termFromLine(raw), termOpts());
+      if (tm && tm.months != null) return { value: String(tm.months), status: 'verify' };
+      if (tm && tm.needs) return { value: String(raw).trim().replace(/^./, function (ch) { return ch.toUpperCase(); }), status: 'verify', note: 'the date of birth is needed to work out the months until age ' + tm.age };
+      if (tm && tm.keep) return { value: 'Max term', status: 'heard' };
+      return { error: 'no-term', note: 'say the term in years or months' };
+    }
     var c = cleanText(f, raw);
     if (!c) return { error: 'lead-in-only' };
     if (!looksLikeValue(f, c)) return { error: 'unclear', note: 'not a clear answer: "' + c + '"' };
@@ -1633,7 +1659,7 @@
   }
 
   return {
-    norm: norm, wordsToNumber: wordsToNumber, spokenDigits: spokenDigits, spokenDate: spokenDate, yearlessDate: yearlessDate, setMeetingSource: setMeetingSource, spokenTime: spokenTime, spokenEmail: spokenEmail, yesNo: yesNo,
+    norm: norm, wordsToNumber: wordsToNumber, spokenDigits: spokenDigits, spokenDate: spokenDate, yearlessDate: yearlessDate, setMeetingSource: setMeetingSource, setTermSource: setTermSource, setLineSource: setLineSource, termFromLine: termFromLine, spokenTime: spokenTime, spokenEmail: spokenEmail, yesNo: yesNo,
     buildIndex: buildIndex, parseCommand: parseCommand, wrapUp: wrapUp, mergeMulti: mergeMulti, endsNotes: endsNotes, splitNotesEnd: splitNotesEnd, mentionsNotes: mentionsNotes, mayEndNotes: mayEndNotes, wipeAnswer: wipeAnswer, looksLikeQuestion: looksLikeQuestion, isChatter: isChatter, plan: plan, pointForm: pointForm, LIST_NOUNS: LIST_NOUNS, matchQuestion: matchQuestion, interpret: interpret, titleCase: titleCase,
     isConfirm: isConfirm, answerFor: answerFor, clauses: clauses, PRIVATE_IDS: PRIVATE_IDS, yearsValue: yearsValue, debtRef: debtRef, removeDebtRef: removeDebtRef, noMoreDebts: noMoreDebts, keepExact: keepExact, namesProvider: namesProvider
   };

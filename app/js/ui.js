@@ -760,6 +760,7 @@
       /* A child's education stage follows the date of birth until it is set by hand. */
       var autoStage = key === 'kids' && k === 'dob' && (row0.d.stage === '' || row0.d.stage === FF.calc.rowCalc('stage', row0, ctx()));
       store.setCell(state, key, i, k, v2);
+      if (key === 'debts' && k === 'term') t.value = row0.d.term;                              // "20 years" typed here is kept as 240 months
       if (key === 'kids' && k === 'name' && /\s/.test(v2.trim())) {                          // "Anna Kuiper" typed in the Name box: the surname goes to its own box
         kidsNameFix(row0, true);
         var sn = document.querySelector('[data-l="kids"][data-i="' + i + '"][data-k="sname"]'); if (sn) sn.value = row0.d.sname || ''; t.value = row0.d.name;
@@ -998,6 +999,9 @@
      client's answer is in or confirmed. Simple wording is understood on this computer; looser wording goes to Claude (voice-ai.js).
      Whatever listens calls FF.app.voiceHear(text, who), who being 'me' (the adviser) or 'client'. Typing works as always when voice is off. */
   var V = FF.voice, VAI = FF.voiceAI, vidx = V.buildIndex(schema);
+  V.setTermSource(function () { return { dob: state && state.f && state.f.dob ? state.f.dob.v : '', date: state && state.f && state.f.date ? state.f.date.v : '' }; });      // Term left is always months: an age is counted from the date of birth to the date of the form
+  var vmSaidNow = '';                                                                                                       // the words a catch-up value was taken from, while it is read
+  V.setLineSource(function () { return vmSaidNow || (vmCur ? String(vmCur.text || '') : ''); });
   V.setMeetingSource(function () { return state && state.f && state.f.date ? state.f.date.v : ''; });                 // a date said without a year is counted from the date of the form
   try { if (VAI && VAI.setShare) VAI.setShare(localStorage.getItem('wr-fact-find-share') === '1'); } catch (e) { /* storage unavailable: sharing stays off */ }
   var vm = { on: false, done: {}, target: null, answered: false, secGlow: false, noteMode: null, rowCur: {}, undo: [], recent: [], flashes: {}, queue: Promise.resolve(), slow: 0, epoch: 0, busy: 0, seq: 0, moveSeq: 0, calls: 0, laneTarget: null, unplacedSeen: {}, noSweep: {}, sweeping: false, sweepNext: [], sweepSecs: {}, sweepT: 0, secAt: {}, sweptAll: 0, lastFail: 0, wipe: null, digits: null, run: null, erun: null, eann: null, paused: false, pointed: null, lastNum: null };
@@ -1528,6 +1532,7 @@
       flashed.push(list + ':' + i + ':' + k); last = k;
     });
     if (list === 'kids') { kidsNameFix(row); if (row.d.dob && row.d.stage === '') row.d.stage = FF.calc.rowCalc('stage', row, ctx()); }
+    if (list === 'debts') { if (row.d.term) row.d.term = store.termValue(state, row.d.term); store.debtDefaults(row); }       // the defaults of a debt (Max term, the Asset value R 0.00) come with a debt made from a line, as with one added by hand
     touch(); redraw(); if (!vmQuiet) vmPulseNav();
     if (last && !vmQuiet) { vm.target = list + ':' + i + ':' + last; vm.answered = true; }
     flashed.forEach(vmFlash); vmMarkWait();
@@ -2526,7 +2531,7 @@
   function vmSweepCell(a) {
     var L = vidx.lists[a.list], rows = state.l[a.list], ri = a.row === 'last' ? rows.length - 1 : a.row - 1, id = a.list + ':' + ri + ':' + a.col, def = vidx.byId[a.list + '.' + a.col];
     if (!L || !def || vmPrivate(a.list + '.' + a.col) || vm.noSweep[id]) return 0;
-    var row = rows[ri], x = V.interpret(def, a.value);
+    var row = rows[ri], x; vmSaidNow = a.said || ''; try { x = V.interpret(def, a.value); } finally { vmSaidNow = ''; }
     if (!row) { vmUnplace({ text: L.title + ': ' + def.label + ' ' + a.value, why: 'there is no such row on the form', sec: L.sec }); return 0; }
     if (!x || x.error) { vmUnplace({ text: L.title + ' ' + (ri + 1) + ': ' + def.label + ' ' + a.value, why: 'could not be read as an answer for that box', sec: L.sec }); return 0; }
     var cur0 = row.d[a.col] == null ? '' : String(row.d[a.col]);
@@ -2538,7 +2543,7 @@
   function vmSweepRow(a) {
     var L = vidx.lists[a.list]; if (!L) return;
     var vals = {}, bits = [];
-    Object.keys(a.values || {}).forEach(function (k) { var d = vidx.byId[a.list + '.' + k]; if (d && !vmPrivate(a.list + '.' + k)) { var x = V.interpret(d, a.values[k]), v = x && !x.error ? x.value : a.values[k]; vals[k] = v; bits.push(d.label + ' ' + v); } });     // dates and amounts as they are written on the form
+    Object.keys(a.values || {}).forEach(function (k) { var d = vidx.byId[a.list + '.' + k]; if (d && !vmPrivate(a.list + '.' + k)) { var x; vmSaidNow = a.said || ''; try { x = V.interpret(d, a.values[k]); } finally { vmSaidNow = ''; } var v = x && !x.error ? x.value : a.values[k]; vals[k] = v; bits.push(d.label + ' ' + v); } });     // dates and amounts as they are written on the form
     if (!bits.length) return;
     var first = vals[L.first] != null ? V.norm(vals[L.first]) : '';
     if (first && state.l[a.list].some(function (r) { return V.norm(r.d[L.first]) === first; })) return;           // already there under that name
