@@ -432,7 +432,7 @@
       if (b.half) { pair += '<div class="half">' + blockHTML(b, sec, c) + '</div>'; return; }
       flush();
       if (cols && b.left) { left += blockHTML(b, sec, c); return; }
-      h += cols ? '<div class="admcol">' + blockHTML(b, sec, c) + '</div>' : blockHTML(b, sec, c);
+      h += cols ? '<div class="admcol' + (b.full ? ' full' : '') + '">' + blockHTML(b, sec, c) + '</div>' : blockHTML(b, sec, c);
     });
     flush();
     if (left) h = h.slice(0, leftAt) + '<div class="admcol">' + left + '</div>' + h.slice(leftAt);
