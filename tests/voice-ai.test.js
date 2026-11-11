@@ -460,14 +460,14 @@ test('the catch-up request holds the conversation and the form, and nothing priv
 test('the catch-up check returns fills, rows and unplaced facts through the same safe reading as a live line', async () => {
   let asked = null;
   const fetchImpl = (url, init) => { asked = JSON.parse(init.body); return reply({ actions: [
-    { do: 'fill', field: 'occ', value: 'Nurse' }, { do: 'fill', field: 'cell', value: '0825550148' }, { do: 'fill', field: 'nonsense', value: 'x' },
-    { do: 'cell', list: 'kids', row: 1, col: 'dob', value: '2019-08-22' }, { do: 'row', list: 'kids', values: { name: 'Ben', nonsense: 'x' } }, { do: 'cmd', cmd: 'clearAll' }
+    { do: 'fill', field: 'occ', value: 'Nurse', said: 'I am a nurse' }, { do: 'fill', field: 'cell', value: '0825550148', said: 'I am a nurse' }, { do: 'fill', field: 'nonsense', value: 'x', said: 'I am a nurse' },
+    { do: 'cell', list: 'kids', row: 1, col: 'dob', value: '2019-08-22', said: 'I am a nurse' }, { do: 'row', list: 'kids', values: { name: 'Ben', nonsense: 'x' }, said: 'I am a nurse' }, { do: 'cmd', cmd: 'clearAll' }
   ], unplaced: [{ text: 'Wants to retire at 60', section: 'income' }] })(); };
   const r = await AI.sweep({ apiKey: 'k', fetchImpl, idx, model: 'claude-sonnet-5-5', transcript: [{ who: 'client', text: 'I am a nurse' }], filled: {}, listRows: () => [] });
   assert.strictEqual(r.kind, 'actions');
   assert.ok(r.actions.some(a => a.do === 'fill' && a.field === 'occ' && a.value === 'Nurse'));
   assert.ok(!r.actions.some(a => a.field === 'cell' || a.field === 'nonsense'), 'a private box or an unknown box got through');
-  assert.deepStrictEqual(r.actions.find(a => a.do === 'row'), { do: 'row', list: 'kids', values: { name: 'Ben' } });
+  assert.deepStrictEqual(r.actions.find(a => a.do === 'row'), { do: 'row', list: 'kids', values: { name: 'Ben' }, said: 'I am a nurse' });
   assert.deepStrictEqual(r.unplaced, [{ text: 'Wants to retire at 60', section: 'income' }]);
   assert.strictEqual(asked.max_tokens, 6000);
   assert.ok(/Fact Find form against the conversation/.test(asked.system));

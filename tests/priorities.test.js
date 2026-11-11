@@ -444,7 +444,7 @@ test('the notes boxes go to Claude with the judgement rule: only what Sitamah mu
   assert.deepStrictEqual(A.facts(s).notes, [], 'no notes, no entry');
   store.setField(s, 'n_income', 'She gets a bonus in March.\nPlease ask her for her last three payslips.'); store.setField(s, 'n_cover', '   ');
   store.setField(s, 'n_prio', 'Wants to think about it over the weekend.');
-  assert.deepStrictEqual(A.facts(s).notes, [{ page: 'Income & household', note: 'She gets a bonus in March.\nPlease ask her for her last three payslips.' }, { page: 'Client priorities and quotes needed', note: 'Wants to think about it over the weekend.' }]);
+  assert.deepStrictEqual(A.facts(s).notes, [{ id: 'n_income', page: 'Income & household', note: 'She gets a bonus in March.\nPlease ask her for her last three payslips.' }, { id: 'n_prio', page: 'Client priorities and quotes needed', note: 'Wants to think about it over the weekend.' }]);
   assert.notStrictEqual(A.key(A.facts(s)), (() => { const t = pa(); return A.key(A.facts(t)); })(), 'a changed note makes the points out of date, so they are written again');
   store.setField(s, 'n_income', 'Call 082 454 1751 about the payslips');
   let sent = null; await AI.actionPoints({ ask: (system, content) => { sent = { system, content: JSON.parse(content) }; return Promise.resolve('{"points": []}'); }, model: 'm', facts: A.facts(s) });

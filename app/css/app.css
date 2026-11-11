@@ -464,3 +464,13 @@ table.sqt .dash { color: var(--muted); display: inline-block; padding-top: 7px; 
 .apstatus { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; margin-top: 8px; font-size: 12.5px; color: var(--muted); }
 .apstatus .link-btn { background: none; border: 0; cursor: pointer; color: var(--accent); font-size: 12.5px; }
 .apstatus .link-btn:disabled { opacity: .5; cursor: default; }
+
+/* "No more debts": a line of its own under the last debt */
+.endline { display: flex; align-items: center; gap: 10px; margin: 6px 0 2px; font-weight: 700; font-style: italic; color: var(--ink); }
+.endline.none { font-weight: 400; font-style: normal; font-size: 12.5px; }
+.endline .link-btn { font-size: 12.5px; font-weight: 400; font-style: normal; text-decoration: none; padding: 0 4px; }
+.endline.none .link-btn { text-decoration: underline; }
+
+/* Listen is off while the meeting timer runs: nothing is being heard */
+#nolisten { background: var(--bad-soft); border-color: var(--bad); color: var(--bad); font-weight: 600; }
+#nolisten button { margin-left: auto; }
