@@ -62,7 +62,7 @@ test('the saved file carries the worked block beside the answers; the form’s o
   assert.strictEqual(j.worked.taxYear, '2026/27');
   assert.ok(Math.abs(Date.parse(j.worked.at) - Date.now()) < 60000);
   assert.ok(/not answers/i.test(j.worked.note));
-  assert.strictEqual(schema.version, '3.2');
+  assert.strictEqual(schema.version, '3.3');
 });
 
 test('the figures are the form’s own: Warren’s case (take-home, expenses, debts, children) gives the figures the screen shows, the disposable income with its minus sign', () => {
