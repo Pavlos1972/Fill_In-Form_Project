@@ -166,5 +166,11 @@
     }
     return null;
   }
-  return { sexFromSaId: sexFromSaId, splitFullName: splitFullName, num: num, money: money, money2: money2, formatMoney: formatMoney, parseDate: parseDate, weekdayName: weekdayName, parseTime: parseTime, formatTime: formatTime, ageAt: ageAt, isoToday: isoToday, termMonths: termMonths, formatDate: formatDate, todayDMY: todayDMY, longDate: longDate, dobFromSaId: dobFromSaId, saIdValid: saIdValid };
+  /* A heading line in a box of notes written by a skill (Current Client File Summary Notes): no lower-case letters, at least four characters, and not a point ("- ..."). The text itself stays plain;
+     the screen's read view and the PDF show such a line in bold. */
+  function isHeadingLine(line) {
+    var s = String(line == null ? '' : line).trim();
+    return s.length >= 4 && s === s.toUpperCase() && s.indexOf('- ') !== 0;
+  }
+  return { isHeadingLine: isHeadingLine, sexFromSaId: sexFromSaId, splitFullName: splitFullName, num: num, money: money, money2: money2, formatMoney: formatMoney, parseDate: parseDate, weekdayName: weekdayName, parseTime: parseTime, formatTime: formatTime, ageAt: ageAt, isoToday: isoToday, termMonths: termMonths, formatDate: formatDate, todayDMY: todayDMY, longDate: longDate, dobFromSaId: dobFromSaId, saIdValid: saIdValid };
 });

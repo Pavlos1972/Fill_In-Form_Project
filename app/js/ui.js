@@ -79,7 +79,7 @@
   /* Show a box's value and status in place (used when a box changes without the screen being redrawn). */
   function paintField(id) {
     var el = document.querySelector('[data-f="' + id + '"]'); if (!el) return;
-    var c = state.f[id]; el.value = c.v;
+    var c = state.f[id]; el.value = c.v; if (schema.fieldsById[id] && schema.fieldsById[id].heads) rvSync(id);
     var wrap = el.closest('.f'); if (wrap) { wrap.className = wrap.className.replace(/\bs-\w+/, 's-' + c.st); var b = wrap.querySelector('.st'), ab = wrap.querySelector('.rt > .badge'); if (b) b.innerHTML = badge(c.st, 'f:' + id); if (ab) ab.outerHTML = badge(c.st, 'f:' + id); }
   }
   function toast(msg, ms) {
@@ -222,6 +222,20 @@
     var s = validate.lengthState(id, value, state.f.idtype.v);
     el.hidden = !s; el.className = 'len' + (s ? ' ' + s.level : ''); el.textContent = s ? s.text : '';
   }
+  /* A box of notes written by a skill, whose headings are bold (Current Client File Summary Notes): the box is shown as a read view, headings in bold; a click, the Edit link or Enter opens the plain text to type in,
+     and leaving it shows the read view again. The text in the file is always plain (util.isHeadingLine says which lines are headings). */
+  function headsHTML(text) {
+    return String(text == null ? '' : text).split(/\r?\n/).map(function (ln) { return util.isHeadingLine(ln) ? '<div class="ln hd">' + esc(ln.trim()) + '</div>' : '<div class="ln">' + (esc(ln) || '&nbsp;') + '</div>'; }).join('');
+  }
+  function rvSync(id) {
+    var wrap = document.querySelector('[data-field="' + id + '"]'), rv = wrap && wrap.querySelector('.rv'), ta = wrap && wrap.querySelector('textarea'); if (!rv || !ta) return;
+    rv.innerHTML = headsHTML(state.f[id].v);
+    wrap.classList.toggle('rv-on', String(state.f[id].v).trim() !== '' && document.activeElement !== ta);
+  }
+  function rvOpen(id) {
+    var wrap = document.querySelector('[data-field="' + id + '"]'), ta = wrap && wrap.querySelector('textarea'); if (!ta) return;
+    wrap.classList.remove('rv-on'); ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length);
+  }
   function fieldHTML(f, g12) {
     var c = state.f[f.id], st = c.st, v = c.v, isNone = !!f.none && v === 'None';
     if (f.calc) { v = FF.calc.field(f.calc, ctx()); st = 'calc'; }
@@ -232,9 +246,10 @@
     if (f.t === 'area' && !f.opt) rt += badge(st, 'f:' + f.id);
     var attrs = 'data-f="' + f.id + '"' + (f.hint ? ' placeholder="' + esc(f.hint) + '"' : '');
     var style = g12 ? ' style="--s:' + (f.wide ? 12 : (f.s || 4)) + '"' : '';
-    var tag = f.t === 'multi' ? 'div' : 'label';
-    return '<' + tag + ' class="f s-' + st + (f.wide ? ' wide' : '') + '" data-field="' + f.id + '"' + style + '><span class="l"><span>' + esc(f.sl || f.l) + '</span>' + (rt ? '<span class="rt">' + rt + '</span>' : '') + '</span>' +
-      '<span class="box">' + control(attrs, f, v, !!f.calc || isNone) + (f.cal ? '<input type="date" class="calpick" data-calpick="' + f.id + '" tabindex="-1" aria-hidden="true">' : '') + (f.t === 'area' ? '' : '<span class="st">' + badge(st, 'f:' + f.id) + '</span>') + '</span>' +
+    var tag = f.t === 'multi' ? 'div' : 'label', heads = f.t === 'area' && f.heads, showRv = heads && String(v).trim() !== '';
+    if (heads) rt += '<button type="button" class="link-btn rvedit" data-rvedit="' + f.id + '">Edit</button>';
+    return '<' + tag + ' class="f s-' + st + (f.wide ? ' wide' : '') + (showRv ? ' rv-on' : '') + '" data-field="' + f.id + '"' + style + '><span class="l"><span>' + esc(f.sl || f.l) + '</span>' + (rt ? '<span class="rt">' + rt + '</span>' : '') + '</span>' +
+      '<span class="box">' + control(attrs, f, v, !!f.calc || isNone) + (heads ? '<div class="rv" data-rv="' + f.id + '" tabindex="0" role="button" aria-label="' + esc(f.l) + ': headings in bold; press to edit the plain text" style="min-height:' + ((f.rows || 4) * 21 + 14) + 'px">' + headsHTML(v) + '</div>' : '') + (f.cal ? '<input type="date" class="calpick" data-calpick="' + f.id + '" tabindex="-1" aria-hidden="true">' : '') + (f.t === 'area' ? '' : '<span class="st">' + badge(st, 'f:' + f.id) + '</span>') + '</span>' +
       (f.len ? lenChip(f.id) : '') + '<span class="warn" data-warn="' + f.id + '" hidden></span></' + tag + '>';
   }
   function cellHTML(key, i, c, r, card) {
@@ -694,8 +709,9 @@
   schema.sections.forEach(function (s) { calc.condFields(s.cond).concat([].concat.apply([], s.blocks.map(function (b) { return calc.condFields(b.cond).concat([].concat.apply([], (b.fields || []).map(function (f) { return calc.condFields(f.cond); }))); }))).forEach(function (id) { condIds[id] = 1; }); });
 
   document.addEventListener('click', function (e) {
-    var t = e.target.closest('[data-sec],[data-accept],[data-add],[data-del],[data-goto],[data-usedob],[data-lookup],[data-cal],[data-sumrefresh],[data-ipt],[data-ipall],[data-endset],[data-endclear]');
+    var t = e.target.closest('[data-sec],[data-accept],[data-add],[data-del],[data-goto],[data-usedob],[data-lookup],[data-cal],[data-sumrefresh],[data-ipt],[data-ipall],[data-endset],[data-endclear],[data-rv],[data-rvedit]');
     if (!t) return;
+    if (t.dataset.rv || t.dataset.rvedit) { rvOpen(t.dataset.rv || t.dataset.rvedit); return; }                  // the read view of a notes box with bold headings opens for typing
     if (t.dataset.endset) { endLineSet(true, 'hand'); return; }                                                  // "No more debts" under the last debt
     if (t.dataset.endclear) { endLineSet(false, 'hand'); return; }
     if (t.dataset.ipall) { var sp0 = calc.ipSplit(ctx()); store.setProtectAll(state, !(sp0.count && sp0.on === sp0.count)); touch(); redraw(); return; }                 // the master switch: all on, or (when all are on) all off
@@ -739,6 +755,7 @@
       if (t.dataset.f === 'pa_actions') { state.pa.edited = val !== ''; }
       if (t.dataset.f === 'focus') { state.focus.edited = val !== ''; }                  // typed over: the points are the adviser's own until Refresh
       store.setField(state, t.dataset.f, val);
+      if (def && def.heads) rvSync(t.dataset.f);                                    // the read view of a notes box with bold headings follows the text
       var dobSet = (t.dataset.f === 'idno' || t.dataset.f === 'idtype') && autoDob();        // the date of birth follows the ID number (and the ID type going back to ID)
       var sexSet = (t.dataset.f === 'idno' || t.dataset.f === 'idtype') && autoGender();      // and so does an empty gender box
       var wrap = t.closest('.f'); if (wrap) { wrap.className = wrap.className.replace(/\bs-\w+/, 's-' + state.f[t.dataset.f].st); var b = wrap.querySelector('.st'); if (b) b.innerHTML = badge(state.f[t.dataset.f].st, 'f:' + t.dataset.f); }
@@ -784,6 +801,8 @@
   $('#btnPreview').addEventListener('click', previewPdf);
   $('#btnPdf').addEventListener('click', savePdf);
   document.addEventListener('keydown', function (e) { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); saveJson(false); } });
+  document.addEventListener('keydown', function (e) { var rv = e.target && e.target.dataset && e.target.dataset.rv; if (rv && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); rvOpen(rv); } });
+  document.addEventListener('focusout', function (e) { var id = e.target && e.target.dataset && e.target.dataset.f; if (id && schema.fieldsById[id] && schema.fieldsById[id].heads) setTimeout(function () { rvSync(id); }, 0); });
 
   /* ---------- online look-up: what a company does (done by itself when the name is entered), and the client's public profile (on a tap) ---------- */
   var autoLook = {};     // box id -> { name, text }: what a look-up last wrote there, so a new name can replace it but a typed answer never is

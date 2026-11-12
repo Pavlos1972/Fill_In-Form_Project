@@ -477,3 +477,14 @@ table.sqt .dash { color: var(--muted); display: inline-block; padding-top: 7px; 
 
 /* a block of the Admin page that takes the whole width under the two columns (Current Client) */
 .admcol.full { grid-column: 1 / -1; }
+
+/* a box of notes with bold headings (Current Client File Summary Notes): the read view is shown until the box is clicked, Edit is pressed or Enter is pressed on it; the plain text is then in the textarea */
+.f .rv, .f .rvedit { display: none; }
+.f.rv-on .rv { display: block; width: 100%; border: 1px solid var(--line); background: var(--surface); border-radius: 6px; padding: 7px 9px; cursor: text; overflow-wrap: anywhere; }
+.f.rv-on .rvedit { display: inline; font-size: 12.5px; }
+.f.rv-on textarea { display: none; }
+.f .rv .ln { white-space: pre-wrap; }
+.f .rv .hd { font-weight: 700; margin-top: 6px; }
+.f .rv .ln:first-child.hd { margin-top: 0; }
+.f.s-confirmed .rv { border-color: var(--ok); } .f.s-heard .rv, .f.s-verify .rv { border-color: var(--accent); background: var(--accent-soft); }
+.f .rv:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
