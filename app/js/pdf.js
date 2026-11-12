@@ -64,7 +64,23 @@
       doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor.apply(doc, DEEP); doc.text(t(title), M, y + 3);
       y += 5;
     }
+    /* A box of notes whose headings are bold (Current Client File Summary Notes): the label, then one line per row, a heading line (all capitals, see util.isHeadingLine) in bold, inside one frame. */
+    function headsBox(f) {
+      var lines = String(fieldValue(f, state, ctx) || '').split(/\r?\n/);
+      ensure(Math.min(lines.length * 5 + 12, 60));
+      var body = lines.map(function (ln, i) {
+        var h = util.isHeadingLine(ln);
+        return [{ content: t(ln.replace(/\s+$/, '')) || ' ', styles: { fontStyle: h ? 'bold' : 'normal', lineWidth: { top: 0, bottom: i === lines.length - 1 ? 0.2 : 0, left: 0.2, right: 0.2 } } }];
+      });
+      table({ head: [[t(f.sl || f.l)]], body: body, columnStyles: { 0: { cellWidth: CW } }, rowPageBreak: 'auto' });
+    }
     function fieldsTable(fields, head, sideBySide) {
+      var heads = fields.filter(function (f) { return f.heads && !f.nopdf && calc.showIf(f.cond, ctx); });
+      if (heads.length) { fields = fields.filter(function (f) { return !f.heads; }); }
+      if (fields.length) fieldsTableOf(fields, head, sideBySide);
+      heads.forEach(headsBox);
+    }
+    function fieldsTableOf(fields, head, sideBySide) {
       var items = fields.filter(function (f) { return !f.nopdf && calc.showIf(f.cond, ctx); }).map(function (f) { return { label: t(f.sl || f.l), value: t(fieldValue(f, state, ctx)), wide: (f.t === 'area' || f.wide) && !(sideBySide && f.t === 'area') }; });
       var rows = fieldRows(items); ensure(Math.min(rows.length * 7 + 4, 95));
       table({ body: rows, columnStyles: PAIR_COLS, head: head || undefined });
