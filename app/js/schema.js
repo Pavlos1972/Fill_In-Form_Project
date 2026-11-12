@@ -426,8 +426,8 @@
         { id: 'next_time', l: 'Next appointment (time)', sl: 'Time', t: 'txt', time: 1, hint: 'e.g. 14:30', s: 7 }
       ] },
       { title: 'Action Points for Personal Assistant', actions: 1, fields: [{ id: 'pa_actions', l: 'Action points for Sitamah Nathoo (personal assistant)', t: 'area', wide: 1, opt: 1, nonotes: 1, rows: 16 }] },
-      /* Current Client: for a client whose Referral from is Current client only. A skill reads the client's file in AdviceTech (Basic Info) and writes the summary, in points, into this box in the saved file (id cc_notes). Typed by hand too; never filled by voice, and not read for the action points. */
-      { title: 'Current Client', full: 1, cond: { f: 'ref', eq: 'Current client' }, grey: 1, condMsg: 'Only for a current client: this is active when Referral from (on Client info) is Current client.', fields: [{ id: 'cc_notes', l: 'Current Client File Summary Notes', t: 'area', wide: 1, opt: 1, nonotes: 1, rows: 12 }] }
+      /* Current Client: for a client whose Referral from is Current client only. A skill reads the client's file in AdviceTech (Basic Info) and writes the summary, in points, into this box in the saved file (id cc_notes). Typed by hand too; never filled by voice, and not read for the action points. heads: a line that is all capitals (4 or more characters, not starting with "- ") is shown and printed bold; the text stays plain. */
+      { title: 'Current Client', full: 1, cond: { f: 'ref', eq: 'Current client' }, grey: 1, condMsg: 'Only for a current client: this is active when Referral from (on Client info) is Current client.', fields: [{ id: 'cc_notes', l: 'Current Client File Summary Notes', t: 'area', wide: 1, opt: 1, nonotes: 1, heads: 1, rows: 12 }] }
     ] }
   ];
 
@@ -541,5 +541,5 @@
   var byId = {};
   sections.forEach(function (s) { s.blocks.forEach(function (b) { (b.fields || []).forEach(function (f) { byId[f.id] = f; }); }); });
 
-  return { version: '3.2', released: 'November 2026', sections: sections, lists: lists, panels: panels, panelsById: panelsById, advisor: ADVISOR, brBasis: BR_BASIS, areaTitle: areaTitle, psClient: PS_CLIENT, defaultBroker: DEFAULT_BROKER, psNoSend: PS_NOSEND, psSaved: PS_SAVED, psNone: PS_NONE, psClientOld: PS_CLIENT_OLD, PRIORITY: PRIORITY, NOT_PRIORITY: NOT_PRIORITY, UNSURE: UNSURE, BUDGET: BUDGET, fieldsById: byId };
+  return { version: '3.3', released: 'November 2026', sections: sections, lists: lists, panels: panels, panelsById: panelsById, advisor: ADVISOR, brBasis: BR_BASIS, areaTitle: areaTitle, psClient: PS_CLIENT, defaultBroker: DEFAULT_BROKER, psNoSend: PS_NOSEND, psSaved: PS_SAVED, psNone: PS_NONE, psClientOld: PS_CLIENT_OLD, PRIORITY: PRIORITY, NOT_PRIORITY: NOT_PRIORITY, UNSURE: UNSURE, BUDGET: BUDGET, fieldsById: byId };
 });
