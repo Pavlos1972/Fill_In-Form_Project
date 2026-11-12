@@ -1,8 +1,27 @@
-# Form changes (the Fact Find and the Short Risk Application)
+# Form changes (the Fact Find, the Short Risk Application and the Investment Capture Sheet)
 
 A dated list of what changed in the form's boxes, newest first. **One line for each id added, removed or relabelled, each change to a sum or a tax table, and each list column added.** It is kept in the same commit as the change (see `CLAUDE.md`). Programs that read the saved file or `app/js/schema.js` (the skills) use it to see what moved.
 
-The version is `version` in `app/js/schema.js` (the Fact Find) and `app/js/sr-schema.js` (the Short Risk Application); a saved file carries it as `schema`. Earlier changes are in the README and in the git history; this list starts with 3.1.
+The version is `version` in `app/js/schema.js` (the Fact Find), `app/js/sr-schema.js` (the Short Risk Application) and `app/js/cs-schema.js` (the Investment Capture Sheet); a saved file carries it as `schema`. Earlier changes are in the README and in the git history; this list starts with 3.1.
+
+## Investment Capture Sheet 1.0: 12 November 2026 (new page, `app/capture-sheet.html`)
+
+A new page for investment applications at any insurer, made from the Old Mutual sheet *Application Details for Finalisor*, with the Risk Tolerance questionnaire. **No Fact Find box changed.** The saved file is `app` = `wr-capture-sheet`, `schema` = `1.0`. Ids added (all new; nothing is shared with the other two forms):
+- Boxes, by section:
+  - Product & policy details (product): `provider`, `product`, `product_name`, `contrib_type`, `amount`, `start_date`, `deferred`, `replace`, `old_policy`, `date`
+  - Personal details (personal): `title`, `fname`, `sname`, `idno`, `birth_country`, `nationality`, `language`, `marital`, `marital_date`, `marital_contract`, `tax_no`, `foreign_tax`, `foreign_tax_no`
+  - Contact details (contact): `tel_h`, `tel_w`, `cell`, `email`, `postal`, `postal_code`, `residential`, `residential_code`
+  - Employment details (work): `occupation`, `position`, `industry`
+  - Education (education): `qualification`, `edu_other`
+  - Bank details (bank): `bank`, `branch_code`, `acc_type`, `acc_holder`, `acc_no`
+  - Source of funds & income (funds): `src_funds`, `src_income`, `known_years`, `known_months`, `known_days`, `funds_raised`, `own_knowledge`, `origin`
+  - Risk tolerance questionnaire (risk): `rt_understand`, `rt_s1 to rt_s18`, `rt_c1 to rt_c5`
+  - Result of the questionnaire (risk_result): `risk_profile`, `risk_score`, `risk_ref`
+  - lists: benef (name, sname, cell, id, relation, pct)
+- The questionnaire (`rt_understand`, `rt_s1` to `rt_s18`, `rt_c1` to `rt_c5`) holds the choice as its words (*Strongly disagree* to *Strongly agree*; the capacity answers in full). **The three result boxes (`risk_profile`, `risk_score`, `risk_ref`) are worked out, never typed**: the score and profile once the 18 statements are answered, the reference once all 23 are answered (a new one when an answer changes).
+- Scoring is the Risk Tolerance website's: statements 2, 5, 7, 8, 12 and 15 count the other way round; total out of 90; Conservative 18-37, Cautious 38-47, Moderate 48-57, Moderately aggressive 58-67, Aggressive 68-90.
+- No sum or tax table changed. Lists: `benef` (name, sname, cell, id, relation, pct); the shares must total 100%.
+- The Declaration (`declare`, no boxes) is on the **Source of funds** page; the questionnaire is the **Risk tolerance** page after it. Order of the application's PDF: Source of funds, Declaration, Result of the questionnaire, then the signature line.
 
 ## 3.3: 12 November 2026 (Fact Find 3.2 to 3.3)
 
