@@ -43,7 +43,7 @@ srv.listen(0, async () => {
   await set('pr_inv', 'Priority: client agrees'); await set('pr_life', 'Priority: client agrees'); await redraw(); await nav('prio'); await p.waitForTimeout(200);
   await p.evaluate(() => { const a = document.querySelector('button[data-add="invq"]'); if (a) a.click(); }); await p.waitForTimeout(200);
   const inv = await p.evaluate(() => { const e = document.querySelector('[data-l="invq"][data-i="0"][data-k="req"]'); return e ? [...e.options].map(o => o.textContent).join('|') + ' =' + e.value : null; });
-  ok(inv && /Cannot afford now/.test(inv) && /=Request a quote/.test(inv), 'a new investment quote row has the Request column set to Request a quote: ' + inv);
+  ok(inv && !/Cannot afford now/.test(inv) && /Not required/.test(inv) && /=Request a quote/.test(inv), 'a new investment quote row has the Request column set to Request a quote: ' + inv);
 
   // the retirement annuity paid-up box and the Has-questions on Retirement
   await nav('retire');

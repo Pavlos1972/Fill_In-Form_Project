@@ -406,6 +406,7 @@
      The whole area takes a green haze when it is a priority, a red haze when it is not (its quotes are then greyed out; the comments box stays) and a yellow haze while the client is not sure or must check the budget (the quotes stay open).
      Business assurance is one grey line until the client is a business owner. */
   function panelHTML(sec, id) {
+    if (schema.panelsById[id] && schema.panelsById[id].dec) FF.autoprio.apply(state);                  // the outcomes the facts give (an undo or a file change may have left one out of step)
     var P = schema.panelsById[id], c = ctx(), v = P.dec ? state.f[P.dec].v : '', cls = v === schema.PRIORITY ? ' p1' : v === schema.NOT_PRIORITY ? ' p2' : (v === schema.UNSURE || v === schema.BUDGET) ? ' p3' : '';
     var applies = calc.showIf(P.cond, c);
     var chip = !P.dec ? (applies ? 'Business owner' : 'Not applicable') : cls === ' p1' ? 'Priority' : cls === ' p2' ? 'Not a priority' : cls === ' p3' ? (v === schema.BUDGET ? 'Needs to check budget' : 'Needs to think about it') : 'Not yet discussed';
@@ -419,7 +420,9 @@
       hb = { pri: id, head: 1, layout: 'g12', fields: [spanned(head.fields[0], 4)].concat(inl, [spanned(head.fields[1], 4)]) };       // the decision, the referral or request, the comments
     }
     h += '<div class="pbody' + (rest.some(function (b) { return b.lane; }) ? ' wideq' : '') + '"><div class="pl">' + (hb ? gridHTML(hb, c) : '');
-    if (cls === ' p2') h += '<div class="note warn">The client said this is not a priority. The quote boxes are switched off. Use the comments box for the reason or your instructions.</div>';
+    if (cls === ' p2') h += '<div class="note warn">' + (state.f[P.dec].st === 'preset' ? 'Set from the earlier pages. Change the decision if the client wants it. The quote boxes are switched off.' : 'The client said this is not a priority. The quote boxes are switched off. Use the comments box for the reason or your instructions.') + '</div>';
+    var sg = P.dec && cls === '' ? FF.autoprio.suggestion(state, id) : null;                          // a take-over chance, or an area that does not apply: one line and a button while the decision is empty
+    if (sg) h += '<div class="note new sug" data-sug-line="' + id + '"><b>Suggestion:</b> ' + esc(sg.text) + ' <button type="button" class="btn small" data-sug="' + id + '">' + esc(sg.label) + '</button></div>';
     h += '</div>' + (P.sum ? '<div class="sum" data-sum="' + id + '">' + sumInner(id) + '</div>' : '');
     if (!P.inline && rest.length) {
       var doneL = false, doneS = false;
@@ -709,9 +712,10 @@
   schema.sections.forEach(function (s) { calc.condFields(s.cond).concat([].concat.apply([], s.blocks.map(function (b) { return calc.condFields(b.cond).concat([].concat.apply([], (b.fields || []).map(function (f) { return calc.condFields(f.cond); }))); }))).forEach(function (id) { condIds[id] = 1; }); });
 
   document.addEventListener('click', function (e) {
-    var t = e.target.closest('[data-sec],[data-accept],[data-add],[data-del],[data-goto],[data-usedob],[data-lookup],[data-cal],[data-sumrefresh],[data-ipt],[data-ipall],[data-endset],[data-endclear],[data-rv],[data-rvedit]');
+    var t = e.target.closest('[data-sec],[data-sug],[data-accept],[data-add],[data-del],[data-goto],[data-usedob],[data-lookup],[data-cal],[data-sumrefresh],[data-ipt],[data-ipall],[data-endset],[data-endclear],[data-rv],[data-rvedit]');
     if (!t) return;
     if (t.dataset.rv || t.dataset.rvedit) { rvOpen(t.dataset.rv || t.dataset.rvedit); return; }                  // the read view of a notes box with bold headings opens for typing
+    if (t.dataset.sug) { if (FF.autoprio.take(state, t.dataset.sug)) { touch(); redraw(); } return; }                   // the button on a suggestion line (autoprio.js): the client has said yes
     if (t.dataset.endset) { endLineSet(true, 'hand'); return; }                                                  // "No more debts" under the last debt
     if (t.dataset.endclear) { endLineSet(false, 'hand'); return; }
     if (t.dataset.ipall) { var sp0 = calc.ipSplit(ctx()); store.setProtectAll(state, !(sp0.count && sp0.on === sp0.count)); touch(); redraw(); return; }                 // the master switch: all on, or (when all are on) all off

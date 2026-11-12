@@ -39,8 +39,8 @@ test('the heading rule: no lower-case letters, four or more characters, not a po
   plain.forEach(l => assert.ok(!util.isHeadingLine(l), '"' + l + '" is not'));
 });
 
-test('the box asks for bold headings, and the version moved to 3.3 with no id added or relabelled', () => {
-  assert.ok(schema.fieldsById.cc_notes.heads); assert.strictEqual(schema.version, '3.3');
+test('the box asks for bold headings, and the form is at the version of its day (3.3 added this; 3.4 followed) with no id added or relabelled', () => {
+  assert.ok(schema.fieldsById.cc_notes.heads); assert.strictEqual(schema.version, '3.4');
   assert.ok(!Object.keys(schema.fieldsById).some(id => schema.fieldsById[id].heads && id !== 'cc_notes'), 'only the Current Client notes box has bold headings');
 });
 

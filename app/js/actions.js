@@ -98,9 +98,15 @@
     if (shows('cl_req') && v('cl_req') === 'Request a quote') out.quotes.push(clean({ quote: 'Contingent liability quote', lender: v('cl_lender'), loan_balance: amt(v('cl_bal')) }));
     if (shows('km_req') && v('km_req') === 'Request a quote') out.quotes.push(clean({ quote: 'Keyman quote', keyman: v('km_name'), cover_amount: amt(v('km_amt')) }));
 
-    if (shows('ref_med') && /^Valerie/.test(v('ref_med'))) out.referrals.push({ who: 'Valerie', about: /both/.test(v('ref_med')) ? 'medical aid and gap cover' : /gap/.test(v('ref_med')) ? 'gap cover' : 'medical aid' });
-    if (shows('ref_will') && /^Capital Legacy/.test(v('ref_will'))) out.referrals.push({ who: 'Capital Legacy', about: 'the will' });
-    if (shows('ref_sti') && /^Cameron/.test(v('ref_sti'))) out.referrals.push({ who: 'Cameron', about: 'short-term insurance' });
+    /* A referral for cover that is now with another broker is a take-over: the point for Sitamah says so, so the partner knows what the call is about (version 3.4). */
+    var other = function (id) { return v(id) === 'Other broker'; };
+    if (shows('ref_med') && /^Valerie/.test(v('ref_med'))) {
+      var mAbout = /both/.test(v('ref_med')) ? 'medical aid and gap cover' : /gap/.test(v('ref_med')) ? 'gap cover' : 'medical aid';
+      var mTake = (/medical aid|both/.test(mAbout) && (v('ma') === 'Medical aid' || v('ma') === 'Hospital plan') && other('ma_broker')) || (/gap/.test(mAbout) && v('gap') === 'Yes' && other('gap_broker'));       // only on what was answered: the broker boxes start as Other broker
+      out.referrals.push(mTake ? { who: 'Valerie', about: mAbout, takeover: true } : { who: 'Valerie', about: mAbout });
+    }
+    if (shows('ref_will') && /^Capital Legacy/.test(v('ref_will'))) out.referrals.push(v('will') === 'Yes' && v('will_where') === 'Capital Legacy' && other('will_broker') ? { who: 'Capital Legacy', about: 'the will', takeover: true } : { who: 'Capital Legacy', about: 'the will' });
+    if (shows('ref_sti') && /^Cameron/.test(v('ref_sti'))) out.referrals.push((v('sti') === 'Yes' && other('sti_broker')) || v('sti') === 'Handled by spouse' ? { who: 'Cameron', about: 'short-term insurance', takeover: true } : { who: 'Cameron', about: 'short-term insurance' });
 
     schema.panels.forEach(function (P) {
       if (!P.dec) return;
@@ -156,7 +162,7 @@
     });
     (a.credit_life || []).forEach(function (c) { pts.push(c.credit_life === 'Yes' ? 'Credit life on the ' + c.debt + (c.lender ? ' with ' + c.lender : '') + ': get the details.' : 'Credit life on the ' + c.debt + (c.lender ? ' with ' + c.lender : '') + ': find out whether there is any.'); });
     if (a.preferred_monthly_spend) pts.push('Client prefers to spend ' + amt(a.preferred_monthly_spend) + ' p.m. on the life cover.');
-    (a.referral || []).forEach(function (r) { pts.push('Referral: ' + r.who + ' to contact the client about ' + r.about + '.'); });
+    (a.referral || []).forEach(function (r) { pts.push('Referral: ' + r.who + ' to contact the client about ' + r.about + (r.takeover ? ' (currently with another broker: a take-over)' : '') + '.'); });
     if (a.comment) pts.push(sentence1('Your note: ' + a.comment.replace(/\s*\n\s*/g, ' ').replace(/[.\s]+$/, '')));
     if (!pts.length) pts.push('Nothing asked for yet: decide what to quote or refer.');
     return pts;
@@ -228,7 +234,7 @@
     });
     f.quotes.forEach(function (q) { pts.push(quotePoint(q)); });
     if (f.preferred_monthly_spend && f.quotes.some(function (q) { return q.kind === BR || q.kind === STD; })) pts.push('Note for the life quotes that ' + who + ' prefers to spend ' + amt(f.preferred_monthly_spend) + ' p.m.');
-    f.referrals.forEach(function (r) { pts.push('Ask ' + r.who + ' to contact ' + who + ' about ' + r.about + '.'); });
+    f.referrals.forEach(function (r) { pts.push('Ask ' + r.who + ' to contact ' + who + ' about ' + r.about + (r.takeover ? ' (currently with another broker: a take-over)' : '') + '.'); });
     f.undecided.forEach(function (u) { pts.push('Follow up with ' + who + ' on ' + u.area + ': ' + u.answer + ' before deciding' + (u.comment ? ' (' + u.comment.replace(/[.\s]+$/, '') + ')' : '') + '.'); });
     pts.push(f.appointment ? 'Set up a follow-up appointment with ' + who + (/^at /.test(f.appointment) ? ' ' : ' for ') + f.appointment + '.' : 'Set up a follow-up appointment with ' + who + ' (date and time to be agreed).');
     return pts;

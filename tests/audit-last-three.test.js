@@ -24,14 +24,14 @@ test('the child cost box is childcare, says so, and the EGAR panel is left exact
 
 /* ---- #19 ---- */
 test('the referral boxes no longer have the choices that restate a box above them', () => {
-  assert.deepStrictEqual(schema.fieldsById.ref_will.o, ['Capital Legacy to contact client', 'Not interested']);
-  assert.deepStrictEqual(schema.fieldsById.ref_sti.o, ['Cameron to contact client', 'Must not contact client', 'Not interested']);
+  assert.deepStrictEqual(schema.fieldsById.ref_will.o, ['Capital Legacy to contact client', 'Not required']);
+  assert.deepStrictEqual(schema.fieldsById.ref_sti.o, ['Cameron to contact client', 'Must not contact client', 'Not required']);
 });
 
 test('an older file that held "Client has own broker" or "Has updated will" keeps the fact in its own box', () => {
   const s = reopen(j => { j.f.ref_sti = { v: 'Client has own broker', st: 'confirmed' }; j.f.ref_will = { v: 'Has updated will', st: 'confirmed' }; });
-  assert.deepStrictEqual([s.f.ref_sti.v, s.f.sti.v, s.f.sti_broker.v], ['Not interested', 'Yes', 'Other broker']);
-  assert.deepStrictEqual([s.f.ref_will.v, s.f.will.v, s.f.will_up.v], ['Not interested', 'Yes', 'Yes']);
+  assert.deepStrictEqual([s.f.ref_sti.v, s.f.sti.v, s.f.sti_broker.v], ['Not required', 'Yes', 'Other broker']);
+  assert.deepStrictEqual([s.f.ref_will.v, s.f.will.v, s.f.will_up.v], ['Not required', 'Yes', 'Yes']);
   const kept = reopen(j => { j.f.ref_sti = { v: 'Client has own broker', st: 'confirmed' }; j.f.sti = { v: 'Yes', st: 'confirmed' }; j.f.sti_broker = { v: 'Cameron Maritz', st: 'confirmed' }; });
   assert.strictEqual(kept.f.sti_broker.v, 'Other broker');                                                            // what was in the box is kept (the old choice "Cameron Maritz" is Other broker now)
   assert.ok(!A.facts(s).referrals.length);

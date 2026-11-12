@@ -32,7 +32,7 @@ srv.listen(0, async () => {
 
   await nav('prio'); await p.evaluate(() => { FF.store.setField(FF.app.state, 'pr_will', 'Priority: client agrees'); FF.store.setField(FF.app.state, 'pr_st', 'Priority: client agrees'); FF.app.redraw(); }); await nav('prio'); await p.waitForTimeout(200);
   const ref = await p.evaluate(() => ['ref_will', 'ref_sti'].map(id => { const e = document.querySelector('[data-f="' + id + '"]'); return e ? [...e.options].map(o => o.textContent.trim()).filter(Boolean).join(' / ') : null; }));
-  ok(ref[0] === 'Capital Legacy to contact client / Not interested' && ref[1] === 'Cameron to contact client / Must not contact client / Not interested', 'the referral choices no longer restate a box above: ' + JSON.stringify(ref));
+  ok(ref[0] === 'Capital Legacy to contact client / Not required' && ref[1] === 'Cameron to contact client / Must not contact client / Not required', 'the referral choices no longer restate a box above: ' + JSON.stringify(ref));
 
   ok(errs.length === 0, 'no page errors ' + errs.join('|'));
   console.log(bad ? bad + ' FAILED' : 'all pass'); await b.close(); srv.close();
