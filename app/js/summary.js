@@ -160,7 +160,7 @@
         if (d.will_up) out.push(d.will_up === 'Yes' ? 'Will is up to date' : 'Will is not up to date');
         if (d.will_broker) out.push('Broker on record: ' + d.will_broker);
       } else out.push('Nothing recorded yet about a will');
-      if (d.ref_will && d.ref_will !== 'Not interested') out.push('Referral: ' + d.ref_will);
+      if (d.ref_will && d.ref_will !== 'Not required' && d.ref_will !== 'Not interested') out.push('Referral: ' + d.ref_will);
       return out;
     },
     st: function (d) {
@@ -174,7 +174,7 @@
         if (d.sti_personal) out.push('Personal spend: ' + pm(d.sti_personal));
         if (d.sti_biz === 'Yes') out.push('Business insured' + (d.sti_biz_spend ? ': ' + pm(d.sti_biz_spend) : ''));
       } else out.push('Nothing recorded yet about short-term insurance');
-      if (d.ref_sti) out.push('Referral: ' + d.ref_sti);
+      if (d.ref_sti && d.ref_sti !== 'Not required' && d.ref_sti !== 'Not interested') out.push('Referral: ' + d.ref_sti);
       return out;
     },
     biz: function (d, L) {
