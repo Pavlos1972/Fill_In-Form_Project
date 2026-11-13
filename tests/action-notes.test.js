@@ -63,8 +63,8 @@ test('Claude is asked for a verdict on every note; a note it skipped is asked ab
   assert.deepStrictEqual(ids(f), ['h_notes', 'n_debts', 'n_income', 'pr_ra_cm']);
   const ask = (system, content) => {
     const body = JSON.parse(content); calls.push(body);
-    if (calls.length === 1) return Promise.resolve(JSON.stringify({ points: ['Ask the client Wilhelm for his last three payslips.', 'Set up a follow-up appointment with the client Wilhelm.'], notes: [{ id: 'n_income', status: 'action' }, { id: 'h_notes', status: 'info' }] }));
-    return Promise.resolve(JSON.stringify({ points: ['Ask the client Wilhelm for the car settlement letter.', 'ask the client wilhelm for his last three payslips!'], notes: [{ id: 'n_debts', status: 'action' }, { id: 'pr_ra_cm', status: 'covered' }] }));
+    if (calls.length === 1) return Promise.resolve(JSON.stringify({ points: [{ text: 'Ask the client Wilhelm for his last three payslips.', from: 'n_income', said: 'last three payslips' }, { text: 'Set up a follow-up appointment with the client Wilhelm.', from: 'appointment' }], notes: [{ id: 'n_income', status: 'action' }, { id: 'h_notes', status: 'info' }] }));
+    return Promise.resolve(JSON.stringify({ points: [{ text: 'Ask the client Wilhelm for the car settlement letter.', from: 'n_debts', said: 'settlement letter for the car' }, { text: 'ask the client wilhelm for his last three payslips!', from: 'n_income', said: 'last three payslips' }], notes: [{ id: 'n_debts', status: 'action' }, { id: 'pr_ra_cm', status: 'covered' }] }));
   };
   const r = await AI.actionPointsFull({ ask, model: 'm', facts: f });
   assert.strictEqual(calls.length, 2, 'one more look for the notes it skipped');
@@ -73,20 +73,20 @@ test('Claude is asked for a verdict on every note; a note it skipped is asked ab
   assert.deepStrictEqual(r.points, ['Ask the client Wilhelm for his last three payslips.', 'Set up a follow-up appointment with the client Wilhelm.', 'Ask the client Wilhelm for the car settlement letter.'], 'the same point in other letters is dropped');
   assert.deepStrictEqual(r.notes, { n_income: 'action', h_notes: 'info', n_debts: 'action', pr_ra_cm: 'covered' });
   assert.deepStrictEqual(r.unchecked, []);
-  const all = () => Promise.resolve(JSON.stringify({ points: ['Ask the client Wilhelm for his last three payslips.'], notes: ids(f).map(id => ({ id, status: 'info' })) }));
+  const all = () => Promise.resolve(JSON.stringify({ points: [{ text: 'Ask the client Wilhelm for his last three payslips.', from: 'n_income', said: 'last three payslips' }], notes: ids(f).map(id => ({ id, status: 'info' })) }));
   assert.deepStrictEqual(await AI.actionPoints({ ask: all, model: 'm', facts: f }), ['Ask the client Wilhelm for his last three payslips.'], 'actionPoints still answers with the points alone');
 });
 
 test('a note Claude never gave a verdict on, even asked again, is reported as not checked; a failed second look keeps the first answer', async () => {
   const s = withNotes(), f = A.facts(s);
   let n = 0;
-  const ask = () => { n++; return Promise.resolve(JSON.stringify({ points: ['Ask the client Wilhelm for his payslips.'], notes: [{ id: 'n_income', status: 'action' }, { id: 'nonsense', status: 'action' }, { id: 'h_notes', status: 'maybe' }] })); };
+  const ask = () => { n++; return Promise.resolve(JSON.stringify({ points: [{ text: 'Ask the client Wilhelm for his payslips.', from: 'n_income', said: 'last three payslips' }], notes: [{ id: 'n_income', status: 'action' }, { id: 'nonsense', status: 'action' }, { id: 'h_notes', status: 'maybe' }] })); };
   const r = await AI.actionPointsFull({ ask, model: 'm', facts: f });
   assert.strictEqual(n, 2);
   assert.deepStrictEqual(r.unchecked.sort(), ['h_notes', 'n_debts', 'pr_ra_cm'], 'an unknown id and an unknown status count for nothing');
   assert.deepStrictEqual(r.points, ['Ask the client Wilhelm for his payslips.']);
   let m = 0;
-  const failing = () => { m++; return m === 1 ? Promise.resolve('{"points": ["Send the client Wilhelm the LOA."], "notes": []}') : Promise.reject(new Error('lost')); };
+  const failing = () => { m++; return m === 1 ? Promise.resolve('{"points": [{"text": "Send the client Wilhelm the LOA.", "from": "loa"}], "notes": []}') : Promise.reject(new Error('lost')); };
   const q = await AI.actionPointsFull({ ask: failing, model: 'm', facts: f });
   assert.deepStrictEqual(q.points, ['Send the client Wilhelm the LOA.']);
   assert.strictEqual(q.unchecked.length, 4);
@@ -94,7 +94,7 @@ test('a note Claude never gave a verdict on, even asked again, is reported as no
 
 test('with no notes there is one request, and nothing to check', async () => {
   let n = 0;
-  const r = await AI.actionPointsFull({ ask: () => { n++; return Promise.resolve('{"points": ["Set up a follow-up appointment with the client Wilhelm."]}'); }, model: 'm', facts: A.facts(fresh()) });
+  const r = await AI.actionPointsFull({ ask: () => { n++; return Promise.resolve('{"points": [{"text": "Set up a follow-up appointment with the client Wilhelm.", "from": "appointment"}]}'); }, model: 'm', facts: A.facts(fresh()) });
   assert.strictEqual(n, 1); assert.deepStrictEqual(r.unchecked, []); assert.deepStrictEqual(r.notes, {});
 });
 

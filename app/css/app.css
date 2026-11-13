@@ -464,6 +464,13 @@ table.sqt .dash { color: var(--muted); display: inline-block; padding-top: 7px; 
 .apstatus { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; margin-top: 8px; font-size: 12.5px; color: var(--muted); }
 .apstatus .link-btn { background: none; border: 0; cursor: pointer; color: var(--accent); font-size: 12.5px; }
 .apstatus .link-btn:disabled { opacity: .5; cursor: default; }
+.paread { margin-top: 8px; font-size: 12.5px; color: var(--muted); }
+.paread > summary { cursor: pointer; color: var(--accent); }
+.paread-row { border-top: 1px solid var(--line, #ddd); padding: 6px 0; }
+.paread-text { color: var(--ink, inherit); white-space: pre-wrap; }
+.paread-meta, .paread-pts, .paread-none { font-size: 12px; }
+.paread-head { margin-top: 10px; font-weight: 600; }
+.paread-btns .link-btn { background: none; border: 0; cursor: pointer; color: var(--accent); font-size: 12.5px; padding: 0; }
 
 /* "No more debts": a line of its own under the last debt */
 .endline { display: flex; align-items: center; gap: 10px; margin: 6px 0 2px; font-weight: 700; font-style: italic; color: var(--ink); }

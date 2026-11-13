@@ -429,6 +429,29 @@
     (state.unplaced = state.unplaced || []).push(it);
     return it;
   }
+  /* A "heard but not placed" item the form now covers (3.8). The item was true when it was heard (only three of the five children were on the form) and nothing took it away when the form caught up, so it
+     went on telling the action points that something was missing (a child still to be added). It is covered when (1) the box it names holds that very value now, or (2) it says some children are not on the form yet
+     ("five children in total, only three on the form so far") and the Children list already has that many. Anything else is left for Claude to read against what the form holds (actions.js, on_the_form_now). */
+  var COUNT_WORD = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12 };
+  function unplacedCovered(state, u) {
+    if (!u) return false;
+    if (u.field && u.value != null && state.f[u.field]) {
+      var cur = String(state.f[u.field].v == null ? '' : state.f[u.field].v).trim().toLowerCase().replace(/\s+/g, ' '), want = String(u.value).trim().toLowerCase().replace(/\s+/g, ' ');
+      if (cur && cur === want) return true;
+    }
+    var t = String(u.text || ''), m = /\b(\d{1,2}|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\s+(?:children|kids|daughters|sons)\b/i.exec(t);
+    if (m && /\b(?:only|so far|not yet|not all|still|remaining|missing|other|rest|more)\b/i.test(t)) {
+      var n = /^\d+$/.test(m[1]) ? parseInt(m[1], 10) : COUNT_WORD[m[1].toLowerCase()];
+      if (n && (state.l.kids || []).filter(function (r) { return rowFilled('kids', r); }).length >= n) return true;
+    }
+    return false;
+  }
+  /* Close every covered item (as closeUnplaced does, so none comes back this session). -> how many were closed. */
+  function closeCovered(state, seen) {
+    var n = 0;
+    (state.unplaced || []).slice().forEach(function (u) { if (unplacedCovered(state, u) && closeUnplaced(state, u.id, seen)) n++; });
+    return n;
+  }
   function closeUnplaced(state, id, seen) {
     var list = state.unplaced || [], i = -1;
     list.forEach(function (x, n) { if (x.id === id) i = n; });
@@ -485,5 +508,5 @@
     return { tot: tot, fill: fill, ver: ver };
   }
 
-  return { NO_CONTACT_NOTE: NO_CONTACT_NOTE, termValue: termValue, useWorked: useWorked, isPropertyDebt: isPropertyDebt, debtDefaults: debtDefaults, rowBlank: rowBlank, rowFilled: rowFilled, debtSplit: debtSplit, setProtect: setProtect, setProtectAll: setProtectAll, setPa: setPa, setFocus: setFocus, blankPa: blankPa, cleanPa: cleanPa, setSum: setSum, cleanSum: cleanSum, addUnplaced: addUnplaced, closeUnplaced: closeUnplaced, unplacedKey: unplacedKey, blank: blank, blankTally: blankTally, blankSpeech: blankSpeech, ctxFor: ctxFor, setField: setField, addRow: addRow, delRow: delRow, setCell: setCell, accept: accept, clientName: clientName, idClash: idClash, idKey: idKey, fatherSurname: fatherSurname, baseFileName: baseFileName, pdfFileName: pdfFileName, fromJSON: fromJSON, toJSON: toJSON, counts: counts };
+  return { NO_CONTACT_NOTE: NO_CONTACT_NOTE, termValue: termValue, useWorked: useWorked, isPropertyDebt: isPropertyDebt, debtDefaults: debtDefaults, rowBlank: rowBlank, rowFilled: rowFilled, debtSplit: debtSplit, setProtect: setProtect, setProtectAll: setProtectAll, setPa: setPa, setFocus: setFocus, blankPa: blankPa, cleanPa: cleanPa, setSum: setSum, cleanSum: cleanSum, addUnplaced: addUnplaced, closeUnplaced: closeUnplaced, unplacedCovered: unplacedCovered, closeCovered: closeCovered, unplacedKey: unplacedKey, blank: blank, blankTally: blankTally, blankSpeech: blankSpeech, ctxFor: ctxFor, setField: setField, addRow: addRow, delRow: delRow, setCell: setCell, accept: accept, clientName: clientName, idClash: idClash, idKey: idKey, fatherSurname: fatherSurname, baseFileName: baseFileName, pdfFileName: pdfFileName, fromJSON: fromJSON, toJSON: toJSON, counts: counts };
 });
