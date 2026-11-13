@@ -35,7 +35,7 @@
           v = String(v == null ? '' : v).trim(); if (v) o[k] = v;
         });
         return o;
-      }).filter(function (o) { return Object.keys(o).length; });
+      }).filter(function (o, i) { return Object.keys(o).length && store.rowFilled(key, state.l[key][i]); });       // a row holding only what a new row starts with (Broker on record: Other broker) is an empty row
     });
     (P.sum.t || []).forEach(function (t) {
       var n = 0, any = false;
@@ -125,7 +125,7 @@
       else {
         inv.forEach(function (r) { out.push(parts(r.type, r.prov, r.val && amt(r.val), pm(r.prem), r.broker)); });
         ['Tax-free savings', 'Endowment'].forEach(function (t) { if (!inv.some(function (r) { return r.type === t; })) out.push(t + ': none'); });
-        out.push('Total invested: ' + money(total(inv, 'val')));
+        if (inv.some(function (r) { return String(r.val || '').trim() !== ''; })) out.push('Total invested: ' + money(total(inv, 'val')));       // not "R 0" when no value is filled
       }
       (L.invq || []).filter(function (r) { return r.req === 'Request a quote'; }).forEach(function (r) { out.push('Quote asked for: ' + parts(r.product, r.ins, pm(r.monthly), r.lump && amt(r.lump) + ' lump sum', r.purpose && '(' + lower(r.purpose) + ')').replace(', (', ' (')); });
       return out;

@@ -247,11 +247,14 @@
     return s;
   }
 
+  /* The adviser's pitch or plan ("we definitely need to get you some cover", "I should sort you out with a plan", "we are going to put you on a policy"): a "definitely" or "we have" inside it answers nothing. */
+  var PITCH = / (?:(?:we|you|i|he|she|they) )?(?:(?:definitely|really|absolutely|certainly|just|also|do) )*(?:need|needs|have|has|got|going|gonna|ought|should|must|shall|will|would like|want|wants)(?: to)? (?:(?:definitely|really|just|then) )?(?:get|put|set|sort|arrange|organise|organize|take out|take) (?:you|him|her|them|your|us|some)\b.*$/;
   function yesNo(t) {
     var s = ' ' + t + ' ';
-    if (/ (not sure|unsure|don't know|dont know|no idea|not certain|maybe|perhaps) /.test(s)) return 'unsure';
-    s = s.replace(/ (do|does|did|have|has|am|is|are) not /g, " don't ");
-    var neg = / (no|nope|nah|never|none|negative|don't|dont|doesn't|doesnt|didn't|didnt|haven't|havent|hasn't|hasnt|isn't|isnt|aren't|arent|won't|wont|nothing|neither|not) /.test(s);
+    if (/ (not sure|unsure|don't know|dont know|no idea|not certain|maybe|perhaps|(?:can't|cannot|cant|can not) (?:remember|recall|say|tell|be sure)) /.test(s)) return 'unsure';
+    s = s.replace(/ (do|does|did|have|has|am|is|are) not /g, " don't ").replace(/ can not /g, ' cannot ');
+    s = s.replace(PITCH, ' ');                                   // "we definitely need to get you some cover in place" is the adviser's pitch, not a yes (A14)
+    var neg = / (no|nope|nah|nee|never|none|negative|don't|dont|doesn't|doesnt|didn't|didnt|haven't|havent|hasn't|hasnt|isn't|isnt|aren't|arent|won't|wont|can't|cant|cannot|couldn't|couldnt|nothing|neither|not) /.test(s);
     var pos = / (yes|yeah|yep|yup|yebo|ja|correct|definitely|absolutely|certainly|affirmative|sure|indeed|true) /.test(s) || / (i|we) (do|have|am|are|did) /.test(s);
     if (neg && !pos) return 'no';
     if (pos && !neg) return 'yes';
@@ -490,6 +493,10 @@
   var EMAIL_IDS = ['pemail', 'wemail'];
   var DIGIT_IDS = ['idno', 'tax'];
   var TYPED_IDS = PHONE_IDS.concat(EMAIL_IDS, DIGIT_IDS, DATE_IDS, TIME_IDS);
+  /* The client's own ID, tax, phone and email boxes never take what is said about someone else: "my wife's ID is 8001...", "my son's tax number is ...", "my husband's number is ..." (A13).
+     The partner's own boxes (sp_tel, the Shares lists) are not in this set. */
+  var CLIENT_ONLY_IDS = ['idno', 'tax', 'cell', 'work', 'home', 'pemail', 'wemail'];
+  var OTHER_PERSON = /\b(?:spouse|wife|husband|partner|ex[\s-]?(?:wife|husband|partner|spouse)|fiancee?|girlfriend|boyfriend|son|daughter|child|kid|brother|sister|mother|father|mom|mum|dad|friend|colleague|boss|neighbou?r|cousin|uncle|aunt)(?:'?s)?\s+(?:\w+\s+){0,2}?(?:id|identity|passport|tax|cell|cellphone|mobile|phone|telephone|number|email|e-?mail|address|contact)\b/i;
   var PCT_IDS = ['d_desk', 'd_supo', 'd_trav', 'd_sups', 'd_light', 'd_mod', 'd_heavy', 'biz_pct'];
 
   /* Names in brackets in a label ("Short-term (Cameron)") are things people say; units and notes ("(R)", "(today's terms)") are not. */
@@ -818,6 +825,9 @@
     }
     return hasMark ? toks.slice(i).join(' ') : toks.join(' ');
   }
+  /* Ordinary words that are never a name when said in lower case ("my husband is a plumber / retired / not working"). */
+  var NOT_NAME = {};
+  ('teacher nurse doctor accountant engineer lawyer attorney plumber electrician driver farmer manager clerk student housewife homemaker unemployed retired working employed self not also still very really just at in from with for from home work job busy fine well okay ok good great').split(' ').forEach(function (w) { NOT_NAME[w] = 1; });
   /* Does what is left look like an answer rather than a sentence fragment? */
   function looksLikeValue(f, c) {
     if (!c || /(?:^|\s)(?:is|are|was|were|am|and|but|the|a|an|of|my|your)[.,;:!?]*\s*$/i.test(c)) return false;
@@ -825,6 +835,8 @@
     if (NAME_IDS.indexOf(vid(f)) >= 0) {
       var t = c.split(/\s+/);
       if (t.length > 5 || !/^[A-Za-zÀ-ÿ'’.\- ]+$/.test(c)) return false;
+      if (/^(?:an?|the)\s/i.test(c)) return false;                                                // "my wife is a teacher": "A Teacher" is an occupation, not a name (A12)
+      if (c === c.toLowerCase() && t.some(function (w) { return NOT_NAME[w.replace(/[.,]+$/, '')]; })) return false;
       return !t.some(function (w) { w = w.toLowerCase().replace(/[.,]+$/, ''); return GENVOC.indexOf(w) >= 0 || NAMEVOC.indexOf(w) >= 0 || w === 'i' || w === "i'm" || w === 'am'; });
     }
     return true;
@@ -845,6 +857,15 @@
     smoker: function (t) {
       var s = ' ' + t + ' ';
       if (/ (non smoker|nonsmoker|don't smoke|dont smoke|do not smoke|never smoked|not a smoker) /.test(s)) return 'Non-smoker';
+      /* Someone else's smoking is not the client's ("my husband smokes but I don't": only "I don't" counts), and a client who has stopped is not simply a smoker (A7) */
+      var other = / (?:(?:my|his|her|their) )?(?:husband|wife|spouse|partner|he|she|they|dad|father|mother|mom|mum|son|daughter|boyfriend|girlfriend|fiance|fiancee|brother|sister|friend|colleague|boss|kids|children)(?: also| still| both)? (?:smoke|smokes|smoking|is a smoker|are smokers|used to smoke|quit|stopped) /;
+      if (other.test(s)) {
+        s = s.replace(other, ' ');
+        if (/ (?:i|we) (?:do not|don't|dont) (?:smoke )?/.test(s) || / (?:i am|i m|i'm) (?:a )?non smoker /.test(s)) return 'Non-smoker';
+        if (!/ (i|we) (?:smoke|do|am|used|quit|stopped|gave) /.test(s)) return null;
+      }
+      var stopped = s.replace(/ (?:want|wanna|trying|try|going|plan|planning|hope|hoping|thinking of|would like|need|should|must|wish)(?: to)? (?:quit|stop|give up|cut down|cut back) /g, ' ');
+      if (/ (?:used to smoke|used to be a smoker|(?:i|we) (?:have |had |ve )?(?:quit|stopped|given up|gave up)|quit smoking|stopped smoking|gave up smoking|ex smoker|former smoker|no longer smok\w+|(?:don't|dont) smoke any ?more) /.test(stopped) && !/ (?:i|we) (?:still )?smoke /.test(stopped)) return { error: 'ambiguous', note: 'stopped smoking: how long ago? (not filled)' };
       if (/ (smoker|smoke|smokes) /.test(s)) return 'Smoker';
       var yn = yesNo(t); return yn === 'yes' ? 'Smoker' : yn === 'no' ? 'Non-smoker' : null;
     },
@@ -858,6 +879,10 @@
       var s = ' ' + t + ' ';
       if (/ hospital plan /.test(s)) return 'Hospital plan';
       var yn = yesNo(t);
+      /* "I cancelled it", "it lapsed", "I used to have medical aid", "I can't afford medical aid" mean none now (A8); a new cover named in the same breath is for the adviser */
+      if (/ (medical aid|medical scheme) /.test(s) && / (cancelled|canceled|cancel|lapsed|terminated|dropped|stopped paying|used to have|no longer have|gave up|can't afford|cannot afford|cant afford|couldn't afford|couldnt afford|unable to afford|not able to afford) /.test(s)) {
+        return / (new|joined|now have|now on|switched|moved to|changed to|replaced|but i have|and i have) /.test(s) ? { error: 'ambiguous', note: 'medical aid cancelled: which cover now? (not filled)' } : 'None';
+      }
       if (/ (medical aid|medical scheme) /.test(s) && yn !== 'no') return 'Medical aid';
       if (yn === 'no' || / none /.test(s)) return 'None';
       if (yn === 'yes') return 'Medical aid';
@@ -911,7 +936,9 @@
       if (/ (4 year|four year) /.test(s) && / diploma /.test(s)) return '4-year diploma';
       if (/ (postgrad|post graduate|honours|masters|mba|doctorate|phd|postgraduate) /.test(s)) return 'Postgraduate';
       if (/ (degree|bachelor|bcom|bsc|ba) /.test(s)) return '3-year degree';
-      if (/ (matric|grade 12|school) /.test(s)) return 'Matric';
+      /* "I never finished school", "I dropped out of school", "I did not finish matric": no school level is said (A6) */
+      var neg = / (?:never|not|didn't|didnt|dropped out of|drop out of|dropped out|without|no) (?:\w+ ){0,4}?(?:matric|grade 12|school) /.test(s);
+      if (/ (matric|grade 12|school) /.test(s)) return neg ? { error: 'ambiguous', note: 'no school level said: left empty' } : 'Matric';
       return null;
     },
     marital: function (t) {
@@ -1086,6 +1113,7 @@
   }
   function interpret(f, raw) {
     var id = vid(f);
+    if (CLIENT_ONLY_IDS.indexOf(id) >= 0 && OTHER_PERSON.test(String(raw))) return { error: 'other-person', note: 'said about someone else: not filled' };
     if (TYPED_IDS.indexOf(id) >= 0 || NAME_IDS.indexOf(id) >= 0 || f.date) raw = afterCorrection(raw);      // "011 555 1234, no sorry, 011 555 4321" is the last number, not a "no"
     var t = norm(raw);
     if (!t) return null;
@@ -1379,6 +1407,7 @@
     /* An ID number (13 digits starting with a date) or a passport number, said with or without the word "ID": these are never sent to Claude, so they are read here. */
     function idNumberIn(core) {
       core = afterCorrection(core);
+      if (OTHER_PERSON.test(core)) return null;
       var pp = /\bpassport\b/i.test(core) ? spokenPassport(core) : null;
       if (pp) return { kind: 'fill', value: pp, status: 'verify', extra: [{ id: 'idtype', value: 'Passport', status: 'heard' }] };
       var dg = lastOf(spokenDigits(core), 13);
@@ -1463,7 +1492,7 @@
       }
       if (!isQ && !WH.test(core)) {                                        // a value of a typed box, found in the clause however it is phrased
         var th = matchQuestion(core, idx, near);
-        if (th && th.score >= 2.5 && visible(th.id) && TYPED.indexOf(vid(idx.byId[th.id])) >= 0) {
+        if (th && th.score >= 2.5 && visible(th.id) && TYPED.indexOf(vid(idx.byId[th.id])) >= 0 && !(CLIENT_ONLY_IDS.indexOf(vid(idx.byId[th.id])) >= 0 && OTHER_PERSON.test(core))) {
           var tp = aim(th, core), tv = EMAIL_IDS.indexOf(vid(tp.def)) >= 0 ? (typedEmail(core) || [core.replace(/^.*\b(?:is|are|it's|its|address|email|e-mail)\b[,:\s]*(?:me\s+)?(?:(?:at|on)\s+)?/i, '')])[0] : core;   // an email is what follows "is" / "it's"
           var tr = answerFor(tp.def, tv, tp.existing);
           if (tr.kind === 'fill') { var tid = tp.commit(); if (tr.field) tid = tr.field; actions.push({ do: 'fill', field: tid, res: tr, explicit: true }); target = tid; answered = true; return; }
@@ -1480,6 +1509,7 @@
       var m = !isQ && !WH.test(core) ? ASSERT.exec(core) : null;           // "your first name is John", "my surname is Peters"
       if (m) {
         var hit = matchQuestion((m[1] || '') + m[2], idx, near);
+        if (hit && CLIENT_ONLY_IDS.indexOf(vid(idx.byId[hit.id])) >= 0 && OTHER_PERSON.test(core)) hit = null;       // "my wife's ID is ...": the value alone no longer says whose it is (A13)
         if (hit && hit.score >= 2.5 && visible(hit.id)) {
           var ap = aim(hit, core), r = answerFor(ap.def, m[3].replace(/[,\s]+(?:right|correct|okay|ok|yes|isn't it|is that right|is that correct|not so)\s*$/i, ''), ap.existing);
           r = fullName(ap.def, r, m[2]);
