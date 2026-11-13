@@ -105,7 +105,7 @@ test('an older file opens: the advisor name is ignored, the old notes boxes beco
   old.f.advisor = { v: 'Someone', st: 'preset' }; old.f.n_q_risk = { v: 'Wants R1m cover', st: 'confirmed' }; old.f.n_bs = { v: 'Partner agrees', st: 'confirmed' }; old.f.n_calc = { v: 'Used fractured', st: 'confirmed' }; old.f.fna_req = { v: 'Request a quote', st: 'confirmed' }; old.f.ref_will = { v: 'Not interested', st: 'confirmed' };
   old.docs = { 'Group risk benefit summary': 1 };
   const back = store.fromJSON(JSON.stringify(Object.assign({ app: 'wr-fact-find' }, old)));
-  assert.strictEqual(back.f.fna_req.v, 'Request a quote'); assert.strictEqual(back.f.ref_will.v, 'Not interested');
+  assert.strictEqual(back.f.fna_req.v, 'Request a quote'); assert.strictEqual(back.f.ref_will.v, 'Not required');
   assert.strictEqual(back.f.advisor, undefined); assert.strictEqual(back.docs, undefined);
   assert.strictEqual(back.f.n_prio.v, 'Personal risk quotes: Wants R1m cover\nBuy & Sell: Partner agrees');
   assert.strictEqual(back.f.n_calc.v, 'Used fractured');                                    // the Risk calculation page keeps its own notes

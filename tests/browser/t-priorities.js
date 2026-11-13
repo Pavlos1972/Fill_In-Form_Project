@@ -27,7 +27,7 @@ let bad = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if
   await p.selectOption('[data-f="pr_life"]', 'Priority: client agrees'); await p.waitForTimeout(250);
   await p.selectOption('[data-f="bf_fna_req"]', 'Request a quote');
   await p.selectOption('[data-f="pr_med"]', 'Priority: client agrees');
-  await p.selectOption('[data-f="pr_will"]', 'Not a priority: client not interested');
+  await p.selectOption('[data-f="pr_will"]', 'Not a priority');
   await p.selectOption('[data-f="pr_inv"]', 'Client not sure, needs to think about it');
   await p.waitForTimeout(2000);
   let t = await val(p, 'focus');
@@ -35,7 +35,7 @@ let bad = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if
   ok(!/Will|Investment/.test(t), 'the red and the yellow areas are not');
   ok(/Plain points from the green priorities/.test(await p.evaluate(() => document.getElementById('focusStatus').textContent)), 'with no Anthropic key the plain points stay, and the status says so');
   await p.screenshot({ path: process.argv[4] + '/priorities-focus.png', clip: { x: 0, y: 100, width: 1500, height: 760 } });
-  await p.selectOption('[data-f="pr_life"]', 'Not a priority: client not interested'); await p.selectOption('[data-f="pr_med"]', 'Not a priority: client not interested'); await p.waitForTimeout(2000);
+  await p.selectOption('[data-f="pr_life"]', 'Not a priority'); await p.selectOption('[data-f="pr_med"]', 'Not a priority'); await p.waitForTimeout(2000);
   ok((await val(p, 'focus')) === '', 'when no priority is green the box is empty again');
 
   // ---- typed over, then Refresh in one tap, with Claude's points ----

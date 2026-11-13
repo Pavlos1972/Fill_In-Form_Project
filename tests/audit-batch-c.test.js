@@ -68,9 +68,9 @@ test('the RGAR total includes a living annuity held under Investments, and a ret
 });
 
 /* ---- #20: one request vocabulary ---- */
-test('every quote list has the same four answers, and the investment quotes have a Request column', () => {
-  const four = ['Request a quote', 'Not required', 'Cannot afford now', 'Not interested'];
-  ['bfred', 'redq', 'raq', 'invq'].forEach(k => assert.deepStrictEqual(schema.lists[k].cols.find(c => c.k === 'req').o, four, k));
+test('every quote list has the same two answers (version 3.4), and the investment quotes have a Request column', () => {
+  const two = ['Request a quote', 'Not required'];
+  ['bfred', 'redq', 'raq', 'invq'].forEach(k => assert.deepStrictEqual(schema.lists[k].cols.find(c => c.k === 'req').o, two, k));
   assert.strictEqual(schema.lists.invq.cols[0].k, 'req');
 });
 

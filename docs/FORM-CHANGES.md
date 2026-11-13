@@ -4,6 +4,20 @@ A dated list of what changed in the form's boxes, newest first. **One line for e
 
 The version is `version` in `app/js/schema.js` (the Fact Find), `app/js/sr-schema.js` (the Short Risk Application) and `app/js/cs-schema.js` (the Investment Capture Sheet); a saved file carries it as `schema`. Earlier changes are in the README and in the git history; this list starts with 3.1.
 
+## 3.4: 12 November 2026 (Fact Find 3.3 to 3.4)
+
+Fact Find (Client priorities and quotes needed). **No id added, removed or relabelled.** No sum, tax table or list column changed.
+- **Decision boxes `pr_life`, `pr_ra`, `pr_rgar`, `pr_inv`, `pr_egar`, `pr_med`, `pr_will`, `pr_st`:** the choice `Not a priority: client not interested` is now **`Not a priority`** (the reason is written in the comments box). An older file opens with the new words in the same place, status kept. **A skill that reads these boxes must test for the words `Not a priority`, not for the old sentence.** No choice was added; Life, RA and Invest keep their four choices, the other five areas their two.
+- **Referral boxes `ref_will` and `ref_sti`:** the choice `Not interested` is now **`Not required`** (an older file opens with the new word). `ref_med` and the rest are unchanged.
+- **Quote requests:** the lists `bfred`, `redq`, `raq` and `invq` (column `req`) no longer offer `Cannot afford now` and `Not interested`: every quote request is `Request a quote` or `Not required` (the FNA quote also keeps `No FNA done`). A row of an older file keeps what it says.
+- **Insurer of an RA quote and an investment quote** (`raq.ins`, `invq.ins`): now Old Mutual, Momentum, Sanlam, Liberty, Discovery, Allan Gray, Stanlib, Other (BrightRock, Hollard, Assupol and Clientele are no longer offered there; any provider can still be typed). **Product of an investment quote** (`invq.product`): `Living annuity` and `Offshore` added.
+- **Comments boxes `pr_*_cm`:** three rows instead of two.
+- **New behaviour, no new box:** the form fills an empty decision, its comment and the area's referral or request box (`ref_med`, `ref_will`, `ref_sti`, `egar_req`) with `Not a priority` / a written reason / `Not required`, all with status `preset`, for five facts: medical aid (or hospital plan) with Broker on record `Through company`; will up to date held with `Other provider`; will up to date held with `Capital Legacy` with Broker on record `Paul K`; short-term `Yes` with Broker on record `Through company`; has children `No`. It goes again when the fact changes and nothing was touched. Once the adviser changes the decision of such an area, the area is his. Life, RA, RGAR and Invest are never decided by the form.
+- **Type of quote** (`bf_fna_type`, `fna_type`, `bf_sf_type`, `sf_type` and the `type` column of `bfred` and `redq`) starts as `New Business` (Has personal risk cover `No`) or `Servicing` (a policy with Broker on record `Paul K`), `preset`, for a quote that is asked for.
+- **Action points:** a referral for cover that is with another broker (`ma_broker`, `gap_broker`, `will_broker` with the will held by Capital Legacy, `sti_broker`, or short-term handled by the spouse) says `(currently with another broker: a take-over)`. `facts.referrals` gains `takeover: true` for such an entry.
+- **Checks:** a warning on `disp` when the monthly amounts asked for in the RA, investment and reduced quotes are more than the Disposable income.
+- **Saved file:** a new key `auto` (`{ "skip": { "<area>": true } }`, only `egar`, `med`, `will`, `st`) records the areas the adviser took over from the form. An older copy of the form ignores it.
+
 ## Investment Capture Sheet 1.0: 12 November 2026 (new page, `app/capture-sheet.html`)
 
 A new page for investment applications at any insurer, made from the Old Mutual sheet *Application Details for Finalisor*, with the Risk Tolerance questionnaire. **No Fact Find box changed.** The saved file is `app` = `wr-capture-sheet`, `schema` = `1.0`. Ids added (all new; nothing is shared with the other two forms):

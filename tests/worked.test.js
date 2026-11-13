@@ -62,7 +62,7 @@ test('the saved file carries the worked block beside the answers; the form’s o
   assert.strictEqual(j.worked.taxYear, '2026/27');
   assert.ok(Math.abs(Date.parse(j.worked.at) - Date.now()) < 60000);
   assert.ok(/not answers/i.test(j.worked.note));
-  assert.strictEqual(schema.version, '3.3');
+  assert.strictEqual(schema.version, '3.4');
 });
 
 test('the figures are the form’s own: Warren’s case (take-home, expenses, debts, children) gives the figures the screen shows, the disposable income with its minus sign', () => {
@@ -154,7 +154,7 @@ test('a tampered block is ignored and recomputed at the next save; an older copy
   const o = store.fromJSON(JSON.stringify(j)), again = JSON.parse(store.toJSON(o)).worked, honest = block(s);
   assert.strictEqual(again.f.lc_need, honest.f.lc_need); assert.strictEqual(again.f.disp, honest.f.disp);
   assert.strictEqual(again.protector.total, honest.protector.total); assert.strictEqual(again.totals.lists.debts[0].value, honest.totals.lists.debts[0].value);
-  const keysKnownToTheOldCopy = ['app', 'schema', 'created', 'modified', 'f', 'l', 'sum', 'pa', 'focus', 'unplaced', 'claude', 'openai'];
+  const keysKnownToTheOldCopy = ['app', 'schema', 'created', 'modified', 'f', 'l', 'sum', 'auto', 'pa', 'focus', 'unplaced', 'claude', 'openai'];       // auto (3.4) is the form's own record of which priority areas the adviser took over
   const extra = Object.keys(j).filter(k => keysKnownToTheOldCopy.indexOf(k) < 0);
   assert.deepStrictEqual(extra, ['worked'], 'the only new key is worked');
 });

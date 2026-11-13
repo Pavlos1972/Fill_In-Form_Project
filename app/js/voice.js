@@ -973,7 +973,7 @@
       if (no && yes) return { error: 'ambiguous', note: 'priority or not a priority?' };
       if (budget && !PRI_NOTINT.test(s)) return { error: 'budget', note: 'check the budget: left empty' };
       if (unsure && !no) return { error: 'unsure', note: 'not sure: left empty' };       // pickOption turns it into "Client not sure, needs to think about it" for the areas that have that choice
-      return no ? 'Not a priority: client not interested' : yes ? 'Priority: client agrees' : null;
+      return no ? 'Not a priority' : yes ? 'Priority: client agrees' : null;
     };
   });
 

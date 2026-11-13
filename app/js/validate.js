@@ -162,6 +162,7 @@
     gateChecks(ctx, warnAnyway);
     quoteChecks(ctx, v, warn, rowWarn);
     priorityChecks(ctx, v, warnAnyway);
+    affordabilityCheck(ctx, warn);
     return out;
   }
 
@@ -238,6 +239,20 @@
       if (!v('km_name')) warn('km_name', 'A Keyman quote is asked for: the keyman\'s name is needed.');
       if (!v('km_amt')) warn('km_amt', 'A Keyman quote is asked for: the cover amount is needed.');
     }
+  }
+
+  /* The monthly amounts asked for in the RA, investment and reduced quotes against what the client has left each month (Disposable income). Only a line in the Checks: whether the client can afford it is the client's
+     call, and the area's decision can say Client needs to check their budget. Nothing is said when the Disposable income is not worked out yet. */
+  function affordabilityCheck(ctx, warn) {
+    var dtext = calc.field('disp', ctx);
+    if (dtext === '' || dtext == null) return;
+    var asked = 0;
+    [['raq', 'monthly'], ['invq', 'monthly'], ['bfred', 'amt'], ['redq', 'amt']].forEach(function (x) {
+      if (!listShown(ctx, x[0])) return;
+      ctx.rows(x[0]).forEach(function (r) { if (r.d.req === REQUEST) asked += util.num(r.d[x[1]]); });
+    });
+    var disp = util.num(dtext);
+    if (asked > 0 && asked > disp) warn('disp', 'The RA, investment and reduced quotes ask for ' + util.money(asked) + ' a month, but the disposable income is ' + util.money(disp) + '. The client may need to check their budget.');
   }
 
   /* An area marked as a priority with nothing asked for and nothing written: the personal assistant has nothing to do for it. */
