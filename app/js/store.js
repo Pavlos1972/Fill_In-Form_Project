@@ -2,9 +2,9 @@
    Each field holds { v, st }. st is one of: empty, preset, confirmed (typed or accepted), heard, verify, suggest.
    The last three are used when answers come from a live call. */
 (function (root, factory) {
-  if (typeof module === 'object' && module.exports) module.exports = factory(require('./util.js'), require('./schema.js'), require('./calc.js'));
-  else { root.FF = root.FF || {}; root.FF.store = factory(root.FF.util, root.FF.schema, root.FF.calc); }
-})(typeof self !== 'undefined' ? self : this, function (util, schema, calc) {
+  if (typeof module === 'object' && module.exports) module.exports = factory(require('./util.js'), require('./schema.js'), require('./calc.js'), require('./autoprio.js'));
+  else { root.FF = root.FF || {}; root.FF.store = factory(root.FF.util, root.FF.schema, root.FF.calc, root.FF.autoprio); }
+})(typeof self !== 'undefined' ? self : this, function (util, schema, calc, autoprio) {
   var APP_ID = 'wr-fact-find';
 
   /* What Claude has cost for this fact find (an estimate from the published prices, see lookup.js): dollars and the tokens behind them. It travels with the saved file. */
@@ -23,6 +23,9 @@
   }
   /* The action points on the Admin page: what they were written from (key), when (at), by what ('claude' or 'form'), and whether the adviser has typed in the box since (edited): after that they no longer follow the form until Refresh. */
   function blankPa() { return { key: '', at: '', by: '', edited: false }; }
+  /* Which priority areas the adviser has taken over from the form: once the decision of an area that the form had set (autoprio.js) is changed by hand, the form never sets it again. */
+  function blankAuto() { return { skip: {} }; }
+  function cleanAuto(a) { var o = blankAuto(); if (a && a.skip && typeof a.skip === 'object') Object.keys(a.skip).forEach(function (k) { if (a.skip[k] === true && autoprio.AREAS[k]) o.skip[k] = true; }); return o; }
   function cleanPa(x) {
     var o = blankPa(); if (!x || typeof x !== 'object') return o;
     o.key = String(x.key || '').slice(0, 40); o.at = String(x.at || '').slice(0, 40); o.by = x.by === 'claude' || x.by === 'form' ? x.by : ''; o.edited = x.edited === true;
@@ -32,7 +35,7 @@
   /* The Priorities to be Focused on box (top of Client priorities and quotes needed) is kept the same way as the action points: what it was written from, when, by what, and whether the adviser has typed in it since. */
   function setFocus(state, key, by) { state.focus = { key: String(key || ''), at: new Date().toISOString(), by: by === 'claude' ? 'claude' : 'form', edited: false }; }
   function blank() {
-    var s = { app: APP_ID, schema: schema.version, created: new Date().toISOString(), modified: null, f: {}, l: {}, sum: {}, pa: blankPa(), focus: blankPa(), unplaced: [], claude: blankTally(), openai: blankSpeech() };
+    var s = { app: APP_ID, schema: schema.version, created: new Date().toISOString(), modified: null, f: {}, l: {}, sum: {}, auto: blankAuto(), pa: blankPa(), focus: blankPa(), unplaced: [], claude: blankTally(), openai: blankSpeech() };
     Object.keys(schema.fieldsById).forEach(function (id) {
       var d = schema.fieldsById[id], p = d.preset === '@today' ? util.todayDMY() : d.preset;
       s.f[id] = p ? { v: p, st: 'preset' } : { v: '', st: 'empty' };
@@ -65,8 +68,9 @@
   function setField(state, id, v, st) {
     var def = schema.fieldsById[id];
     if (def && def.time) { var pt = util.parseTime(v); if (pt) v = util.formatTime(pt); }                  // "2pm" and "2:30 pm" are kept as 14:30, however they got here
-    var was = id === 'sname' || id === 'gender' ? fatherSurname(state) : null;
+    var was = id === 'sname' || id === 'gender' ? fatherSurname(state) : null, prevBox = state.f[id];
     state.f[id] = { v: v, st: st || (v === '' ? 'empty' : 'confirmed') };
+    autoprio.touched(state, id, prevBox);                                                                    // the adviser changing a decision the form had set takes the area over
     if (PS_OTHER_BOX[id] && state.f[PS_OTHER_BOX[id]] && String(v).split(';').map(function (x) { return x.trim(); }).indexOf('Other') < 0) state.f[PS_OTHER_BOX[id]] = { v: '', st: 'empty' };
     if (NOT_REQUIRED[id] && NOT_REQUIRED[id].vals.indexOf(v) >= 0) NOT_REQUIRED[id].clear.forEach(function (d) { if (state.f[d]) state.f[d] = { v: '', st: 'empty' }; });
     if (id === 'sname' || id === 'gender') followFather(state, was);
@@ -75,6 +79,7 @@
     if (id === 'edu') eduDefault(state);
     if (id === 'employed') employerDefault(state);
     if (id === 'dob' || id === 'date') termsFollow(state);                                                   // a term said as an age becomes months once the date of birth is known
+    autoprio.apply(state);                                                                                   // the outcomes the facts give (autoprio.js)
   }
   /* Defaults that follow another answer, shown as defaults (status "preset") and never put over an answer that was typed or said: Qualification details starts as N/A when the highest education is Matric,
      and Employer as N/A when the client is not employed. When the answer above changes, a default that was not touched goes again. */
@@ -133,16 +138,19 @@
     schema.lists[key].cols.forEach(function (c) { d[c.k] = (data && data[c.k]) || c.def || ''; });         // a column can have a value a new row starts with (Broker on record: Other broker)
     if (key === 'kids' && !d.sname) d.sname = fatherSurname(state);
     if (key === 'invq' && !d.req) d.req = 'Request a quote';                                         // a row in the investment quotes is a quote asked for until it says otherwise
+    if ((key === 'bfred' || key === 'redq') && !d.type) d.type = autoprio.typeStartValue(state);          // Type of quote starts as New Business (no personal risk cover) or Servicing (a policy with Paul K)
     var r = { d: d, st: st || 'confirmed' };
     if (key === 'debts') { if (r.d.term) r.d.term = termValue(state, r.d.term); debtDefaults(r); }
     state.l[key].push(r);
     if (key === 'debts' && state.f.debts_end && state.f.debts_end.v) state.f.debts_end = { v: '', st: 'empty' };      // a debt added: it was not the last, so "No more debts" goes
     LIST_GATES.forEach(function (g) { if (g[1] === key && state.f[g[0]] && state.f[g[0]].v !== 'Yes') state.f[g[0]] = { v: 'Yes', st: 'confirmed' }; });      // a row added is a Yes to "Has debts", "Has children" and the like
+    autoprio.apply(state);
     return r;
   }
   function delRow(state, key, i) {
     state.l[key].splice(i, 1);
     if (key === 'debts' && !state.l.debts.length && state.f.debts_end && state.f.debts_end.v) state.f.debts_end = { v: '', st: 'empty' };      // no debt left: nothing for the line to be under
+    autoprio.apply(state);
   }
   /* The instalment protector (BrightRock Risk Calculation): a debt is protected unless it is switched off (row.off). The switch is kept on the debt itself, so it goes with the row; a status such as "verify" is not touched. */
   function setProtect(state, i, on) { var r = state.l.debts[i]; if (!r) return; if (on) delete r.off; else r.off = true; }
@@ -151,6 +159,7 @@
     var r = state.l[key][i]; if (key === 'debts' && k === 'term') v = termValue(state, v); r.d[k] = v; r.st = st || 'confirmed';
     if (key === 'debts' && (k === 'type' || k === 'desc' || k === 'notes')) debtDefaults(r);
     if ((key === 'redq' || key === 'bfred') && k === 'req' && v === 'Not required') { r.d.type = ''; r.d.amt = ''; if ('ins' in r.d) r.d.ins = ''; }        // a reduced quote that is not required keeps nothing
+    autoprio.apply(state);
   }
   function accept(state, target) {
     if (target.list) state.l[target.list][target.i].st = 'confirmed';
@@ -189,6 +198,7 @@
     var s = blank();
     s.created = j.created || s.created; s.modified = j.modified || null;
     Object.keys(j.f || {}).forEach(function (id) { if (s.f[id]) s.f[id] = { v: String(j.f[id].v == null ? '' : j.f[id].v), st: j.f[id].st || 'confirmed' }; });
+    s.auto = cleanAuto(j.auto);
     Object.keys(j.l || {}).forEach(function (k) {
       if (!schema.lists[k]) return;
       s.l[k] = (j.l[k] || []).map(function (r) {
@@ -210,8 +220,10 @@
     listGates(s);
     scheduleWording(s);
     referralFacts(s);
+    priorityWording(s);
     brokerChoices(s);
     openDefaults(s);
+    autoprio.apply(s);                                                                               // an older file with an empty decision gets the outcomes the facts already give
     s.sum = cleanSum(j.sum);
     s.pa = cleanPa(j.pa);
     s.focus = cleanPa(j.focus);
@@ -266,8 +278,14 @@
      one of them keeps the fact in its own box (when that box is empty) and the referral says Not interested, which is what the action points already did with it. */
   function referralFacts(s) {
     var put = function (id, v) { if (s.f[id] && s.f[id].v === '') s.f[id] = { v: v, st: 'confirmed' }; };
-    if (s.f.ref_sti && s.f.ref_sti.v === 'Client has own broker') { put('sti', 'Yes'); put('sti_broker', 'Other broker'); s.f.ref_sti = { v: 'Not interested', st: s.f.ref_sti.st }; }
-    if (s.f.ref_will && s.f.ref_will.v === 'Has updated will') { put('will', 'Yes'); put('will_up', 'Yes'); s.f.ref_will = { v: 'Not interested', st: s.f.ref_will.st }; }
+    if (s.f.ref_sti && s.f.ref_sti.v === 'Client has own broker') { put('sti', 'Yes'); put('sti_broker', 'Other broker'); s.f.ref_sti = { v: 'Not required', st: s.f.ref_sti.st }; }
+    if (s.f.ref_will && s.f.ref_will.v === 'Has updated will') { put('will', 'Yes'); put('will_up', 'Yes'); s.f.ref_will = { v: 'Not required', st: s.f.ref_will.st }; }
+  }
+  /* Version 3.4: the one no of a priority area's decision is plain "Not a priority" (it was "Not a priority: client not interested"), and the Will and Short-term referral boxes say "Not required" where they said
+     "Not interested". An older file opens with the new words in the same places, so the page colours, the quote boxes and the action points follow as before. */
+  function priorityWording(s) {
+    schema.panels.forEach(function (P) { if (P.dec && s.f[P.dec] && s.f[P.dec].v === schema.NOT_PRIORITY_OLD) s.f[P.dec] = { v: schema.NOT_PRIORITY, st: s.f[P.dec].st }; });
+    ['ref_will', 'ref_sti'].forEach(function (id) { if (s.f[id] && s.f[id].v === 'Not interested') s.f[id] = { v: 'Not required', st: s.f[id].st }; });
   }
   /* "Broker on record" is the same four choices everywhere. A file saved with the older medical aid, gap cover and short-term choices keeps the fact: "Privately paid, no broker" is None, "Privately paid, other
      broker" and "Cameron Maritz" are Other broker. */

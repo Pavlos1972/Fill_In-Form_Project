@@ -21,10 +21,11 @@
   var YN = ['Yes', 'No'], BROKER = ['Paul K', 'Other broker', 'Through company', 'None'], DEFAULT_BROKER = 'Other broker';        // every "Broker on record" starts as Other broker (a new row, or one of the four boxes in Medical, will & short-term from the start); the adviser changes it when it is different
   var QTYPE = ['New Business', 'Servicing', 'N/A'];                         // what kind of quote it is
   var INS = ['Old Mutual', 'Momentum', 'Liberty', 'Sanlam', 'Discovery', 'BrightRock', 'Hollard', 'Assupol', 'Clientele', 'Other'];
+  var INS_INV = ['Old Mutual', 'Momentum', 'Sanlam', 'Liberty', 'Discovery', 'Allan Gray', 'Stanlib', 'Other'];      // the providers an RA quote and an investment quote can be asked of (the list of the Investment Capture Sheet; BrightRock sells risk cover only)
   var INS_STD = ['Old Mutual', 'Momentum', 'Liberty', 'Sanlam', 'Discovery', 'Hollard', 'Assupol', 'Clientele', 'BrightRock (standard)', 'Other'];     // the insurers a standard quote can be asked of (BrightRock too: it does standard as well as fractured)
   var BANKS = ['Nedbank', 'FNB', 'Investec', 'Standard Bank', 'ABSA', 'Discovery Bank', 'Capitec', 'Wesbank'];
   var WHO = ['Client', 'Spouse', 'Joint', 'Business', 'Ex-Spouse/Partner'];
-  var ACI = ['Fixed', 'CPI', 'None'], REQ = ['Request a quote', 'Not required'], REQ4 = ['Request a quote', 'Not required', 'Cannot afford now', 'Not interested'];       // REQ4: the answers of every quote list
+  var ACI = ['Fixed', 'CPI', 'None'], REQ = ['Request a quote', 'Not required'];       // the answer of every quote request, and of every row of a quote list (version 3.4: Cannot afford now and Not interested are gone from the lists; an older file keeps what it says)
   var N = function (id, l, rows) { var f = { id: id, l: l || 'Notes', t: 'area', wide: 1, opt: 1 }; if (rows) f.rows = rows; return f; };
   var BIZ = { f: 'bizowner', eq: 'Yes' }, HAS_BIZPOL = { all: [BIZ, { f: 'biz_assur', nin: ['No'] }] };
   var MED_SCHEMES = ['Discovery Health', 'Momentum Medical Scheme', 'Bonitas Medical Fund', 'Bestmed Medical Scheme', 'Fedhealth Medical Scheme', 'Medihelp Medical Scheme', 'KeyHealth Medical Scheme', 'Medshield Medical Scheme', 'CompCare Medical Scheme', 'GEMS (Government Employees Medical Scheme)', 'POLMED (SA Police Service)', 'SAMWUMED (Municipal Workers)', 'Transmed (Transport industry)', 'LA Health (Local Authorities)', 'Bankmed (Banking sector)', 'Sizwe Hosmed Medical Scheme', 'Profmed (Professionals only)', 'Anglovaal Group Medical Scheme (AGMS)', 'Sasolmed', 'Cape Medical Plan (Cape Medical Scheme)', 'Hosmed Medical Scheme', 'Genesis Medical Scheme', 'Suremed Health', 'Resolution Health Medical Scheme', 'Makoti Medical Scheme', 'BMW Medical Aid Scheme', 'Anglo Medical Scheme', 'Other'];
@@ -33,7 +34,7 @@
   var MARRIED = ['Married in community of property', 'Married out of community (with accrual)', 'Married out of community (no accrual)', 'Customary marriage', 'Civil union'];     // the marital statuses that have a date of marriage
   var STAGES = ['Not Yet in School', 'Pre-school', 'Primary', 'High School', 'Tertiary'];
   var ADVISOR = 'Paul Kafentzis';                                                                // printed in the PDF header; there is no Advisor box on the form
-  var PRIORITY = 'Priority: client agrees', NOT_PRIORITY = 'Not a priority: client not interested';     // the answers of a priority's decision box (empty = not discussed yet)
+  var PRIORITY = 'Priority: client agrees', NOT_PRIORITY = 'Not a priority', NOT_PRIORITY_OLD = 'Not a priority: client not interested';     // the answers of a priority's decision box (empty = not discussed yet). Version 3.4: the one no is plain "Not a priority" and the reason is in the Comments (the form writes it when it sets the decision itself); a file saved earlier opens with the old words changed to the new
   var UNSURE = 'Client not sure, needs to think about it', BUDGET = 'Client needs to check their budget', CAN_THINK = { life: 1, ra: 1, inv: 1 };        // two more answers (both yellow) for the areas where a client often wants time
   var SPOUSE = { f: 'marital', nin: ['Single', 'Divorced', 'Widowed'] }, HAS_PARTNERS = { all: [BIZ, { f: 'biz_partners', eq: 'Yes' }] };      // a spouse or partner to ask about; business partners to ask about
   var HAS_RISK = { f: 'has_risk', nin: ['No'] }, HAS_GROUP = { f: 'has_group', nin: ['No', 'Not sure'] };
@@ -51,7 +52,7 @@
   function HEAD(id) {
     return { pri: id, head: 1, layout: 'g12', fields: [
       { id: 'pr_' + id, l: TITLES[id] + ': client decision', sl: 'Client decision', t: 'sel', o: CAN_THINK[id] ? [PRIORITY, UNSURE, BUDGET, NOT_PRIORITY] : [PRIORITY, NOT_PRIORITY], s: 6 },
-      { id: 'pr_' + id + '_cm', l: TITLES[id] + ': comments (the reason, or your instructions)', sl: 'Comments (reason or instructions)', t: 'area', rows: 2, s: 6 }
+      { id: 'pr_' + id + '_cm', l: TITLES[id] + ': comments (the reason, or your instructions)', sl: 'Comments (reason or instructions)', t: 'area', rows: 3, s: 6 }
     ] };
   }
 
@@ -353,11 +354,11 @@
       ] },
       HEAD('will'),
       { pri: 'will', title: 'Referral', fields: [
-        { id: 'ref_will', l: 'Will (Capital Legacy)', t: 'sel', o: ['Capital Legacy to contact client', 'Not interested'] }
+        { id: 'ref_will', l: 'Will (Capital Legacy)', t: 'sel', o: ['Capital Legacy to contact client', 'Not required'] }
       ] },
       HEAD('st'),
       { pri: 'st', title: 'Referral', fields: [
-        { id: 'ref_sti', l: 'Short-term (Cameron)', t: 'sel', o: ['Cameron to contact client', 'Must not contact client', 'Not interested'] }
+        { id: 'ref_sti', l: 'Short-term (Cameron)', t: 'sel', o: ['Cameron to contact client', 'Must not contact client', 'Not required'] }
       ] },
       { pri: 'biz', cond: HAS_PARTNERS, grey: 1, nomsg: 1, title: 'Buy & Sell', help: 'Partner names, ID numbers, cell numbers and shareholding % come from the Partners and shareholders list on the Occupation page.', fields: [
         { id: 'bs_req', l: 'Buy & Sell quote', t: 'sel', o: REQ },
@@ -511,18 +512,18 @@
       { k: 'stage', l: 'Education stage', o: STAGES }, { k: 'cost', money: 1, l: 'Childcare (R p.m.)', num: 1 }
     ], sum: { cost: 'Total childcare' } },
     bfred: { dense: 1, cards: 'Reduced quote', title: 'Reduced quotes (BrightRock Fractured)', add: 'Add reduced quote', cols: [
-      { k: 'req', l: 'Request', o: REQ4 }, { k: 'type', l: 'Type of quote', o: QTYPE }, { k: 'amt', money: 1, l: 'Monthly amount (R p.m.)', num: 1 }
+      { k: 'req', l: 'Request', o: REQ }, { k: 'type', l: 'Type of quote', o: QTYPE }, { k: 'amt', money: 1, l: 'Monthly amount (R p.m.)', num: 1 }
     ], sum: {} },
     redq: { dense: 1, cards: 'Reduced quote', title: 'Reduced quotes (Standard)', add: 'Add reduced quote', cols: [
-      { k: 'req', l: 'Request', o: REQ4 }, { k: 'type', l: 'Type of quote', o: QTYPE }, { k: 'ins', l: 'Insurer', o: INS_STD, free: 1 }, { k: 'amt', money: 1, l: 'Monthly amount (R p.m.)', num: 1 }
+      { k: 'req', l: 'Request', o: REQ }, { k: 'type', l: 'Type of quote', o: QTYPE }, { k: 'ins', l: 'Insurer', o: INS_STD, free: 1 }, { k: 'amt', money: 1, l: 'Monthly amount (R p.m.)', num: 1 }
     ], sum: {} },
     raq: { dense: 1, cards: 'RA quote', title: 'Retirement annuity quotes', add: 'Add RA quote', cols: [
-      { k: 'req', l: 'Request', o: REQ4 }, { k: 'ins', l: 'Insurer', o: INS, free: 1 },
+      { k: 'req', l: 'Request', o: REQ }, { k: 'ins', l: 'Insurer', o: INS_INV, free: 1 },
       { k: 'monthly', money: 1, l: 'Monthly amount (R p.m.)', num: 1 }, { k: 'lump', money: 1, l: 'Lump sum (R)', num: 1 }
     ], sum: {} },
     invq: { dense: 1, cards: 'Investment quote', title: 'Investment quotes', add: 'Add investment quote', cols: [
-      { k: 'req', l: 'Request', o: REQ4 }, { k: 'purpose', l: 'Purpose', o: ['Children\'s education', 'General investing'] }, { k: 'product', l: 'Product', o: ['Tax-free savings', 'Endowment', 'Unit trust / voluntary funds', 'Other'] },
-      { k: 'ins', l: 'Insurer', o: INS, free: 1 }, { k: 'monthly', money: 1, l: 'Monthly amount (R p.m.)', num: 1 }, { k: 'lump', money: 1, l: 'Lump sum (R)', num: 1 }
+      { k: 'req', l: 'Request', o: REQ }, { k: 'purpose', l: 'Purpose', o: ['Children\'s education', 'General investing'] }, { k: 'product', l: 'Product', o: ['Tax-free savings', 'Endowment', 'Unit trust / voluntary funds', 'Living annuity', 'Offshore', 'Other'] },
+      { k: 'ins', l: 'Insurer', o: INS_INV, free: 1 }, { k: 'monthly', money: 1, l: 'Monthly amount (R p.m.)', num: 1 }, { k: 'lump', money: 1, l: 'Lump sum (R)', num: 1 }
     ], sum: {} }
   };
 
@@ -541,5 +542,5 @@
   var byId = {};
   sections.forEach(function (s) { s.blocks.forEach(function (b) { (b.fields || []).forEach(function (f) { byId[f.id] = f; }); }); });
 
-  return { version: '3.3', released: 'November 2026', sections: sections, lists: lists, panels: panels, panelsById: panelsById, advisor: ADVISOR, brBasis: BR_BASIS, areaTitle: areaTitle, psClient: PS_CLIENT, defaultBroker: DEFAULT_BROKER, psNoSend: PS_NOSEND, psSaved: PS_SAVED, psNone: PS_NONE, psClientOld: PS_CLIENT_OLD, PRIORITY: PRIORITY, NOT_PRIORITY: NOT_PRIORITY, UNSURE: UNSURE, BUDGET: BUDGET, fieldsById: byId };
+  return { version: '3.4', released: 'November 2026', sections: sections, lists: lists, panels: panels, panelsById: panelsById, advisor: ADVISOR, brBasis: BR_BASIS, areaTitle: areaTitle, psClient: PS_CLIENT, defaultBroker: DEFAULT_BROKER, psNoSend: PS_NOSEND, psSaved: PS_SAVED, psNone: PS_NONE, psClientOld: PS_CLIENT_OLD, PRIORITY: PRIORITY, NOT_PRIORITY: NOT_PRIORITY, NOT_PRIORITY_OLD: NOT_PRIORITY_OLD, UNSURE: UNSURE, BUDGET: BUDGET, fieldsById: byId };
 });

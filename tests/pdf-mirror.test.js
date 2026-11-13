@@ -132,3 +132,12 @@ test('a placeholder question mark (the ACI value before it is known) is not prin
   assert.ok(!rec.some(x => x.trim() === '?'), 'a "?" was printed');
   set(s, 'lc_f_aciv', '2.5%'); pdf(s); assert.ok(rec.some(x => x.trim() === '2.5%'));
 });
+
+test('an automatic Not a priority (version 3.4) is printed like any other: the decision, the comment the form wrote, and the referral as Not required', () => {
+  const s = store.blank(); set(s, 'ma', 'Medical aid'); set(s, 'ma_broker', 'Through company');
+  assert.strictEqual(s.f.pr_med.v, schema.NOT_PRIORITY);
+  const out = pdf(s);
+  assert.ok(out.includes(norm('Not a priority')), 'the decision');
+  assert.ok(out.includes(norm('Medical aid is paid through the client\'s company (company broker) and cannot be touched, so gap cover is not pursued either.')), 'the comment');
+  assert.ok(!out.includes(norm('Not a priority: client not interested')), 'the old words are gone');
+});
