@@ -4,6 +4,14 @@ A dated list of what changed in the form's boxes, newest first. **One line for e
 
 The version is `version` in `app/js/schema.js` (the Fact Find), `app/js/sr-schema.js` (the Short Risk Application) and `app/js/cs-schema.js` (the Investment Capture Sheet); a saved file carries it as `schema`. Earlier changes are in the README and in the git history; this list starts with 3.1.
 
+## 3.8: 13 November 2026 (Fact Find 3.7 to 3.8)
+
+Fact Find (what the action points are written from; the copy check). **No id added, removed or relabelled. No box, choice, sum, tax table or list column changed.** Detail in the README ("Release 3.8").
+- **Facts for Claude (a skill that reads the facts will see):** a new key `on_the_form_now` (list title: `{ count, held: [provider names] }`; children have a count only, no amounts, no names); an open "Heard but not placed" item the form already covers (the Children list holds as many children as it says are missing, or the box it names holds that value) is no longer in `notes[]` and is closed in the file (`unplaced`).
+- **Claude's reply for the action points changed shape:** each point is `{ text, from, said }`; a point with no source, an unknown source or quoted words that are not in the note is removed. The saved `pa_actions` text is unchanged in form.
+- **Notes boxes:** small talk and broken-off sentences are no longer written into a notes box; a life cover line said in the Will, Medical aid, Gap cover or Short-term notes is written into `n_prio` instead.
+- **Every page now carries the copy check:** a `wr-build` meta tag, `app/js/build.js` and a red bar for a copy that is not whole. `version` is 3.8 and is also the build.
+
 ## 3.7: 13 November 2026 (Fact Find 3.6 to 3.7)
 
 Fact Find (what the voice and the points do with the answers). **No id added, removed or relabelled. No box, choice, sum, tax table or list column changed.** Detail in the README ("Release 3.7").

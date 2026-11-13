@@ -433,9 +433,9 @@ test('the action points request: only the facts go to Claude, with rules for wha
   const s = pa(); store.setField(s, 'cell', '0824541751'); store.setField(s, 'sname', 'Dlamini');
   const f = A.facts(s); assert.ok(!/0824541751|Dlamini/.test(JSON.stringify(f)));                                          // no private number, no surname
   let sent = null;
-  const out = await AI.actionPoints({ ask: (system, content) => { sent = { system, content: JSON.parse(content) }; return Promise.resolve('{"points": ["- Send Thandi the LOA to sign.", "  Ask Valerie to contact the client Thandi about medical aid.  ", "", 5]}'); }, model: 'm', facts: f });
-  assert.deepStrictEqual(out, ['Send the client Thandi the LOA to sign.', 'Ask Valerie to contact the client Thandi about medical aid.', '5']);
-  assert.deepStrictEqual(Object.keys(sent.content.facts).sort(), ['appointment', 'client', 'credit_life', 'instructions', 'letter_of_authority', 'notes', 'preferred_monthly_spend', 'quotes', 'referrals', 'schedules', 'undecided']);
+  const out = await AI.actionPoints({ ask: (system, content) => { sent = { system, content: JSON.parse(content) }; return Promise.resolve('{"points": [{"text": "- Send Thandi the LOA to sign.", "from": "loa"}, {"text": "  Ask Valerie to contact the client Thandi about medical aid.  ", "from": "referrals"}, {"text": "", "from": "loa"}, 5, "No source given", {"text": "Made up", "from": "n_nothing"}]}'); }, model: 'm', facts: f });
+  assert.deepStrictEqual(out, ['Send the client Thandi the LOA to sign.', 'Ask Valerie to contact the client Thandi about medical aid.'], 'a point with no source (a plain string, a number, an id that is not in the form) is dropped');
+  assert.deepStrictEqual(Object.keys(sent.content.facts).sort(), ['appointment', 'client', 'credit_life', 'instructions', 'letter_of_authority', 'notes', 'on_the_form_now', 'preferred_monthly_spend', 'quotes', 'referrals', 'schedules', 'undecided']);
   assert.match(sent.system, /Sitamah Nathoo/); assert.match(sent.system, /point form/); assert.match(sent.system, /never "he", "she", "his" or "her"/); assert.match(sent.system, /no signed LOA/);
   await assert.rejects(AI.actionPoints({ ask: () => Promise.reject(new Error('no connection')), model: 'm', facts: f }), /no connection/);
 });

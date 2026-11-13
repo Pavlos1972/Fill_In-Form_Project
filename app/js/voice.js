@@ -814,7 +814,17 @@
     "your|you(?:'re|re| are| work| worked| have| had| live| lived| own| earn| said| mentioned| told| stay| do| did)"
   ].join('|') + ')\\b', 'i');
   /* Acknowledgements and small talk ("okay great", "thanks", "I see"): they ask nothing and answer nothing, so the form ignores them. */
-  var CHATTER = /^(?:(?:okay|ok|great|perfect|lovely|thanks|thank you|alright|right|good|sure|cool|nice|wonderful|excellent|fine|super|got it|i see|understood|noted|mm+|hm+|uh huh|yes|yeah|yep|no|sorry|pardon|and|so|well|um+|uh+|that is|that's|that is fine|that is great|very much|so much|very helpful|helpful)[,.!\s]*)+$/i;
+  var CHATTER = /^(?:(?:okay|ok|great|perfect|lovely|thanks|thank you|alright|right|good|sure|cool|nice|wonderful|excellent|fine|super|got it|i see|understood|noted|mm+|hm+|uh huh|yes|yeah|yep|no|sorry|pardon|and|so|well|um+|uh+|that is|that's|that is fine|that is great|very much|so much|very helpful|helpful|all right|fantastic|brilliant|awesome|then|lekker|hello|hi|bye|goodbye)[,.!\s]*)+$/i;
+  /* A line that must not be put in a notes box (3.8): small talk ("All right then, fantastic") or a sentence that broke off ("Alex, when can you", "Above and beyond it, I want to know"). */
+  var NOTE_DANGLE = /(?:\b(?:and|but|the|a|an|to|of|with|that|if|when|because|than|or|for|at|in|on|my|your|his|her|their|can|could|would|will)|\bwhen can you|\bcan you|\bcould you|\bwould you|\bi (?:want|need|would like|wanna) to know|\bto know)[\s,;:]*$/i;
+  function isNoteJunk(line) {
+    var s = String(line == null ? '' : line).replace(/^[\s\-\u2022*]+/, '').trim();
+    if (!s || isChatter(s)) return true;
+    return !/[.?!]["')]*$/.test(s) && NOTE_DANGLE.test(s);
+  }
+  /* Life cover said while the notes of the Medical, Will or Short-term part are open belongs with the notes of Client priorities and quotes needed (3.8): the Will notes once held "client will reply by email when the two life insurance quotes are sent". */
+  var LIFE_NOTE_RE = /\b(?:life (?:insurance|cover)|brightrock|dread disease|income protection|fractured)\b|\bquotes?\b[^.]*\blife\b|\blife\b[^.]*\bquotes?\b/i, OFF_TOPIC_NOTES = ['n_will', 'n_ma', 'n_gap', 'n_sti'];
+  function noteBoxFor(line, box) { return OFF_TOPIC_NOTES.indexOf(box) >= 0 && LIFE_NOTE_RE.test(String(line || '')) ? 'n_prio' : box; }
   function isChatter(text) { var s = String(text == null ? '' : text).trim(); return !s || CHATTER.test(s); }
   function looksLikeQuestion(text) {
     var s = String(text == null ? '' : text).trim();
@@ -1771,7 +1781,7 @@
 
   return {
     norm: norm, wordsToNumber: wordsToNumber, spokenDigits: spokenDigits, spokenDate: spokenDate, yearlessDate: yearlessDate, setMeetingSource: setMeetingSource, setTermSource: setTermSource, setLineSource: setLineSource, termFromLine: termFromLine, spokenTime: spokenTime, spokenEmail: spokenEmail, yesNo: yesNo,
-    buildIndex: buildIndex, parseCommand: parseCommand, wrapUp: wrapUp, mergeMulti: mergeMulti, endsNotes: endsNotes, splitNotesEnd: splitNotesEnd, mentionsNotes: mentionsNotes, mayEndNotes: mayEndNotes, wipeAnswer: wipeAnswer, looksLikeQuestion: looksLikeQuestion, isChatter: isChatter, plan: plan, pointForm: pointForm, LIST_NOUNS: LIST_NOUNS, matchQuestion: matchQuestion, interpret: interpret, titleCase: titleCase,
+    buildIndex: buildIndex, parseCommand: parseCommand, wrapUp: wrapUp, mergeMulti: mergeMulti, endsNotes: endsNotes, splitNotesEnd: splitNotesEnd, mentionsNotes: mentionsNotes, mayEndNotes: mayEndNotes, wipeAnswer: wipeAnswer, looksLikeQuestion: looksLikeQuestion, isChatter: isChatter, isNoteJunk: isNoteJunk, noteBoxFor: noteBoxFor, plan: plan, pointForm: pointForm, LIST_NOUNS: LIST_NOUNS, matchQuestion: matchQuestion, interpret: interpret, titleCase: titleCase,
     isConfirm: isConfirm, answerFor: answerFor, clauses: clauses, PRIVATE_IDS: PRIVATE_IDS, yearsValue: yearsValue, debtRef: debtRef, removeDebtRef: removeDebtRef, noMoreDebts: noMoreDebts, keepExact: keepExact, namesProvider: namesProvider
   };
 });
