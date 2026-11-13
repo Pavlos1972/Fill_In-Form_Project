@@ -247,11 +247,14 @@
     return s;
   }
 
+  /* The adviser's pitch or plan ("we definitely need to get you some cover", "I should sort you out with a plan", "we are going to put you on a policy"): a "definitely" or "we have" inside it answers nothing. */
+  var PITCH = / (?:(?:we|you|i|he|she|they) )?(?:(?:definitely|really|absolutely|certainly|just|also|do) )*(?:need|needs|have|has|got|going|gonna|ought|should|must|shall|will|would like|want|wants)(?: to)? (?:(?:definitely|really|just|then) )?(?:get|put|set|sort|arrange|organise|organize|take out|take) (?:you|him|her|them|your|us|some)\b.*$/;
   function yesNo(t) {
     var s = ' ' + t + ' ';
-    if (/ (not sure|unsure|don't know|dont know|no idea|not certain|maybe|perhaps) /.test(s)) return 'unsure';
-    s = s.replace(/ (do|does|did|have|has|am|is|are) not /g, " don't ");
-    var neg = / (no|nope|nah|never|none|negative|don't|dont|doesn't|doesnt|didn't|didnt|haven't|havent|hasn't|hasnt|isn't|isnt|aren't|arent|won't|wont|nothing|neither|not) /.test(s);
+    if (/ (not sure|unsure|don't know|dont know|no idea|not certain|maybe|perhaps|(?:can't|cannot|cant|can not) (?:remember|recall|say|tell|be sure)) /.test(s)) return 'unsure';
+    s = s.replace(/ (do|does|did|have|has|am|is|are) not /g, " don't ").replace(/ can not /g, ' cannot ');
+    s = s.replace(PITCH, ' ');                                   // "we definitely need to get you some cover in place" is the adviser's pitch, not a yes (A14)
+    var neg = / (no|nope|nah|nee|never|none|negative|don't|dont|doesn't|doesnt|didn't|didnt|haven't|havent|hasn't|hasnt|isn't|isnt|aren't|arent|won't|wont|can't|cant|cannot|couldn't|couldnt|nothing|neither|not) /.test(s);
     var pos = / (yes|yeah|yep|yup|yebo|ja|correct|definitely|absolutely|certainly|affirmative|sure|indeed|true) /.test(s) || / (i|we) (do|have|am|are|did) /.test(s);
     if (neg && !pos) return 'no';
     if (pos && !neg) return 'yes';
@@ -490,6 +493,11 @@
   var EMAIL_IDS = ['pemail', 'wemail'];
   var DIGIT_IDS = ['idno', 'tax'];
   var TYPED_IDS = PHONE_IDS.concat(EMAIL_IDS, DIGIT_IDS, DATE_IDS, TIME_IDS);
+  /* The client's own ID, tax, phone and email boxes never take what is said about someone else: "my wife's ID is 8001...", "my son's tax number is ...", "my husband's number is ..." (A13).
+     The partner's own boxes (sp_tel, the Shares lists) are not in this set. */
+  var CLIENT_ONLY_IDS = ['idno', 'tax', 'cell', 'work', 'home', 'pemail', 'wemail'];
+  var OTHER_PERSON = /\b(?:spouse|wife|husband|partner|ex[\s-]?(?:wife|husband|partner|spouse)|fiancee?|girlfriend|boyfriend|son|daughter|child|kid|brother|sister|mother|father|mom|mum|dad|friend|colleague|boss|neighbou?r|cousin|uncle|aunt)(?:'?s)?\s+(?:\w+\s+){0,2}?(?:id|identity|passport|tax|cell|cellphone|mobile|phone|telephone|number|email|e-?mail|address|contact)\b/i;
+  var OTHER_PERSON_NOT_PARTNER = new RegExp(OTHER_PERSON.source.replace('|partner|', '|'), 'i');
   var PCT_IDS = ['d_desk', 'd_supo', 'd_trav', 'd_sups', 'd_light', 'd_mod', 'd_heavy', 'biz_pct'];
 
   /* Names in brackets in a label ("Short-term (Cameron)") are things people say; units and notes ("(R)", "(today's terms)") are not. */
@@ -566,7 +574,11 @@
   }
 
   /* ---------- what the advisor says: commands ---------- */
-  var NAV_RE = /\b(?:go to|go back to|jump to|move on to|move to|switch to|take me to|show me|open up|open|lets (?:do|deal with|look at|go to|move to|talk about|discuss|start with|begin with|have a look at|move on to)|let us (?:do|deal with|look at|go to|talk about)|i want to (?:deal with|do|look at|go to|talk about|discuss|move to|move on to)|i would like to (?:deal with|do|look at|go to|talk about|discuss)|i'?d like to (?:deal with|do|look at|go to|talk about|discuss)|we(?:'ll| will| are going to| can| should) (?:deal with|do|look at|go to|talk about|discuss|move to|move on to)|moving on to|move onto|on to|onto|turn to|next up(?: is)?|now for|now the)\b/;
+  var NAV_RE = /\b(?:go to|go back to|jump to|move on to|move to|switch to|take me to|show me|lets (?:do|deal with|look at|go to|move to|talk about|discuss|start with|begin with|have a look at|move on to)|let us (?:do|deal with|look at|go to|talk about)|i want to (?:deal with|do|look at|go to|talk about|discuss|move to|move on to)|i would like to (?:deal with|do|look at|go to|talk about|discuss)|i'?d like to (?:deal with|do|look at|go to|talk about|discuss)|we(?:'ll| will| are going to| can| should) (?:deal with|do|look at|go to|talk about|discuss|move to|move on to)|moving on to|move onto|turn to|next up(?: is)?|now for|now the)\b/;
+  /* "open", "open up", "on to" and "onto" are navigation only when a section's name follows within two words ("open up the debts", "on to retirement"): "we can open up a tax-free savings account", "she signed onto the medical aid" are not (A15).
+     A line with a future or conditional tail ("once the cover is sorted", "when we are done", "if you like") is a plan, not an order. */
+  var NAV_SOFT = /\b(?:open up|open|on to|onto)\b/;
+  var NAV_FUTURE = /\b(?:once|when|until|if|after|before|unless|as soon as|whenever)\b/;
 
   function sectionHit(textNorm, idx) {
     var best = null, bl = 0;
@@ -608,7 +620,8 @@
     /^(?:there is|there's|i have) (?:nothing|no more|no further|no other)(?: questions?)? (?:more |else |left )?(?:for|on|about|in) (.+)$/
   ];
   var MORE_LIST = /\b(?:any|are there any|is there any|do you have any|have you got any|got any|do you have)\s+(?:more|other|others|another|further|additional)\b|\bany (?:more|other|others)\b|\banother one\b/;
-  var CLOSE_ANY = /\banything else\b|\bis that (?:all|everything|it|the lot)\b|\bthat (?:all|everything)\s*$|\bhave we (?:got|covered|missed)\b|\banything (?:i|we) (?:missed|have missed|forgot|left out)\b|\banything (?:more|further) to\b|\bis there anything\b|\bany(?:thing)? (?:more|else) (?:to|that|you)\b|\bany (?:more|other|further) questions\b/;
+  var CLOSE_ANY = /\banything else\b|\bis that (?:all|everything|it|the lot)\b|\bthat (?:all|everything)\s*$|\bhave we (?:got|covered|missed)\b|\banything (?:i|we) (?:missed|have missed|forgot|left out)\b|\banything (?:more|further) to\b|\bis there anything\b|\bany(?:thing)? (?:more|else) (?:to|that|you)\b/;
+  var CLOSE_QUESTIONS = /\bany (?:more|other|further) questions\b/;
   var DECLINE = /^(?:(?:okay|ok|ja|yes|yeah|oh|well|um+|uh+|sorry|hmm+|no|nope|nah)[,.\s]+)*(?:no|nope|nah|none|nothing|not really|not at the moment|not right now|not that i know of|not that i can think of|no more|no other|no others|nothing else|nothing more|there is no more|there is nothing else|there is nothing more|there are no more|there are none|i have no more|i have none|i do not have any(?: more| other)?|i don't have any(?: more| other)?|we do not have any(?: more| other)?|we don't have any(?: more| other)?|that(?: is)? all|that(?: is)? it|that(?: is)? everything|that(?: is)? the lot|that should be all|that will be all|that(?: is)? the only one|that(?: is)? the only ones|those are the only ones|those are all|just the one|just those|just that one|just these|only the one|only those|i think that(?: is)? (?:all|it|everything|the lot)|i think that should be all)(?:\s+(?:more|else|other|others|at the moment|right now|for now|thanks|thank you|sorry|really|i think|at all|anymore|any more|that i know of))*[.,!\s]*$/;
   function wrapTarget(x, idx, cur, raw) {
     if (new RegExp('\\b(?:this|that|the current|current)\\s+' + SEC_NOUN + '\\b|\\bhere\\b').test(raw)) return cur ? { id: cur, word: '' } : null;           // "this section", "we are done here"
@@ -623,13 +636,18 @@
       if (!(m = WRAP_SAID[i].exec(raw))) continue;
       if (/^(?:what|who|where|when|why|how|which|do|did|does|can|could|would|will|shall|are|is)\b/.test(raw)) return null;
       if (i === 1 && !/^(?:that|this|the|our|your)\b/.test(raw) && !isSectionName(String(m[1]).trim(), idx)) continue;       // "my debts are all done" is the client talking about their own debts
+      if (i === 1 && !/^(?:that|this)\b/.test(raw)) {                                          // "the kids are all sorted" (A15): with "the", the thing named must be a section's name, and "sorted" / "over" alone is the real world, not the page
+        if (!isSectionName(String(m[1]).trim().replace(/^(?:the|our|your)\s+/, ''), idx)) continue;
+        if (/\b(?:sorted|over)$/.test(raw) && !new RegExp('\\b' + SEC_NOUN + '\\b').test(raw)) continue;
+      }
       sec = wrapTarget(m[1], idx, o.cur, raw);
       if (sec) return isPartial(sec) ? { sec: null, list: null, part: sec.id, via: 'said' } : { sec: sec.id, list: null, via: 'said' };
     }
     if (o.prev && DECLINE.test(raw) && words <= 10) {
-      var pn = norm(o.prev), more = MORE_LIST.test(pn), generic = CLOSE_ANY.test(pn);
+      var pn = norm(o.prev), more = MORE_LIST.test(pn), named = Object.keys(listsNamed(pn))[0] || null;
+      var generic = CLOSE_ANY.test(pn) || (CLOSE_QUESTIONS.test(pn) && !!(named || sectionHit(pn, idx)));       // "any more questions from your side?" names nothing on the form: its "no" ends no section (A15)
       if (!more && !generic) return null;
-      var hit = matchQuestion(o.prev, idx, { cur: o.cur }), named = Object.keys(listsNamed(pn))[0] || null;
+      var hit = matchQuestion(o.prev, idx, { cur: o.cur });
       if (hit && hit.score >= 4 && !idx.byId[hit.id].list) return null;                       // "any other health issues?" is about a box that exists: its answer is that box's
       if (!named && !generic) return null;                                                      // "any other dependants?" with no list of its own: the answer belongs to a box, not to the end of a section
       var sh = !named ? sectionHit(pn, idx) : null;
@@ -647,7 +665,24 @@
   var NOTES_RETRO = /\b(?:(?:note|write|jot|put|log|record|capture)\s+(?:that|this|it)\s+(?:down|in|into|to)|make a note of (?:that|this)|note (?:that|this) down|note that|note this)\b/;
   /* "let's move on", "okay, we can move on", "time to carry on": the same as "next". While notes are being taken it also ends them. */
   var NEXT_ON = /^(?:(?:okay|ok|right|so|alright|now|well|please|and)\s+)*(?:(?:lets|let us|we can|we should|we could|time to)\s+)?(?:move on|carry on)(?:\s+(?:then|now|please))?$/;
+  /* Not the client's own row: a hypothesis ("imagine you had a home loan") or someone else's ("my brother has a personal loan with Capitec"). Never makes, adds or fills a row of a list other than the children (A9, A11). */
+  var NEG_INTRO_RE = /\b(?:never|don'?t|do not|dont|doesn'?t|haven'?t|have not|havent|hasn'?t|not got)\s+(?:ever\s+)?(?:have|had|got|use|used|owned?|taken)\b|\b(?:there'?s|there is|there are|has|have|had|got|with)\s+no\b/i;
+  var HYPO_RE = /\b(?:imagine|suppose|pretend|let'?s say|lets say|what if|if you had|say you|for example|for instance)\b|\bmy (?:brother|sister|mother|father|dad|mom|mum|friend|boss|neighbour|neighbor|colleague|cousin|uncle|aunt|son|daughter|(?:father|mother|brother|sister) in law|in laws|parents|grandmother|grandfather|gran)'?s?\b/i;
   var ADD_ROW = /\b(?:add|another|one more|a new|new|next|additional|a second|a third|the other)\b/;
+  /* The word that adds a row must sit right in front of the list's own noun ("one more loan", "another policy", "add a debt", "a new home loan"): a clause that merely holds both
+     ("one more payment on the car loan", "we bought a new car on finance", "my wife looks after the other investments") adds nothing (A11). -> the list key, or null. */
+  var ADD_WORD = '(?:add|adding|another|one more|a new|new|additional|a second|a third|an extra|a further)', ADD_WEAK = '(?:next|the other)';
+  var ADDQ = (function () {
+    var out = [];
+    Object.keys(LIST_NOUNS_N).forEach(function (k) { LIST_NOUNS_N[k].forEach(function (p) { out.push({ k: k, p: p, re: new RegExp('\\b' + ADD_WORD + '(?: (?:a|an|one|the))?(?: [a-z]+)? ' + p + '\\b'), weak: new RegExp('\\b' + ADD_WEAK + ' ' + p + '\\b') }); }); });
+    out.sort(function (a, b) { return b.p.length - a.p.length; });
+    return out;
+  })();
+  function addQualifies(t) {
+    var i, short = t.split(' ').length <= 4;
+    for (i = 0; i < ADDQ.length; i++) if (ADDQ[i].re.test(t) || (short && ADDQ[i].weak.test(t))) return ADDQ[i].k;
+    return null;
+  }
   var NOTES_OFF = /^(?:that(?:'s|s| is)? all (?:for|the) (?:the )?notes|that(?:'s|s| is)? it for the notes|end (?:of )?(?:the )?notes|stop (?:the |taking )?notes|no more notes|done with (?:the )?notes|finished with (?:the )?notes|close (?:the )?notes|back to the (?:form|questions))\b/;
   /* Ending the notes can be said many ways ("let's end the notes", "I'm done with the notes", "that's enough notes", "okay, back to the form", "I've noted that, I've completed those notes"):
      a short line that opens like a wrap-up, mentions the notes and says they are over. */
@@ -699,7 +734,9 @@
     if (NOTES_OFF.test(t) || endsNotes(t)) return { type: 'notesOff' };
     if (!/^(?:what|who|where|when|why|how|which)\b/.test(t) && !/\?$/.test(String(text).trim())) {          // "add another child", "one more policy", "another one"
       var ln = listsNamed(t), lk = Object.keys(ln)[0] || null;
-      if ((lk && ADD_ROW.test(t)) || (!lk && /^(?:(?:and|okay|ok|now|please)\s+)*(?:add\s+)?(?:another(?:\s+one)?|one more|a new one|add one|add another(?:\s+one)?|add a row|next one please)$/.test(t))) return { type: 'addrow', list: lk };
+      var qk = lk && ADD_ROW.test(t) ? addQualifies(t) : null;
+      if (qk) return { type: 'addrow', list: qk };
+      if ((!lk && /^(?:(?:and|okay|ok|now|please)\s+)*(?:add\s+)?(?:another(?:\s+one)?|one more|a new one|add one|add another(?:\s+one)?|add a row|next one please)$/.test(t))) return { type: 'addrow', list: lk };
     }
     if (NOTES_ON.test(t) || NOTES_RETRO.test(t)) {
       var box = null;
@@ -713,8 +750,15 @@
     if (/^(previous section|go to the previous section|go back a section|previous screen)$/.test(t)) return { type: 'prevSection' };
     if (/^(next|next one|next question|skip|skip that|skip this one|skip it|move on|carry on)$/.test(t) || NEXT_ON.test(t)) return { type: 'next' };
     if (/^(previous|previous one|go back|back|previous question)$/.test(t)) return { type: 'prev' };
-    var m = NAV_RE.exec(t);
-    if (m) {
+    var m = NAV_RE.exec(t), soft = m ? null : NAV_SOFT.exec(t);
+    if (soft) {                                                  // "open up", "on to", "onto": only when what follows is a section's name and nothing else
+      var after = t.slice(soft.index + soft[0].length).split(' ').filter(Boolean), nn;
+      while (after.length && /^(?:the|our|your|my|a|an|to)$/.test(after[0])) after.shift();
+      for (nn = Math.min(3, after.length); nn >= 1; nn--) {
+        if (isSectionName(after.slice(0, nn).join(' '), idx) && after.slice(nn).every(function (w) { return /^(?:section|page|part|screen|now|please|then|next)$/.test(w); })) { m = soft; break; }
+      }
+    }
+    if (m && !NAV_FUTURE.test(t)) {
       var sec = sectionIn(t.slice(m.index + m[0].length), idx);
       if (sec) return { type: 'goto', sec: sec };
     }
@@ -818,6 +862,9 @@
     }
     return hasMark ? toks.slice(i).join(' ') : toks.join(' ');
   }
+  /* Ordinary words that are never a name when said in lower case ("my husband is a plumber / retired / not working"). */
+  var NOT_NAME = {};
+  ('teacher nurse doctor accountant engineer lawyer attorney plumber electrician driver farmer manager clerk student housewife homemaker unemployed retired working employed self not also still very really just at in from with for from home work job busy fine well okay ok good great').split(' ').forEach(function (w) { NOT_NAME[w] = 1; });
   /* Does what is left look like an answer rather than a sentence fragment? */
   function looksLikeValue(f, c) {
     if (!c || /(?:^|\s)(?:is|are|was|were|am|and|but|the|a|an|of|my|your)[.,;:!?]*\s*$/i.test(c)) return false;
@@ -825,6 +872,8 @@
     if (NAME_IDS.indexOf(vid(f)) >= 0) {
       var t = c.split(/\s+/);
       if (t.length > 5 || !/^[A-Za-zÀ-ÿ'’.\- ]+$/.test(c)) return false;
+      if (/^(?:an?|the)\s/i.test(c)) return false;                                                // "my wife is a teacher": "A Teacher" is an occupation, not a name (A12)
+      if (c === c.toLowerCase() && t.some(function (w) { return NOT_NAME[w.replace(/[.,]+$/, '')]; })) return false;
       return !t.some(function (w) { w = w.toLowerCase().replace(/[.,]+$/, ''); return GENVOC.indexOf(w) >= 0 || NAMEVOC.indexOf(w) >= 0 || w === 'i' || w === "i'm" || w === 'am'; });
     }
     return true;
@@ -845,6 +894,15 @@
     smoker: function (t) {
       var s = ' ' + t + ' ';
       if (/ (non smoker|nonsmoker|don't smoke|dont smoke|do not smoke|never smoked|not a smoker) /.test(s)) return 'Non-smoker';
+      /* Someone else's smoking is not the client's ("my husband smokes but I don't": only "I don't" counts), and a client who has stopped is not simply a smoker (A7) */
+      var other = / (?:(?:my|his|her|their) )?(?:husband|wife|spouse|partner|he|she|they|dad|father|mother|mom|mum|son|daughter|boyfriend|girlfriend|fiance|fiancee|brother|sister|friend|colleague|boss|kids|children)(?: also| still| both)? (?:smoke|smokes|smoking|is a smoker|are smokers|used to smoke|quit|stopped) /;
+      if (other.test(s)) {
+        s = s.replace(other, ' ');
+        if (/ (?:i|we) (?:do not|don't|dont) (?:smoke )?/.test(s) || / (?:i am|i m|i'm) (?:a )?non smoker /.test(s)) return 'Non-smoker';
+        if (!/ (i|we) (?:smoke|do|am|used|quit|stopped|gave) /.test(s)) return null;
+      }
+      var stopped = s.replace(/ (?:want|wanna|trying|try|going|plan|planning|hope|hoping|thinking of|would like|need|should|must|wish)(?: to)? (?:quit|stop|give up|cut down|cut back) /g, ' ');
+      if (/ (?:used to smoke|used to be a smoker|(?:i|we) (?:have |had |ve )?(?:quit|stopped|given up|gave up)|quit smoking|stopped smoking|gave up smoking|ex smoker|former smoker|no longer smok\w+|(?:don't|dont) smoke any ?more) /.test(stopped) && !/ (?:i|we) (?:still )?smoke /.test(stopped)) return { error: 'ambiguous', note: 'stopped smoking: how long ago? (not filled)' };
       if (/ (smoker|smoke|smokes) /.test(s)) return 'Smoker';
       var yn = yesNo(t); return yn === 'yes' ? 'Smoker' : yn === 'no' ? 'Non-smoker' : null;
     },
@@ -858,6 +916,10 @@
       var s = ' ' + t + ' ';
       if (/ hospital plan /.test(s)) return 'Hospital plan';
       var yn = yesNo(t);
+      /* "I cancelled it", "it lapsed", "I used to have medical aid", "I can't afford medical aid" mean none now (A8); a new cover named in the same breath is for the adviser */
+      if (/ (medical aid|medical scheme) /.test(s) && / (cancelled|canceled|cancel|lapsed|terminated|dropped|stopped paying|used to have|no longer have|gave up|can't afford|cannot afford|cant afford|couldn't afford|couldnt afford|unable to afford|not able to afford) /.test(s)) {
+        return / (new|joined|now have|now on|switched|moved to|changed to|replaced|but i have|and i have) /.test(s) ? { error: 'ambiguous', note: 'medical aid cancelled: which cover now? (not filled)' } : 'None';
+      }
       if (/ (medical aid|medical scheme) /.test(s) && yn !== 'no') return 'Medical aid';
       if (yn === 'no' || / none /.test(s)) return 'None';
       if (yn === 'yes') return 'Medical aid';
@@ -911,7 +973,9 @@
       if (/ (4 year|four year) /.test(s) && / diploma /.test(s)) return '4-year diploma';
       if (/ (postgrad|post graduate|honours|masters|mba|doctorate|phd|postgraduate) /.test(s)) return 'Postgraduate';
       if (/ (degree|bachelor|bcom|bsc|ba) /.test(s)) return '3-year degree';
-      if (/ (matric|grade 12|school) /.test(s)) return 'Matric';
+      /* "I never finished school", "I dropped out of school", "I did not finish matric": no school level is said (A6) */
+      var neg = / (?:never|not|didn't|didnt|dropped out of|drop out of|dropped out|without|no) (?:\w+ ){0,4}?(?:matric|grade 12|school) /.test(s);
+      if (/ (matric|grade 12|school) /.test(s)) return neg ? { error: 'ambiguous', note: 'no school level said: left empty' } : 'Matric';
       return null;
     },
     marital: function (t) {
@@ -1086,6 +1150,7 @@
   }
   function interpret(f, raw) {
     var id = vid(f);
+    if (CLIENT_ONLY_IDS.indexOf(f.id) >= 0 && OTHER_PERSON.test(String(raw))) return { error: 'other-person', note: 'said about someone else: not filled' };
     if (TYPED_IDS.indexOf(id) >= 0 || NAME_IDS.indexOf(id) >= 0 || f.date) raw = afterCorrection(raw);      // "011 555 1234, no sorry, 011 555 4321" is the last number, not a "no"
     var t = norm(raw);
     if (!t) return null;
@@ -1379,14 +1444,17 @@
     /* An ID number (13 digits starting with a date) or a passport number, said with or without the word "ID": these are never sent to Claude, so they are read here. */
     function idNumberIn(core) {
       core = afterCorrection(core);
+      if (OTHER_PERSON_NOT_PARTNER.test(core)) return null;                                           // "partner" is left to the box the words name: a business partner's ID is in the Shares list, while "my partner's ID" cannot go to the client's own box (the later check)
       var pp = /\bpassport\b/i.test(core) ? spokenPassport(core) : null;
       if (pp) return { kind: 'fill', value: pp, status: 'verify', extra: [{ id: 'idtype', value: 'Passport', status: 'heard' }] };
       var dg = lastOf(spokenDigits(core), 13);
       return /^\d{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01])\d{7}$/.test(dg) ? { kind: 'fill', value: dg, status: 'verify' } : null;
     }
 
-    var segs = clauses(text);
+    var segs = clauses(text), hypoCarry = false;
     segs.forEach(function (seg, ci) {
+      var hypoNow = HYPO_RE.test(seg) || (hypoCarry && !/\b(?:i|i'm|i've|we|we've|my|our|you|your|he|she|they|his|her|their)\b/i.test(seg));       // "my dad has a credit card with Nedbank and a car loan": the car loan is his too
+      hypoCarry = hypoNow;
       var wr = wrapUp(seg, idx, { cur: st.cur, prev: ci ? segs[ci - 1] : st.prev });                  // "that concludes the debts", or "no" to "any more debts?": the section is over, which is not small talk
       if (wr) { noting = false; actions.push({ do: 'done', section: wr.sec, list: wr.list, part: wr.part || null, via: wr.via }); target = null; answered = false; return; }
       var core = seg.replace(LEADWORDS, '').trim(), isQ = /\?\s*["')]*$/.test(core), words = seg.split(/\s+/).length;
@@ -1397,6 +1465,7 @@
       if (cmd && cmd.bare && target && !answered) cmd = null;              // "Medical aid", said while that box waits, is the answer, not a move
       if (cmd && cmd.type === 'addrow') {                                  // "add another child", "one more policy"
         var lk = cmd.list || (cellParts(target) && cellParts(target).list) || sectionList(st.cur);
+        if (lk && lk !== 'kids' && hypoNow) lk = null;           // "my brother has another loan with Capitec": not a row of this client
         if (lk && idx.lists[lk]) {
           noting = false;
           var ch = matchQuestion(core, idx, near), p0 = ch && idx.byId[ch.id].list === lk && ch.score >= 4 ? aim(ch, core, true) : firstCell(lk, Ls(lk).n);
@@ -1417,7 +1486,7 @@
       }
       /* waiting for a count: "how many children do you have?" ... "two" */
       var ct = /^count:(\w+)$/.exec(String(target || ''));
-      if (ct && !answered && !isQ && !(NEGATE_HAVE.test(seg) && !NO_WORDS.test(core))) {
+      if (ct && !answered && !isQ && !(NEGATE_HAVE.test(seg) && !NO_WORDS.test(core)) && !(ct[1] !== 'kids' && hypoNow)) {
         var cn = wordsToNumber(core) != null && words <= 3 ? Math.round(wordsToNumber(core)) : (/^(?:yes|yeah|yep|yup|ja|i do|we do|i have|we have)\b/i.test(core) ? 1 : null);
         if (NO_WORDS.test(core)) { answered = true; return; }             // none: nothing to record
         var crf = rowFacts(idx, ct[1], core);
@@ -1441,9 +1510,9 @@
         var explicitIntro = !!(cc && /\b(?:have|has|got|had|there are|there is|with|we've|i've|three|two|one|four|five)\b/i.test(core));
         /* A row is never made from a passing remark (3.6): not from "I've never had a credit card" or "there's no pension", not from "imagine you had a home loan" or "my brother has a personal loan", and not from the
            adviser's narration about a list that is not on the page he is on ("we're going to look at Lily, we're going to look at your debts" on Client priorities made a debt with the lender Lily). */
-        var NEG_INTRO = /\b(?:never|don'?t|do not|dont|doesn'?t|haven'?t|have not|havent|hasn'?t|not got)\s+(?:ever\s+)?(?:have|had|got|use|used|owned?|taken)\b|\b(?:there'?s|there is|there are|has|have|had|got|with)\s+no\b/i, HYPO = /\b(?:imagine|suppose|pretend|let'?s say|lets say|what if|if you had|say you|for example|for instance)\b|\bmy (?:brother|sister|mother|father|friend|boss|neighbour|neighbor|colleague|cousin|uncle|aunt|son|daughter)'?s?\b/i;
+        var NEG_INTRO = NEG_INTRO_RE, HYPO = HYPO_RE;
         var offPage = lkc && st.who === 'adviser' && st.cur && idx.lists[lkc] && idx.lists[lkc].sec !== st.cur;
-        if (lkc && (NEG_INTRO.test(seg) || HYPO.test(seg) || offPage)) { explicitIntro = false; nFacts = 0; }
+        if (lkc && (NEG_INTRO.test(seg) || (lkc !== 'kids' && hypoNow) || (lkc === 'kids' && HYPO.test(seg)) || offPage)) { explicitIntro = false; nFacts = 0; }
         if (lkc && !waitingHere && (explicitIntro || (nFacts && !namesColumn))) {
           if (cc && cc > 1) { addRows(lkc, cc); if (rf.leftover > 1) sure = false; return; }
           introRow(lkc, rf); if (rf.leftover > 1) sure = false; return;
@@ -1463,7 +1532,7 @@
       }
       if (!isQ && !WH.test(core)) {                                        // a value of a typed box, found in the clause however it is phrased
         var th = matchQuestion(core, idx, near);
-        if (th && th.score >= 2.5 && visible(th.id) && TYPED.indexOf(vid(idx.byId[th.id])) >= 0) {
+        if (th && th.score >= 2.5 && visible(th.id) && TYPED.indexOf(vid(idx.byId[th.id])) >= 0 && !(CLIENT_ONLY_IDS.indexOf(th.id) >= 0 && OTHER_PERSON.test(core))) {
           var tp = aim(th, core), tv = EMAIL_IDS.indexOf(vid(tp.def)) >= 0 ? (typedEmail(core) || [core.replace(/^.*\b(?:is|are|it's|its|address|email|e-mail)\b[,:\s]*(?:me\s+)?(?:(?:at|on)\s+)?/i, '')])[0] : core;   // an email is what follows "is" / "it's"
           var tr = answerFor(tp.def, tv, tp.existing);
           if (tr.kind === 'fill') { var tid = tp.commit(); if (tr.field) tid = tr.field; actions.push({ do: 'fill', field: tid, res: tr, explicit: true }); target = tid; answered = true; return; }
@@ -1480,6 +1549,7 @@
       var m = !isQ && !WH.test(core) ? ASSERT.exec(core) : null;           // "your first name is John", "my surname is Peters"
       if (m) {
         var hit = matchQuestion((m[1] || '') + m[2], idx, near);
+        if (hit && CLIENT_ONLY_IDS.indexOf(hit.id) >= 0 && OTHER_PERSON.test(core)) hit = null;       // "my wife's ID is ...": the value alone no longer says whose it is (A13)
         if (hit && hit.score >= 2.5 && visible(hit.id)) {
           var ap = aim(hit, core), r = answerFor(ap.def, m[3].replace(/[,\s]+(?:right|correct|okay|ok|yes|isn't it|is that right|is that correct|not so)\s*$/i, ''), ap.existing);
           r = fullName(ap.def, r, m[2]);
@@ -1503,6 +1573,8 @@
       }
       if (selfAsk && target && !answered && !isChatter(seg)) { sure = false; return; }                  // the rest of the same sentence is not an answer to a box the page moved to itself: Claude reads it
       if (target && !answered && !/^count:/.test(target)) {                // a plain statement while a box is waiting answers it
+        var tcl = cellParts(target);
+        if (tcl && tcl.list !== 'kids' && hypoNow) { sure = false; return; }              // "my brother has a personal loan with Capitec" said while a debt box waits is not that box's answer
         var a = fullName(defOf(target), answerFor(defOf(target), seg, valueOf(target)), '');
         if (a.kind === 'fill' || a.kind === 'confirm') { var longText = words >= 6 && isFreeText(defOf(target)); actions.push({ do: a.kind, field: a.field || target, res: a, tentative: longText }); answered = true; if (longText) sure = false; return; }
         if (a.kind === 'wait') { actions.push({ do: 'wait', field: target, dangling: !!a.dangling }); return; }
@@ -1529,13 +1601,13 @@
   }
 
   var PRIVATE_IDS = ['idno', 'tax', 'cell', 'work', 'home', 'sp_tel', 'pemail', 'wemail', 'shares.id', 'shares.cell'];
-  var AGREE = { correct: 1, right: 1, exactly: 1, same: 1, unchanged: 1, still: 1, yes: 1, yeah: 1, yep: 1, yup: 1, ja: 1, sure: 1, indeed: 1, definitely: 1, absolutely: 1, true: 1, thanks: 1, thank: 1, changed: 1, nothing: 1, change: 1 };
+  var AGREE = { correct: 1, right: 1, exactly: 1, same: 1, unchanged: 1, still: 1, yes: 1, yeah: 1, yep: 1, yup: 1, ja: 1, sure: 1, indeed: 1, definitely: 1, absolutely: 1, true: 1, thanks: 1, thank: 1, nothing: 1 };
   var NEGATE = { no: 1, nope: 1, nah: 1, not: 1, never: 1, none: 1, really: 1, quite: 1 };
   /* Does the client simply agree with what is there? A bare "yes" counts only for plain text boxes (bare = true). */
   function isConfirm(raw, bare) {
     var t = norm(raw), n = t ? t.split(' ').length : 0;
     if (!t || n > 9) return false;
-    if (/\b(nothing has changed|no change|not changed|hasn t changed|has not changed)\b/.test(t)) return true;
+    if (/\b(nothing has changed|nothing s changed|no change|not changed|hasn t changed|has not changed|same as (?:before|always|last time|it was)|as before|as it was|still the same|still there)\b/.test(t)) return true;
     var yn = yesNo(t);
     if (yn === 'no' || yn === 'unsure') return false;
     var rest = content(t).filter(function (w) { return !AGREE[w]; });
@@ -1551,7 +1623,12 @@
     if (!t) return { kind: 'none' };
     var hasYN = !!f.options && f.options.some(function (o) { return o.toLowerCase() === 'yes'; }) && f.options.some(function (o) { return o.toLowerCase() === 'no'; });
     var plain = !f.options, correction = false, m;
-    if (plain && existing && (m = /^\s*(?:(?:no|nope|nah|not really|not quite|actually|sorry|well|oh)[,.\s]+)+(.+)$/i.exec(String(raw)))) { raw = m[1]; t = norm(raw); correction = true; }
+    if (plain && existing && (m = /^\s*(?:(?:no|nope|nah|not really|not quite|actually|sorry|well|oh)[,.\s]+)+(.+)$/i.exec(String(raw)))) {
+      raw = m[1]; t = norm(raw); correction = true;
+      if (isConfirm(raw, false) && /\b(?:same|unchanged|still|as before|as it was|no change)\b/.test(t)) return { kind: 'confirm' };   // "no, still the same" keeps what is there (A4): what follows the lead is not a new value
+    }
+    /* "yes it has changed": the answer is a change, so the new value is still to come (A5): not a confirmation, not a value */
+    if (plain && existing && /\bchanged\b/.test(t) && !/\b(?:not|nothing|hasn t|haven t|never|no change)\b/.test(t) && !content(t).filter(function (w) { return !AGREE[w] && !NEGATE[w] && w !== 'changed'; }).length) return { kind: 'wait' };
     if (existing && !correction && isConfirm(raw, plain)) return { kind: 'confirm' };
     if (plain && !correction && !(f.none && yesNo(t) === 'no') && t.split(' ').length <= 3 && yesNo(t) && !content(t).filter(function (w) { return !AGREE[w] && !NEGATE[w]; }).length) {
       return yesNo(t) === 'no' && existing ? { kind: 'wait' } : { kind: 'none' };

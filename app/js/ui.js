@@ -1689,6 +1689,10 @@
   function vmRowsSig() { return Object.keys(state.l).map(function (k) { return k + ':' + state.l[k].length; }).join(','); }
   /* keep (optional) receives what Claude was shown, so a reply that arrives later can be checked against the form as it is by then. */
   /* The date of the form as Claude is told it: "Wednesday 04/11/2026". */
+  /* The boxes emptied on purpose, named the way Claude sees them (a box id, or "debts row 2 bal"): Claude is told never to fill them again from a later line. */
+  function vmEmptiedList() {
+    return Object.keys(vm.noSweep).slice(-40).map(function (k) { var m = /^(\w+):(\d+):(\w+)$/.exec(k); return m ? m[1] + ' row ' + (+m[2] + 1) + ' ' + m[3] : k; });
+  }
   /* When the meeting started, to the nearest quarter hour ("10:00"): what "the same time next week" means. From the timer; empty before it has started. */
   function meetingStarted() {
     var snap = meeting.snapshot(); if (!snap || !snap.seconds) return '';
@@ -1706,7 +1710,7 @@
     return vmSlot().then(function () {
       return VAI.decide({
         apiKey: set.apiKey, ask: !set.apiKey && FF.voiceBackend && FF.voiceBackend.available ? FF.voiceBackend.ask : null, model: set.voiceModel, hedgeMs: 3500, idx: vidx, who: who, text: text, fetchImpl: entry || vmCur ? loggedFetch(entry || vmCur) : meteredFetch,
-        ctx: { meeting: meetingText(), started: meetingStarted(), sectionId: sec, targetId: tid, targetRow: tcr ? tcr.i + 1 : null, targetValue: tv, targetFilled: tfilled, alternatives: entry && entry.m && entry.shown === entry.text ? entry.m.also : null, filled: fl.filled, filledPrivate: fl.filledPrivate, hidden: vmHiddenMap(), awaiting: aw.awaiting, privateHeld: aw.held, note: note, concluded: Object.keys(vm.done),
+        ctx: { emptied: vmEmptiedList(), meeting: meetingText(), started: meetingStarted(), sectionId: sec, targetId: tid, targetRow: tcr ? tcr.i + 1 : null, targetValue: tv, targetFilled: tfilled, alternatives: entry && entry.m && entry.shown === entry.text ? entry.m.also : null, filled: fl.filled, filledPrivate: fl.filledPrivate, hidden: vmHiddenMap(), awaiting: aw.awaiting, privateHeld: aw.held, note: note, concluded: Object.keys(vm.done),
           listRows: function (key) { return rows[key] || []; }, recent: recent }
       }).then(function (r) { vmSlotFree(); return r; }, function (e) { vmSlotFree(); throw e; });
     }).then(function (r) { vm.busy--; vmRender(); if (entry) entry.claudeMs = Date.now() - t0; return r; }, function (err) {
@@ -1919,6 +1923,7 @@
         return vmDo({ do: 'fill', field: a.list + ':' + ri + ':' + a.col, value: a.value, explicit: a.explicit });
       case 'wait': return vm.target ? vmNote(vm.target, a.dangling ? 'Listening for the rest' : 'Waiting for the correct answer') : null;
       case 'confirm': case 'fill':
+        if (a.do === 'confirm' && vmCur && vmCur.who === 'adviser') { vmLog('did not confirm ' + (a.field || a.list) + ': only the client agreeing turns a box green, and the adviser spoke'); return; }       // 3.7: the adviser saying "that is correct" is not the client agreeing
         if (a.do === 'confirm' && a.list) {                                     // Claude: the client agrees to a row of a list; its first filled box carries the status
           var cl = state.l[a.list] || [], ci = a.row === 'last' ? Math.max(cl.length - 1, 0) : a.row - 1, crow = cl[ci], ck = crow && vidx.lists[a.list].cols.map(function (id) { return id.split('.')[1]; }).filter(function (k) { return crow.d[k] !== '' && crow.d[k] != null; })[0];
           return ck ? vmDo({ do: 'confirm', field: a.list + ':' + ci + ':' + ck }) : null;
@@ -1969,6 +1974,11 @@
         vmUnplace({ text: label + ': ' + vmShown(id, res.value) + ' was said, but not about the next appointment', why: 'the talk was about something else', sec: f && f.sec });
         return true;
       }
+    }
+    if (vm.noSweep[id] && id !== vm.target && !a.explicit && !(vmCur && vmCur.sweep) && cell.v === '') {          // emptied on purpose (3.7): a later line does not put it back unless it is the box being asked about or is given as a correction
+      vmLog('did not fill ' + label + ': it was emptied on purpose and this line is not about it');
+      vmUnplace({ text: label + ': ' + vmShown(id, res.value) + ' was said, but the box was emptied on purpose', why: 'emptied on purpose; say it as a correction to fill it again', sec: f && f.sec });
+      return true;
     }
     if (vmProviderBox(id) && !String(res.value).split(';').some(function (part) { return V.namesProvider(part, said); })) {
       vmLog('did not fill ' + label + ': nobody named ' + String(res.value) + ' in this line');
@@ -2607,11 +2617,18 @@
     if (n || found) { touch(); redraw(); }
     if (n || found || manual) toast(n || found ? 'Catch-up check: ' + (n ? n + ' missed answer' + (n > 1 ? 's' : '') + ' filled in amber to verify' : '') + (n && found ? ', ' : '') + (found ? found + ' fact' + (found > 1 ? 's' : '') + ' heard but not placed' : '') + '.' : 'Catch-up check: nothing was missed.');
   }
+  /* The catch-up check is held to the same guards as a live line (3.7): take-home pay above the gross income, and a bank or provider nobody named in the words it quotes, are not filled. */
+  function vmSweepGuard(id, f, held, value, said) {
+    if (id === 'net' && util.num(state.f.gross.v) > 0 && util.num(value) > util.num(state.f.gross.v)) { vmLog('left out (missed earlier): ' + value + ' is more than the gross income, so it is not take-home pay'); return true; }
+    if (vmProviderBox(id) && said && !String(value).split(';').some(function (part) { return V.namesProvider(part, said); })) { vmLog('left out (missed earlier): nobody named ' + value + ' in the words it came from'); return true; }
+    return false;
+  }
   function vmSweepFill(a) {
     var id = a.field, f = vmField(id);
     if (!f || f.list || vmPrivate(id) || vm.noSweep[id]) return 0;
     if (!vmVisible(f)) { vmUnplace({ text: f.label + ': ' + a.value, why: 'that box is not shown for this client', field: id, value: String(a.value), sec: f.sec }); return 0; }
     var c = state.f[id], x = V.interpret(f, a.value);
+    if (x && !x.error && vmSweepGuard(id, f, c.v, x.value, a.said)) return 0;
     if (/^pr_\w+_cm$/.test(id) && String(x && x.value || '').trim().split(/\s+/).length < 3) { vmUnplace({ text: f.label + ': ' + a.value, why: 'too short to be a reason', sec: f.sec }); return 0; }       // a comment is a reason or an instruction, never a fragment ("Not right")
     if (!x || x.error) { vmUnplace({ text: f.label + ': ' + a.value, why: 'could not be read as an answer for that box', sec: f.sec }); return 0; }
     if (c.v === '') { if (vmApply(id, { kind: 'fill', value: x.value, status: 'verify', extra: x.extra })) { vmLog('filled (missed earlier) ' + f.label + ': ' + vmShown(id, x.value)); return 1; } return 0; }
@@ -2626,6 +2643,7 @@
     if (!row) { vmUnplace({ text: L.title + ': ' + def.label + ' ' + a.value, why: 'there is no such row on the form', sec: L.sec }); return 0; }
     if (!x || x.error) { vmUnplace({ text: L.title + ' ' + (ri + 1) + ': ' + def.label + ' ' + a.value, why: 'could not be read as an answer for that box', sec: L.sec }); return 0; }
     var cur0 = row.d[a.col] == null ? '' : String(row.d[a.col]);
+    if (x && !x.error && vmSweepGuard(id, def, cur0, x.value, a.said)) return 0;
     if ((vm.removed || []).some(function (rm) { return rm.list === a.list && String(rm.d[a.col] || '').trim() !== '' && vmSame(String(rm.d[a.col]), x.value); })) { vmLog('left out: ' + def.label + ' ' + x.value + ' belongs to a row that was taken away on purpose'); return 0; }
     if (store.rowBlank(a.list, row)) { vmUnplace({ text: L.title + ': ' + def.label + ' ' + x.value, why: 'the row is still empty (it was only pointed at)', sec: L.sec }); return 0; }
     if (cur0 === '') { var rc = vm.rowCur[a.list]; var ok = vmApplyCell({ list: a.list, i: ri, k: a.col }, id, { kind: 'fill', value: x.value, status: 'verify' }); vm.rowCur[a.list] = rc; if (ok) vmLog('filled (missed earlier) ' + L.title + ' ' + (ri + 1) + ': ' + def.label + ': ' + x.value); return ok ? 1 : 0; }

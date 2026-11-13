@@ -4,6 +4,13 @@ A dated list of what changed in the form's boxes, newest first. **One line for e
 
 The version is `version` in `app/js/schema.js` (the Fact Find), `app/js/sr-schema.js` (the Short Risk Application) and `app/js/cs-schema.js` (the Investment Capture Sheet); a saved file carries it as `schema`. Earlier changes are in the README and in the git history; this list starts with 3.1.
 
+## 3.7: 13 November 2026 (Fact Find 3.6 to 3.7)
+
+Fact Find (what the voice and the points do with the answers). **No id added, removed or relabelled. No box, choice, sum, tax table or list column changed.** Detail in the README ("Release 3.7").
+- **Heard and applied:** a confirm on a line the adviser said is not applied (only the client agreeing turns a box green); a box emptied on purpose is not refilled by a later line about something else (Claude is sent `emptied`); a row number that is not a number, digits, `last` or `new` is not guessed at (it is shown in Heard but not placed); a `done` that names no section or list is dropped; an action point, Priorities line or note with an amount (100 or more) that is nowhere in the facts is dropped; the catch-up check holds to the live guards and a figure must be in the words it quotes.
+- **Facts for Claude (a skill that reads the facts will see):** `notes[]` entries with `declined_area: true` (the comment of an area that is Not a priority; page text "Declined area: ..."); a schedule that shares its Notes box with another carries `shared_with` and `page_note_id` and no `note_on_this_page`; a new empty investment or retirement row is not a held policy and prints nothing; the appointment text has the real weekday of the date.
+- **The reader of a spoken line:** no confirm for "still the same" as a new value; "has changed" is not an agreement; no education for "never finished school"; ex-smokers and a spouse's smoking do not fill Smoker; cancelled or unaffordable medical aid is None; the client's own ID, tax, phone and email boxes never take what is said about someone else; no row from a thought or a third party's loan; an add word must qualify the list word; no section finished or page moved by an ordinary sentence.
+
 ## 3.6: 13 November 2026 (Fact Find 3.5 to 3.6)
 
 Fact Find (Debts, and what the voice and the points do with the answers). Detail in the README ("Release 3.6").

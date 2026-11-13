@@ -17,6 +17,8 @@
 
   /* The areas the form can decide, and the box in each area that is set to Not required with it. */
   var AREAS = { egar: { ref: 'egar_req' }, med: { ref: 'ref_med' }, will: { ref: 'ref_will' }, st: { ref: 'ref_sti' } };
+  /* Every area a suggestion can be made for (the four above, and RGAR with no retirement funds): the areas whose "taken over" flag (state.auto.skip) is kept in the saved file. */
+  var SUGGESTS = Object.keys(AREAS).concat(['rgar']);
 
   /* ---------- 1. the outcomes the facts give: the comment, or '' for none ---------- */
   function outcome(state, id) {
@@ -98,11 +100,18 @@
       if (v(state, 'has_kids') !== 'No' && kids.length && kids.every(function (r) { return r.d.stage === 'Tertiary'; }))
         return referral('', 'Not a priority', 'All children are at tertiary level.', 'All children are at tertiary level.', 'egar_req', NOT_REQUIRED, no);
     }
-    if (id === 'rgar' && v(state, 'has_ra') === 'No' && v(state, 'has_pp') === 'No' && !rows(state, 'ret_ra').some(rowHas) && !rows(state, 'ret_pp').some(rowHas) && !rows(state, 'inv').some(function (r) { return r.d.type === 'Living annuity'; }))
+    if (id === 'rgar' && v(state, 'has_ra') === 'No' && v(state, 'has_pp') === 'No' && !rows(state, 'ret_ra').some(function (r) { return rowHas(r, 'ret_ra'); }) && !rows(state, 'ret_pp').some(function (r) { return rowHas(r, 'ret_pp'); }) && !rows(state, 'inv').some(function (r) { return r.d.type === 'Living annuity'; }))
       return referral('', 'Not a priority', 'No retirement funds are recorded, so there is nothing to analyse.', 'No retirement funds are recorded, so there is nothing to analyse.', 'rgar_req', NOT_REQUIRED, no);
     return null;
   }
-  function rowHas(r) { return Object.keys(r.d || {}).some(function (k) { return r.d[k]; }); }
+  /* a row has something in it when a box holds more than the value a new row starts with (the default Broker on record: Other broker is not an answer) */
+  function rowHas(r, key) {
+    var L = key && schema.lists[key];
+    return Object.keys(r.d || {}).some(function (k) {
+      var x = String(r.d[k] == null ? '' : r.d[k]).trim(), col = L && L.cols.filter(function (c) { return c.k === k; })[0];
+      return x !== '' && !(col && col.def != null && x === col.def);
+    });
+  }
   /* The button: the decision, the referral or request box and (only when it is empty) the comment, each as the adviser's own answer. The area is his from now on. */
   function take(state, id) {
     var s = suggestion(state, id); if (!s) return false;
@@ -135,5 +144,5 @@
     });
   }
 
-  return { apply: apply, outcome: outcome, touched: touched, suggestion: suggestion, take: take, typeStartValue: typeStartValue, AREAS: AREAS };
+  return { apply: apply, outcome: outcome, touched: touched, suggestion: suggestion, take: take, typeStartValue: typeStartValue, AREAS: AREAS, SUGGESTS: SUGGESTS };
 });

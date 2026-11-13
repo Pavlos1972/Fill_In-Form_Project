@@ -25,7 +25,7 @@
   function blankPa() { return { key: '', at: '', by: '', edited: false }; }
   /* Which priority areas the adviser has taken over from the form: once the decision of an area that the form had set (autoprio.js) is changed by hand, the form never sets it again. */
   function blankAuto() { return { skip: {} }; }
-  function cleanAuto(a) { var o = blankAuto(); if (a && a.skip && typeof a.skip === 'object') Object.keys(a.skip).forEach(function (k) { if (a.skip[k] === true && autoprio.AREAS[k]) o.skip[k] = true; }); return o; }
+  function cleanAuto(a) { var o = blankAuto(); if (a && a.skip && typeof a.skip === 'object') Object.keys(a.skip).forEach(function (k) { if (a.skip[k] === true && autoprio.SUGGESTS.indexOf(k) >= 0) o.skip[k] = true; }); return o; }
   function cleanPa(x) {
     var o = blankPa(); if (!x || typeof x !== 'object') return o;
     o.key = String(x.key || '').slice(0, 40); o.at = String(x.at || '').slice(0, 40); o.by = x.by === 'claude' || x.by === 'form' ? x.by : ''; o.edited = x.edited === true;
@@ -485,5 +485,5 @@
     return { tot: tot, fill: fill, ver: ver };
   }
 
-  return { termValue: termValue, useWorked: useWorked, isPropertyDebt: isPropertyDebt, debtDefaults: debtDefaults, rowBlank: rowBlank, rowFilled: rowFilled, debtSplit: debtSplit, setProtect: setProtect, setProtectAll: setProtectAll, setPa: setPa, setFocus: setFocus, blankPa: blankPa, cleanPa: cleanPa, setSum: setSum, cleanSum: cleanSum, addUnplaced: addUnplaced, closeUnplaced: closeUnplaced, unplacedKey: unplacedKey, blank: blank, blankTally: blankTally, blankSpeech: blankSpeech, ctxFor: ctxFor, setField: setField, addRow: addRow, delRow: delRow, setCell: setCell, accept: accept, clientName: clientName, idClash: idClash, idKey: idKey, fatherSurname: fatherSurname, baseFileName: baseFileName, pdfFileName: pdfFileName, fromJSON: fromJSON, toJSON: toJSON, counts: counts };
+  return { NO_CONTACT_NOTE: NO_CONTACT_NOTE, termValue: termValue, useWorked: useWorked, isPropertyDebt: isPropertyDebt, debtDefaults: debtDefaults, rowBlank: rowBlank, rowFilled: rowFilled, debtSplit: debtSplit, setProtect: setProtect, setProtectAll: setProtectAll, setPa: setPa, setFocus: setFocus, blankPa: blankPa, cleanPa: cleanPa, setSum: setSum, cleanSum: cleanSum, addUnplaced: addUnplaced, closeUnplaced: closeUnplaced, unplacedKey: unplacedKey, blank: blank, blankTally: blankTally, blankSpeech: blankSpeech, ctxFor: ctxFor, setField: setField, addRow: addRow, delRow: delRow, setCell: setCell, accept: accept, clientName: clientName, idClash: idClash, idKey: idKey, fatherSurname: fatherSurname, baseFileName: baseFileName, pdfFileName: pdfFileName, fromJSON: fromJSON, toJSON: toJSON, counts: counts };
 });

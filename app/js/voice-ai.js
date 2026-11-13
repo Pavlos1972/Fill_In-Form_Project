@@ -50,6 +50,7 @@
     '  {"do":"done","section":"<id>"}               a section is finished: the adviser says so, or the client has no more to add (see "Sections that are finished" below); for one list only: {"do":"done","list":"<list id>"}',
     '',
     'How to read the line:',
+    '- "emptied" (when present) lists boxes the adviser emptied ON PURPOSE ("debts row 2 bal" is the balance of debt 2): never fill one of them from a later line, unless the newest line is about that very box and states a new value (then add "correction":true).',
     '- Facts count whoever says them. The adviser saying "your first name is John" and the client saying "my surname is Peters" each fill a box. A full name fills the first name AND the surname.',
     '- A question about a box is an "ask" and comes before its answer: "do you have a work number? yes I do, it\'s [N2]" is [ask work, fill work [N2]]. A plain statement straight after a question answers position.field.',
     '- Corrections: people change their mind in the middle of a sentence ("oh no, I made a mistake, it\'s ...", "sorry, I mean ...", "my name is actually Jonathan"). Only the LAST version counts.',
@@ -289,6 +290,7 @@
     body.a_week_from_today = DAYS[wk.getDay()] + ' ' + (wk.getDate() < 10 ? '0' : '') + wk.getDate() + '/' + (wk.getMonth() + 1 < 10 ? '0' : '') + (wk.getMonth() + 1) + '/' + wk.getFullYear();
     if (ctx.started) body.meeting_started = String(ctx.started).slice(0, 8);                    // "the same time next week" is this time, a week on
     if (ctx.meeting) body.meeting_date = String(ctx.meeting).slice(0, 40);                       // the date of the form (the meeting): what a date said without a year is counted from
+    if ((ctx.emptied || []).length) body.emptied = ctx.emptied.slice(0, 40).map(function (x) { return String(x).slice(0, 60); });      // boxes the adviser emptied on purpose
     var alts = (ctx.alternatives || []).slice(0, 2).map(function (x) { return scrub(String(x)).slice(0, 300); }).filter(function (x) { return x && x !== sh.text; });
     if (alts.length) body.heard_alternatives = alts;                  // what else the speech recogniser thought it heard for the newest line (numbers and addresses hidden the same way)
     var awaiting = (ctx.awaiting || []).slice(0, 16).map(function (a) {
@@ -363,7 +365,14 @@
       var okAny = function (id) { return typeof id === 'string' && idx.byId[id] && !idx.byId[id].list; };
       var okList = function (id) { return typeof id === 'string' && idx.lists[id]; };
       var okCol = function (l, k) { return typeof k === 'string' && idx.byId[l + '.' + k]; };
-      var rowRef = function (r, allowNew) { if (typeof r === 'string' && /^\d{1,2}$/.test(r.trim())) r = +r; return typeof r === 'number' && r >= 1 && r <= 50 ? Math.floor(r) : (allowNew && r === 'new' ? 'new' : 'last'); };
+      var rejected = [];                                                                                  // what Claude gave that cannot be used: it is shown in "heard but not placed", never dropped without a word (3.7)
+      var rowRef = function (r, allowNew) {                                                              // a row number as a number or digits, "last" (or none given), or "new" where a new row is allowed; anything else (0, 2.5, "second", an object) is not guessed at
+        if (typeof r === 'string' && /^\d{1,2}$/.test(r.trim())) r = +r;
+        if (r == null || r === 'last') return 'last';
+        if (typeof r === 'number' && r >= 1 && r <= 50 && r === Math.floor(r)) return r;
+        if (allowNew && r === 'new') return 'new';
+        return null;
+      };
       /* A "yes" to a private box is accepted unless a number was read back that is not the one in the box: then it is not agreement with what is there. */
       var agreeable = function (id) {
         var held = isPriv(id) && vault && vault._held && vault._held[id];
@@ -404,7 +413,10 @@
       };
       if (Array.isArray(raw.actions)) raw.actions.map(listForm).forEach(function (a) {
         if (!a || typeof a !== 'object') return;
-        var v, vals, push = function (x) { if (typeof a.said === 'string') x.said = a.said.slice(0, 300); acts.push(x); };      // the catch-up check gives the words it took each value from
+        var v, vals, push = function (x) {
+          if (x.row === null) { rejected.push({ text: 'Claude named a row that does not make sense (' + String(a.row).slice(0, 20) + ') for ' + String(a.list || a.field).slice(0, 40) + (typeof a.value === 'string' && !(a.list && /^(?:idno|tax|cell|work|home|sp_tel)$/.test(a.col || '')) ? ': ' + scrub(a.value).slice(0, 80) : ''), why: 'no row was guessed' }); return; }
+          if (typeof a.said === 'string') x.said = a.said.slice(0, 300); acts.push(x);
+        };      // the catch-up check gives the words it took each value from
         if (a.do === 'ask' && okAny(a.field)) push({ do: 'ask', field: a.field });
         else if (a.do === 'section' && okSec(a.section)) push({ do: 'section', section: a.section });
         else if (a.do === 'fill' && okAny(a.field) && (v = clean(a.field, a.value)) != null) push({ do: 'fill', field: a.field, value: v, explicit: a.correction === true });
@@ -416,7 +428,7 @@
         else if ((a.do === 'cell' || a.do === 'empty') && okList(a.list) && okCol(a.list, a.col) && (a.do === 'empty' || (typeof a.value === 'string' && !a.value.trim()))) push({ do: 'empty', list: a.list, row: rowRef(a.row, false), col: a.col });
         else if (a.do === 'removeRow' && okList(a.list)) push({ do: 'removeRow', list: a.list, row: rowRef(a.row, false) });
         else if (a.do === 'wait') push({ do: 'wait' });
-        else if (a.do === 'done' && (okSec(a.section) || okList(a.list) || (a.section == null && a.list == null))) push({ do: 'done', section: okSec(a.section) ? a.section : null, list: okList(a.list) ? a.list : null, via: 'claude' });       // a section (or one list of it) is finished
+        else if (a.do === 'done' && (okSec(a.section) || okList(a.list))) push({ do: 'done', section: okSec(a.section) ? a.section : null, list: okList(a.list) ? a.list : null, via: 'claude' });       // a section (or one list of it) is finished
         else if (a.do === 'cmd' && a.cmd === 'notes') push({ do: 'cmd', cmd: { type: 'notes', retro: a.retro === true, box: null } });
         else if (a.do === 'cmd' && typeof a.cmd === 'string' && CMDS.hasOwnProperty(a.cmd)) push({ do: 'cmd', cmd: { type: CMDS[a.cmd].type } });
         else if (a.do === 'row' && okList(a.list) && a.values && typeof a.values === 'object') {
@@ -433,7 +445,7 @@
           else if (a && okField(a.field) && a.value != null && String(a.value).trim() !== '') acts.push({ do: 'fill', field: a.field, value: String(a.value).trim() });
         });
       }
-      var gone = unplacedOf(raw, idx, vault), res = acts.length ? { kind: 'actions', actions: acts } : { kind: 'none' };
+      var gone = unplacedOf(raw, idx, vault).concat(rejected.slice(0, 5)), res = acts.length ? { kind: 'actions', actions: acts } : { kind: 'none' };
       if (gone.length) res.unplaced = gone;                                                    // only when there is something, so every other answer keeps its shape
       return res;
     }
@@ -624,7 +636,8 @@
       res2.actions = res.actions.filter(function (a) {
         if (a.do !== 'fill' && a.do !== 'cell' && a.do !== 'row') return true;
         var q = V.norm(a.said || '');
-        if (q.length < 4 || (' ' + said + ' ').indexOf(' ' + q + ' ') < 0) { dropped.push((a.field || a.list || '?') + ': the words it was taken from were not said' + (a.said ? ' ("' + String(a.said).slice(0, 60) + '")' : '')); return false; }
+        var figure = a.do === 'fill' || a.do === 'cell' ? (/\d/.test(String(a.value)) && !/[a-z]{3,}/i.test(String(a.value)) ? numbersSaid(String(a.value)) : []) : [];          // 3.7: a figure must be in the very words it is said to come from
+        if (q.length < 4 || (' ' + said + ' ').indexOf(' ' + q + ' ') < 0 || (figure.length && numbersSaid(a.said || '').length && !figure.some(function (n) { return numbersSaid(a.said).some(function (m) { return Math.abs(m - n) <= 0.5; }); }))) { dropped.push((a.field || a.list || '?') + ': the words it was taken from were not said' + (a.said ? ' ("' + String(a.said).slice(0, 60) + '")' : '')); return false; }
         return true;
       });
       res2.kind = res2.actions.length ? 'actions' : 'none'; if (res2.kind === 'none') delete res2.actions;
@@ -712,6 +725,8 @@
     '- New quotes: one point for each quote or analysis in "quotes", with what is needed (type, insurer, amounts as given). When "preferred_monthly_spend" is given and there is a life quote, add one instruction to note what the client prefers to spend, for the quotes. A life quote has a "kind": "BrightRock Fractured" (the quote is from BrightRock alone: say "BrightRock Fractured"; it also has a "basis", for example "BR FNA Quote based on Fact Find": write the basis in the point exactly as given, and never write one for a quote that has none) or "Standard" (say "standard", and name every insurer in "insurers": one point can cover several insurers). Contact: one point for each "referrals" entry, asking that person to contact the client about it.',
     '- Referrals: one point for each entry in "referrals" ("Ask <who> to contact <the client> about <what>"). When an entry has "takeover": true, the cover is currently with another broker, which is an opportunity for the partner to contact the client and quote; the client decides afterwards: end the point with "(currently with another broker: an opportunity to quote; the client will decide)" (when "takeover_of" names only part of what the point is about, say "the <takeover_of> is currently with another broker: an opportunity to quote; the client will decide"). Never write "take-over", and never say it for an entry without "takeover".',
     '- Anything in "undecided" or "instructions" that needs action (follow up after the client has checked the budget, an instruction from the adviser). Leave out an instruction that is only a remark.',
+    '- A note with "declined_area": true is the adviser\'s comment on an area the client said is NOT a priority (its "page" says "Declined area: ..."): give it a verdict like any other note (action only when it is something for the assistant to do, such as a reminder to diarise; otherwise covered or info), and never chase the area itself.',
+    '- A schedule with "shared_with" has no "note_on_this_page": the notes box of its page is shared with another schedule ("shared_with"), and the note is in "notes" under "page_note_id". That note may be about either schedule: let it change or cancel this schedule\'s point only when it clearly names this schedule (for example the insurer or fund held).',
     '- THE NOTES DECIDE. Before you write a point about a schedule, read its "note_on_this_page" and let it change the point; the adviser wrote the note with the client on the call, so when a note and another fact disagree, the note wins: (1) "No need to send through", "does not need to send them" or similar means nothing is to be requested for that schedule: write NO point for it, even when it says "not asked yet" or "Requested from client in meeting". (2) A note that the client says she ALREADY sent the schedule (for example by email) means Sitamah must first check whether it has arrived and, only if it has not, ask the client to send it again: write that one point (for example "Check whether the Liberty policy schedule the client says she emailed has arrived; if not, ask the client Thandi to send it again") instead of a plain follow-up. (3) A note that the client will send it now or soon keeps the follow-up: "await client response". (4) A note can in the same way cancel, replace or add to any other point (the quotes, the credit life, a referral, the appointment).',
     '- The notes. Read EVERY note, every instruction and every comment of an undecided area, wherever on the form it is, and make a judgement call on each: is it something Sitamah must DO (send, request, follow up, chase, book, draft, check, find out, prepare, arrange), or is it only information? Write a point for what she must do, in the note\'s own facts. Nothing is missed and nothing is written twice: when two notes, or a note and another fact, ask for the same thing, write ONE point. Leave out pure information: background, the client\'s circumstances, feelings or reasons, and what the form already says. When a note holds both, keep only the action. When it is not clear that Sitamah has to do anything, it is information.',
     '- A task for the adviser himself, or for the client or another person to do, is NOT left off: write the part Sitamah can do for it (book it in the adviser\'s diary, arrange the meeting or the call, prepare or send the document, request the figures, remind the adviser). Never write "Paul will ..." or "the client will ...": write what Sitamah does. A task for the client\'s spouse or partner, or for anyone else named, names that person: "Set up a separate meeting with the client\'s spouse Marie-Louise about the Liberty policy" (the name is in "people_on_the_call" or in the note), never the client by mistake.',
@@ -738,7 +753,8 @@
         var x = got[a.number];
         if (Array.isArray(x)) x = { back: x };                                                       // an older plain list of points
         if (!x || typeof x !== 'object') { out[a.number] = null; return; }
-        out[a.number] = { recommend: tidy(x.recommend, 220), client: tidy(x.client, 220), back: (Array.isArray(x.back) ? x.back : x.back ? [x.back] : []).map(function (p) { return tidy(p, 200); }).filter(Boolean).slice(0, 3) };
+        var src = JSON.stringify(opts.facts || {}) + ' ' + todayText(), grounded = function (t) { return t && !ungroundedAmount(t, src) ? t : ''; };       // 3.7: a line holding an amount that is not in the facts is left out
+        out[a.number] = { recommend: grounded(tidy(x.recommend, 220)), client: grounded(tidy(x.client, 220)), back: (Array.isArray(x.back) ? x.back : x.back ? [x.back] : []).map(function (p) { return grounded(tidy(p, 200)); }).filter(Boolean).slice(0, 3) };
       });
       return out;
     });
@@ -766,7 +782,8 @@
      points are never repeated. The caller sees what was not checked, so a note is never silently missed. */
   function actionPointsFull(opts) {
     var facts = scrubData(opts.facts), client = opts.facts && opts.facts.client, ids = judgeIds(facts), verdict = {}, points = [], seen = {};
-    function add(list) { list.forEach(function (p) { var t = tidyPoint(p, client), k = pointKey(t); if (t && !seen[k]) { seen[k] = 1; points.push(t); } }); }
+    var source = JSON.stringify(opts.facts || {}) + ' ' + todayText();
+    function add(list) { list.forEach(function (p) { var t = tidyPoint(p, client), k = pointKey(t); if (t && !seen[k] && !ungroundedAmount(t, source)) { seen[k] = 1; points.push(t); } }); }       // 3.7: a point holding an amount (100 or more) that is nowhere in the facts was made up and is dropped
     function ask(extra) {
       var body = Object.assign({ today: todayText(), facts: facts }, extra || {});
       var req = withThinking({ model: opts.model, max_tokens: 1800, output_config: { effort: 'low' }, system: ACTIONS_SYSTEM, messages: [{ role: 'user', content: JSON.stringify(body) }] });
