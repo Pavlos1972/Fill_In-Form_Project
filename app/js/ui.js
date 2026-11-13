@@ -471,13 +471,45 @@
       (paUnchecked ? ' ' + paUnchecked + ' note' + (paUnchecked === 1 ? ' was' : 's were') + ' not checked: press Refresh.' : '') + ' They follow the form until you type in the box.';
     return (ready ? 'Plain points from the form. Refresh for Claude to write them' : 'Plain points from the form. Claude writes these when the Anthropic key is in Settings') + (n ? '; the ' + n + ' note' + (n === 1 ? ' is' : 's are') + ' read only then.' : '.');
   }
+  /* 3.8: the notes Claude reads for the points, listed under the box: where each is, what it says, what Claude made of it (a point, covered, information only) and, for a "heard but not placed" one, a button to close it.
+     So a stale or misfiled note is seen, and closed, at once. The verdicts are of the last time Claude wrote the points (they are not kept in the saved file). The "points removed" list names each point Claude wrote that
+     was thrown away (no source in the form, or an amount that was not there). */
+  var paVerdict = {}, paFrom = {}, paDropped = [], VERDICT_WORDS = { action: 'a point was written', covered: 'covered (by another point or by the form)', info: 'information only: nothing to do' };
+  function paReadList() {
+    if (!FF.actions) return [];
+    var f = FF.actions.facts(state), out = [];
+    (f.notes || []).forEach(function (n) { out.push({ id: n.id, page: n.page, text: n.note }); });
+    (f.instructions || []).forEach(function (n) { out.push({ id: n.id, page: 'Priority comment: ' + n.area, text: n.comment }); });
+    (f.undecided || []).forEach(function (n) { if (n.comment) out.push({ id: n.id, page: 'Comment: ' + n.area, text: n.comment }); });
+    return out;
+  }
+  function paReadBody() {
+    var list = paReadList(), h = '';
+    if (!list.length) h += '<div class="paread-none">No note is read for these points yet.</div>';
+    list.forEach(function (n) {
+      var v = paVerdict[n.id], pts = paFrom[n.id] || [], un = /^unplaced:/.test(n.id) ? n.id.slice(9) : '';
+      h += '<div class="paread-row"><div class="paread-meta">' + esc(n.page) + ' · <b>' + esc(v ? VERDICT_WORDS[v] : 'not read yet') + '</b></div><div class="paread-text">' + esc(n.text) + '</div>' +
+        (pts.length ? '<div class="paread-pts">Point' + (pts.length === 1 ? '' : 's') + ': ' + pts.map(esc).join(' / ') + '</div>' : '') +
+        (un && (state.unplaced || []).some(function (u) { return u.id === un; }) ? '<div class="paread-btns"><button type="button" class="link-btn" data-up="' + esc(un) + ':no">Close this note (it is out of date or not needed)</button></div>' : '') + '</div>';
+    });
+    if (paDropped.length) h += '<div class="paread-head">Points Claude wrote that were removed (' + paDropped.length + ')</div>' + paDropped.map(function (d) { return '<div class="paread-row"><div class="paread-text">' + esc(d.text) + '</div><div class="paread-meta">Removed: ' + esc(d.why) + '</div></div>'; }).join('');
+    return h;
+  }
+  function paReadSummary() { return 'Notes read for these points (' + paReadList().length + ')' + (paDropped.length ? ', ' + paDropped.length + ' point' + (paDropped.length === 1 ? '' : 's') + ' removed' : ''); }
+  function paReadPaint() {
+    var d = document.getElementById('paRead'); if (!d) return;
+    var sm = d.querySelector('summary'), bd = d.querySelector('.paread-body');
+    if (sm) sm.textContent = paReadSummary(); if (bd) bd.innerHTML = paReadBody();
+  }
   function paHTML(b, c) {
     var f = b.fields[0];
-    return fieldHTML(f, false) + '<div class="apstatus"><span id="paStatus">' + esc(paStatus()) + '</span><button type="button" class="link-btn" id="paRefresh"' + (paBusy ? ' disabled' : '') + '>' + (state.pa.edited ? 'Refresh (replaces what I typed)' : 'Refresh') + '</button></div>';
+    return fieldHTML(f, false) + '<div class="apstatus"><span id="paStatus">' + esc(paStatus()) + '</span><button type="button" class="link-btn" id="paRefresh"' + (paBusy ? ' disabled' : '') + '>' + (state.pa.edited ? 'Refresh (replaces what I typed)' : 'Refresh') + '</button></div>' +
+      '<details class="paread" id="paRead"><summary>' + esc(paReadSummary()) + '</summary><div class="paread-body">' + paReadBody() + '</div></details>';
   }
   function paPaint() {
     var st = document.getElementById('paStatus'), ta = document.querySelector('[data-f="pa_actions"]'), bt = document.getElementById('paRefresh');
     if (st) st.textContent = paStatus(); if (bt) { bt.disabled = paBusy; bt.textContent = state.pa.edited ? 'Refresh (replaces what I typed)' : 'Refresh'; }
+    paReadPaint();
     if (ta && ta.value !== state.f.pa_actions.v && !(document.activeElement === ta && state.pa.edited)) ta.value = state.f.pa_actions.v;     // never over what is being typed
   }
   /* The status line and the button after a key typed in the box (the text itself is never touched while it is being typed). */
@@ -496,7 +528,9 @@
     paBusy = true; paPaint();
     var set = FF.lookup.getSettings();
     VAI.actionPointsFull({ apiKey: set.apiKey, ask: !set.apiKey && FF.voiceBackend && FF.voiceBackend.available ? FF.voiceBackend.ask : null, model: set.voiceModel, facts: f, fetchImpl: meteredFetch }).then(function (r) {
-      paBusy = false; paUnchecked = r.unchecked.length;
+      paBusy = false; paUnchecked = r.unchecked.length; paVerdict = r.notes || {}; paDropped = r.dropped || [];
+      paFrom = {}; (r.sources || []).forEach(function (x) { var id = String(x.from).replace(/^notes?:\s*/i, ''); (paFrom[id] = paFrom[id] || []).push(x.text); });
+      if (paDropped.length && typeof vmLog === 'function') paDropped.forEach(function (d) { vmLog('action point removed (' + d.why + '): ' + d.text.slice(0, 80)); });
       if (r.points.length && (manual || (!state.pa.edited && state.pa.key === key))) paWrite(r.points, key, 'claude'); else paPaint();
     }, function (e) { paBusy = false; paPaint(); if (manual) toast('Claude could not write the points (' + ((e && e.message) || 'no answer') + '). Plain points were written from the form.'); });
   }
@@ -603,6 +637,10 @@
     $('#nav').innerHTML = nav;
   }
   function refreshChrome() {
+    if ((state.unplaced || []).length) {                                                            // 3.8: a "heard but not placed" item the form now covers is closed (the five children are on the form now)
+      var closedNow = state.unplaced.filter(function (u) { return store.unplacedCovered(state, u); }).map(function (u) { return u.text; });
+      if (closedNow.length && store.closeCovered(state, typeof vm === 'object' && vm ? vm.unplacedSeen : null)) { closedNow.forEach(function (t) { if (typeof vmLog === 'function') vmLog('closed, the form holds it now: ' + t.slice(0, 80)); }); if (typeof unplacedRender === 'function') unplacedRender(); }
+    }
     var name = store.clientName(state);
     $('#clientName').textContent = name || 'New client';
     document.title = 'Fact Find' + (name ? ' - ' + name : '');
@@ -618,6 +656,7 @@
     refreshKey(); refreshCost();
     if ((state.unplaced && state.unplaced.length) || document.getElementById('convo')) convoSoon();
     if (ver) ver.textContent = 'Version ' + schema.version + ', ' + schema.released + ' · Tax tables ' + tax;
+    if (cur === 'admin') paReadPaint();
   }
   /* The top bar counts down to the day the Anthropic key stops working. */
   /* The top bar shows the days left of each key that is saved, each with its own label: the Anthropic key, then the OpenAI key. */
@@ -1515,10 +1554,16 @@
         .then(function (r) { vm.busy--; vmRender(); return r.length ? r : local; }, function () { vm.busy--; vmRender(); return local; });
     }
     return pts.then(function (list) {
-      var cell = state.f[id], add = list.map(function (x) { return '- ' + x; }).join('\n');
-      vmLog('noted: ' + list.join('; '));
-      vm.undo.push({ kind: 'fill', id: id, prev: { v: cell.v, st: cell.st }, extras: [] });
-      store.setField(state, id, cell.v ? cell.v.replace(/\s+$/, '') + '\n' + add : add, 'heard');
+      list = list.filter(function (x) { if (V.isNoteJunk(x)) { vmLog('not noted (small talk or a sentence that broke off): ' + x); return false; } return true; });       // 3.8
+      if (!list.length) return;
+      var groups = {}, order = [];
+      list.forEach(function (x) { var b = V.noteBoxFor(x, id); if (!state.f[b]) b = id; if (b !== id) vmLog('noted in the notes of Client priorities and quotes needed instead (it is about life cover): ' + x); if (!groups[b]) { groups[b] = []; order.push(b); } groups[b].push(x); });
+      order.forEach(function (b) {
+        var cell = state.f[b], add = groups[b].map(function (x) { return '- ' + x; }).join('\n');
+        vmLog('noted: ' + groups[b].join('; '));
+        vm.undo.push({ kind: 'fill', id: b, prev: { v: cell.v, st: cell.st }, extras: [] });
+        store.setField(state, b, cell.v ? cell.v.replace(/\s+$/, '') + '\n' + add : add, 'heard');
+      });
       touch(); redraw(); vmFlash(id);
       if (vm.noteMode) { vm.target = id; vm.answered = false; vmMarkWait(); }
     });

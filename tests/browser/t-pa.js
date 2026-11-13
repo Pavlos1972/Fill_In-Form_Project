@@ -8,7 +8,7 @@ srv.listen(0, async () => {
   const ctx = await b.newContext({ viewport: { width: 1500, height: 1000 } }), p = await ctx.newPage(); const errs = []; p.on('pageerror', e => errs.push(e.message));
   // Claude is faked: it answers with points that name the client by the first name alone and address Sitamah, the way a careless answer might
   let asked = 0;
-  await ctx.route('https://api.anthropic.com/**', route => { asked++; route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ id: 'x', type: 'message', role: 'assistant', model: 'claude-sonnet-5-5', content: [{ type: 'text', text: '{"points": ["Sitamah, please follow up with Sitimah for the current policy schedules, await client response.", "Ask Valerie to contact Sitimah about medical aid."]}' }], stop_reason: 'end_turn', usage: { input_tokens: 100, output_tokens: 50 } }) }); });
+  await ctx.route('https://api.anthropic.com/**', route => { asked++; route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ id: 'x', type: 'message', role: 'assistant', model: 'claude-sonnet-5-5', content: [{ type: 'text', text: '{"points": [{"text": "Sitamah, please follow up with Sitimah for the current policy schedules, await client response.", "from": "loa"}, {"text": "Ask Valerie to contact Sitimah about medical aid.", "from": "appointment"}]}' }], stop_reason: 'end_turn', usage: { input_tokens: 100, output_tokens: 50 } }) }); });
   await p.goto('http://localhost:' + srv.address().port + '/');
   const box = () => p.evaluate(() => document.querySelector('[data-f="pa_actions"]').value);
   const status = () => p.evaluate(() => document.getElementById('paStatus').textContent);
