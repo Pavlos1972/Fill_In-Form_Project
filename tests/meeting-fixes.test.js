@@ -152,7 +152,7 @@ test('the page\'s own reading follows it: the question is about the list, the "n
 
 test('Claude can say a section is finished, and is told which ones are', () => {
   const r = AIv.normalize({ actions: [{ do: 'done', section: 'debts' }, { do: 'done', list: 'risk' }, { do: 'done' }, { do: 'done', section: 'nope' }] }, widx, 'auto', {});
-  assert.deepStrictEqual(r.actions.map(a => [a.section, a.list]), [['debts', null], [null, 'risk'], [null, null]]);
+  assert.deepStrictEqual(r.actions.map(a => [a.section, a.list]), [['debts', null], [null, 'risk']]);                       // 3.7: a "done" that names nothing is dropped (it used to tick whatever section was open)
   const body = JSON.parse(AIv.buildRequest(widx, { sectionId: 'debts', recent: [], concluded: ['income', 'debts'] }, 'auto', 'one more debt, a car loan', 'm').messages[0].content);
   assert.deepStrictEqual(body.position.concluded, ['income', 'debts']);
   assert.ok(!('concluded' in JSON.parse(AIv.buildRequest(widx, { sectionId: 'debts', recent: [] }, 'auto', 'x', 'm').messages[0].content).position));

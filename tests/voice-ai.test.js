@@ -128,7 +128,9 @@ test('Claude can add rows and fill boxes of rows, and nothing else gets through'
   const bad = await run({ actions: [{ do: 'row', list: 'nope', values: { a: 'b' } }, { do: 'row', list: 'shares', values: { id: '8001015800087', cell: '0825550148' } },
     { do: 'cell', list: 'shares', row: 1, col: 'id', value: '1' }, { do: 'fill', field: 'kids.dob', value: '1' }, { do: 'ask', field: 'debts.bal' }, { do: 'row', list: 'kids', values: {} }] });
   assert.deepStrictEqual(bad, { kind: 'actions', actions: [{ do: 'cell', list: 'kids', col: 'dob', row: 'last', value: '1', explicit: false }, { do: 'ask', list: 'debts', col: 'bal', row: 'last' }] });   // unknown lists, private columns and empty rows are dropped; a list box named as a plain field is read as the list box
-  assert.strictEqual((await run({ actions: [{ do: 'cell', list: 'kids', row: 'banana', col: 'name', value: 'A' }] })).actions[0].row, 'last');
+  const banana = await run({ actions: [{ do: 'cell', list: 'kids', row: 'banana', col: 'name', value: 'A' }] });
+  assert.ok(!banana.actions && /does not make sense \(banana\)/.test(banana.unplaced[0].text), '3.7: a row that is not a number, "last" or "new" is not guessed at: it is shown in heard but not placed');
+  assert.strictEqual((await run({ actions: [{ do: 'cell', list: 'kids', row: '2', col: 'name', value: 'A' }] })).actions[0].row, 2, 'a row number sent as text is that row');
 });
 
 test('Claude points at markers; the real values are put back on this computer, and only a marker (or None) is accepted for a private box', async () => {
