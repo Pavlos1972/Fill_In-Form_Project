@@ -32,8 +32,9 @@
 
   /* The next appointment as one phrase: "Friday 06/11/2026 at 14:30". Whatever part is missing is said to be still to be agreed. */
   function appointmentText(v) {
-    var d = util.parseDate(v('next_appt')), t = util.parseTime(v('next_time')),
-      ds = d ? util.weekdayName(d) + ' ' + util.formatDate(d) : String(v('next_appt') || '').trim(), ts = t ? util.formatTime(t) : String(v('next_time') || '').trim();
+    var raw = String(v('next_appt') || '').trim(), bare = raw.replace(/^(?:mon|tue|tues|wed|thu|thur|thurs|fri|sat|sun)[a-z]*\.?,?\s+/i, '');       // a weekday typed in front is dropped: the weekday said is always the one the digits give (a "Friday" on a Thursday date would send the assistant to the wrong day)
+    var d = util.parseDate(raw) || util.parseDate(bare), t = util.parseTime(v('next_time')),
+      ds = d ? util.weekdayName(d) + ' ' + util.formatDate(d) : raw, ts = t ? util.formatTime(t) : String(v('next_time') || '').trim();
     if (ds && ts) return ds + ' at ' + ts;
     if (ds) return ds + ' (time to be agreed)';
     if (ts) return 'at ' + ts + ' (date to be agreed)';
@@ -49,14 +50,21 @@
 
     SCHEDS.forEach(function (c) {
       if (!shows(c[0])) return;
-      var rows = [].concat(c[3]).reduce(function (a, k) { return listOn(k) ? a.concat(state.l[k] || []) : a; }, []), held = rows.map(function (r) { return String(r.d.prov || '').trim(); }).filter(Boolean), choice = v(c[0]).split(';').map(function (x) { x = x.trim(); return x === schema.psClient[c[0].slice(3)] ? CLIENT : x; }).filter(Boolean);       // the area's own wording ("Requested Personal Risk Covers in meeting, await client response") is the "requested from client" choice
+      var rows = [].concat(c[3]).reduce(function (a, k) { return listOn(k) ? a.concat((state.l[k] || []).filter(function (r) { return store.rowFilled(k, r); })) : a; }, []), held = rows.map(function (r) { return String(r.d.prov || '').trim(); }).filter(Boolean), choice = v(c[0]).split(';').map(function (x) { x = x.trim(); return x === schema.psClient[c[0].slice(3)] ? CLIENT : x; }).filter(Boolean);       // the area's own wording ("Requested Personal Risk Covers in meeting, await client response") is the "requested from client" choice
       var onFile = function (x) { return x === schema.psSaved || x === schema.psNoSend; };                // Policy Schedules saved in Client File (and the choice it replaced): nothing for the assistant to chase
       if (choice.length && choice.every(onFile)) return;
       choice = choice.filter(function (x) { return !onFile(x); });
       var known = rows.length || (c[0] === 'ps_risk' && v('has_risk') === 'Yes') || (c[0] === 'ps_grp' && v('has_group') === 'Yes');
       if (!choice.length && !known) return;                                                      // a choice that was made always counts; "not asked yet" is chased only where the client is known to have the policies (a Yes, or a policy recorded)
       var sch = { what: c[2], held: held, requested: choice.length ? choice : ['not asked yet'], other: choice.indexOf(OTHER) >= 0 ? v(c[1]) : '' }, nt = v(SCHED_NOTE[c[0]]).replace(/\s+\n/g, '\n').slice(0, 1200);
-      if (nt) sch.note_on_this_page = nt;
+      /* The page's note goes with a schedule only when the page has that one schedule. Where two schedules share the page (the RA and the pension and provident funds on Retirement funding; the personal risk and
+         group risk on the cover page) the note could be about either: it is not attached to both (it would make Claude drop a chase that the note is not about); it is read once, in notes[] (page_note_id), and each
+         schedule says which other schedule shares the page (shared_with). */
+      var mates = SCHEDS.filter(function (o) {                                                         // the other schedule of the page counts when it is in play: ticked (even "saved in file") or the client is known to have those policies
+        return o[0] !== c[0] && SCHED_NOTE[o[0]] === SCHED_NOTE[c[0]] && shows(o[0]) && (v(o[0]) !== '' || [].concat(o[3]).some(function (k) { return listOn(k) && (state.l[k] || []).some(function (r) { return store.rowFilled(k, r); }); }) || (o[0] === 'ps_grp' && v('has_group') === 'Yes') || (o[0] === 'ps_risk' && v('has_risk') === 'Yes'));
+      });
+      if (nt && !mates.length) sch.note_on_this_page = nt;
+      else if (nt) { sch.shared_with = mates.map(function (o) { return o[2]; }).join(' and '); sch.page_note_id = SCHED_NOTE[c[0]]; }
       out.schedules.push(sch);
     });
     NOTE_BOXES.forEach(function (n) { var t = v(n.id).replace(/\s+\n/g, '\n').slice(0, 2000); if (t && shows(n.id) && calc.showIf(n.sec.cond, ctx)) out.notes.push({ id: n.id, page: n.page, note: t }); });
@@ -119,6 +127,10 @@
       var d = v(P.dec), cm = v(P.cm);
       if (d === schema.UNSURE || d === schema.BUDGET) out.undecided.push(clean({ id: cm ? P.cm : '', area: P.title, answer: d === schema.BUDGET ? 'needs to check the budget' : 'needs to think about it', comment: cm }));
       else if (d !== schema.NOT_PRIORITY && cm) out.instructions.push({ id: P.cm, area: P.title, comment: cm });
+      /* The reason an area is not a priority lives in its Comments (3.4), and it may hold something to do ("client asked to revisit life cover in March: diarise a reminder"). It is not an instruction (the area is declined),
+         so it goes with the notes, tagged as a declined-area comment, for Claude to give a verdict (action, covered or info). What the form wrote itself (the preset comment, the earlier-version migration sentence) is left out:
+         nothing automatic is chased. */
+      else if (d === schema.NOT_PRIORITY && cm && calc.showIf(P.cond, ctx) && !(state.f[P.cm] && state.f[P.cm].st === 'preset') && cm.replace(store.NO_CONTACT_NOTE, '').trim() !== '') out.notes.push({ id: P.cm, page: 'Declined area: ' + P.title, note: cm.replace(store.NO_CONTACT_NOTE, '').replace(/\s+\n/g, '\n').trim().slice(0, 1200), declined_area: true });
     });
     return out;
   }
@@ -168,8 +180,15 @@
     if (quotes.length) refs.forEach(function (r) { back.push('Referral: ' + r.who + ' to contact the client about ' + r.about + oppText(r) + '.'); });
     else refs.slice(1).forEach(function (r) { back.push('Referral: ' + r.who + ' to contact the client about ' + r.about + oppText(r) + '.'); });
     (a.schedules || []).forEach(function (sc) {
-      var r = sc.requested, how = r.indexOf('not asked yet') >= 0 ? 'how they will come is still to be asked' : r.indexOf(OTHER) >= 0 && sc.other ? sc.other.replace(/[.\s]+$/, '') : r.indexOf(ASTUTE) >= 0 && r.indexOf(CLIENT) < 0 ? 'to be drawn from Astute with the signed LOA' : r.indexOf(CLIENT) >= 0 ? 'asked for from the client, awaiting the client' : 'other arrangement';
-      back.push('Current policy schedules for the ' + sc.what + ': ' + how + '.');
+      var r = sc.requested, how = [];                                                                 // one clause for each arrangement ticked, as local() has one point for each
+      if (r.indexOf('not asked yet') >= 0) how.push('how they will come is still to be asked');
+      else {
+        if (r.indexOf(CLIENT) >= 0) how.push('asked for from the client, awaiting the client');
+        if (r.indexOf(ASTUTE) >= 0) how.push('to be drawn from Astute with the signed LOA');
+        if (r.indexOf(OTHER) >= 0) how.push(sc.other ? sc.other.replace(/[.\s]+$/, '') : 'other arrangement');
+        if (!how.length) how.push('other arrangement');
+      }
+      back.push('Current policy schedules for the ' + sc.what + ': ' + how.join('; ') + '.');
     });
     return { recommend: oneLine(recommend), client: a.comment ? sentence1(oneLine(a.comment.replace(/[.\s]+$/, ''))) : 'Agrees.', back: back.slice(0, 3).map(oneLine) };
   }
