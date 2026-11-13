@@ -39,7 +39,7 @@
     });
     (P.sum.t || []).forEach(function (t) {
       var n = 0, any = false;
-      t[1].forEach(function (lc) { (state.l[lc[0]] || []).forEach(function (r) { if (lc[2] && r.d[lc[2]] !== lc[3]) return; if (String(r.d[lc[1]] == null ? '' : r.d[lc[1]]).trim() !== '') { any = true; n += util.num(r.d[lc[1]]); } }); });
+      t[1].forEach(function (lc) { var lb = blockOfList[lc[0]]; if (lb && !calc.showIf(lb.cond, ctx)) return; (state.l[lc[0]] || []).forEach(function (r) { if (lc[2] && r.d[lc[2]] !== lc[3]) return; if (String(r.d[lc[1]] == null ? '' : r.d[lc[1]]).trim() !== '') { any = true; n += util.num(r.d[lc[1]]); } }); });
       if (any) out.totals[t[0]] = amt(util.money(n));
     });
     return out;

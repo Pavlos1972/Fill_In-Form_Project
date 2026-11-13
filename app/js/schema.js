@@ -18,7 +18,7 @@
   if (typeof module === 'object' && module.exports) module.exports = factory();
   else { root.FF = root.FF || {}; root.FF.schema = factory(); }
 })(typeof self !== 'undefined' ? self : this, function () {
-  var YN = ['Yes', 'No'], BROKER = ['Paul K', 'Other broker', 'Through company', 'None'], DEFAULT_BROKER = 'Other broker';        // every "Broker on record" starts as Other broker (a new row, or one of the four boxes in Medical, will & short-term from the start); the adviser changes it when it is different
+  var YN = ['Yes', 'No'], YNS = ['Yes', 'No', 'Not sure'], BROKER = ['Paul K', 'Other broker', 'Through company', 'None'], DEFAULT_BROKER = 'Other broker';        // every "Broker on record" starts as Other broker (a new row, or one of the four boxes in Medical, will & short-term from the start); the adviser changes it when it is different
   var QTYPE = ['New Business', 'Servicing', 'N/A'];                         // what kind of quote it is
   var INS = ['Old Mutual', 'Momentum', 'Liberty', 'Sanlam', 'Discovery', 'BrightRock', 'Hollard', 'Assupol', 'Clientele', 'Other'];
   var INS_INV = ['Old Mutual', 'Momentum', 'Sanlam', 'Liberty', 'Discovery', 'Allan Gray', 'Stanlib', 'Other'];      // the providers an RA quote and an investment quote can be asked of (the list of the Investment Capture Sheet; BrightRock sells risk cover only)
@@ -503,10 +503,11 @@
     debts: { need: 1, cards: 'Debt', title: 'Debts', add: 'Add debt', cols: [
       { k: 'type', l: 'Type', o: ['Home loan', 'Vehicle finance', 'Credit card', 'Personal loan', 'Revolving credit', 'Other'] }, { k: 'prov', l: 'Loan provider / bank', o: BANKS, free: 1 },
       { k: 'desc', l: 'Description' }, { k: 'owner', l: 'Owner', o: WHO }, { k: 'payer', l: 'Payer', o: WHO }, { k: 'term', l: 'Term left (months)' },
-      { k: 'inst', money: 1, l: 'Instalment (R p.m.)', num: 1 }, { k: 'bal', money: 1, l: 'Balance (R)', num: 1 }, { k: 'asset', money: 1, l: 'Asset value (R)', num: 1 },
-      { k: 'cl', l: 'Credit life with lender', o: YN }, { k: 'surety', l: 'Surety signed', o: ['Yes', 'No', 'Unsure'] },
+      { k: 'inst', money: 1, l: 'Instalment (R p.m.)', num: 1 }, { k: 'sinst', money: 1, l: 'Spouse instalment (R p.m.)', num: 1, rowCond: { k: 'payer', in: ['Joint', 'Spouse'] } },
+      { k: 'bal', money: 1, l: 'Balance (R)', num: 1 }, { k: 'asset', money: 1, l: 'Asset value (R)', num: 1 },
+      { k: 'cl', l: 'Credit life with lender', o: YNS }, { k: 'surety', l: 'Surety signed', o: ['Yes', 'No', 'Unsure'] },
       { k: 'notes', l: 'Notes', t: 'area', wide: 1 }
-    ], sum: { inst: 'Total monthly', bal: 'Total liabilities', asset: 'Total assets' } },
+    ], sum: { inst: 'Total monthly', sinst: 'Total spouse monthly', bal: 'Total liabilities', asset: 'Total assets' } },
     kids: { need: 1, cards: 'Child', title: 'Children', add: 'Add child', cols: [
       { k: 'name', l: 'Name' }, { k: 'sname', l: 'Surname' }, { k: 'gender', l: 'Gender', o: ['Female', 'Male'] }, { k: 'dob', l: 'Date of birth', date: 1 }, { k: 'age', l: 'Age', calc: 'age' },
       { k: 'stage', l: 'Education stage', o: STAGES }, { k: 'cost', money: 1, l: 'Childcare (R p.m.)', num: 1 }
@@ -542,5 +543,5 @@
   var byId = {};
   sections.forEach(function (s) { s.blocks.forEach(function (b) { (b.fields || []).forEach(function (f) { byId[f.id] = f; }); }); });
 
-  return { version: '3.5', released: 'November 2026', sections: sections, lists: lists, panels: panels, panelsById: panelsById, advisor: ADVISOR, brBasis: BR_BASIS, areaTitle: areaTitle, psClient: PS_CLIENT, defaultBroker: DEFAULT_BROKER, psNoSend: PS_NOSEND, psSaved: PS_SAVED, psNone: PS_NONE, psClientOld: PS_CLIENT_OLD, PRIORITY: PRIORITY, NOT_PRIORITY: NOT_PRIORITY, NOT_PRIORITY_OLD: NOT_PRIORITY_OLD, UNSURE: UNSURE, BUDGET: BUDGET, fieldsById: byId };
+  return { version: '3.6', released: 'November 2026', sections: sections, lists: lists, panels: panels, panelsById: panelsById, advisor: ADVISOR, brBasis: BR_BASIS, areaTitle: areaTitle, psClient: PS_CLIENT, defaultBroker: DEFAULT_BROKER, psNoSend: PS_NOSEND, psSaved: PS_SAVED, psNone: PS_NONE, psClientOld: PS_CLIENT_OLD, PRIORITY: PRIORITY, NOT_PRIORITY: NOT_PRIORITY, NOT_PRIORITY_OLD: NOT_PRIORITY_OLD, UNSURE: UNSURE, BUDGET: BUDGET, fieldsById: byId };
 });

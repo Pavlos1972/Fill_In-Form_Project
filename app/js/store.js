@@ -65,6 +65,16 @@
     has_pp: { vals: ['No'], clear: ['ps_pp', 'ps_pp_ot'] }, has_inv: { vals: ['No'], clear: ['ps_inv', 'ps_inv_ot'] } };
   /* "Other" in a policy schedule list opens its small box: when Other is not ticked any more, what was typed there goes. */
   var PS_OTHER_BOX = { ps_risk: 'ps_risk_ot', ps_grp: 'ps_grp_ot', ps_ra: 'ps_ra_ot', ps_pp: 'ps_pp_ot', ps_inv: 'ps_inv_ot' };
+  /* One Astute pull covers all the policies (3.6): once the Letter of Authority is Yes and one schedule box already says Draw from Astute (the personal risk policies, for instance, after "find it for me"), every other
+     schedule box that is still empty, for cover the client has (retirement annuities, pension or provident funds, investments, each with its Has ... Yes), is set to Draw from Astute, shown as a default (preset) the adviser can
+     change. Group risk has no Astute choice. Nothing already answered is touched. */
+  var ASTUTE_BOXES = [['ps_risk', 'has_risk'], ['ps_ra', 'has_ra'], ['ps_pp', 'has_pp'], ['ps_inv', 'has_inv']], PS_ASTUTE_TEXT = 'Draw from Astute (with signed LOA)';
+  function astuteAll(state) {
+    if (!state.f.loa || state.f.loa.v !== 'Yes') return;
+    var named = ASTUTE_BOXES.some(function (b) { var x = state.f[b[0]]; return x && x.st !== 'preset' && x.v.split(';').map(function (p) { return p.trim(); }).indexOf(PS_ASTUTE_TEXT) >= 0; });
+    if (!named) return;
+    ASTUTE_BOXES.forEach(function (b) { var x = state.f[b[0]], gate = state.f[b[1]]; if (x && gate && gate.v === 'Yes' && x.v.trim() === '') state.f[b[0]] = { v: PS_ASTUTE_TEXT, st: 'preset' }; });
+  }
   function setField(state, id, v, st) {
     var def = schema.fieldsById[id];
     if (def && def.time) { var pt = util.parseTime(v); if (pt) v = util.formatTime(pt); }                  // "2pm" and "2:30 pm" are kept as 14:30, however they got here
@@ -79,6 +89,7 @@
     if (id === 'edu') eduDefault(state);
     if (id === 'employed') employerDefault(state);
     if (id === 'dob' || id === 'date') termsFollow(state);                                                   // a term said as an age becomes months once the date of birth is known
+    astuteAll(state);
     autoprio.apply(state);                                                                                   // the outcomes the facts give (autoprio.js)
   }
   /* Defaults that follow another answer, shown as defaults (status "preset") and never put over an answer that was typed or said: Qualification details starts as N/A when the highest education is Matric,
@@ -113,6 +124,27 @@
     if (isPropertyDebt(d)) { if (d.asset === NO_ASSET) d.asset = ''; }
     else if (String(d.asset || '').trim() === '') d.asset = NO_ASSET;
   }
+  /* A debt with a joint or a spouse payer (3.6). Joint: the instalment said (or typed) is the whole instalment; the Instalment box keeps the client's half and the Spouse instalment box the spouse's half (50/50; the
+     spouse's box can be changed by hand, and then the two are left alone). Spouse: the instalment is the spouse's, so it is in Spouse instalment and the client's own Instalment stays empty (it is not the client's monthly
+     cost). Payer back to the client (or the business...): the spouse's part is folded back into Instalment. r.autoSplit remembers the figure this rule put in Spouse instalment, so it is told from one typed by hand.
+     k: the box that changed ('payer', 'inst', 'sinst'), or null for a whole row that was just added or opened. before: the payer before the change. */
+  function debtSplit(r, k, before) {
+    var d = r.d, pay = String(d.payer || ''), money = util.money2, hasS = String(d.sinst == null ? '' : d.sinst).trim() !== '', inst = util.num(d.inst), sp = util.num(d.sinst);
+    var auto = !!r.autoSplit && d.sinst === r.autoSplit;                                          // the spouse's figure is the one this rule put there
+    if (k === 'sinst') { r.autoSplit = null; return; }                                            // typed by hand: the two are left alone from here
+    if (pay === 'Joint') {
+      if (!util.isAmount(d.inst) || !(inst > 0)) return;
+      var total = !hasS ? inst : (auto && k === 'inst' ? inst : (auto && k === 'payer' ? inst + sp : 0));
+      if (!(total > 0)) return;
+      var mine = Math.floor(total * 100 / 2) / 100;
+      d.inst = money(mine); d.sinst = money(Math.round((total - mine) * 100) / 100); r.autoSplit = d.sinst;
+    } else if (pay === 'Spouse') {
+      if (!hasS && inst > 0 && util.isAmount(d.inst)) { d.sinst = money(inst); d.inst = ''; r.autoSplit = null; }
+      else if (auto && before === 'Joint' && util.isAmount(d.inst)) { d.sinst = money(inst + sp); d.inst = ''; r.autoSplit = null; }
+    } else if (k === 'payer' && hasS && (before === 'Joint' || before === 'Spouse') && util.isAmount(d.sinst)) {      // back to the client (or another payer): the spouse's part is folded back
+      var back = (before === 'Joint' ? inst : 0) + sp; d.inst = back > 0 ? money(back) : ''; d.sinst = ''; r.autoSplit = null;
+    }
+  }
   /* "Broker on record" in Medical aid, Gap cover, Will and Short-term insurance starts as Other broker, shown as a default (status "preset"): on a new form, and again whenever the answer above it does not close the boxes
      (Medical aid not None, Gap cover not No, and so on; an answer not given yet does not close them). When the answer closes them (None, No), a default that was not touched goes, so nothing is left under a No.
      A broker the adviser or the client chose is never changed. */
@@ -140,10 +172,11 @@
     if (key === 'invq' && !d.req) d.req = 'Request a quote';                                         // a row in the investment quotes is a quote asked for until it says otherwise
     if ((key === 'bfred' || key === 'redq') && !d.type) d.type = autoprio.typeStartValue(state);          // Type of quote starts as New Business (no personal risk cover) or Servicing (a policy with Paul K)
     var r = { d: d, st: st || 'confirmed' };
-    if (key === 'debts') { if (r.d.term) r.d.term = termValue(state, r.d.term); debtDefaults(r); }
+    if (key === 'debts') { if (r.d.term) r.d.term = termValue(state, r.d.term); debtDefaults(r); debtSplit(r, null); }
     state.l[key].push(r);
     if (key === 'debts' && state.f.debts_end && state.f.debts_end.v) state.f.debts_end = { v: '', st: 'empty' };      // a debt added: it was not the last, so "No more debts" goes
     LIST_GATES.forEach(function (g) { if (g[1] === key && state.f[g[0]] && state.f[g[0]].v !== 'Yes') state.f[g[0]] = { v: 'Yes', st: 'confirmed' }; });      // a row added is a Yes to "Has debts", "Has children" and the like
+    astuteAll(state);
     autoprio.apply(state);
     return r;
   }
@@ -156,7 +189,8 @@
   function setProtect(state, i, on) { var r = state.l.debts[i]; if (!r) return; if (on) delete r.off; else r.off = true; }
   function setProtectAll(state, on) { (state.l.debts || []).forEach(function (r, i) { setProtect(state, i, on); }); }
   function setCell(state, key, i, k, v, st) {
-    var r = state.l[key][i]; if (key === 'debts' && k === 'term') v = termValue(state, v); r.d[k] = v; r.st = st || 'confirmed';
+    var r = state.l[key][i], payBefore = r.d.payer; if (key === 'debts' && k === 'term') v = termValue(state, v); r.d[k] = v; r.st = st || 'confirmed';
+    if (key === 'debts' && (k === 'payer' || k === 'inst' || k === 'sinst')) debtSplit(r, k, payBefore);
     if (key === 'debts' && (k === 'type' || k === 'desc' || k === 'notes')) debtDefaults(r);
     if ((key === 'redq' || key === 'bfred') && k === 'req' && v === 'Not required') { r.d.type = ''; r.d.amt = ''; if ('ins' in r.d) r.d.ins = ''; }        // a reduced quote that is not required keeps nothing
     autoprio.apply(state);
@@ -204,7 +238,9 @@
       s.l[k] = (j.l[k] || []).map(function (r) {
         var d = {}; schema.lists[k].cols.forEach(function (c) { d[c.k] = (r.d && r.d[c.k]) || ''; });
         if (k === 'debts' && r.d && r.d.prov_other && (!d.prov || d.prov === 'Other')) d.prov = r.d.prov_other;        // the bank used to be a pick-list with an "Other" box beside it: now one box, pick or type
-        else if (k === 'debts' && d.prov === 'Other') d.prov = '';
+        else if (k === 'debts' && d.prov === 'Other' && parseFloat(j.schema) < 3.6) d.prov = '';        // the old pick-list's "Other" goes from a file saved before 3.6; "Other" typed in the box since is an answer and stays
+        var rowOut = { d: d, st: r.st };
+        if (k === 'debts' && parseFloat(j.schema) < 3.6) debtSplit(rowOut, null);                 // a file saved before 3.6: a joint debt is split 50/50 and a spouse's debt moves to Spouse instalment
         if (k === 'invq' && !d.req && Object.keys(d).some(function (c) { return d[c]; })) d.req = 'Request a quote';        // before the Request column, any investment quote with something in it was a request
         if (k === 'kids' && r.d && r.d.sname === undefined && d.name) {                         // saved when a child had one "Name & surname" box: split it
           var sp = util.splitFullName(d.name, j.f && j.f.sname && j.f.sname.v);
@@ -449,5 +485,5 @@
     return { tot: tot, fill: fill, ver: ver };
   }
 
-  return { termValue: termValue, useWorked: useWorked, isPropertyDebt: isPropertyDebt, debtDefaults: debtDefaults, rowBlank: rowBlank, rowFilled: rowFilled, setProtect: setProtect, setProtectAll: setProtectAll, setPa: setPa, setFocus: setFocus, blankPa: blankPa, cleanPa: cleanPa, setSum: setSum, cleanSum: cleanSum, addUnplaced: addUnplaced, closeUnplaced: closeUnplaced, unplacedKey: unplacedKey, blank: blank, blankTally: blankTally, blankSpeech: blankSpeech, ctxFor: ctxFor, setField: setField, addRow: addRow, delRow: delRow, setCell: setCell, accept: accept, clientName: clientName, idClash: idClash, idKey: idKey, fatherSurname: fatherSurname, baseFileName: baseFileName, pdfFileName: pdfFileName, fromJSON: fromJSON, toJSON: toJSON, counts: counts };
+  return { termValue: termValue, useWorked: useWorked, isPropertyDebt: isPropertyDebt, debtDefaults: debtDefaults, rowBlank: rowBlank, rowFilled: rowFilled, debtSplit: debtSplit, setProtect: setProtect, setProtectAll: setProtectAll, setPa: setPa, setFocus: setFocus, blankPa: blankPa, cleanPa: cleanPa, setSum: setSum, cleanSum: cleanSum, addUnplaced: addUnplaced, closeUnplaced: closeUnplaced, unplacedKey: unplacedKey, blank: blank, blankTally: blankTally, blankSpeech: blankSpeech, ctxFor: ctxFor, setField: setField, addRow: addRow, delRow: delRow, setCell: setCell, accept: accept, clientName: clientName, idClash: idClash, idKey: idKey, fatherSurname: fatherSurname, baseFileName: baseFileName, pdfFileName: pdfFileName, fromJSON: fromJSON, toJSON: toJSON, counts: counts };
 });

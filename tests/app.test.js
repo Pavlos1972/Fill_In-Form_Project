@@ -123,6 +123,7 @@ test('each debt has a bank box (pick one or type another) and its own notes', ()
   assert.strictEqual(back.l.debts[0].d.prov, 'Bidvest Bank');
   assert.strictEqual(back.l.debts[0].d.notes, 'Settling early');
   const old = JSON.parse(store.toJSON(fresh()));                                                    // a file saved when the bank was a pick-list with an Other box beside it
+  old.schema = '3.2';
   old.l.debts = [{ d: { type: 'Home loan', prov: 'Other', prov_other: 'Bidvest Bank' }, st: 'confirmed' }, { d: { type: 'Vehicle finance', prov: 'Other' }, st: 'confirmed' }, { d: { type: 'Credit card', prov: 'Nedbank' }, st: 'confirmed' }];
   const o = store.fromJSON(JSON.stringify(old));
   assert.deepStrictEqual(o.l.debts.map(r => r.d.prov), ['Bidvest Bank', '', 'Nedbank']);

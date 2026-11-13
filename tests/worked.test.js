@@ -62,7 +62,7 @@ test('the saved file carries the worked block beside the answers; the form’s o
   assert.strictEqual(j.worked.taxYear, '2026/27');
   assert.ok(Math.abs(Date.parse(j.worked.at) - Date.now()) < 60000);
   assert.ok(/not answers/i.test(j.worked.note));
-  assert.strictEqual(schema.version, '3.5');
+  assert.strictEqual(schema.version, '3.6');
 });
 
 test('the figures are the form’s own: Warren’s case (take-home, expenses, debts, children) gives the figures the screen shows, the disposable income with its minus sign', () => {
@@ -93,7 +93,7 @@ test('the instalment protector: one entry for each debt the client pays (label a
 test('list totals and area totals with the labels the PDF prints', () => {
   const w = block(client());
   assert.deepStrictEqual(w.totals.lists.risk, [{ col: 'spend', column: 'Spend (R p.m.)', label: 'Total spend', value: 'R 7 971.20' }]);
-  assert.deepStrictEqual(w.totals.lists.debts.map(x => [x.label, x.value]), [['Total monthly', 'R 21 000.00'], ['Total liabilities', 'R 1 670 000.00'], ['Total assets', 'R 2 500 000.00']]);
+  assert.deepStrictEqual(w.totals.lists.debts.map(x => [x.label, x.value]), [['Total monthly', 'R 17 000.00'], ['Total spouse monthly', 'R 4 000.00'], ['Total liabilities', 'R 1 670 000.00'], ['Total assets', 'R 2 500 000.00']]);
   assert.deepStrictEqual(w.totals.lists.kids, [{ col: 'cost', column: 'Childcare (R p.m.)', label: 'Total childcare', value: 'R 12 500.00' }]);
   assert.ok(w.totals.areas.life.some(x => x.label === 'Total debt to be covered (balances)'));
   assert.ok(!('shares' in w.totals.lists), 'a list with no rows has no total');

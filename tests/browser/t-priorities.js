@@ -31,7 +31,7 @@ let bad = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if
   await p.selectOption('[data-f="pr_inv"]', 'Client not sure, needs to think about it');
   await p.waitForTimeout(2000);
   let t = await val(p, 'focus');
-  ok(/^1\. Personal Risk Covers\n- Request a BrightRock Fractured FNA quote/.test(t) && /\n\n6\. Medical Aid\n/.test(t), 'only the green areas are in it, with their numbers: ' + JSON.stringify(t.slice(0, 120)));
+  ok(/^1\. Personal Risk Covers\nRecommend: Request a BrightRock Fractured FNA quote/.test(t) && /\n\n6\. Medical Aid\n/.test(t), 'only the green areas are in it, with their numbers: ' + JSON.stringify(t.slice(0, 120)));
   ok(!/Will|Investment/.test(t), 'the red and the yellow areas are not');
   ok(/Plain points from the green priorities/.test(await p.evaluate(() => document.getElementById('focusStatus').textContent)), 'with no Anthropic key the plain points stay, and the status says so');
   await p.screenshot({ path: process.argv[4] + '/priorities-focus.png', clip: { x: 0, y: 100, width: 1500, height: 760 } });
@@ -39,12 +39,12 @@ let bad = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if
   ok((await val(p, 'focus')) === '', 'when no priority is green the box is empty again');
 
   // ---- typed over, then Refresh in one tap, with Claude's points ----
-  p = await fresh(`(s, b) => JSON.stringify({ areas: { 1: ['Get the BrightRock FNA for the client Thandi', 'Replace the old Liberty cover'] } })`);
+  p = await fresh(`(s, b) => JSON.stringify({ areas: { 1: { recommend: 'Get the BrightRock FNA for the client Thandi', client: 'Agrees', back: ['Replace the old Liberty cover'] } } })`);
   await p.evaluate(() => { FF.lookup.saveSettings({ apiKey: '', model: 'claude-sonnet-5-5', voiceModel: 'claude-sonnet-5-5' }); FF.store.setField(FF.app.state, 'fname', 'Thandi'); FF.app.redraw(); });
   await nav(p, 'prio');
   await p.selectOption('[data-f="pr_life"]', 'Priority: client agrees'); await p.waitForTimeout(2500);
   t = await val(p, 'focus');
-  ok(/^1\. Personal Risk Covers\n- Get the BrightRock FNA for the client Thandi\n- Replace the old Liberty cover$/.test(t), 'Claude\'s points go under the heading the form puts in: ' + JSON.stringify(t));
+  ok(/^1\. Personal Risk Covers\nRecommend: Get the BrightRock FNA for the client Thandi\nClient: Agrees\nCome back with:\n- Replace the old Liberty cover$/.test(t), 'Claude\'s points go under the heading the form puts in: ' + JSON.stringify(t));
   ok(await p.evaluate(() => window.__asked.length >= 1 && /^(Sun|Mon|Tues|Wednes|Thurs|Fri|Satur)day \d\d\/\d\d\/\d{4}$/.test(window.__asked[window.__asked.length - 1].today)), 'the request to Claude carries today\'s date: ' + (await p.evaluate(() => (window.__asked[window.__asked.length - 1] || {}).today)));
   ok(/Written by Claude/.test(await p.evaluate(() => document.getElementById('focusStatus').textContent)), 'the status says Claude wrote them');
   await p.evaluate(() => { const ta = document.querySelector('[data-f="focus"]'); ta.value = 'My own words'; ta.dispatchEvent(new Event('input', { bubbles: true })); ta.dispatchEvent(new Event('change', { bubbles: true })); });
