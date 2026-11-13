@@ -46,7 +46,7 @@
         var L = schema.lists[b.list], rows = state.l[b.list] || [];
         var calcCols = L.cols.filter(function (c) { return c.calc; });
         if (calcCols.length && rows.length) out.l[b.list] = rows.map(function (r) { var o = {}; calcCols.forEach(function (c) { o[c.k] = calc.rowCalc(c.calc, r, ctx); }); return o; });
-        if (rows.length && Object.keys(L.sum || {}).length) out.totals.lists[b.list] = Object.keys(L.sum).map(function (k) {
+        if (rows.length && Object.keys(L.sum || {}).length) out.totals.lists[b.list] = Object.keys(L.sum).filter(function (k) { return calc.sumShown(L, k, rows); }).map(function (k) {
           var c = L.cols.filter(function (x) { return x.k === k; })[0];
           return { col: k, column: c ? c.l : k, label: L.sum[k], value: util.money(rows.reduce(function (a, r) { return a + util.num(r.d[k]); }, 0)) };      // column: the heading the PDF prints over it; label: the total's own name (printed with it for a list shown as cards)
         });

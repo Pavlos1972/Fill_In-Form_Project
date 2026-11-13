@@ -90,11 +90,11 @@
       if (!rows.length) { table({ body: [[{ content: 'None recorded.', styles: { textColor: MUTED, fontStyle: 'italic' } }]], columnStyles: { 0: { cellWidth: CW } } }); return; }
       function cellText(c, r) { return t(c.calc ? calc.rowCalc(c.calc, r, ctx) : (c.money ? util.formatMoney(r.d[c.k]) : r.d[c.k])); }
       function totals() {
-        return Object.keys(L.sum).map(function (k) { return [t(L.sum[k]), util.money(rows.reduce(function (a, r) { return a + util.num(r.d[k]); }, 0))]; });
+        return Object.keys(L.sum).filter(function (k) { return calc.sumShown(L, k, rows); }).map(function (k) { return [t(L.sum[k]), util.money(rows.reduce(function (a, r) { return a + util.num(r.d[k]); }, 0))]; });
       }
       if (L.cards) {
         rows.forEach(function (r, i) {
-          var items = L.cols.map(function (c) { return { label: t(c.l.replace(/ \(from date of birth\)/, '')), value: cellText(c, r), wide: !!c.wide }; });
+          var items = L.cols.filter(function (c) { return calc.colShown(c, r); }).map(function (c) { return { label: t(c.l.replace(/ \(from date of birth\)/, '')), value: cellText(c, r), wide: !!c.wide }; });
           ensure(40);
           table({ head: [[{ content: L.cards + ' ' + (i + 1), colSpan: 4 }]], body: fieldRows(items), columnStyles: PAIR_COLS });
           y -= 2;

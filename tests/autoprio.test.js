@@ -19,7 +19,7 @@ const autoOn = (s, area, ref) => s.f['pr_' + area].v === NO && preset(s, 'pr_' +
 const untouched = (s, area, ref) => s.f['pr_' + area].v === '' && s.f['pr_' + area + '_cm'].v === '' && s.f[ref].v === '';
 
 test('the one no is plain Not a priority; the older words open as the new, with the status kept', () => {
-  assert.strictEqual(NO, 'Not a priority'); assert.strictEqual(schema.NOT_PRIORITY_OLD, 'Not a priority: client not interested'); assert.strictEqual(schema.version, '3.5');
+  assert.strictEqual(NO, 'Not a priority'); assert.strictEqual(schema.NOT_PRIORITY_OLD, 'Not a priority: client not interested'); assert.strictEqual(schema.version, '3.6');
   schema.panels.filter(P => P.dec).forEach(P => assert.ok(schema.fieldsById[P.dec].o.includes(NO) && !schema.fieldsById[P.dec].o.includes(schema.NOT_PRIORITY_OLD), P.id));
   assert.deepStrictEqual(schema.fieldsById.pr_life.o, [YES, schema.UNSURE, schema.BUDGET, NO], 'no new choice: the same four');
   assert.deepStrictEqual(schema.fieldsById.pr_med.o, [YES, NO]);
@@ -160,18 +160,18 @@ test('a referral for cover with another broker says it is a take-over, in the fa
     will: 'Yes', will_up: 'Yes', will_where: 'Capital Legacy', will_broker: 'Other broker', ref_will: 'Capital Legacy to contact client' });
   const f = A.facts(s); assert.deepStrictEqual(f.referrals.map(r => [r.who, !!r.takeover]), [['Valerie', true], ['Capital Legacy', true], ['Cameron', true]]);
   const text = A.local(s).join('\n');
-  assert.match(text, /Ask Valerie to contact the client Anna about medical aid \(currently with another broker: a take-over\)\./);
-  assert.match(text, /Ask Capital Legacy to contact the client Anna about the will \(currently with another broker: a take-over\)\./);
-  assert.match(text, /Ask Cameron to contact the client Anna about short-term insurance \(currently with another broker: a take-over\)\./);
+  assert.match(text, /Ask Valerie to contact the client Anna about medical aid \(currently with another broker: an opportunity to quote; the client will decide\)\./);
+  assert.match(text, /Ask Capital Legacy to contact the client Anna about the will \(currently with another broker: an opportunity to quote; the client will decide\)\./);
+  assert.match(text, /Ask Cameron to contact the client Anna about short-term insurance \(currently with another broker: an opportunity to quote; the client will decide\)\./);
   const own = fresh(); sets(own, { fname: 'Anna', ma: 'None', ref_med: 'Valerie to contact for medical aid', sti: 'No', ref_sti: 'Cameron to contact client', will: 'No', ref_will: 'Capital Legacy to contact client' });
-  assert.ok(!/take-over/.test(A.local(own).join('\n')), 'no medical aid, no short-term, no will: nothing to take over, though the broker boxes start as Other broker');
-  const blank = fresh(); sets(blank, { fname: 'Anna', ref_med: 'Valerie to contact for both' }); assert.ok(!/take-over/.test(A.local(blank).join('\n')), 'nothing answered');
+  assert.ok(!/another broker/.test(A.local(own).join('\n')), 'no medical aid, no short-term, no will: nothing to take over, though the broker boxes start as Other broker');
+  const blank = fresh(); sets(blank, { fname: 'Anna', ref_med: 'Valerie to contact for both' }); assert.ok(!/another broker/.test(A.local(blank).join('\n')), 'nothing answered');
   const gap = fresh(); sets(gap, { fname: 'Anna', ma: 'None', gap: 'Yes', gap_broker: 'Other broker', ref_med: 'Valerie to contact for gap cover' }); assert.match(A.local(gap).join('\n'), /gap cover \(currently with another broker/);
-  const spouse = fresh(); sets(spouse, { fname: 'Anna', sti: 'Handled by spouse', ref_sti: 'Cameron to contact client' }); assert.match(A.local(spouse).join('\n'), /short-term insurance \(currently with another broker/);
+  const spouse = fresh(); sets(spouse, { fname: 'Anna', sti: 'Handled by spouse', ref_sti: 'Cameron to contact client' }); assert.ok(!/another broker/.test(A.local(spouse).join('\n')), 'handled by the spouse: no broker is known, so nothing is said about one');
 });
 test('the focus box also says take-over for a green area', () => {
   const s = fresh(); sets(s, { fname: 'Anna', ma: 'Medical aid', ma_broker: 'Other broker', pr_med: YES, ref_med: 'Valerie to contact for medical aid' });
-  assert.match(A.focusLocal(s), /Referral: Valerie to contact the client about medical aid \(currently with another broker: a take-over\)\./);
+  assert.match(A.focusLocal(s), /Recommend: Referral: Valerie to contact the client about medical aid \(currently with another broker: an opportunity to quote; the client will decide\)\./);
 });
 
 /* ---------- the Checks: affordability ---------- */

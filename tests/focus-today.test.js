@@ -41,25 +41,26 @@ test('only the green priorities are in it, numbered, in order, each with what is
   assert.deepStrictEqual(f.areas.map(a => [a.number, a.area]), [[1, 'Personal Risk Covers'], [8, 'Short Term']], 'green only (not the red, the yellow or the undecided), in number order');
   const text = A.focusLocal(s);
   assert.strictEqual(text.split('\n')[0], '1. Personal Risk Covers');
-  assert.match(text, /- Request a BrightRock Fractured FNA quote \(New Business\): BR FNA Quote based on Fact Find\./);
-  assert.match(text, /- Your note: Wants to replace the old Liberty cover\./);
-  assert.match(text, /\n\n8\. Short Term\n- Referral: Cameron to contact the client about short-term insurance\./);
+  assert.match(text, /Recommend: Request a BrightRock Fractured FNA quote \(New Business\): BR FNA Quote based on Fact Find\./);
+  assert.match(text, /Client: Wants to replace the old Liberty cover\./);
+  assert.match(text, /\n\n8\. Short Term\nRecommend: Referral: Cameron to contact the client about short-term insurance\.\nClient: Agrees\./);
   assert.ok(!/Valerie|Allan Gray|Investment/.test(text), 'the yellow and red areas are never in it');
 });
 
 test('the box fills as the client agrees and empties again when no priority is green', () => {
   const s = fresh(); set(s, 'pr_will', GO);
-  assert.strictEqual(A.focusLocal(s), '7. Will\n- Nothing asked for yet: decide what to quote or refer.');
-  set(s, 'ref_will', 'Capital Legacy to contact client'); assert.match(A.focusLocal(s), /- Referral: Capital Legacy to contact the client about the will\./);
+  assert.strictEqual(A.focusLocal(s), '7. Will\nRecommend: Nothing asked for yet: decide what to quote or refer.\nClient: Agrees.');
+  set(s, 'ref_will', 'Capital Legacy to contact client'); assert.match(A.focusLocal(s), /Recommend: Referral: Capital Legacy to contact the client about the will\./);
   set(s, 'pr_will', NO); assert.strictEqual(A.focusLocal(s), '');
 });
 
-test('schedules and credit life of a green area are in it; those of another area are not', () => {
+test('schedules of a green area are a Come back with line; credit life stays with the action points; another area\'s schedules are not in it', () => {
   const s = fresh(); set(s, 'fname', 'Thandi'); set(s, 'pr_life', GO); set(s, 'has_risk', 'Yes'); set(s, 'ps_risk', schema.psClient.risk); set(s, 'has_ra', 'Yes'); set(s, 'ps_ra', schema.psClient.ra);
   store.addRow(s, 'debts', { type: 'Home loan', prov: 'Nedbank', cl: 'Yes' });
   const t = A.focusLocal(s);
   assert.match(t, /Current policy schedules for the personal risk policies: asked for from the client, awaiting the client\./);
-  assert.match(t, /Credit life on the home loan with Nedbank: get the details\./);
+  assert.match(t, /Come back with:\n- Current policy schedules/);
+  assert.ok(!/credit life/i.test(t), 'credit life is for Sitamah, not the Priorities box');
   assert.ok(!/retirement annuities/.test(t), 'the retirement schedules belong to area 2, which is not green');
 });
 
@@ -69,12 +70,12 @@ test('the facts for Claude: green areas only, with the form\'s own wording, and 
   const f = A.focusFacts(s); assert.deepStrictEqual(f.areas.map(a => a.number), [1, 2, 3]);
   assert.deepStrictEqual(f.areas[1].quotes_to_request, ['Request a retirement annuity quote from Old Mutual for R 5 000 p.m.']);
   let sent = null;
-  const by = await AI.focusPoints({ ask: (system, content) => { sent = { system, content: JSON.parse(content) }; return Promise.resolve('{"areas": {"1": ["- Get the BrightRock quote for Thandi"], "2": ["Request the RA quote from Old Mutual, R 5 000 p.m.", "Check the paid-up RAs"], "3": []}}'); }, model: 'm', facts: f });
-  assert.deepStrictEqual(by, { 1: ['Get the BrightRock quote for the client Thandi'], 2: ['Request the RA quote from Old Mutual, R 5 000 p.m.', 'Check the paid-up RAs'], 3: [] });
+  const by = await AI.focusPoints({ ask: (system, content) => { sent = { system, content: JSON.parse(content) }; return Promise.resolve('{"areas": {"1": {"recommend": "- Get the BrightRock quote for Thandi", "client": "Agrees", "back": ["The needs analysis"]}, "2": {"recommend": "Request the RA quote from Old Mutual, R 5 000 p.m.", "client": "Wants to know where she stands", "back": ["Check the paid-up RAs", "a", "b", "c"]}, "3": {"recommend": "", "client": "", "back": []}}}'); }, model: 'm', facts: f });
+  assert.deepStrictEqual(by, { 1: { recommend: 'Get the BrightRock quote for the client Thandi', client: 'Agrees', back: ['The needs analysis'] }, 2: { recommend: 'Request the RA quote from Old Mutual, R 5 000 p.m.', client: 'Wants to know where she stands', back: ['Check the paid-up RAs', 'A', 'B'] }, 3: { recommend: '', client: '', back: [] } });
   assert.deepStrictEqual(Object.keys(sent.content).sort(), ['facts', 'today']); assert.match(sent.system, /GREEN/); assert.match(sent.system, /never invent/);
   const t = A.focusText(f, by);
   assert.strictEqual(t.split('\n\n').length, 3);
-  assert.match(t, /^1\. Personal Risk Covers\n- Get the BrightRock quote for the client Thandi\n\n2\. Retirement Planning\n- Request the RA quote from Old Mutual, R 5 000 p\.m\.\n- Check the paid-up RAs\n\n3\. RGAR\n- Request a retirement goal analysis \(RGAR\)/, 'an area Claude gave nothing for keeps the plain points');
+  assert.match(t, /^1\. Personal Risk Covers\nRecommend: Get the BrightRock quote for the client Thandi\nClient: Agrees\nCome back with:\n- The needs analysis\n\n2\. Retirement Planning\nRecommend: Request the RA quote from Old Mutual, R 5 000 p\.m\.\nClient: Wants to know where she stands\nCome back with:\n- Check the paid-up RAs\n- A\n- B\n\n3\. RGAR\nRecommend: Request a retirement goal analysis \(RGAR\)/, 'an area Claude gave nothing for keeps the plain version');
   await assert.rejects(AI.focusPoints({ ask: () => Promise.reject(new Error('no connection')), model: 'm', facts: f }), /no connection/);
 });
 
@@ -126,7 +127,7 @@ test('the action points prompt says the notes decide: no point for a schedule no
   assert.match(sys, /THE NOTES DECIDE/); assert.match(sys, /note_on_this_page/); assert.match(sys, /the note wins/);
   assert.match(sys, /No need to send through[^.]*write NO point for it, even when it says "not asked yet"/);
   assert.match(sys, /ALREADY sent the schedule[^.]*first check whether it has arrived/);
-  assert.match(AI.FOCUS_SYSTEM, /notes/); assert.match(AI.FOCUS_SYSTEM, /already emailed a schedule means checking for it first/);
+  assert.match(AI.FOCUS_SYSTEM, /notes/); assert.match(AI.FOCUS_SYSTEM, /"recommend"[\s\S]*"client"[\s\S]*"back"/);
 });
 
 test('a green area is sent with the notes of its own pages', () => {
