@@ -25,7 +25,7 @@ test('the child cost box is childcare, says so, and the EGAR panel is left exact
 /* ---- #19 ---- */
 test('the referral boxes no longer have the choices that restate a box above them', () => {
   assert.deepStrictEqual(schema.fieldsById.ref_will.o, ['Capital Legacy to contact client', 'Not required']);
-  assert.deepStrictEqual(schema.fieldsById.ref_sti.o, ['Cameron to contact client', 'Must not contact client', 'Not required']);
+  assert.deepStrictEqual(schema.fieldsById.ref_sti.o, ['Cameron to contact client', 'Not required']);
 });
 
 test('an older file that held "Client has own broker" or "Has updated will" keeps the fact in its own box', () => {
@@ -67,4 +67,16 @@ test('the retirement annuities and the pension and provident funds each keep the
   assert.strictEqual(at('ps_pp'), blocks.findIndex(b => b.list === 'ret_pp') + 1);
   const s = fresh(); set(s, 'ps_ra', schema.psClient.ra); set(s, 'ps_pp', 'Draw from Astute (with signed LOA)');
   const back = store.fromJSON(store.toJSON(s)); assert.deepStrictEqual([back.f.ps_ra.v, back.f.ps_pp.v], [schema.psClient.ra, 'Draw from Astute (with signed LOA)']);   // opening a file does not join them
+});
+
+/* ---- version 3.5: Must not contact client is gone ---- */
+test('the Short-term referral box is Cameron to contact client or Not required; an older file that held "Must not contact client" opens with Not required and the fact kept in the Short Term comments', () => {
+  assert.ok(!schema.fieldsById.ref_sti.o.includes('Must not contact client'));
+  const s = reopen(j => { j.f.ref_sti = { v: 'Must not contact client', st: 'confirmed' }; });
+  assert.strictEqual(s.f.ref_sti.v, 'Not required'); assert.strictEqual(s.f.ref_sti.st, 'confirmed');
+  assert.strictEqual(s.f.pr_st_cm.v, 'Marked "Must not contact client" in an earlier version of the form.'); assert.strictEqual(s.f.pr_st_cm.st, 'confirmed');
+  const kept = reopen(j => { j.f.ref_sti = { v: 'Must not contact client', st: 'confirmed' }; j.f.pr_st_cm = { v: 'Client asked us to leave him alone', st: 'confirmed' }; });
+  assert.strictEqual(kept.f.pr_st_cm.v, 'Client asked us to leave him alone\nMarked "Must not contact client" in an earlier version of the form.', 'what the adviser wrote stays, the note follows it');
+  const again = store.fromJSON(store.toJSON(kept)); assert.strictEqual(again.f.pr_st_cm.v, kept.f.pr_st_cm.v, 'opened again, it is not added twice'); assert.strictEqual(again.f.ref_sti.v, 'Not required');
+  const lines = require('../app/js/actions.js').local(s); assert.ok(!lines.some(l => /Cameron/.test(l)), 'no referral to Cameron comes from it, as before');
 });

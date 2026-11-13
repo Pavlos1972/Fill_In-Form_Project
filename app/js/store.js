@@ -286,6 +286,16 @@
   function priorityWording(s) {
     schema.panels.forEach(function (P) { if (P.dec && s.f[P.dec] && s.f[P.dec].v === schema.NOT_PRIORITY_OLD) s.f[P.dec] = { v: schema.NOT_PRIORITY, st: s.f[P.dec].st }; });
     ['ref_will', 'ref_sti'].forEach(function (id) { if (s.f[id] && s.f[id].v === 'Not interested') s.f[id] = { v: 'Not required', st: s.f[id].st }; });
+    mustNotContact(s);
+  }
+  /* Version 3.5: the Short-term referral box no longer has "Must not contact client". A file that holds it opens with "Not required" (no referral, which is what the action points did with it), and the fact is kept in words:
+     the sentence is added to the Short Term comments (after what is already there), so nobody loses a "do not contact" that was recorded. */
+  var OLD_NO_CONTACT = 'Must not contact client', NO_CONTACT_NOTE = 'Marked "Must not contact client" in an earlier version of the form.';
+  function mustNotContact(s) {
+    var ref = s.f.ref_sti, cm = s.f.pr_st_cm;
+    if (!ref || ref.v !== OLD_NO_CONTACT) return;
+    s.f.ref_sti = { v: 'Not required', st: ref.st };
+    if (cm && cm.v.indexOf(NO_CONTACT_NOTE) < 0) s.f.pr_st_cm = { v: cm.v.trim() === '' ? NO_CONTACT_NOTE : cm.v.replace(/\s+$/, '') + '\n' + NO_CONTACT_NOTE, st: cm.v.trim() === '' || cm.st === 'preset' ? 'confirmed' : cm.st };
   }
   /* "Broker on record" is the same four choices everywhere. A file saved with the older medical aid, gap cover and short-term choices keeps the fact: "Privately paid, no broker" is None, "Privately paid, other
      broker" and "Cameron Maritz" are Other broker. */
