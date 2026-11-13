@@ -344,8 +344,9 @@ test('the action points follow a schedule choice that was made, with or without 
   set(s, 'has_risk', 'Yes'); set(s, 'ps_risk', CL('risk')); assert.ok(A.local(s).some(l => /personal risk policies/.test(l)));  // a choice made on purpose counts
   set(s, 'has_risk', 'No'); assert.ok(!A.local(s).some(l => /personal risk policies/.test(l)), 'No policies: no schedules to request, and the choice is cleared');
   set(s, 'ps_risk', ''); assert.ok(!A.local(s).some(l => /personal risk policies/.test(l)));                              // unticked and not a policy the client has: nothing
-  set(s, 'has_risk', 'Yes'); assert.ok(A.local(s).includes('Ask the client Thandi how the current policy schedules for the personal risk policies will be provided.'));
-  store.addRow(s, 'ret_pp', { prov: 'Sanlam' }); assert.ok(A.local(s).includes('Ask the client Thandi how the current policy schedules for the pension and provident funds (Sanlam) will be provided.'));
+  set(s, 'has_risk', 'Yes'); assert.ok(A.local(s).includes('Draw the current policy schedules for the personal risk policies from Astute once the signed LOA is back.'), '3.6: the LOA is Yes and the investments say Astute, so the other policies the client has are drawn from Astute too');
+  store.addRow(s, 'ret_pp', { prov: 'Sanlam' }); assert.ok(A.local(s).includes('Draw the current policy schedules for the pension and provident funds (Sanlam) from Astute once the signed LOA is back.'));
+  const t = fresh(); set(t, 'fname', 'Thandi'); store.addRow(t, 'ret_pp', { prov: 'Sanlam' }); assert.ok(A.local(t).includes('Ask the client Thandi how the current policy schedules for the pension and provident funds (Sanlam) will be provided.'), 'without an Astute choice and the LOA the question is still asked');
 });
 
 test('the LOA question comes first on the Personal & group risk cover page, with Yes, No and Not now', () => {
@@ -404,9 +405,8 @@ test('the action points: what is still to get, quotes, who contacts the client, 
     'Follow up with the client Thandi for the current policy schedules, asked for in the meeting, for the group risk benefits (Old Mutual): await client response.',
     'Await the current policy schedules for the group risk benefits (Old Mutual): Employer HR to send the benefit summary.',
     'Draw the current policy schedules for the retirement annuities (Allan Gray) from Astute once the signed LOA is back.',
-    'Ask the client Thandi how the current policy schedules for the pension and provident funds (Sanlam) will be provided.',
+    'Draw the current policy schedules for the pension and provident funds (Sanlam) from Astute once the signed LOA is back.',
     'Ask the client Thandi for the credit life details with Nedbank on the home loan.',
-    'Ask the client Thandi whether there is credit life with Discovery Bank on the credit card.',
     'Request a BrightRock Fractured FNA quote (New Business): BR FNA Quote based on Fact Find.',
     'Request standard FNA quotes from Old Mutual and Discovery (New Business).',
     'Request a retirement annuity quote from Old Mutual for R 5 000 p.m.',

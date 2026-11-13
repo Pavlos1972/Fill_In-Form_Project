@@ -19,14 +19,16 @@ test('only the debts the client pays come off the take-home income', () => {
   const s = fresh(); set(s, 'net', 'R 60 000.00');
   [['Home loan', 'Client', 10000], ['Vehicle finance', '', 5000], ['Credit card', 'Spouse', 2000], ['Personal loan', 'Joint', 3000], ['Revolving credit', 'Business', 4000], ['Other', 'Ex-Spouse/Partner', 1000]]
     .forEach(([type, payer, inst]) => store.addRow(s, 'debts', { type, payer, inst: 'R ' + inst + '.00', desc: 'x' }));
-  assert.strictEqual(calc.field('dr', ctx(s)), 'R 15 000.00');                                                  // Client and not set
-  assert.strictEqual(calc.field('need', ctx(s)), 'R 45 000.00');
+  assert.strictEqual(calc.field('dr', ctx(s)), 'R 16 500.00');                                                  // Client, not set, and the client's half of the Joint debt (3.6: R 3 000 is split 50/50)
+  assert.strictEqual(calc.field('need', ctx(s)), 'R 43 500.00');
   const sp = calc.ipSplit(ctx(s));
-  assert.deepStrictEqual(sp.rows.map(r => r.inst), [10000, 5000]);
-  assert.deepStrictEqual([sp.total, sp.all, sp.count, sp.elsewhere, sp.elsewhereTotal, sp.rest], [15000, 15000, 2, 4, 10000, 45000]);
-  assert.strictEqual(calc.field('ip_hh', ctx(s)), 'R 45 000.00');
-  s.l.debts[3].d.payer = 'Client';                                                                                // a joint loan the client pays alone
-  assert.strictEqual(calc.field('dr', ctx(s)), 'R 18 000.00');
+  assert.deepStrictEqual(sp.rows.map(r => r.inst), [10000, 5000, 1500]);
+  assert.deepStrictEqual([sp.total, sp.all, sp.count, sp.elsewhere, sp.elsewhereTotal, sp.rest], [16500, 16500, 3, 3, 7000, 43500]);
+  assert.strictEqual(s.l.debts[2].d.inst, '');                                                                    // the card the spouse pays: the instalment is the spouse's, in Spouse instalment
+  assert.strictEqual(s.l.debts[2].d.sinst, 'R 2 000.00');
+  assert.strictEqual(calc.field('ip_hh', ctx(s)), 'R 43 500.00');
+  store.setCell(s, 'debts', 2, 'payer', 'Client');                                                                // the spouse's card turns out to be the client's: the instalment comes back
+  assert.strictEqual(calc.field('dr', ctx(s)), 'R 18 500.00');
 });
 
 test('a debt that is paid by someone else is not a protector line, and the over-insured warning ignores it', () => {

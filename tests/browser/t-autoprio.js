@@ -62,7 +62,7 @@ let bad = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if
 
   // 5. the take-over reaches the action points (the local wording, with no Claude key)
   const lines = await p.evaluate(() => FF.actions.local(FF.app.state));
-  ok(lines.some(l => /Ask Cameron to contact .* about short-term insurance \(currently with another broker: a take-over\)\./.test(l)), 'the point for Sitamah says it is a take-over: ' + (lines.find(l => /Cameron/.test(l)) || 'none'));
+  ok(lines.some(l => /Ask Cameron to contact .* about short-term insurance \(currently with another broker: an opportunity to quote; the client will decide\)\./.test(l)), 'the point for Sitamah says it is a take-over: ' + (lines.find(l => /Cameron/.test(l)) || 'none'));
 
   // 6. no children, EGAR; an older file opens with the outcomes and the new words
   p = await fresh();

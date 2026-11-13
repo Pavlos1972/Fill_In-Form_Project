@@ -8,15 +8,24 @@
 
   function meetingDate(ctx) { return util.parseDate(ctx.v('date')) || util.parseDate(util.isoToday()); }
   /* Age from the typed date of birth, else from a South African ID number. */
-  function clientAge(ctx) {
-    var dob = util.parseDate(ctx.v('dob')) || (ctx.v('idtype') === 'Passport' ? null : util.dobFromSaId(ctx.v('idno')));
-    return dob ? util.ageAt(dob, meetingDate(ctx)) : null;
+  function clientDob(ctx) { return util.parseDate(ctx.v('dob')) || (ctx.v('idtype') === 'Passport' ? null : util.dobFromSaId(ctx.v('idno'))); }
+  function clientAge(ctx) { var dob = clientDob(ctx); return dob ? util.ageAt(dob, meetingDate(ctx)) : null; }
+  /* SARS gives the age rebates (65, 75) by the age on the last day of the tax year (the end of February), not on the day of the meeting. */
+  function taxAge(ctx) {
+    var dob = clientDob(ctx); if (!dob) return null;
+    return util.ageAt(dob, { y: +tax.taxYearFor(meetingDate(ctx)).slice(0, 4) + 1, m: 2, d: 28 });
   }
+  /* Words in an amount box (about twenty five thousand) cannot be added up: a figure that depends on one stays blank instead of counting it as R 0. */
+  function amountsOk(ctx, ids) { return ids.every(function (id) { return util.isAmount(ctx.v(id)); }); }
+  /* A column that only some rows show (Spouse instalment: when the Payer is Joint or Spouse): c.rowCond { k, in }. */
+  function colShown(c, r) { if (!c.rowCond) return true; var d = r.d || r; return c.rowCond.in.indexOf(String(d[c.rowCond.k] || '')) >= 0; }
+  /* A total of a column only some rows show (Total spouse monthly) is shown only when a row shows that column. */
+  function sumShown(L, k, rows) { var c = L.cols.filter(function (x) { return x.k === k; })[0]; return !c || !c.rowCond || rows.some(function (r) { return colShown(c, r); }); }
   function sumRows(ctx, key, col) { return ctx.rows(key).reduce(function (a, r) { return a + util.num(r.d[col]); }, 0); }
 
   /* A debt comes off the client's take-home income when the client pays it: the Payer is Client, or not set yet. Debts paid by the spouse, jointly, by the business or by an ex-spouse or partner are somebody
      else's repayments: they are left out of the household needs and of the instalment protector. */
-  function paidByClient(r) { var p = String(r.d.payer || '').trim(); return p === '' || p === 'Client'; }
+  function paidByClient(r) { var p = String(r.d.payer || '').trim(); return p === '' || p === 'Client' || p === 'Joint'; }      // a Joint debt: the Instalment box holds the client's own half (the spouse's half is in Spouse instalment)
   function debtSum(ctx, others) { return ctx.rows('debts').reduce(function (a, r) { return a + (paidByClient(r) !== !!others ? util.num(r.d.inst) : 0); }, 0); }
   /* The income protection insured amount split for the quote: the take-home income (Insured amount), the debts the client is paying off (one line each, from the Debts page: what each instalment is) that get an
      instalment protector ceded to the bank, and what is left for the household. Each debt can be switched off (row.off on the debt, see store.setProtect): it is then not protected and not in the total.
@@ -26,7 +35,7 @@
   function ipSplit(ctx) {
     var insured = ctx.v('net') ? ctx.n('net') : null, rows = [], total = 0, all = 0, on = 0, elsewhere = 0, elsewhereTotal = 0;
     ctx.rows('debts').forEach(function (r, i) {
-      var inst = util.num(r.d.inst); if (!(inst > 0)) return;
+      var inst = util.num(String(r.d.payer || '') === 'Spouse' ? r.d.sinst : r.d.inst); if (!(inst > 0)) return;          // a spouse's debt carries the instalment in Spouse instalment
       if (!paidByClient(r)) { elsewhere++; elsewhereTotal += inst; return; }
       var prot = r.off !== true;
       rows.push({ i: i, label: IP_NAMES[r.d.type] || (r.d.type === 'Other' && r.d.desc) || r.d.desc || (r.d.type === 'Other' ? 'Other debt' : r.d.type) || 'Debt', prov: r.d.prov || '', inst: inst, on: prot });
@@ -54,13 +63,13 @@
     dnet: function (ctx) {
       var g = ctx.n('gross');
       if (!g) return '';
-      var r = tax.monthlyNet(g, clientAge(ctx), tax.taxYearFor(meetingDate(ctx)));
+      var r = tax.monthlyNet(g, taxAge(ctx), tax.taxYearFor(meetingDate(ctx)));
       return util.money2(r.net);
     },
     /* Total Income: the take-home net income plus the rental income, spousal maintenance and child maintenance (and the earlier Spousal Income box, when an old file holds an answer) (a box left empty counts as nothing). Blank until there is something to add up. */
-    tinc: function (ctx) { return totalIncome(ctx) == null ? '' : util.money(totalIncome(ctx)); },
+    tinc: function (ctx) { return totalIncome(ctx) == null || !amountsOk(ctx, ['net'].concat(OTHER_INCOME)) ? '' : util.money(totalIncome(ctx)); },
     /* Disposable income: Total Income less the monthly expenses. The BrightRock Insured amount is not touched by this: it stays the take-home net income alone. */
-    disp: function (ctx) { var t = totalIncome(ctx); return t != null && ctx.v('exp') ? util.money(t - ctx.n('exp')) : ''; },
+    disp: function (ctx) { var t = totalIncome(ctx); return t != null && ctx.v('exp') && amountsOk(ctx, ['net', 'exp'].concat(OTHER_INCOME)) ? util.money(t - ctx.n('exp')) : ''; },
     d_tot: function (ctx) {
       var any = false, t = 0;
       DUTY_IDS.forEach(function (k) { if (ctx.v(k) !== '') { any = true; t += ctx.n(k); } });
@@ -92,6 +101,7 @@
       var dob = util.parseDate(row.d.dob);
       if (!dob) return '';
       var age = util.ageAt(dob, meetingDate(ctx));
+      if (age == null || age < 0 || age > 130) return '';                                         // a birth date still to come (a typo) is no stage
       return age < 3 ? 'Not Yet in School' : age < 6 ? 'Pre-school' : age < 13 ? 'Primary' : age < 19 ? 'High School' : 'Tertiary';      // spelled as the choices in the dropdown, or the box stays blank
     }
   };
@@ -117,5 +127,5 @@
     return cond.f ? [cond.f] : [];
   }
 
-  return { paidByClient: paidByClient, ipSplit: ipSplit, field: field, rowCalc: rowCalc, showIf: showIf, condFields: condFields, clientAge: clientAge, meetingDate: meetingDate, DUTY_IDS: DUTY_IDS, totalIncome: totalIncome };
+  return { sumShown: sumShown, colShown: colShown, paidByClient: paidByClient, ipSplit: ipSplit, field: field, rowCalc: rowCalc, showIf: showIf, condFields: condFields, clientAge: clientAge, meetingDate: meetingDate, DUTY_IDS: DUTY_IDS, totalIncome: totalIncome };
 });

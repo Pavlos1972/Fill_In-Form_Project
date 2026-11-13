@@ -254,6 +254,7 @@
   }
   function cellHTML(key, i, c, r, card) {
     var L = schema.lists[key], v = c.calc ? FF.calc.rowCalc(c.calc, r, ctx()) : r.d[c.k];
+    if (!calc.colShown(c, r)) return '';                                                          // Spouse instalment shows only when the Payer is Joint or Spouse
     var at = 'data-l="' + key + '" data-i="' + i + '" data-k="' + c.k + '"';
     var ctl = control(at, c, v, !!c.calc);
     var cid = key + ':' + i + ':' + c.k;
@@ -262,7 +263,7 @@
   }
   function sumHTML(key) {
     var L = schema.lists[key];
-    return Object.keys(L.sum).map(function (k) { return '<span>' + esc(L.sum[k]) + '<b data-sum="' + key + ':' + k + '">' + util.money(listSum(key, k)) + '</b></span>'; }).join('');
+    return Object.keys(L.sum).filter(function (k) { return calc.sumShown(L, k, state.l[key]); }).map(function (k) { return '<span>' + esc(L.sum[k]) + '<b data-sum="' + key + ':' + k + '">' + util.money(listSum(key, k)) + '</b></span>'; }).join('');
   }
   function listSum(key, col) { return state.l[key].reduce(function (a, r) { return a + util.num(r.d[col]); }, 0); }
   function listHTML(key, hideTitle) {
@@ -537,7 +538,7 @@
     var set = FF.lookup.getSettings();
     VAI.focusPoints({ apiKey: set.apiKey, ask: !set.apiKey && FF.voiceBackend && FF.voiceBackend.available ? FF.voiceBackend.ask : null, model: set.voiceModel, facts: f, fetchImpl: meteredFetch }).then(function (byArea) {
       focusBusy = false;
-      if (Object.keys(byArea).some(function (k) { return byArea[k].length; }) && (manual || (!state.focus.edited && state.focus.key === key))) focusWrite(FF.actions.focusText(f, byArea), key, 'claude'); else focusPaint();
+      if (Object.keys(byArea).some(function (k) { var x = byArea[k]; return x && (x.recommend || x.client || (x.back && x.back.length)); }) && (manual || (!state.focus.edited && state.focus.key === key))) focusWrite(FF.actions.focusText(f, byArea), key, 'claude'); else focusPaint();
     }, function (e) { focusBusy = false; focusPaint(); if (manual) toast('Claude could not write the points (' + ((e && e.message) || 'no answer') + '). Plain points were written from the form.'); });
   }
   function focusSoon() { clearTimeout(focusTimer); focusTimer = setTimeout(function () { if (cur === 'prio') focusRefresh(false); }, 1200); }
@@ -636,7 +637,7 @@
     }); }); });
     Object.keys(schema.lists).forEach(function (key) {
       var L = schema.lists[key];
-      Object.keys(L.sum).forEach(function (k) { document.querySelectorAll('[data-sum="' + key + ':' + k + '"]').forEach(function (el) { el.textContent = util.money(listSum(key, k)); }); });
+      Object.keys(L.sum).filter(function (k) { return calc.sumShown(L, k, state.l[key]); }).forEach(function (k) { document.querySelectorAll('[data-sum="' + key + ':' + k + '"]').forEach(function (el) { el.textContent = util.money(listSum(key, k)); }); });
       L.cols.forEach(function (c) { if (c.calc) state.l[key].forEach(function (r, i) {
         var el = document.querySelector('[data-l="' + key + '"][data-i="' + i + '"][data-k="' + c.k + '"]'); if (el) el.value = FF.calc.rowCalc(c.calc, r, ctx());
       }); });
@@ -792,6 +793,7 @@
       }
       if (key === 'debts' && (k === 'type' || k === 'desc' || k === 'notes')) ['term', 'asset'].forEach(function (dk) { var de = document.querySelector('[data-l="debts"][data-i="' + i + '"][data-k="' + dk + '"]'); if (de) de.value = row0.d[dk]; });      // the defaults that follow the type
       var row = t.closest('.rowcard, tr'); if (row) row.className = row.className.replace(/\bs-(heard|verify)\b/, 's-confirmed');
+      if (key === 'debts' && (k === 'payer' || k === 'inst' || k === 'sinst')) { touch(); redraw(); return; }       // the Spouse instalment box comes and goes with the Payer, and the 50/50 split shows in both boxes
       touch(); refreshLive();
     }
   });
@@ -1025,9 +1027,12 @@
   V.setTermSource(function () { return { dob: state && state.f && state.f.dob ? state.f.dob.v : '', date: state && state.f && state.f.date ? state.f.date.v : '' }; });      // Term left is always months: an age is counted from the date of birth to the date of the form
   var vmSaidNow = '';                                                                                                       // the words a catch-up value was taken from, while it is read
   V.setLineSource(function () { return vmSaidNow || (vmCur ? String(vmCur.text || '') : ''); });
-  V.setMeetingSource(function () { return state && state.f && state.f.date ? state.f.date.v : ''; });                 // a date said without a year is counted from the date of the form
+  V.setMeetingSource(function () {                                                                        // a date said without a year is counted from the date of the form, but never from a day before today (a form prepared days ago still says that day)
+    var v = state && state.f && state.f.date ? state.f.date.v : '', f = util.parseDate(v), t = util.parseDate(util.isoToday());
+    return f && t && (f.y * 10000 + f.m * 100 + f.d) < (t.y * 10000 + t.m * 100 + t.d) ? util.formatDate(t) : v;
+  });
   try { if (VAI && VAI.setShare) VAI.setShare(localStorage.getItem('wr-fact-find-share') === '1'); } catch (e) { /* storage unavailable: sharing stays off */ }
-  var vm = { on: false, done: {}, target: null, answered: false, secGlow: false, noteMode: null, rowCur: {}, undo: [], recent: [], flashes: {}, queue: Promise.resolve(), slow: 0, epoch: 0, busy: 0, seq: 0, moveSeq: 0, calls: 0, laneTarget: null, unplacedSeen: {}, noSweep: {}, sweeping: false, sweepNext: [], sweepSecs: {}, sweepT: 0, secAt: {}, sweptAll: 0, lastFail: 0, wipe: null, digits: null, run: null, erun: null, eann: null, paused: false, pointed: null, lastNum: null };
+  var vm = { removed: [], on: false, done: {}, target: null, answered: false, secGlow: false, noteMode: null, rowCur: {}, undo: [], recent: [], flashes: {}, queue: Promise.resolve(), slow: 0, epoch: 0, busy: 0, seq: 0, moveSeq: 0, calls: 0, laneTarget: null, unplacedSeen: {}, noSweep: {}, sweeping: false, sweepNext: [], sweepSecs: {}, sweepT: 0, secAt: {}, sweptAll: 0, lastFail: 0, wipe: null, digits: null, run: null, erun: null, eann: null, paused: false, pointed: null, lastNum: null };
   /* ---------- "Live Client Conversation": a text box in the right-hand pane under Checks, kept in view while the page scrolls. The lines heard, oldest at the top and the latest at the bottom, each with what was done on the form because of it. ---------- */
   var vmCur = null;                                              // the line being dealt with now, so what is done on the form is listed under it
   var cv = { rows: [], all: [], live: '' }, convoT = 0;
@@ -1284,6 +1289,22 @@
     if (vm.rowCur[p.list] === p.i) vm.rowCur[p.list] = Math.max(p.i - 1, 0);
     touch(); redraw();
   }
+  /* ---------- the screen stays on its page until the adviser says so (3.6) ----------
+     In the 13 November meeting the screen changed page 32 times, 20 of them for nothing the adviser said (the client mentioned a daughter, "the will" was said on Client priorities, a late answer belonged to
+     another page). Now only the adviser's own move words move it ("let's talk about debts", "let's move on to children", "go to Admin", "next page", "can we set up the next appointment"), never the client's words, never
+     a catch-up check, never Claude's own "go to page X". On Client priorities the words medical aid, the will and short-term name the priority areas on that page, so only "go to <page>" or "next page" leaves it.
+     What is said for another page is still filled there; the screen stays, and the conversation box says where it went. */
+  var MOVE_SAY = /\b(?:let'?s|let us|lets|we can|we will|we'?ll|i want to|i'?d like to|i would like to|shall we|can we)\b[^.?!]{0,40}\b(?:talk|chat|look|take a look|move|go|jump|turn|deal|discuss|start|get to|come to|cover)\b/i;
+  var MOVE_PAGE = /\b(?:move|go|jump|turn|switch)\s+(?:on\s+)?(?:to|on to|back to)\b|\bnext (?:page|section)\b|\bgo back\b|\bmove on\b/i;
+  var MOVE_APPT = /\bnext (?:appointment|meeting)\b|\bfollow[- ]?up (?:appointment|meeting)\b/i;
+  function vmMayMove() {
+    var e = vmCur; if (!e) return true;                                          // not a heard line (a button, a key, a typed command): the adviser did it
+    if (e.sweep || e.who === 'sweep' || e.who === 'engine' || e.who === 'client') return false;
+    var t = String(e.text || e.shown || '');
+    if (MOVE_APPT.test(t)) return true;
+    return cur === 'prio' ? MOVE_PAGE.test(t) : (MOVE_SAY.test(t) || MOVE_PAGE.test(t));
+  }
+  function vmStays(secId) { return secId && secId !== cur && !vmMayMove(); }
   /* Move to a field: open its section if needed, glow, scroll to it and put the cursor in it. */
   function vmShow(id) {
     if (vmQuiet) return;                                         // a late line fills its box without taking the highlight back
@@ -1297,6 +1318,11 @@
       return;
     }
     var f = vmField(id), cr = vmCellRef(id);
+    if (f && vmStays(f.sec)) {                                                   // the question or answer is for another page: it is asked and filled there, and the screen stays where it is
+      vm.target = id; vm.answered = false; vm.secGlow = false; vmMarkWait();
+      vmLog('stayed on this page: ' + (f.label || id) + ' is on the ' + ((schema.sections.filter(function (x) { return x.id === f.sec; })[0] || {}).title || 'other') + ' page');
+      return;
+    }
     if (f && vm.done[f.sec]) delete vm.done[f.sec];                           // a question or an answer in a finished section opens it again ("oh, there is one more debt")
     if (cr) while (state.l[cr.list].length <= cr.i) { store.addRow(state, cr.list, {}, 'heard'); vm.pointed = { list: cr.list, i: state.l[cr.list].length - 1 }; }   // the row is there before it is pointed at
     if (cur !== f.sec) { var fromF = cur; cur = f.sec; redraw(); vmPulseNav(); vmEnter(fromF); }
@@ -1314,6 +1340,7 @@
   }
   function vmOpenSection(secId) {
     if (vmQuiet) { vmLog('did not move to the section: the page is already on a later question'); return; }
+    if (vmStays(secId)) { vmLog('stayed on this page: the screen moves only when you say so'); return; }
     vmMoved(); vmDropPointed(null);
     vm.undo.push({ kind: 'nav', sec: cur, target: vm.target, answered: vm.answered });
     delete vm.done[secId];                                                    // going back to a finished section opens it again
@@ -1348,7 +1375,7 @@
     if (vm.target && /^count:/.test(vm.target)) { vm.target = null; vm.answered = false; }
     redraw();
     if (!was) { vmLog('section finished: ' + sec.title); toast(sec.title + ': finished. Say "scratch that" to take it back.'); }
-    if (!a.stay && !vmQuiet && secId === cur) vmStepSection(1); else vmMarkWait();
+    if (!a.stay && !vmQuiet && secId === cur && vmMayMove()) vmStepSection(1); else vmMarkWait();
     if (!was) vm.undo.push({ kind: 'done', sec: secId, moved: cur !== from });                  // after the move, so one "scratch that" takes back both
   }
   function vmUndo() {
@@ -1361,7 +1388,7 @@
       e.snap.claude = state.claude; e.snap.openai = state.openai; state = e.snap; fileBase = e.base; fileHandle = e.handle; rememberHandle(e.handle); dirty = e.dirty; onDisk = e.onDisk; cur = e.sec;
       vm.target = null; vm.answered = false; vm.secGlow = true; saveDraft(); redraw(); vmMarkWait(); toast('Everything is back as it was.'); return;
     }
-    if (e.kind === 'delrow') { state.l[e.list].splice(e.i, 0, e.row); if (e.end && state.f.debts_end) state.f.debts_end = { v: e.end.v, st: e.end.st }; vm.rowCur[e.list] = e.cur == null ? e.i : e.cur; touch(); redraw(); vmLog('brought back ' + vmDebtName(e.row, e.i)); return; }
+    if (e.kind === 'delrow') { vm.removed = (vm.removed || []).filter(function (x) { return !(x.list === e.list && JSON.stringify(x.d) === JSON.stringify(e.row.d)); }); state.l[e.list].splice(e.i, 0, e.row); if (e.end && state.f.debts_end) state.f.debts_end = { v: e.end.v, st: e.end.st }; vm.rowCur[e.list] = e.cur == null ? e.i : e.cur; touch(); redraw(); vmLog('brought back ' + vmDebtName(e.row, e.i)); return; }
     if (e.kind === 'addrow') { store.delRow(state, e.list, e.i); vm.rowCur[e.list] = Math.min(vm.rowCur[e.list] == null ? 0 : vm.rowCur[e.list], state.l[e.list].length - 1); touch(); redraw(); return; }
     if (e.kind === 'cell') { var ur = state.l[e.list][e.i]; if (e.prev.v === '' || e.prev.v == null) vm.noSweep[e.list + ':' + e.i + ':' + e.k] = 1; if (ur) { ur.d[e.k] = e.prev.v; ur.st = e.prev.st; } touch(); redraw(); return; }
     if (e.prev.v === '') vm.noSweep[e.id] = 1;                                  // taken back to empty: the catch-up check leaves it
@@ -1541,7 +1568,7 @@
     if (L && !vmVisible(L) && values) { var shown = Object.keys(values).filter(function (k) { return !vmPrivate(list + '.' + k); }).map(function (k) { return values[k]; }).join(', '); if (shown) vmUnplace({ text: L.title + ': ' + shown, why: 'that list is not shown for this client', sec: L.sec }); }
     if (!L || !vmVisible(L)) return -1;
     delete vm.done[L.sec];
-    if (cur !== L.sec && !vmQuiet) { var fromR = cur; cur = L.sec; vm.secGlow = false; vmPulseNav(); vmMoved(); vmEnter(fromR); }
+    if (cur !== L.sec && !vmQuiet && vmMayMove()) { var fromR = cur; cur = L.sec; vm.secGlow = false; vmPulseNav(); vmMoved(); vmEnter(fromR); }
     var rows = state.l[list], i = -1, r;
     if (values) for (r = 0; r < rows.length; r++) if (store.rowBlank(list, rows[r])) { i = r; break; }
     if (i < 0) { store.addRow(state, list, {}, 'heard'); i = rows.length - 1; vm.undo.push({ kind: 'addrow', list: list, i: i }); }
@@ -1662,6 +1689,12 @@
   function vmRowsSig() { return Object.keys(state.l).map(function (k) { return k + ':' + state.l[k].length; }).join(','); }
   /* keep (optional) receives what Claude was shown, so a reply that arrives later can be checked against the form as it is by then. */
   /* The date of the form as Claude is told it: "Wednesday 04/11/2026". */
+  /* When the meeting started, to the nearest quarter hour ("10:00"): what "the same time next week" means. From the timer; empty before it has started. */
+  function meetingStarted() {
+    var snap = meeting.snapshot(); if (!snap || !snap.seconds) return '';
+    var d = new Date(Date.now() - snap.seconds * 1000), q = Math.round((d.getHours() * 60 + d.getMinutes()) / 15) * 15, p = function (n) { return (n < 10 ? '0' : '') + n; };
+    return p(Math.floor(q / 60) % 24) + ':' + p(q % 60);
+  }
   function meetingText() { var d = util.parseDate(state.f.date && state.f.date.v) || util.parseDate(util.isoToday()); return d ? util.weekdayName(d) + ' ' + util.formatDate(d) : ''; }
   function vmAsk(who, text, note, entry, keep) {
     var t0 = Date.now(), set = FF.lookup.getSettings(), tcr = vm.target ? vmCellRef(vm.target) : null, tid = !vm.noteMode && vm.target && !/^count:/.test(vm.target) && vmField(vm.target) ? (tcr ? tcr.list + '.' + tcr.k : vm.target) : null, fl = vmFilled(), aw = vmAwaiting(), tgt = vm.target;
@@ -1673,7 +1706,7 @@
     return vmSlot().then(function () {
       return VAI.decide({
         apiKey: set.apiKey, ask: !set.apiKey && FF.voiceBackend && FF.voiceBackend.available ? FF.voiceBackend.ask : null, model: set.voiceModel, hedgeMs: 3500, idx: vidx, who: who, text: text, fetchImpl: entry || vmCur ? loggedFetch(entry || vmCur) : meteredFetch,
-        ctx: { meeting: meetingText(), sectionId: sec, targetId: tid, targetRow: tcr ? tcr.i + 1 : null, targetValue: tv, targetFilled: tfilled, alternatives: entry && entry.m && entry.shown === entry.text ? entry.m.also : null, filled: fl.filled, filledPrivate: fl.filledPrivate, hidden: vmHiddenMap(), awaiting: aw.awaiting, privateHeld: aw.held, note: note, concluded: Object.keys(vm.done),
+        ctx: { meeting: meetingText(), started: meetingStarted(), sectionId: sec, targetId: tid, targetRow: tcr ? tcr.i + 1 : null, targetValue: tv, targetFilled: tfilled, alternatives: entry && entry.m && entry.shown === entry.text ? entry.m.also : null, filled: fl.filled, filledPrivate: fl.filledPrivate, hidden: vmHiddenMap(), awaiting: aw.awaiting, privateHeld: aw.held, note: note, concluded: Object.keys(vm.done),
           listRows: function (key) { return rows[key] || []; }, recent: recent }
       }).then(function (r) { vmSlotFree(); return r; }, function (e) { vmSlotFree(); throw e; });
     }).then(function (r) { vm.busy--; vmRender(); if (entry) entry.claudeMs = Date.now() - t0; return r; }, function (err) {
@@ -1807,14 +1840,27 @@
     var was = vmCur; vmCur = entry || vmCur;
     try {
       if (ref.error) { vmLog('did not remove a debt: ' + ref.error); toast('No debt was removed: ' + ref.error + '.'); return true; }
-      var i = ref.i, r = state.l.debts[i], name = vmDebtName(r, i), end = state.f.debts_end ? { v: state.f.debts_end.v, st: state.f.debts_end.st } : null;
-      vm.undo.push({ kind: 'delrow', list: 'debts', i: i, row: JSON.parse(JSON.stringify(r)), cur: vm.rowCur.debts, end: end });
-      store.delRow(state, 'debts', i);
-      if (!state.l.debts.length) vm.rowCur.debts = null; else if (cur === i) vm.rowCur.debts = Math.max(i - 1, 0); else if (cur > i) vm.rowCur.debts = cur - 1;
-      vm.pointed = null; touch(); redraw();
-      vmLog('removed ' + name + ' completely; the debts after it are renumbered. Say "undo" to bring it back');
-      toast('Removed ' + name + '. Say "undo" to bring it back.');
+      (ref.is || [ref.i]).slice().sort(function (a, b) { return b - a; }).forEach(function (i) { vmRemoveRow('debts', i); });          // the last first, so the numbers of the others do not move
     } finally { vmCur = was; }
+    return true;
+  }
+  /* A row taken away completely (3.6): the rows after it are renumbered, "undo" brings it back, and it is remembered as taken away on purpose: the catch-up check may not put what it held back, and the "do not refill" marks
+     of the rows after it move up with them. */
+  function vmRemoveRow(list, i) {
+    var rows = state.l[list], r = rows[i]; if (!r) return false;
+    var cur = vm.rowCur[list] == null ? -1 : vm.rowCur[list], name = list === 'debts' ? vmDebtName(r, i) : (schema.lists[list].cards || 'row') + ' ' + (i + 1);
+    var end = list === 'debts' && state.f.debts_end ? { v: state.f.debts_end.v, st: state.f.debts_end.st } : null;
+    vm.undo.push({ kind: 'delrow', list: list, i: i, row: JSON.parse(JSON.stringify(r)), cur: vm.rowCur[list], end: end });
+    (vm.removed = vm.removed || []).push({ list: list, d: JSON.parse(JSON.stringify(r.d)), name: name });
+    store.delRow(state, list, i);
+    var moved = {}; Object.keys(vm.noSweep).forEach(function (k) {
+      var m = /^(\w+):(\d+):(\w+)$/.exec(k); if (!m || m[1] !== list) { moved[k] = vm.noSweep[k]; return; }
+      var n = +m[2]; if (n === i) return; moved[list + ':' + (n > i ? n - 1 : n) + ':' + m[3]] = vm.noSweep[k];
+    }); vm.noSweep = moved;
+    if (!rows.length) vm.rowCur[list] = null; else if (cur === i) vm.rowCur[list] = Math.max(i - 1, 0); else if (cur > i) vm.rowCur[list] = cur - 1;
+    vm.pointed = null; touch(); redraw();
+    vmLog('removed ' + name + ' completely; the ones after it are renumbered. Say "undo" to bring it back');
+    toast('Removed ' + name + '. Say "undo" to bring it back.');
     return true;
   }
   /* "No more debts": the line under the last debt (said by the adviser or the client, as a statement, not a question). */
@@ -1838,6 +1884,12 @@
       case 'empty':
         if (vmCur && !SAID_CLEAR.test(vmCur.text)) { vmLog('did not empty a box: the words were not said'); return; }
         return vmEmpty(a);
+      case 'removeRow': {
+        if (vmCur && !SAID_CLEAR.test(vmCur.text)) { vmLog('did not remove a row: the words were not said'); return; }
+        var rrn = state.l[a.list].length, rri = a.row === 'last' ? rrn - 1 : a.row - 1;
+        if (rri < 0 || rri >= rrn) { vmLog('did not remove a row: there is no ' + (schema.lists[a.list].cards || 'row').toLowerCase() + ' ' + a.row); return; }
+        return void vmRemoveRow(a.list, rri);
+      }
       case 'note':
         if (!vm.noteMode) vmStartNotes({});                                     // a note with no "let me take some notes" before it starts them
         return vmAddNote(a.text, a.ready);
@@ -1909,6 +1961,14 @@
       vmNote(id, 'More than the gross income: not take-home pay, so nothing was filled');
       vmUnplace({ text: label + ': ' + res.value + ' was said, but it is more than the gross income (' + state.f.gross.v + ')', why: 'take-home pay cannot be more than the gross income', sec: f && f.sec });
       return true;
+    }
+    if ((id === 'next_appt' || id === 'next_time') && id !== vm.target) {                                        // a date said about something else ("give me a call again on the 21st") is not the appointment (3.6)
+      var talk = vm.recent.slice(-4).map(function (e) { return e.text; }).concat([said]).join(' ');
+      if (!/\b(?:appointment|next meeting|follow[- ]?up|see you (?:again|next)|meet again|next time we|catch up|come back to you|set up (?:our|the) next)\b/i.test(talk)) {
+        vmLog('did not fill ' + label + ': the talk was not about the next appointment');
+        vmUnplace({ text: label + ': ' + vmShown(id, res.value) + ' was said, but not about the next appointment', why: 'the talk was about something else', sec: f && f.sec });
+        return true;
+      }
     }
     if (vmProviderBox(id) && !String(res.value).split(';').some(function (part) { return V.namesProvider(part, said); })) {
       vmLog('did not fill ' + label + ': nobody named ' + String(res.value) + ' in this line');
@@ -2006,7 +2066,7 @@
   /* What the page itself makes of a line, in the state the form is in now. */
   function vmPlanFor(text, entry) {
     var ri = entry ? vm.recent.indexOf(entry) : -1, prev = ri > 0 ? vm.recent[ri - 1].text : (!entry && vm.recent.length > 1 ? vm.recent[vm.recent.length - 2].text : '');       // the line before this one: "no" answers it
-    var pl = V.plan(text, vidx, { cur: cur, prev: prev, noting: !!vm.noteMode, target: vm.target, answered: vm.answered, rows: function (key) { return state.l[key].map(function (r) { return r.d; }); }, curRow: vm.rowCur, value: function (id) { return state.f[id].v; }, visible: function (id) { var f = vmField(id); return !!f && vmVisible(f); } });
+    var pl = V.plan(text, vidx, { cur: cur, who: entry && entry.who, prev: prev, noting: !!vm.noteMode, target: vm.target, answered: vm.answered, rows: function (key) { return state.l[key].map(function (r) { return r.d; }); }, curRow: vm.rowCur, value: function (id) { return state.f[id].v; }, visible: function (id) { var f = vmField(id); return !!f && vmVisible(f); } });
     pl.actions = vmGuardReadBack(pl.actions, text);
     return pl;
   }
@@ -2067,6 +2127,9 @@
     vm.answered = false; vm.run = { box: box, d: all, want: want(all) }; vmMarkWait();
     var note = all.length + ' of ' + want(all) + ' digits so far';
     vmNote(box, note + ': waiting for the rest');
+    if (all.length === want(all) - 1 && vm.run) {                                                         // one digit short and nothing more comes: say so in words (a digit is often lost on a call), so the adviser asks for the last digits again
+      var short = vm.run; setTimeout(function () { if (vm.run === short && short.d === all) { vmNote(box, 'One digit is missing (' + note + '): ask for the last digits again'); toast('One digit is missing from that number: ask for the last digits again.'); } }, 4000);
+    }
     return { hold: true, note: 'holding ' + vmGroup(box, all) + ' (' + note + '): waiting for the rest' };
   }
   /* An email address said in pieces ("it's pool one", "dot kafentzis", "at gmail dot com") is kept here, the way a number is, and never sent to Claude: the email boxes take only a finished address,
@@ -2139,11 +2202,14 @@
     if (!r) return;
     var part = V.spokenEmail(vmEmailText(r.t));
     if (/^[^@\s]+@[^@\s]+$/.test(part) && vmApply(r.box, { kind: 'fill', value: vmEmailNames(part).value, status: 'verify' })) { vmLog('the email address was not finished: put in the box as heard, check it'); toast('The email address was not finished. Check it, or say it again.'); }
+    else if (part && part.length >= 3 && /[a-z]/i.test(part) && vmApply(r.box, { kind: 'fill', value: part, status: 'verify' })) {          // what was heard, without the part after the @: it is shown, amber, and said
+      vmNote(r.box, 'No @ yet: type the address, or ask the client for the part after the @'); vmLog('the email address was not finished (no @ yet): put in the box as heard'); toast('The email address was not finished: no @ yet. Type it, or ask the client for the part after the @.');
+    }
     else vmLog('the email address was not finished: nothing was filled');
   }
   /* The address in what was said, or '' when it is not yet one. Not V.interpret: for an email box that reads "no" or "not" anywhere in the words as "I have no email address" ("full one, not defenses, at gmail.com" came out as None). */
   function vmEmailParse(t) { var em = V.spokenEmail(vmEmailText(t)); return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(em) ? em : ''; }
-  function vmEmailRun(text) {
+  function vmEmailRun(text, who) {
     var raw = String(text == null ? '' : text), low = raw.toLowerCase().replace(/[‘’`]/g, "'"), run = vm.erun, hasWord = /\be-?mail\b/.test(low), named = null;
     if (hasWord) named = /\b(?:work|office|business)\b/.test(low) ? 'wemail' : 'pemail';
     var tgt = vm.target && EMAIL_BOXES.indexOf(vm.target) >= 0 ? vm.target : null;
@@ -2171,6 +2237,7 @@
     while (i < toks.length && (EMAIL_SKIP[clean(toks[i])] || EMAIL_LEAD[clean(toks[i])]) && !(single(toks[i]) && i + 1 < toks.length && single(toks[i + 1])) && !(/^(?:with|and)$/.test(clean(toks[i])) && /\.|\bdot\b|gmail|yahoo|outlook|hotmail|icloud/i.test(toks.slice(i + 1).join(' ')))) i++;   // "Okay." and "Yes." are filler, however the speech recogniser punctuated them; a run of single letters is a spelled word, never filler
     var pay = toks.slice(i), payText = pay.join(' '), spelled = pay.length >= 3 && pay.filter(single).length >= pay.length * 0.7;
     if (run && !restart && !(pay.length <= 2 || spelled || (pay.length <= 7 && EMAIL_PIECE.test(low)))) { giveUp(); return null; }   // something else was said: the pieces end here
+    if (run && !restart && who === 'me' && pay.length > 2 && !spelled && !/@|\bdot\b|\bat\s+(?:gmail|yahoo|outlook|hotmail|icloud|mweb|webmail|live|telkom|vodamail|liferisk)\b|\.(?:com|co\.za|org|net)\b/i.test(low)) { giveUp(); return null; }      // the adviser's own sentences never join the client's address (3.6): his next question ends the wait
     if (restart) {
       run = vm.erun = null; vm.answered = false; vm.eann = { box: box, at: Date.now() };
       var gone = voided && vmEmptyBox(box);
@@ -2512,7 +2579,8 @@
       cvAdd(entry); convoSoon();
       var fl = vmFilled(), notes = {};
       vidx.notes.forEach(function (n) { var v = state.f[n.id] && String(state.f[n.id].v || '').trim(); if (v) notes[n.sec] = (notes[n.sec] ? notes[n.sec] + '\n' : '') + v.slice(0, 600); });
-      return VAI.sweep({ notes: notes, listed: (state.unplaced || []).map(function (u) { return u.text; }),  apiKey: set.apiKey, ask: !set.apiKey && FF.voiceBackend && FF.voiceBackend.available ? FF.voiceBackend.ask : null, model: set.voiceModel, idx: vidx, transcript: lines, filled: fl.filled, hidden: vmHiddenMap(),
+      var gone = (vm.removed || []).map(function (rm) { return rm.name + ' (' + Object.keys(rm.d).filter(function (k) { return String(rm.d[k] || '').trim(); }).map(function (k) { return k + ': ' + rm.d[k]; }).join(', ') + ')'; });
+      return VAI.sweep({ removed: gone, notes: notes, listed: (state.unplaced || []).map(function (u) { return u.text; }),  apiKey: set.apiKey, ask: !set.apiKey && FF.voiceBackend && FF.voiceBackend.available ? FF.voiceBackend.ask : null, model: set.voiceModel, idx: vidx, transcript: lines, filled: fl.filled, hidden: vmHiddenMap(),
         listRows: function (key) { return state.l[key].map(function (r) { return r.d; }); }, focus: o.sec || null, fetchImpl: meteredFetch });
     }).then(function (r) { vmSweepApply(entry, r, o, manual); }, function (err) {
       entry.did.push('could not check: ' + ((err && err.message) || 'no answer'));
@@ -2558,6 +2626,7 @@
     if (!row) { vmUnplace({ text: L.title + ': ' + def.label + ' ' + a.value, why: 'there is no such row on the form', sec: L.sec }); return 0; }
     if (!x || x.error) { vmUnplace({ text: L.title + ' ' + (ri + 1) + ': ' + def.label + ' ' + a.value, why: 'could not be read as an answer for that box', sec: L.sec }); return 0; }
     var cur0 = row.d[a.col] == null ? '' : String(row.d[a.col]);
+    if ((vm.removed || []).some(function (rm) { return rm.list === a.list && String(rm.d[a.col] || '').trim() !== '' && vmSame(String(rm.d[a.col]), x.value); })) { vmLog('left out: ' + def.label + ' ' + x.value + ' belongs to a row that was taken away on purpose'); return 0; }
     if (store.rowBlank(a.list, row)) { vmUnplace({ text: L.title + ': ' + def.label + ' ' + x.value, why: 'the row is still empty (it was only pointed at)', sec: L.sec }); return 0; }
     if (cur0 === '') { var rc = vm.rowCur[a.list]; var ok = vmApplyCell({ list: a.list, i: ri, k: a.col }, id, { kind: 'fill', value: x.value, status: 'verify' }); vm.rowCur[a.list] = rc; if (ok) vmLog('filled (missed earlier) ' + L.title + ' ' + (ri + 1) + ': ' + def.label + ': ' + x.value); return ok ? 1 : 0; }
     if (!vmSame(cur0, x.value)) vmUnplace({ text: L.title + ' ' + (ri + 1) + ': the conversation says ' + def.label + ' ' + x.value, why: 'the box holds "' + cur0 + '"', sec: L.sec });
@@ -2604,7 +2673,7 @@
     if (!vm.on || !text) return Promise.resolve();
     if (vm.paused) return vmKeepLine(text, who, meta, 'paused: not read');
     if (vmOwnNameOnly(text)) return vmKeepLine(text, who, meta, 'ignored: only the adviser\'s own name, which the speech service repeats when it hears no clear words');
-    var shown = text, run = vmEmailRun(text) || vmNumberRun(text);
+    var shown = text, run = vmEmailRun(text, who) || vmNumberRun(text);
     if (run && run.hold) return vmKeepLine(text, who, meta, run.note);  // part of a number or an email address: kept until it is complete
     text = run ? run.text : vmJoinDigits(text);  // a number said in pieces is one line
     var entry = { who: who === 'me' ? 'adviser' : who === 'client' ? 'client' : 'unclear', text: text, shown: shown, at: Date.now(), did: run && run.said ? [run.said] : [], done: false, m: meta || null }, t0 = Date.now(), epoch = vm.epoch, quick = null, p;
