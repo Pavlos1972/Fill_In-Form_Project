@@ -28,6 +28,8 @@
   function wordsToNumber(text) {
     var t = norm(text).replace(/\br\s*(?=\d)/g, '').replace(/\b(\d{1,3})((?: \d{3})+)\b/g, function (m, a, rest) { return a + rest.replace(/ /g, ''); });
     var tk = t.split(' '), total = 0, cur = 0, found = false, i, w, m;
+    var NW = '(?:\\d+(?:\\.\\d+)?k?|' + Object.keys(SMALL).concat(Object.keys(TENS)).join('|') + ')';
+    if (/\bbetween\b/.test(t) || new RegExp('\\b' + NW + ' (?:to|or) ' + NW + '\\b').test(t)) return null;          // a range ("between forty and fifty thousand", "30 to 35 thousand") is not one amount: it is asked again, never added up
     for (i = 0; i < tk.length; i++) {
       w = tk[i];
       if ((m = /^(\d+(?:\.\d+)?)(k|m)?$/.exec(w))) {
@@ -35,6 +37,7 @@
         cur += v; found = true;
       } else if (SMALL.hasOwnProperty(w)) { cur += SMALL[w]; found = true; }
       else if (TENS.hasOwnProperty(w)) { cur += TENS[w]; found = true; }
+      else if (w === 'half' && found) { cur += 0.5; }                                                 // "six and a half thousand"
       else if (w === 'hundred') { cur = (cur || 1) * 100; found = true; }
       else if (w === 'thousand' || w === 'k') { total += (cur || 1) * 1000; cur = 0; found = true; }
       else if (w === 'million' || w === 'm') { total += (cur || 1) * 1e6; cur = 0; found = true; }
@@ -674,7 +677,8 @@
     '(?:everything|form|fact find|details|data|answers|information|info|entries|fields|boxes|them all|it all|all of it|all)(?:\\s+(?:on|from|in|of)\\s+(?:the|this)\\s+(?:(?:entire|whole|full)\\s+)?(?:form|fact find))?(?:\\s+(?:clean|out))?(?:\\s+(?:please|now|again))?$');
   var WIPE_NOT = new RegExp('\\b(?:dont|don\'t|do not|never|not to|no need to|without)\\s+(?:\\w+\\s+){0,2}' + WIPE_VERB + '\\b');
   var WIPE_START = /\bstart (?:again|over) (?:from )?(?:scratch|the beginning)\b|\bstart (?:with )?a (?:blank|fresh|clean) form\b/;
-  function wipeAsked(t) { return !WIPE_NOT.test(t) && (WIPE_ALL.test(t) || WIPE_START.test(t)); }
+  var WIPE_PAST = /\b(?:had to|have to|needed to|wanted to|decided to|did|going to|will|would|when|after|then|i|we|they|he|she)\s+(?:\w+\s+)?start (?:again|over)\b/;       // "after the divorce I had to start again from scratch" is a life story, not the request (3.6)
+  function wipeAsked(t) { return !WIPE_NOT.test(t) && (WIPE_ALL.test(t) || (WIPE_START.test(t) && !WIPE_PAST.test(t) && t.split(' ').length <= 12)); }
   /* The answer to "Delete all data from the entire form?": 'yes', 'no', or null when it is neither (then nothing happens).
      Only a plain yes counts: repeating the request ("delete everything") is not a yes. */
   function wipeAnswer(text) {
@@ -682,7 +686,7 @@
     if (!t || w.length > 8) return null;
     var no = /^(?:(?:oh|ok|okay|actually|please|sorry|hmm|um|uh)\s+)*(?:no|nope|nah|cancel|stop|wait|dont|don't|do not|keep|leave|never mind|nevermind|hang on|hold on|not yet|abort|forget it|negative|undo|scratch that)\b/.test(t);
     if (no) return 'no';
-    var yes = /^(?:(?:oh|ok|okay|please|um|uh)\s+)*(?:yes|yeah|yep|yup|yip|sure|correct|confirm|confirmed|absolutely|definitely|affirmative|do it|go ahead|im sure|i'm sure|i am sure)\b/.test(t);
+    var yes = /^(?:(?:oh|ok|okay|please|um|uh)\s+)*(?:yes|yeah|yep|yup|yip|sure|correct|confirm|confirmed|absolutely|definitely|affirmative|do it|go ahead|im sure|i'm sure|i am sure)(?:\s+(?:please|thanks|thank you|do it|go ahead|delete it|delete everything|clear it|im sure|i m sure|i am sure|definitely|absolutely|sure|ja|yes))*$/.test(t);      // only a plain yes: "yes, ja, it was very hard" is not one
     return yes && !/\b(?:no|not|dont|don't|cancel|keep|except|but|wait|stop|only)\b/.test(t) ? 'yes' : null;
   }
   /* -> { type: 'goto', sec } | next | prev | nextSection | prevSection | undo | clear | clearAll | notes | notesOff, or null when it is not a command. */
@@ -1435,6 +1439,11 @@
           waitingHere = (tcp.list === lkc || words <= 4 || probe.kind === 'fill' || probe.kind === 'confirm') && nFacts <= 1;
         }
         var explicitIntro = !!(cc && /\b(?:have|has|got|had|there are|there is|with|we've|i've|three|two|one|four|five)\b/i.test(core));
+        /* A row is never made from a passing remark (3.6): not from "I've never had a credit card" or "there's no pension", not from "imagine you had a home loan" or "my brother has a personal loan", and not from the
+           adviser's narration about a list that is not on the page he is on ("we're going to look at Lily, we're going to look at your debts" on Client priorities made a debt with the lender Lily). */
+        var NEG_INTRO = /\b(?:never|don'?t|do not|dont|doesn'?t|haven'?t|have not|havent|hasn'?t|not got)\s+(?:ever\s+)?(?:have|had|got|use|used|owned?|taken)\b|\b(?:there'?s|there is|there are|has|have|had|got|with)\s+no\b/i, HYPO = /\b(?:imagine|suppose|pretend|let'?s say|lets say|what if|if you had|say you|for example|for instance)\b|\bmy (?:brother|sister|mother|father|friend|boss|neighbour|neighbor|colleague|cousin|uncle|aunt|son|daughter)'?s?\b/i;
+        var offPage = lkc && st.who === 'adviser' && st.cur && idx.lists[lkc] && idx.lists[lkc].sec !== st.cur;
+        if (lkc && (NEG_INTRO.test(seg) || HYPO.test(seg) || offPage)) { explicitIntro = false; nFacts = 0; }
         if (lkc && !waitingHere && (explicitIntro || (nFacts && !namesColumn))) {
           if (cc && cc > 1) { addRows(lkc, cc); if (rf.leftover > 1) sure = false; return; }
           introRow(lkc, rf); if (rf.leftover > 1) sure = false; return;
@@ -1594,27 +1603,50 @@
     return { kind: 'same' };
   }
   /* "remove debt 2", "delete the second debt", "take out the car debt", "remove the debt for the car", "get rid of this debt": the debt to take away. -> null (not such an instruction), { i } or { error } (it names no debt that is there). */
-  var REMOVE_OPEN = /^(?:(?:ok|okay|alright|all right|right|so|and|now|then|please|lets|let us|can you|could you|you can|go ahead and|just|i want you to|we can|we must|we should|we need to|you must|you need to|you should|can we|paul) )*(?:remove|delete|take out|get rid of|scratch|erase) (.+)$/;
-  var REMOVE_NOT = /\b(?:next|last) (?:year|month|week)\b|\b(?:when|once|after|before|because|if|unless|until|soon|later|eventually|will|would|might|plans?|planning|wants?|going to)\b/;        // advice or a plan about a debt ("once it is paid we will remove the card") is not the instruction
+  var REMOVE_OPEN = /^(?:(?:ok|okay|alright|all right|right|so|and|now|then|please|lets|let us|can you|could you|you can|go ahead and|just|i want you to|we can|can we|paul) )*(?:remove|delete|take out|get rid of|scratch|erase|scrap|drop) (.+)$/;      // "we should / you should / we must" are advice, not the instruction (3.6)
+  var REMOVE_NOT = /\b(?:next|last) (?:year|month|week)\b|\b(?:when|once|after|before|because|if|unless|until|soon|later|eventually|will|would|might|plans?|planning|wants?|going to|should|must|need to|needs to|ought)\b/;        // advice or a plan about a debt ("once it is paid we will remove the card", "you should get rid of the card") is not the instruction
+  var REMOVE_MID = /\b(?:we|i|i ll|we ll|lets|let s|let us|you can|can you|could you|please)(?: just)? (?:remove|delete|take out|get rid of|scrap|drop|erase)\b/;      // "debt three, we remove that, and debt four": the verb is in the middle of the sentence
+  /* The numbers of the debts named in a stretch of text: "debt three" and "and debt four" ("debt two and three"). */
+  function debtNumbers(t) {
+    var out = [], re = /\bdebts? (?:number |no |num |nr |nu )?(\d{1,2}|one|two|three|four|five|six|seven|eight|nine|ten)\b((?: (?:and|also|plus|then) (?:debt |number )?(?:\d{1,2}|one|two|three|four|five|six|seven|eight|nine|ten)\b)*)/g, m, x;
+    while ((m = re.exec(t))) {
+      out.push(/^\d/.test(m[1]) ? +m[1] : DEBT_NUM[m[1]]);
+      var more = /(\d{1,2}|one|two|three|four|five|six|seven|eight|nine|ten)\b/g;
+      while ((x = more.exec(m[2] || ''))) out.push(/^\d/.test(x[1]) ? +x[1] : DEBT_NUM[x[1]]);
+    }
+    var tail = /\b(?:and|also|plus) (?:debt |number )?(\d{1,2}|one|two|three|four|five|six|seven|eight|nine|ten)\b/g;
+    if (out.length) while ((x = tail.exec(t))) { var v = /^\d/.test(x[1]) ? +x[1] : DEBT_NUM[x[1]]; if (out.indexOf(v) < 0) out.push(v); }
+    return out.filter(function (v, k) { return v && out.indexOf(v) === k; });
+  }
+  /* "remove debt 2", "we remove debt three and debt four", "delete the second debt", "take out the car debt", "get rid of this debt": the debt(s) to take away.
+     -> null (not such an instruction), { i, is: [all of them] } or { error } (it names no debt that is there). */
   function removeDebtRef(text, rows, cur) {
-    var m = REMOVE_OPEN.exec(norm(text)); if (!m) return null;
-    var t = m[1], n = rows.length, num = debtNumber(t), kinds = debtKinds(t), i, hits;
-    var generic = /\b(?:debt|debts|loan|liability)\b/.test(t) || kinds.length;
+    var raw = norm(text), m = REMOVE_OPEN.exec(raw), t, mid = false;
+    if (m) t = m[1];
+    else {
+      var mm = REMOVE_MID.exec(raw);
+      if (!mm || REMOVE_NOT.test(raw.replace(mm[0], ' ')) || raw.split(' ').length > 30) return null;
+      t = raw; mid = true;
+    }
+    var n = rows.length, nums = debtNumbers(t), num = nums[0] || debtNumber(t), kinds = debtKinds(t), i, hits;
+    var generic = /\b(?:debt|debts|loan|liability)\b/.test(t) || kinds.length || (mid && /\b(?:that|this)\b/.test(t));
     if (!generic) return null;                                                              // "scratch that": not about a debt (undo handles it)
-    if (/\b(?:all|every|each|everything)\b/.test(t) || REMOVE_NOT.test(t) || t.split(' ').length > 8) return null;      // wiping a whole section is another command, with its own question
-    if (num) return num <= n ? { i: num - 1 } : { error: 'there is no debt ' + num };
-    if (/\b(?:this|that|the current|the present) (?:debt|loan|liability|one)\b/.test(t)) return cur >= 0 && cur < n ? { i: cur } : { error: 'no debt is open' };
-    if (/\b(?:the last|the latest|the final|the previous|the one before) (?:debt|loan|liability|one)\b/.test(t)) return n ? { i: /\bprevious|one before\b/.test(t) ? Math.max(cur - 1, 0) : n - 1 } : { error: 'there are no debts' };
+    if (/\b(?:all|every|each|everything)\b/.test(t.replace(/\ball right\b/g, ' ')) || (!mid && (REMOVE_NOT.test(t) || t.split(' ').length > 8))) return null;      // wiping a whole section is another command, with its own question
+    var done = function (list) { list = list.filter(function (v, k) { return list.indexOf(v) === k; }).sort(function (a, b) { return a - b; }); return { i: list[0], is: list }; };
+    if (nums.length > 1) { var bad = nums.filter(function (v) { return v > n; }); return bad.length ? { error: 'there is no debt ' + bad[0] } : done(nums.map(function (v) { return v - 1; })); }
+    if (num) return num <= n ? done([num - 1]) : { error: 'there is no debt ' + num };
+    if (/\b(?:this|that|the current|the present) (?:debt|loan|liability|one)\b/.test(t) || (mid && /\b(?:remove|delete|take out|get rid of|scrap|drop|erase) (?:that|this)\b/.test(t))) return cur >= 0 && cur < n ? done([cur]) : { error: 'no debt is open' };
+    if (/\b(?:the last|the latest|the final|the previous|the one before) (?:debt|loan|liability|one)\b/.test(t)) return n ? done([/\bprevious|one before\b/.test(t) ? Math.max(cur - 1, 0) : n - 1]) : { error: 'there are no debts' };
     if (kinds.length === 1) {
       hits = []; rows.forEach(function (r, ix) { if (r.type === kinds[0]) hits.push(ix); });
       if (!hits.length) {                                                                   // "the car debt" on a debt that was typed as Other: its description says what it is
         var w = kinds[0] === 'Vehicle finance' ? /\b(?:car|vehicle)\b/ : kinds[0] === 'Home loan' ? /\b(?:house|home|flat|bond|mortgage|property)\b/ : new RegExp('\\b' + kinds[0].toLowerCase().split(' ')[0] + '\\b');
         rows.forEach(function (r, ix) { if (w.test(norm([r.desc, r.notes, r.prov].join(' ')))) hits.push(ix); });
       }
-      if (hits.length === 1) return { i: hits[0] };
-      return hits.length ? { error: 'there is more than one ' + kinds[0].toLowerCase() + ': say which debt number' } : { error: 'there is no ' + kinds[0].toLowerCase() + ' on the form' };
+      if (hits.length === 1) return done([hits[0]]);
+      return { error: hits.length ? 'there is more than one ' + kinds[0].toLowerCase() + ': say which debt number' : 'there is no ' + kinds[0].toLowerCase() + ' on the form' };
     }
-    if (n === 1 && /^(?:the |this |that )?(?:debt|loan)$/.test(t)) return { i: 0 };
+    if (n === 1 && /^(?:the |this |that )?(?:debt|loan)$/.test(t)) return done([0]);
     return { error: 'say which debt (for example "remove debt 2")' };
   }
   /* "no more debts", "that's all the debts", "there are no other debts": the debts are complete. */

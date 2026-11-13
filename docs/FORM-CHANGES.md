@@ -4,6 +4,17 @@ A dated list of what changed in the form's boxes, newest first. **One line for e
 
 The version is `version` in `app/js/schema.js` (the Fact Find), `app/js/sr-schema.js` (the Short Risk Application) and `app/js/cs-schema.js` (the Investment Capture Sheet); a saved file carries it as `schema`. Earlier changes are in the README and in the git history; this list starts with 3.1.
 
+## 3.6: 13 November 2026 (Fact Find 3.5 to 3.6)
+
+Fact Find (Debts, and what the voice and the points do with the answers). Detail in the README ("Release 3.6").
+- **List column added, `debts.sinst`: "Spouse instalment (R p.m.)"** (money). Shown only on a debt whose Payer (`payer`) is Joint or Spouse. **A new list total: `Total spouse monthly`** (`debts.sinst`). **Sums that changed:** `Total monthly` (`debts.inst`), the instalment protector and the household needs now count only the **client's own** instalment: for a Joint debt `inst` is the client's half (the whole instalment said is split 50/50 into `inst` and `sinst`, said again it is split again, a hand-typed `sinst` is left alone); for a Spouse debt the instalment is in `sinst` and `inst` is empty. A Joint debt now counts (its half) in the client's debt repayments; before 3.6 a Joint debt was left out altogether. A file saved before 3.6 opens split the same way.
+- **Choice added, `debts.cl` (Credit life with lender):** `Not sure` (the choices are now `Yes`, `No`, `Not sure`). No id changed.
+- **No id added, removed or relabelled** apart from `debts.sinst`. **A skill that reads the action points** will see: credit life only for a Home loan, Vehicle finance or Personal loan with a lender that the client pays (a `Not sure` is asked again); the wording `(currently with another broker: an opportunity to quote; the client will decide)` instead of `(... a take-over)`, and only for a Broker on record box that was answered; a Joint or Spouse payer.
+- **The Priorities to be Focused on box (`focus`)** is written as `Recommend:` / `Client:` / `Come back with:` for each green area (a text format change, same id); credit life is no longer in it.
+- **Schedule boxes `ps_risk`, `ps_ra`, `ps_pp`, `ps_inv`:** an empty one is preset to `Draw from Astute (with signed LOA)` once the Letter of Authority (`loa`) is Yes and one of them already says Astute, for cover the client has. Group risk (`ps_grp`) has no Astute choice.
+- **Amounts:** `6.500` is read as R 6 500.00 (formerly R 6.50); words in an amount box leave `disp` and `tinc` blank (formerly counted as R 0); `dnet` (Direct Net Income) takes the SARS age rebate by the age at the end of the tax year (28 February) instead of on the day of the meeting; two-digit years are read in dates (`04.11.26`); a South African ID whose 2000s birth date is in the future is a 1900s one; the education stage of a child with a future birth date is blank; a debt provider `Other` typed in the box is kept (a file saved before 3.6 still loses the old pick-list's Other).
+- **Heard and applied:** the screen moves only on the adviser's words; a removed debt is removed (Claude has a `removeRow` answer) and the catch-up check may not put it back; no row is made from a passing remark; the next appointment is filled only when the talk is about it and dates count from today; Claude is sent `a_week_from_today` and `meeting_started`.
+
 ## 3.5: 13 November 2026 (Fact Find 3.4 to 3.5)
 
 Fact Find (Client priorities and quotes needed). **No id added, removed or relabelled.** No sum, tax table or list column changed.

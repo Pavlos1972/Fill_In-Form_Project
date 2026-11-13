@@ -76,7 +76,7 @@ test('which debt a line is about: it stays on the one it is on unless the line s
 
 test('remove a debt: by number, by what it is, this one, the last one; never by a plan, a question or "everything"', () => {
   const rows = [{ type: 'Home loan', prov: 'Nedbank' }, { type: 'Vehicle finance', prov: 'Wesbank' }, { type: 'Credit card', prov: 'FNB' }, { type: 'Other', desc: 'Car repairs' }];
-  const rm = (t, cur) => V.removeDebtRef(t, rows, cur == null ? 1 : cur);
+  const rm = (t, cur) => { const r = V.removeDebtRef(t, rows, cur == null ? 1 : cur); return r && r.is ? { i: r.i } : r; };       // 3.6: { i, is: [every debt named] }
   assert.deepStrictEqual(rm('remove debt 2'), { i: 1 }); assert.deepStrictEqual(rm('Remove debt number two'), { i: 1 }); assert.deepStrictEqual(rm('Okay, delete the third debt'), { i: 2 });
   assert.deepStrictEqual(rm('take out the car debt'), { i: 1 }); assert.deepStrictEqual(rm('remove the debt for the car'), { i: 1 });
   assert.deepStrictEqual(rm('Please remove the credit card'), { i: 2 }); assert.deepStrictEqual(rm('remove the home loan'), { i: 0 });
@@ -85,7 +85,7 @@ test('remove a debt: by number, by what it is, this one, the last one; never by 
   assert.match(rm('remove the loan').error, /say which debt/);
   assert.match(V.removeDebtRef('remove the personal loan', rows, 0).error, /no personal loan/);
   ['scratch that', 'cancel that', 'delete that', 'remove it', 'remove all the debts', 'delete everything', 'once the card is paid we will remove the credit card', 'I want to remove the debt next year', 'remove the credit card, because it is closed'].forEach(t => assert.strictEqual(rm(t), null, t));
-  assert.deepStrictEqual(V.removeDebtRef('remove the debt', [rows[0]], 0), { i: 0 }, 'one debt, and the words say "the debt"');
+  assert.strictEqual(V.removeDebtRef('remove the debt', [rows[0]], 0).i, 0, 'one debt, and the words say "the debt"');
   assert.strictEqual(V.parseCommand('scratch that', null).type, 'undo', 'scratch that is still the undo');
 });
 

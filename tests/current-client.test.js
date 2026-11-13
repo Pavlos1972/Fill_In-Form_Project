@@ -32,7 +32,7 @@ test('the section is the last block of Admin, full width, with one large optiona
   assert.strictEqual(b.title, 'Current Client'); assert.ok(b.full && b.grey && !b.left, 'full width, greyed when not active');
   assert.deepStrictEqual([f.id, f.l, f.t, !!f.opt, !!f.wide, f.rows], ['cc_notes', 'Current Client File Summary Notes', 'area', true, true, 12]);
   assert.strictEqual(admin.blocks[admin.blocks.length - 2].title, 'Action Points for Personal Assistant', 'after Action Points, which keep their place');
-  assert.strictEqual(schema.version, '3.5');
+  assert.strictEqual(schema.version, '3.6');
 });
 
 test('it is active only when Referral from is Current client', () => {

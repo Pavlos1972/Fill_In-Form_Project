@@ -27,6 +27,7 @@
   function amt(v) { return String(v == null ? '' : v).replace(/\.00$/, '').trim(); }
   function parts(v) { return String(v == null ? '' : v).split(';').map(function (x) { return x.trim(); }).filter(Boolean); }
   function andList(a) { return a.length < 2 ? a.join('') : a.slice(0, -1).join(', ') + ' and ' + a[a.length - 1]; }
+  var CREDIT_LIFE_TYPES = ['Home loan', 'Vehicle finance', 'Personal loan'];
   var BR = 'BrightRock Fractured', STD = 'Standard';                                                    // the two kinds of life quote
 
   /* The next appointment as one phrase: "Friday 06/11/2026 at 14:30". Whatever part is missing is said to be still to be agreed. */
@@ -44,11 +45,11 @@
     var ctx = store.ctxFor(state), v = function (id) { return String(state.f[id] && state.f[id].v != null ? state.f[id].v : '').trim(); };
     var shows = function (id) { var f = schema.fieldsById[id], b = blockOfField[id]; return !!f && (!b || calc.showIf(b.cond, ctx)) && calc.showIf(f.cond, ctx); };
     var listOn = function (key) { var b = blockOfList[key]; return !b || calc.showIf(b.cond, ctx); };
-    var out = { client: v('fname') || 'the client', letter_of_authority: v('loa') || 'not asked yet', schedules: [], credit_life: [], quotes: [], referrals: [], undecided: [], instructions: [], appointment: appointmentText(v), preferred_monthly_spend: v('pref_spend'), notes: [] };
+    var out = { client: v('fname') || 'the client', letter_of_authority: v('loa') || 'not asked yet', schedules: [], credit_life: [], quotes: [], referrals: [], undecided: [], instructions: [], appointment: appointmentText(v), preferred_monthly_spend: shows('pref_spend') ? v('pref_spend') : '', notes: [] };
 
     SCHEDS.forEach(function (c) {
       if (!shows(c[0])) return;
-      var rows = [].concat(c[3]).reduce(function (a, k) { return a.concat(state.l[k] || []); }, []), held = rows.map(function (r) { return String(r.d.prov || '').trim(); }).filter(Boolean), choice = v(c[0]).split(';').map(function (x) { x = x.trim(); return x === schema.psClient[c[0].slice(3)] ? CLIENT : x; }).filter(Boolean);       // the area's own wording ("Requested Personal Risk Covers in meeting, await client response") is the "requested from client" choice
+      var rows = [].concat(c[3]).reduce(function (a, k) { return listOn(k) ? a.concat(state.l[k] || []) : a; }, []), held = rows.map(function (r) { return String(r.d.prov || '').trim(); }).filter(Boolean), choice = v(c[0]).split(';').map(function (x) { x = x.trim(); return x === schema.psClient[c[0].slice(3)] ? CLIENT : x; }).filter(Boolean);       // the area's own wording ("Requested Personal Risk Covers in meeting, await client response") is the "requested from client" choice
       var onFile = function (x) { return x === schema.psSaved || x === schema.psNoSend; };                // Policy Schedules saved in Client File (and the choice it replaced): nothing for the assistant to chase
       if (choice.length && choice.every(onFile)) return;
       choice = choice.filter(function (x) { return !onFile(x); });
@@ -78,10 +79,15 @@
     if (state.focus && state.focus.edited && v('focus')) out.notes.push({ id: 'focus', page: 'Priorities to be Focused on (typed by the adviser)', note: v('focus').replace(/\s+\n/g, '\n').slice(0, 2000) });
     if (v('on_call')) out.people_on_the_call = v('on_call');
     var lifeOff = v(schema.panelsById.life.dec) === schema.NOT_PRIORITY;                          // credit life is part of the Life area: when it is not a priority, nothing is chased
+    /* Credit life is asked only about a debt that can carry it: a Home loan, Vehicle finance or Personal loan with a lender, that the client pays (the client, or jointly), and that is not paid up. A cell phone, stock, a loan from a
+       person, or a credit card is never chased; it is only listed when the client says there is credit life on it (Yes). "Not sure" is asked again. */
     (state.l.debts || []).forEach(function (r) {
-      var d = r.d, cl = String(d.cl || '').trim();
+      var d = r.d, cl = String(d.cl || '').trim(), type = String(d.type || ''), lender = String(d.prov || '').trim(), payer = String(d.payer || '').trim();
       if (lifeOff || !listOn('debts') || (!d.type && !d.prov && !d.desc) || cl === 'No') return;
-      out.credit_life.push({ debt: String(d.type === 'Other' || !d.type ? d.desc || 'debt' : d.type).toLowerCase(), lender: d.prov || '', credit_life: cl === 'Yes' ? 'Yes' : 'not asked yet' });
+      if (payer && payer !== 'Client' && payer !== 'Joint') return;                                    // somebody else's debt
+      if (String(d.bal || '').trim() !== '' && util.isAmount(d.bal) && util.num(d.bal) === 0) return;       // paid up
+      if (!(CREDIT_LIFE_TYPES.indexOf(type) >= 0 && lender) && cl !== 'Yes') return;
+      out.credit_life.push({ debt: String(d.type === 'Other' || !d.type ? d.desc || 'debt' : d.type).toLowerCase(), lender: lender, credit_life: cl === 'Yes' ? 'Yes' : cl === 'Not sure' ? 'not sure' : 'not asked yet' });
     });
 
     if (shows('bf_fna_req') && v('bf_fna_req') === 'Request a quote') out.quotes.push(clean({ quote: 'FNA quote', kind: BR, type: shows('bf_fna_type') ? v('bf_fna_type') : '', basis: schema.brBasis.fna }));
@@ -93,20 +99,20 @@
     if (listOn('raq')) (state.l.raq || []).forEach(function (r) { if (r.d.req === 'Request a quote') out.quotes.push(clean({ quote: 'Retirement annuity quote', insurer: r.d.ins, monthly_amount: amt(r.d.monthly), lump_sum: amt(r.d.lump) })); });
     if (shows('rgar_req') && v('rgar_req') === 'Request an RGAR') out.quotes.push(clean({ quote: 'Retirement goal analysis (RGAR)', retire_at: v('ret_age'), net_income_wanted_per_month: amt(v('ret_net')) }));
     if (listOn('invq')) (state.l.invq || []).forEach(function (r) { if (r.d.req === 'Request a quote') out.quotes.push(clean({ quote: 'Investment quote', purpose: r.d.purpose, product: r.d.product, insurer: r.d.ins, monthly_amount: amt(r.d.monthly), lump_sum: amt(r.d.lump) })); });
-    if (shows('egar_req') && v('egar_req') === 'Request an EGAR') out.quotes.push(clean({ quote: 'Education goal analysis (EGAR)', children: (state.l.kids || []).length || '' }));
+    if (shows('egar_req') && v('egar_req') === 'Request an EGAR') out.quotes.push(clean({ quote: 'Education goal analysis (EGAR)', children: listOn('kids') ? (state.l.kids || []).filter(function (r) { return Object.keys(r.d).some(function (k) { return String(r.d[k] || '').trim() !== ''; }); }).length || '' : '' }));
     if (shows('bs_req') && v('bs_req') === 'Request a quote') out.quotes.push(clean({ quote: 'Buy & sell quote', insurer: v('bs_ins'), cover_amount: amt(v('bs_value')) }));
     if (shows('cl_req') && v('cl_req') === 'Request a quote') out.quotes.push(clean({ quote: 'Contingent liability quote', lender: v('cl_lender'), loan_balance: amt(v('cl_bal')) }));
     if (shows('km_req') && v('km_req') === 'Request a quote') out.quotes.push(clean({ quote: 'Keyman quote', keyman: v('km_name'), cover_amount: amt(v('km_amt')) }));
 
     /* A referral for cover that is now with another broker is a take-over: the point for Sitamah says so, so the partner knows what the call is about (version 3.4). */
-    var other = function (id) { return v(id) === 'Other broker'; };
+    var other = function (id) { return v(id) === 'Other broker' && !(state.f[id] && state.f[id].st === 'preset'); };       // the Broker on record boxes start as Other broker (preset): only an answered one means the cover is with another broker
     if (shows('ref_med') && /^Valerie/.test(v('ref_med'))) {
       var mAbout = /both/.test(v('ref_med')) ? 'medical aid and gap cover' : /gap/.test(v('ref_med')) ? 'gap cover' : 'medical aid';
-      var mTake = (/medical aid|both/.test(mAbout) && (v('ma') === 'Medical aid' || v('ma') === 'Hospital plan') && other('ma_broker')) || (/gap/.test(mAbout) && v('gap') === 'Yes' && other('gap_broker'));       // only on what was answered: the broker boxes start as Other broker
-      out.referrals.push(mTake ? { who: 'Valerie', about: mAbout, takeover: true } : { who: 'Valerie', about: mAbout });
+      var mMed = /medical aid/.test(mAbout) && (v('ma') === 'Medical aid' || v('ma') === 'Hospital plan') && other('ma_broker'), mGap = /gap/.test(mAbout) && v('gap') === 'Yes' && other('gap_broker');
+      out.referrals.push(mMed || mGap ? { who: 'Valerie', about: mAbout, takeover: true, takeover_of: mMed && mGap ? 'medical aid and gap cover' : mMed ? 'medical aid' : 'gap cover' } : { who: 'Valerie', about: mAbout });
     }
     if (shows('ref_will') && /^Capital Legacy/.test(v('ref_will'))) out.referrals.push(v('will') === 'Yes' && v('will_where') === 'Capital Legacy' && other('will_broker') ? { who: 'Capital Legacy', about: 'the will', takeover: true } : { who: 'Capital Legacy', about: 'the will' });
-    if (shows('ref_sti') && /^Cameron/.test(v('ref_sti'))) out.referrals.push((v('sti') === 'Yes' && other('sti_broker')) || v('sti') === 'Handled by spouse' ? { who: 'Cameron', about: 'short-term insurance', takeover: true } : { who: 'Cameron', about: 'short-term insurance' });
+    if (shows('ref_sti') && /^Cameron/.test(v('ref_sti'))) out.referrals.push((v('sti') === 'Yes' && other('sti_broker')) ? { who: 'Cameron', about: 'short-term insurance', takeover: true } : { who: 'Cameron', about: 'short-term insurance' });
 
     schema.panels.forEach(function (P) {
       if (!P.dec) return;
@@ -138,10 +144,7 @@
       if (quotes.length) a.quotes_to_request = quotes.map(quotePoint);
       var sch = f.schedules.filter(function (x) { return (AREA_SCHEDS[P.id] || []).indexOf(x.what) >= 0; });
       if (sch.length) a.schedules = sch;
-      if (P.id === 'life') {
-        if (f.credit_life.length) a.credit_life = f.credit_life;
-        if (f.preferred_monthly_spend && quotes.length) a.preferred_monthly_spend = f.preferred_monthly_spend;
-      }
+      if (P.id === 'life' && f.preferred_monthly_spend && quotes.length) a.preferred_monthly_spend = f.preferred_monthly_spend;       // credit life stays with the action points for Sitamah
       var ref = f.referrals.filter(function (r) { return r.who === AREA_REFERRAL[P.id]; });
       if (ref.length) a.referral = ref;
       var nts = (AREA_NOTES[P.id] || []).map(function (id) { return v(id).replace(/\s+\n/g, '\n').slice(0, 1200); }).filter(Boolean);
@@ -152,26 +155,39 @@
     });
     return out;
   }
-  /* The plain points of one green area (focusFacts()' entry for it). */
+  /* One green area as three short parts (3.6): Recommend (one line: what Paul recommends, from the quotes asked for or the referral), Client (one line: the client's response, from the comment), Come back with (up to three
+     short lines, only if something is still to come). This is the plain version, from the form (focusFacts()' entry for the area); Claude's version has the same shape. */
+  var ONE = 200;
+  function oneLine(x) { var t = String(x == null ? '' : x).replace(/\s*\n\s*/g, ' ').replace(/\s+/g, ' ').trim(); return t.length > ONE ? t.slice(0, ONE - 1).replace(/\s+\S*$/, '') + '\u2026' : t; }
   function focusAreaLocal(a) {
-    var pts = [], sentence1 = function (x) { return /[.?!)]$/.test(x) ? x : x + '.'; };
-    (a.quotes_to_request || []).forEach(function (q) { pts.push(q); });
-    (a.schedules || []).forEach(function (s) {
-      var r = s.requested, how = r.indexOf('not asked yet') >= 0 ? 'how they will come is still to be asked' : r.indexOf(OTHER) >= 0 && s.other ? s.other.replace(/[.\s]+$/, '') : r.indexOf(ASTUTE) >= 0 && r.indexOf(CLIENT) < 0 ? 'to be drawn from Astute with the signed LOA' : r.indexOf(CLIENT) >= 0 ? 'asked for from the client, awaiting the client' : 'other arrangement';
-      pts.push('Current policy schedules for the ' + s.what + ': ' + how + '.');
+    var sentence1 = function (x) { return /[.?!)\u2026]$/.test(x) ? x : x + '.'; }, back = [], recommend = '';
+    var quotes = a.quotes_to_request || [], refs = a.referral || [];
+    if (quotes.length) { recommend = quotes[0]; back = quotes.slice(1); }
+    else if (refs.length) recommend = 'Referral: ' + refs[0].who + ' to contact the client about ' + refs[0].about + oppText(refs[0]) + '.';
+    else recommend = 'Nothing asked for yet: decide what to quote or refer.';
+    if (quotes.length) refs.forEach(function (r) { back.push('Referral: ' + r.who + ' to contact the client about ' + r.about + oppText(r) + '.'); });
+    else refs.slice(1).forEach(function (r) { back.push('Referral: ' + r.who + ' to contact the client about ' + r.about + oppText(r) + '.'); });
+    (a.schedules || []).forEach(function (sc) {
+      var r = sc.requested, how = r.indexOf('not asked yet') >= 0 ? 'how they will come is still to be asked' : r.indexOf(OTHER) >= 0 && sc.other ? sc.other.replace(/[.\s]+$/, '') : r.indexOf(ASTUTE) >= 0 && r.indexOf(CLIENT) < 0 ? 'to be drawn from Astute with the signed LOA' : r.indexOf(CLIENT) >= 0 ? 'asked for from the client, awaiting the client' : 'other arrangement';
+      back.push('Current policy schedules for the ' + sc.what + ': ' + how + '.');
     });
-    (a.credit_life || []).forEach(function (c) { pts.push(c.credit_life === 'Yes' ? 'Credit life on the ' + c.debt + (c.lender ? ' with ' + c.lender : '') + ': get the details.' : 'Credit life on the ' + c.debt + (c.lender ? ' with ' + c.lender : '') + ': find out whether there is any.'); });
-    if (a.preferred_monthly_spend) pts.push('Client prefers to spend ' + amt(a.preferred_monthly_spend) + ' p.m. on the life cover.');
-    (a.referral || []).forEach(function (r) { pts.push('Referral: ' + r.who + ' to contact the client about ' + r.about + (r.takeover ? ' (currently with another broker: a take-over)' : '') + '.'); });
-    if (a.comment) pts.push(sentence1('Your note: ' + a.comment.replace(/\s*\n\s*/g, ' ').replace(/[.\s]+$/, '')));
-    if (!pts.length) pts.push('Nothing asked for yet: decide what to quote or refer.');
-    return pts;
+    return { recommend: oneLine(recommend), client: a.comment ? sentence1(oneLine(a.comment.replace(/[.\s]+$/, ''))) : 'Agrees.', back: back.slice(0, 3).map(oneLine) };
   }
-  /* The box's text: a heading "1. Personal Risk Covers" for each green area and its points under it. byArea ({ number: [points] }, Claude's) replaces the plain points of an area it has points for. */
+  /* A set of parts as Claude or the form gives them ({ recommend, client, back: [] }, or an older plain list of points, which are the "come back with" lines). */
+  function focusParts(x) {
+    if (Array.isArray(x)) return { recommend: '', client: '', back: x.map(oneLine).filter(Boolean).slice(0, 3) };
+    if (!x || typeof x !== 'object') return null;
+    var o = { recommend: oneLine(x.recommend), client: oneLine(x.client), back: (Array.isArray(x.back) ? x.back : x.back ? [x.back] : []).map(oneLine).filter(Boolean).slice(0, 3) };
+    return o.recommend || o.client || o.back.length ? o : null;
+  }
+  /* The box's text: a heading "1. Personal Risk Covers" for each green area, then Recommend, Client and Come back with. byArea ({ number: parts }, Claude's) replaces the plain version of an area it has parts for. */
   function focusText(f, byArea) {
     return f.areas.map(function (a) {
-      var pts = byArea && byArea[a.number] && byArea[a.number].length ? byArea[a.number] : focusAreaLocal(a);
-      return a.number + '. ' + a.area + '\n' + pts.map(function (p) { return '- ' + String(p).replace(/^[\s\-•*]+/, ''); }).join('\n');
+      var p = focusParts(byArea && byArea[a.number]) || focusAreaLocal(a), out = [a.number + '. ' + a.area];
+      if (p.recommend) out.push('Recommend: ' + p.recommend);
+      if (p.client) out.push('Client: ' + p.client);
+      if (p.back.length) { out.push('Come back with:'); p.back.forEach(function (x) { out.push('- ' + String(x).replace(/^[\s\-\u2022*]+/, '')); }); }
+      return out.join('\n');
     }).join('\n\n');
   }
   function focusLocal(state) { return focusText(focusFacts(state)); }
@@ -194,6 +210,9 @@
   /* The points are orders to the assistant, so the client is always "the client Thandi", never the first name alone: the name could be taken for the assistant's own (a test with her name, or one like it). */
   var ASSISTANT = 'Sitamah';
   function clientRef(name) { return !name || name === 'the client' ? 'the client' : 'the client ' + name; }
+  /* A referral for cover that is with another broker is an opportunity to quote, never a take-over done: the client decides afterwards. */
+  var OPPORTUNITY = 'currently with another broker: an opportunity to quote; the client will decide';
+  function oppText(r) { return !r.takeover ? '' : ' (' + (r.takeover_of && r.takeover_of !== r.about ? 'the ' + r.takeover_of + ' is ' : '') + OPPORTUNITY + ')'; }
   /* One quote or analysis asked for, as a point: "Request a BrightRock Fractured FNA quote (New Business): BR FNA Quote based on Fact Find." */
   function quotePoint(q) {
       var n = q.quote, bits = [];
@@ -230,11 +249,11 @@
       if (r.indexOf(OTHER) >= 0) pts.push('Await the current policy schedules for the ' + what + ': ' + (s.other ? s.other.replace(/[.\s]+$/, '') : 'other arrangement (to be confirmed)') + '.');
     });
     f.credit_life.forEach(function (c) {
-      pts.push(c.credit_life === 'Yes' ? 'Ask ' + who + ' for the credit life details' + (c.lender ? ' with ' + c.lender : '') + ' on the ' + c.debt + '.' : 'Ask ' + who + ' whether there is credit life' + (c.lender ? ' with ' + c.lender : '') + ' on the ' + c.debt + '.');
+      pts.push(c.credit_life === 'Yes' ? 'Ask ' + who + ' for the credit life details' + (c.lender ? ' with ' + c.lender : '') + ' on the ' + c.debt + '.' : 'Ask ' + who + ' whether there is credit life' + (c.lender ? ' with ' + c.lender : '') + ' on the ' + c.debt + (c.credit_life === 'not sure' ? ' (the client was not sure)' : '') + '.');
     });
     f.quotes.forEach(function (q) { pts.push(quotePoint(q)); });
     if (f.preferred_monthly_spend && f.quotes.some(function (q) { return q.kind === BR || q.kind === STD; })) pts.push('Note for the life quotes that ' + who + ' prefers to spend ' + amt(f.preferred_monthly_spend) + ' p.m.');
-    f.referrals.forEach(function (r) { pts.push('Ask ' + r.who + ' to contact ' + who + ' about ' + r.about + (r.takeover ? ' (currently with another broker: a take-over)' : '') + '.'); });
+    f.referrals.forEach(function (r) { pts.push('Ask ' + r.who + ' to contact ' + who + ' about ' + r.about + oppText(r) + '.'); });
     f.undecided.forEach(function (u) { pts.push('Follow up with ' + who + ' on ' + u.area + ': ' + u.answer + ' before deciding' + (u.comment ? ' (' + u.comment.replace(/[.\s]+$/, '') + ')' : '') + '.'); });
     pts.push(f.appointment ? 'Set up a follow-up appointment with ' + who + (/^at /.test(f.appointment) ? ' ' : ' for ') + f.appointment + '.' : 'Set up a follow-up appointment with ' + who + ' (date and time to be agreed).');
     return pts;
@@ -244,8 +263,21 @@
     var v = function (id) { return String((state.f[id] && state.f[id].v) || '').trim(); }, nm = (v('fname') + ' ' + v('sname')).trim();
     return ASSISTANT + ', please action these for ' + clientRef(nm) + ':';
   }
+  /* A last look at every point before it is shown (whoever wrote it, the form or Claude): a point that chases something the form says does not exist is dropped. Group risk is not asked when there is none; pension and
+     provident fund schedules are not chased unless the client has them; credit life is not asked about a debt that cannot carry it. (Quotes are never touched: a Shortfall quote's basis names group risk.) */
+  function checkPoints(state, lines) {
+    var v = function (id) { return String(state.f[id] && state.f[id].v != null ? state.f[id].v : '').trim(); }, f = facts(state);
+    return lines.filter(function (l) {
+      var t = String(l).toLowerCase();
+      if (/^request\b/.test(t)) return true;
+      if (/group risk/.test(t) && v('has_group') !== 'Yes' && !(state.l.grp || []).length) return false;
+      if (/pension|provident/.test(t) && /schedule/.test(t) && v('has_pp') !== 'Yes' && !(state.l.ret_pp || []).length) return false;
+      if (/credit life/.test(t) && !f.credit_life.length) return false;
+      return true;
+    });
+  }
   /* The points as the box holds them: with a state, the opening line to the assistant first. */
-  function text(lines, state) { return (state ? header(state) + '\n' : '') + lines.map(function (l) { return '- ' + l; }).join('\n'); }
+  function text(lines, state) { return (state ? header(state) + '\n' : '') + (state ? checkPoints(state, lines) : lines).map(function (l) { return '- ' + l; }).join('\n'); }
   /* The BrightRock Fractured quotes asked for, short: ["FNA (New Business)", "Shortfall", "Reduced R 2 500 p.m."] (shown at the top of the BrightRock Risk Calculation page). */
   function brightRockAsked(state) {
     return facts(state).quotes.filter(function (q) { return q.kind === BR; }).map(function (q) {
@@ -253,5 +285,5 @@
     });
   }
 
-  return { facts: facts, noteIds: noteIds, key: key, local: local, focusFacts: focusFacts, focusLocal: focusLocal, focusText: focusText, text: text, header: header, clientRef: clientRef, ASSISTANT: ASSISTANT, brightRockAsked: brightRockAsked };
+  return { checkPoints: checkPoints, OPPORTUNITY: OPPORTUNITY, facts: facts, noteIds: noteIds, key: key, local: local, focusFacts: focusFacts, focusLocal: focusLocal, focusText: focusText, text: text, header: header, clientRef: clientRef, ASSISTANT: ASSISTANT, brightRockAsked: brightRockAsked };
 });

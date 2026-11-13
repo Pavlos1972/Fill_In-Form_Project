@@ -27,7 +27,13 @@
     var s = String(v == null ? '' : v).trim();
     if (s === '') return '';
     if (!/^[Rr]?[\s\d.,\-]*\d[\s\d.,]*$/.test(s)) return v;
+    s = s.replace(/^([Rr]?\s*-?\s*[1-9]\d{0,2})\.(\d{3})$/, '$1$2');                         // "6.500" in an amount box is six thousand five hundred (an amount never has three decimals), not 6.50
     return money2(num(s));
+  }
+  /* Is this an amount that can be added up? Empty is (nothing to add); words such as "about twenty five thousand" are not: a calculation leaves its figure blank rather than count them as R 0. */
+  function isAmount(v) {
+    var s = String(v == null ? '' : v).trim();
+    return s === '' || /^[Rr]?[\s\d.,\-]*\d[\s\d.,]*$/.test(s);
   }
 
   /* Parse a date typed in any common form. Returns {y,m,d} or null. */
@@ -36,11 +42,13 @@
     var s = String(v).trim(), m;
     if ((m = /^(\d{4})[-\/.](\d{1,2})[-\/.](\d{1,2})$/.exec(s))) return mk(+m[1], +m[2], +m[3]);
     if ((m = /^(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{4})$/.exec(s))) return mk(+m[3], +m[2], +m[1]);
+    if ((m = /^(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{2})$/.exec(s))) return mk(twoDigitYear(+m[3]), +m[2], +m[1]);          // "04.11.26" (the way the file names are written) and "01/02/62": a year up to this year's is 20xx, a later one 19xx
     if ((m = /^(\d{1,2})\s+([a-z]+)\.?,?\s+(\d{4})$/i.exec(s))) { var mi = month(m[2]); return mi ? mk(+m[3], mi, +m[1]) : null; }
     if ((m = /^([a-z]+)\.?\s+(\d{1,2}),?\s+(\d{4})$/i.exec(s))) { var mj = month(m[1]); return mj ? mk(+m[3], mj, +m[2]) : null; }
     if ((m = /^(\d{4})(\d{2})(\d{2})$/.exec(s))) return mk(+m[1], +m[2], +m[3]);
     return null;
   }
+  function twoDigitYear(yy) { return yy > new Date().getFullYear() % 100 ? 1900 + yy : 2000 + yy; }
   function month(name) {
     var n = name.toLowerCase();
     if (n.length < 3) return 0;
@@ -90,8 +98,9 @@
   function dobFromSaId(id) {
     var s = String(id || '').replace(/\s/g, '');
     if (!/^\d{13}$/.test(s)) return null;
-    var yy = +s.slice(0, 2), t = new Date().getFullYear() % 100;
-    return mk(yy > t ? 1900 + yy : 2000 + yy, +s.slice(2, 4), +s.slice(4, 6));
+    var yy = +s.slice(0, 2), mo = +s.slice(2, 4), da = +s.slice(4, 6), d = mk(twoDigitYear(yy), mo, da), now = parseDate(isoToday());
+    if (d && now && (d.y * 10000 + d.m * 100 + d.d) > (now.y * 10000 + now.m * 100 + now.d)) d = mk(1900 + yy, mo, da);      // a 2000s birth date that is still to come is a 1900s one (00 to 26 are not always this century)
+    return d;
   }
   /* Luhn check used by South African ID numbers. */
   /* The four digits after the date of birth in a South African ID number say the sex: 5000 and over is male, below that female. */
@@ -172,5 +181,5 @@
     var s = String(line == null ? '' : line).trim();
     return s.length >= 4 && s === s.toUpperCase() && s.indexOf('- ') !== 0;
   }
-  return { isHeadingLine: isHeadingLine, sexFromSaId: sexFromSaId, splitFullName: splitFullName, num: num, money: money, money2: money2, formatMoney: formatMoney, parseDate: parseDate, weekdayName: weekdayName, parseTime: parseTime, formatTime: formatTime, ageAt: ageAt, isoToday: isoToday, termMonths: termMonths, formatDate: formatDate, todayDMY: todayDMY, longDate: longDate, dobFromSaId: dobFromSaId, saIdValid: saIdValid };
+  return { isHeadingLine: isHeadingLine, sexFromSaId: sexFromSaId, splitFullName: splitFullName, num: num, money: money, money2: money2, formatMoney: formatMoney, isAmount: isAmount, parseDate: parseDate, weekdayName: weekdayName, parseTime: parseTime, formatTime: formatTime, ageAt: ageAt, isoToday: isoToday, termMonths: termMonths, formatDate: formatDate, todayDMY: todayDMY, longDate: longDate, dobFromSaId: dobFromSaId, saIdValid: saIdValid };
 });
