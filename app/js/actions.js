@@ -40,6 +40,24 @@
     if (ts) return 'at ' + ts + ' (date to be agreed)';
     return '';
   }
+  /* What the form holds right now, list by list (3.8): how many rows, and who the policies are with. A note ("only three of the five children are on the form", "has an IRA, not on the form yet") can be older than the
+     form; Claude reads each note against this and writes nothing for a thing the form already holds. No amounts, names of children or numbers: only counts and the names of providers. */
+  var HELD_LISTS = ['kids', 'debts', 'risk', 'grp', 'ret_ra', 'ret_pp', 'inv', 'bizpol'];
+  function heldNow(state, listOn) {
+    var out = {};
+    HELD_LISTS.forEach(function (k) {
+      if (!listOn(k)) return;
+      var rows = (state.l[k] || []).filter(function (r) { return store.rowFilled(k, r); });
+      if (!rows.length) return;
+      var e = { count: rows.length };
+      if (k !== 'kids') {
+        var who = rows.map(function (r) { return [r.d.type, r.d.prov || r.d.desc].filter(function (x) { return x && String(x).trim(); }).map(function (x) { return String(x).trim(); }).join(' '); }).filter(Boolean);
+        if (who.length) e.held = who;
+      }
+      out[schema.lists[k].title] = e;
+    });
+    return out;
+  }
   /* What the form holds for the action points: { client, letter_of_authority, schedules, credit_life, quotes, preferred_monthly_spend, referrals, undecided, instructions, appointment, notes }.
      A life quote (FNA, Shortfall, Reduced) says which kind it is: "BrightRock Fractured" (insurer BrightRock, built on the calculation page) or "Standard" (one or more insurers). */
   function facts(state) {
@@ -79,13 +97,14 @@
     });
     /* what the voice heard and could not place on the form, still open: it may well be something to do */
     (state.unplaced || []).forEach(function (u) {
-      var t = String(u.text || '').trim(); if (!t) return;
+      var t = String(u.text || '').trim(); if (!t || store.unplacedCovered(state, u)) return;       // 3.8: an item the form now covers is not read (it was true when it was heard: "only three of the five children are on the form")
       var sec = u.sec ? (schema.sections.filter(function (x) { return x.id === u.sec; })[0] || {}).title : '';
       out.notes.push({ id: 'unplaced:' + (u.id || out.notes.length), page: 'Heard but not placed' + (sec ? ' (' + sec + ')' : ''), note: t.slice(0, 300) });
     });
     /* the "Priorities to be Focused on" box is written from the rest of the form, so what is in it is already in these facts: it is read only when the adviser has typed in it himself */
     if (state.focus && state.focus.edited && v('focus')) out.notes.push({ id: 'focus', page: 'Priorities to be Focused on (typed by the adviser)', note: v('focus').replace(/\s+\n/g, '\n').slice(0, 2000) });
     if (v('on_call')) out.people_on_the_call = v('on_call');
+    out.on_the_form_now = heldNow(state, listOn);
     var lifeOff = v(schema.panelsById.life.dec) === schema.NOT_PRIORITY;                          // credit life is part of the Life area: when it is not a priority, nothing is chased
     /* Credit life is asked only about a debt that can carry it: a Home loan, Vehicle finance or Personal loan with a lender, that the client pays (the client, or jointly), and that is not paid up. A cell phone, stock, a loan from a
        person, or a credit card is never chased; it is only listed when the client says there is credit life on it (Yes). "Not sure" is asked again. */

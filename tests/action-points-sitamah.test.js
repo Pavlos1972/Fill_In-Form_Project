@@ -56,6 +56,6 @@ test('whatever Claude writes is straightened: no point addressed to Sitamah, and
   assert.strictEqual(d('Ask Sitamah whether there is credit life', 'Sitamah'), 'Ask the client Sitamah whether there is credit life', 'a client who really is called Sitamah is still "the client Sitamah"');
   assert.strictEqual(d('Send the LOA to the client Thandi', 'Thandi'), 'Send the LOA to the client Thandi', 'already right: left alone');
   assert.strictEqual(d('Request an RGAR.', 'the client'), 'Request an RGAR.', 'no first name on the form: nothing to add');
-  const out = await AI.actionPoints({ ask: () => Promise.resolve('{"points": ["- Sitamah: follow up with Thandi for the schedules.", "Ask Valerie to contact Thandi about medical aid."]}'), model: 'm', facts: { client: 'Thandi' } });
+  const out = await AI.actionPoints({ ask: () => Promise.resolve('{"points": [{"text": "- Sitamah: follow up with Thandi for the schedules.", "from": "appointment"}, {"text": "Ask Valerie to contact Thandi about medical aid.", "from": "appointment"}]}'), model: 'm', facts: { client: 'Thandi' } });
   assert.deepStrictEqual(out, ['Follow up with the client Thandi for the schedules.', 'Ask Valerie to contact the client Thandi about medical aid.']);
 });

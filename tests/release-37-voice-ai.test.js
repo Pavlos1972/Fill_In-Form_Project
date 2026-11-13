@@ -33,7 +33,7 @@ test('the catch-up check drops a figure that is not in the words it quotes', () 
 test('an action point or a focus line with an amount that is nowhere in the facts is dropped', async () => {
   const s = store.blank(); store.setField(s, 'fname', 'Edwin'); store.setField(s, 'pr_life', schema.PRIORITY); store.setField(s, 'bf_fna_req', 'Request a quote'); store.setField(s, 'bf_fna_type', 'New Business'); store.setField(s, 'pref_spend', 'R 2 500.00');
   const f = A.facts(s);
-  const out = await AI.actionPoints({ ask: () => Promise.resolve('{"points": ["Note for the life quotes that the client Edwin prefers to spend R 2 500 p.m.", "Request a quote for R 9 999 p.m."]}'), model: 'm', facts: f });
+  const out = await AI.actionPoints({ ask: () => Promise.resolve('{"points": [{"text": "Note for the life quotes that the client Edwin prefers to spend R 2 500 p.m.", "from": "spend"}, {"text": "Request a quote for R 9 999 p.m.", "from": "quotes"}]}'), model: 'm', facts: f });
   assert.deepStrictEqual(out.filter(p => /2 500|9 999/.test(p)), ['Note for the life quotes that the client Edwin prefers to spend R 2 500 p.m.']);
   const focus = A.focusFacts(s);
   const by = await AI.focusPoints({ ask: () => Promise.resolve('{"areas": {"1": {"recommend": "Needs analysis, then a reduced quote at R 2 500 p.m.", "client": "Agrees; wants R 12 345", "back": ["Review"]}}}'), model: 'm', facts: focus });
