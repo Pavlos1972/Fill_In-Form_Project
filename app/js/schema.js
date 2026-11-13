@@ -358,7 +358,7 @@
       ] },
       HEAD('st'),
       { pri: 'st', title: 'Referral', fields: [
-        { id: 'ref_sti', l: 'Short-term (Cameron)', t: 'sel', o: ['Cameron to contact client', 'Must not contact client', 'Not required'] }
+        { id: 'ref_sti', l: 'Short-term (Cameron)', t: 'sel', o: ['Cameron to contact client', 'Not required'] }
       ] },
       { pri: 'biz', cond: HAS_PARTNERS, grey: 1, nomsg: 1, title: 'Buy & Sell', help: 'Partner names, ID numbers, cell numbers and shareholding % come from the Partners and shareholders list on the Occupation page.', fields: [
         { id: 'bs_req', l: 'Buy & Sell quote', t: 'sel', o: REQ },
@@ -542,5 +542,5 @@
   var byId = {};
   sections.forEach(function (s) { s.blocks.forEach(function (b) { (b.fields || []).forEach(function (f) { byId[f.id] = f; }); }); });
 
-  return { version: '3.4', released: 'November 2026', sections: sections, lists: lists, panels: panels, panelsById: panelsById, advisor: ADVISOR, brBasis: BR_BASIS, areaTitle: areaTitle, psClient: PS_CLIENT, defaultBroker: DEFAULT_BROKER, psNoSend: PS_NOSEND, psSaved: PS_SAVED, psNone: PS_NONE, psClientOld: PS_CLIENT_OLD, PRIORITY: PRIORITY, NOT_PRIORITY: NOT_PRIORITY, NOT_PRIORITY_OLD: NOT_PRIORITY_OLD, UNSURE: UNSURE, BUDGET: BUDGET, fieldsById: byId };
+  return { version: '3.5', released: 'November 2026', sections: sections, lists: lists, panels: panels, panelsById: panelsById, advisor: ADVISOR, brBasis: BR_BASIS, areaTitle: areaTitle, psClient: PS_CLIENT, defaultBroker: DEFAULT_BROKER, psNoSend: PS_NOSEND, psSaved: PS_SAVED, psNone: PS_NONE, psClientOld: PS_CLIENT_OLD, PRIORITY: PRIORITY, NOT_PRIORITY: NOT_PRIORITY, NOT_PRIORITY_OLD: NOT_PRIORITY_OLD, UNSURE: UNSURE, BUDGET: BUDGET, fieldsById: byId };
 });

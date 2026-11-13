@@ -4,6 +4,12 @@ A dated list of what changed in the form's boxes, newest first. **One line for e
 
 The version is `version` in `app/js/schema.js` (the Fact Find), `app/js/sr-schema.js` (the Short Risk Application) and `app/js/cs-schema.js` (the Investment Capture Sheet); a saved file carries it as `schema`. Earlier changes are in the README and in the git history; this list starts with 3.1.
 
+## 3.5: 13 November 2026 (Fact Find 3.4 to 3.5)
+
+Fact Find (Client priorities and quotes needed). **No id added, removed or relabelled.** No sum, tax table or list column changed.
+- **Referral box `ref_sti` (Short-term (Cameron)):** the choice `Must not contact client` is **removed**. The box now offers `Cameron to contact client` and `Not required`. An older file that holds `Must not contact client` opens with `Not required` (status kept), and the sentence `Marked "Must not contact client" in an earlier version of the form.` is added to `pr_st_cm` (the Short Term comments), after what is already there and never twice, so the recorded "do not contact" is not lost. The action points never sent anything to Cameron for that choice, so they do not change.
+- **A skill that reads `ref_sti`** must expect only `Cameron to contact client`, `Not required` or empty (and read the comment for an old "do not contact").
+
 ## 3.4: 12 November 2026 (Fact Find 3.3 to 3.4)
 
 Fact Find (Client priorities and quotes needed). **No id added, removed or relabelled.** No sum, tax table or list column changed.
