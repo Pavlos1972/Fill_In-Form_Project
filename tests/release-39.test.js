@@ -1,4 +1,4 @@
-/* Release 3.9: the BrightRock Risk Calculation follows the client's BrightRock policy (its one ACI, the Yearly base increase; Dread at R 500 000 or the policy's cover that can be recovered from, whichever is more),
+/* Release 3.9: the BrightRock Risk Calculation follows the client's BrightRock policy (its one ACI, the Yearly premium increase; Dread at R 500 000 or the policy's cover that can be recovered from, whichever is more),
    a percentage typed alone gets its %, and a client with no debts has R 0.00 for the debt repayments, with a note. Invented client. */
 const test = require('node:test');
 const assert = require('node:assert');
@@ -17,6 +17,8 @@ test('the version is 3.9 and the new boxes are br_aci and br_dd_cover', () => {
   assert.strictEqual(schema.version, '3.9');
   assert.ok(schema.fieldsById.br_aci && schema.fieldsById.br_dd_cover);
   assert.ok(!schema.fieldsById.br_lc_aciv, 'one figure for the whole policy, not one per benefit');
+  assert.match(schema.fieldsById.br_aci.l, /Yearly premium increase/, 'the ACI is BrightRock\'s Yearly premium increase; its Yearly base increase is the ABI and is not asked for');
+  assert.ok(!JSON.stringify(schema.sections).includes('base increase'));
 });
 
 /* ---------- percentages ---------- */
@@ -53,7 +55,7 @@ test('no BrightRock policy: the four ACI values stay "?" and Dread is R 500 000.
   store.addRow(s, 'risk', { prov: 'Discovery' }); set(s, 'br_aci', '3%');
   ACI4.forEach(id => assert.strictEqual(v(s, id), '?', 'a policy with another insurer sets nothing'));
 });
-test('a BrightRock policy with its Yearly base increase: all four ACI values follow it, as defaults; the ABI is never touched', () => {
+test('a BrightRock policy with its Yearly premium increase: all four ACI values follow it, as defaults; the ABI is never touched', () => {
   const s = fresh(); withBR(s); set(s, 'br_aci', '3');
   assert.strictEqual(v(s, 'br_aci'), '3%');
   ACI4.forEach(id => assert.deepStrictEqual(s.f[id], { v: '3%', st: 'preset' }, id));
