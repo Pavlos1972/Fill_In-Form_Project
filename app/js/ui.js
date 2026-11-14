@@ -238,7 +238,8 @@
   }
   function fieldHTML(f, g12) {
     var c = state.f[f.id], st = c.st, v = c.v, isNone = !!f.none && v === 'None';
-    if (f.calc) { v = FF.calc.field(f.calc, ctx()); st = 'calc'; }
+    var cnote = '';
+    if (f.calc) { v = FF.calc.field(f.calc, ctx()); st = 'calc'; cnote = FF.calc.fieldNote(f.calcNote, ctx()); }
     var rt = f.link ? '<a class="lnk" href="' + f.link[1] + '" target="_blank" rel="noopener">' + esc(f.link[0]) + ' ↗</a>' : '';
     if (f.lookup) rt += '<button type="button" class="lookup" data-lookup="' + f.id + '">' + esc(f.lookupBtn || 'Look up online') + '</button>';
     if (f.cal) rt += '<button type="button" class="calbtn" data-cal="' + f.id + '" aria-label="Pick ' + esc(f.l.toLowerCase()) + ' from a calendar">📅 Calendar</button>';
@@ -250,7 +251,7 @@
     if (heads) rt += '<button type="button" class="link-btn rvedit" data-rvedit="' + f.id + '">Edit</button>';
     return '<' + tag + ' class="f s-' + st + (f.wide ? ' wide' : '') + (showRv ? ' rv-on' : '') + '" data-field="' + f.id + '"' + style + '><span class="l"><span>' + esc(f.sl || f.l) + '</span>' + (rt ? '<span class="rt">' + rt + '</span>' : '') + '</span>' +
       '<span class="box">' + control(attrs, f, v, !!f.calc || isNone) + (heads ? '<div class="rv" data-rv="' + f.id + '" tabindex="0" role="button" aria-label="' + esc(f.l) + ': headings in bold; press to edit the plain text" style="min-height:' + ((f.rows || 4) * 21 + 14) + 'px">' + headsHTML(v) + '</div>' : '') + (f.cal ? '<input type="date" class="calpick" data-calpick="' + f.id + '" tabindex="-1" aria-hidden="true">' : '') + (f.t === 'area' ? '' : '<span class="st">' + badge(st, 'f:' + f.id) + '</span>') + '</span>' +
-      (f.len ? lenChip(f.id) : '') + '<span class="warn" data-warn="' + f.id + '" hidden></span></' + tag + '>';
+      (f.len ? lenChip(f.id) : '') + (f.calcNote ? '<span class="help fnote" data-fnote="' + f.id + '"' + (cnote ? '' : ' hidden') + '>' + esc(cnote) + '</span>' : '') + '<span class="warn" data-warn="' + f.id + '" hidden></span></' + tag + '>';
   }
   function cellHTML(key, i, c, r, card) {
     var L = schema.lists[key], v = c.calc ? FF.calc.rowCalc(c.calc, r, ctx()) : r.d[c.k];
@@ -365,6 +366,7 @@
   function blockHTML(b, sec, c, notitle) {
     if (b.strip) return stripHTML();
     var ok = calc.showIf(b.cond, c), own = calc.showIf('own' in b ? b.own : b.cond, c), h = '';
+    if (!ok && b.hide) return '';                                                                                  // a block that is simply not there until its rule is met (the current BrightRock policy)
     if (!ok && !b.grey && !('own' in b && own)) return '<div class="block-title">' + esc(b.title) + '</div><div class="note">' + esc(b.condMsg) + '</div>';      // a block whose rule is not met says so and goes away (unless it is only its area that is off)
     if (b.title && !notitle) h += '<div class="block-title">' + esc(b.title) + '</div>';
     if (!ok && !own && b.condMsg && !b.nomsg) h += '<div class="note">' + esc(b.condMsg) + '</div>';
@@ -673,6 +675,7 @@
     schema.sections.forEach(function (s) { s.blocks.forEach(function (b) { (b.fields || []).forEach(function (f) {
       if (!f.calc) return;
       var el = document.querySelector('[data-f="' + f.id + '"]'); if (el) el.value = FF.calc.field(f.calc, ctx());
+      if (f.calcNote) { var fn = document.querySelector('[data-fnote="' + f.id + '"]'), tx = FF.calc.fieldNote(f.calcNote, ctx()); if (fn) { fn.textContent = tx; fn.hidden = !tx; } }
     }); }); });
     Object.keys(schema.lists).forEach(function (key) {
       var L = schema.lists[key];
@@ -794,6 +797,7 @@
       if (val === '') vm.noSweep[t.dataset.f] = 1;                                  // cleared by hand: the catch-up check does not fill it again
       if (t.dataset.f === 'idno' && val) { var clashMsg = idClashMsg(val, { id: 'idno' }); if (clashMsg) { t.value = state.f.idno.v; toast(clashMsg); return; } }     // the box goes back to what it held
       if (def && def.money) { val = util.formatMoney(val); t.value = val; }
+      if (def && def.pct) { val = util.formatPct(val); t.value = val; }                    // "5" becomes "5%" when the box is left
       if (def && def.date) { var pd = util.parseDate(val); if (pd) { val = util.formatDate(pd); t.value = val; } }
       if (def && def.time) { var pt = util.parseTime(val); if (pt) { val = util.formatTime(pt); t.value = val; } }              // "2pm" and "2:30 pm" become 14:30
       if (t.dataset.f === 'pa_actions') { state.pa.edited = val !== ''; }
@@ -808,6 +812,7 @@
       if (PROFILE_SRC.indexOf(t.dataset.f) >= 0) autoProfileLookup();
       if (dobSet) paintField('dob');
       if (sexSet) paintField('gender');
+      if (/^br_/.test(t.dataset.f)) ['lc_f_aciv', 'pd_f_aciv', 'ip_aciv', 'dd_aciv', 'dd_cover'].forEach(paintField);              // the policy's ACI and Dread set the quote's boxes (3.9)
       if (t.dataset.f === 'edu') paintField('edu_notes'); if (t.dataset.f === 'employed') paintField('employer');           // the defaults that follow these answers (N/A)
       if (FF.calc.DUTY_IDS.indexOf(t.dataset.f) >= 0) FF.calc.DUTY_IDS.forEach(function (d) { if (d !== t.dataset.f) paintField(d); });       // the duties that were set to 0 (or taken back) when the total reached (or left) 100%
       if (condIds[t.dataset.f]) { redraw(); var again = document.querySelector('[data-f="' + t.dataset.f + '"]'); if (again) again.focus(); if ((state.unplaced || []).length && vmRetryUnplaced) vmRetryUnplaced(); } else refreshLive();
@@ -832,6 +837,7 @@
       }
       if (key === 'debts' && (k === 'type' || k === 'desc' || k === 'notes')) ['term', 'asset'].forEach(function (dk) { var de = document.querySelector('[data-l="debts"][data-i="' + i + '"][data-k="' + dk + '"]'); if (de) de.value = row0.d[dk]; });      // the defaults that follow the type
       var row = t.closest('.rowcard, tr'); if (row) row.className = row.className.replace(/\bs-(heard|verify)\b/, 's-confirmed');
+      if (key === 'risk' && k === 'prov') { touch(); redraw(); return; }                          // the BrightRock policy block on the calculation page comes and goes with a BrightRock provider (3.9)
       if (key === 'debts' && (k === 'payer' || k === 'inst' || k === 'sinst')) { touch(); redraw(); return; }       // the Spouse instalment box comes and goes with the Payer, and the 50/50 split shows in both boxes
       touch(); refreshLive();
     }

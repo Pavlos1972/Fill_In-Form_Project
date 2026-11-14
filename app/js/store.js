@@ -75,8 +75,27 @@
     if (!named) return;
     ASTUTE_BOXES.forEach(function (b) { var x = state.f[b[0]], gate = state.f[b[1]]; if (x && gate && gate.v === 'Yes' && x.v.trim() === '') state.f[b[0]] = { v: PS_ASTUTE_TEXT, st: 'preset' }; });
   }
+  /* The client's BrightRock policy in force sets the BrightRock Fractured quote (3.9). A BrightRock policy is a row of the existing personal risk policies whose provider is BrightRock. From the policy (the boxes
+     under "Current BrightRock policy" on the BrightRock Risk Calculation page): the ACI value of Life cover, Lump Sum Disability, Income protection and Dread disease is the policy's one figure, its Yearly base increase
+     (BrightRock is needs-based: the schedule gives one for the whole policy), and the Dread disease cover quoted is the greater of R 500 000.00 and the cover "that you can recover from" on the policy (so R 500 000.00 with
+     no policy, with none on it, or with less). The ABI is never touched. These are defaults (status "preset"): an answer typed or said is never put over; with no BrightRock policy, or nothing on it, a default the policy
+     had set goes back to "?" and to R 500 000.00. */
+  var BR_ACI = ['lc_f_aciv', 'pd_f_aciv', 'ip_aciv', 'dd_aciv'], BR_DREAD_MIN = 500000;
+  function hasBrightRock(state) { return (state.l.risk || []).some(function (r) { return /bright\s*rock/i.test(String(r.d && r.d.prov || '')); }); }
+  function brFollow(state) {
+    var on = hasBrightRock(state), box = function (id) { return state.f[id]; }, s = box('br_aci'), from = on && s ? String(s.v || '').trim() : '';
+    BR_ACI.forEach(function (id) {
+      var t = box(id); if (!t || !s) return;
+      if (from) { if (t.st === 'preset' && t.v !== from) state.f[id] = { v: from, st: 'preset' }; }
+      else if (t.st === 'preset' && t.v !== '?') state.f[id] = { v: '?', st: 'preset' };
+    });
+    var d = box('dd_cover'), sc = box('br_dd_cover'); if (!d || !sc) return;
+    var pol = on && String(sc.v || '').trim() !== '' && util.isAmount(sc.v) ? util.num(sc.v) : 0, want = util.formatMoney(String(Math.max(BR_DREAD_MIN, pol)));
+    if (d.st === 'preset' && d.v !== want) state.f.dd_cover = { v: want, st: 'preset' };
+  }
   function setField(state, id, v, st) {
     var def = schema.fieldsById[id];
+    if (def && def.pct) v = util.formatPct(v);                                                                // a number typed alone in a percentage box gets its %
     if (def && def.time) { var pt = util.parseTime(v); if (pt) v = util.formatTime(pt); }                  // "2pm" and "2:30 pm" are kept as 14:30, however they got here
     var was = id === 'sname' || id === 'gender' ? fatherSurname(state) : null, prevBox = state.f[id];
     state.f[id] = { v: v, st: st || (v === '' ? 'empty' : 'confirmed') };
@@ -90,6 +109,7 @@
     if (id === 'employed') employerDefault(state);
     if (id === 'dob' || id === 'date') termsFollow(state);                                                   // a term said as an age becomes months once the date of birth is known
     astuteAll(state);
+    brFollow(state);
     autoprio.apply(state);                                                                                   // the outcomes the facts give (autoprio.js)
   }
   /* Defaults that follow another answer, shown as defaults (status "preset") and never put over an answer that was typed or said: Qualification details starts as N/A when the highest education is Matric,
@@ -177,11 +197,13 @@
     if (key === 'debts' && state.f.debts_end && state.f.debts_end.v) state.f.debts_end = { v: '', st: 'empty' };      // a debt added: it was not the last, so "No more debts" goes
     LIST_GATES.forEach(function (g) { if (g[1] === key && state.f[g[0]] && state.f[g[0]].v !== 'Yes') state.f[g[0]] = { v: 'Yes', st: 'confirmed' }; });      // a row added is a Yes to "Has debts", "Has children" and the like
     astuteAll(state);
+    brFollow(state);
     autoprio.apply(state);
     return r;
   }
   function delRow(state, key, i) {
     state.l[key].splice(i, 1);
+    if (key === 'risk') brFollow(state);
     if (key === 'debts' && !state.l.debts.length && state.f.debts_end && state.f.debts_end.v) state.f.debts_end = { v: '', st: 'empty' };      // no debt left: nothing for the line to be under
     autoprio.apply(state);
   }
@@ -193,6 +215,7 @@
     if (key === 'debts' && (k === 'payer' || k === 'inst' || k === 'sinst')) debtSplit(r, k, payBefore);
     if (key === 'debts' && (k === 'type' || k === 'desc' || k === 'notes')) debtDefaults(r);
     if ((key === 'redq' || key === 'bfred') && k === 'req' && v === 'Not required') { r.d.type = ''; r.d.amt = ''; if ('ins' in r.d) r.d.ins = ''; }        // a reduced quote that is not required keeps nothing
+    if (key === 'risk') brFollow(state);
     autoprio.apply(state);
   }
   function accept(state, target) {
@@ -259,6 +282,7 @@
     priorityWording(s);
     brokerChoices(s);
     openDefaults(s);
+    brFollow(s);                                                                                     // the BrightRock policy's ACI and Dread (3.9)
     autoprio.apply(s);                                                                               // an older file with an empty decision gets the outcomes the facts already give
     s.sum = cleanSum(j.sum);
     s.pa = cleanPa(j.pa);
@@ -508,5 +532,5 @@
     return { tot: tot, fill: fill, ver: ver };
   }
 
-  return { NO_CONTACT_NOTE: NO_CONTACT_NOTE, termValue: termValue, useWorked: useWorked, isPropertyDebt: isPropertyDebt, debtDefaults: debtDefaults, rowBlank: rowBlank, rowFilled: rowFilled, debtSplit: debtSplit, setProtect: setProtect, setProtectAll: setProtectAll, setPa: setPa, setFocus: setFocus, blankPa: blankPa, cleanPa: cleanPa, setSum: setSum, cleanSum: cleanSum, addUnplaced: addUnplaced, closeUnplaced: closeUnplaced, unplacedCovered: unplacedCovered, closeCovered: closeCovered, unplacedKey: unplacedKey, blank: blank, blankTally: blankTally, blankSpeech: blankSpeech, ctxFor: ctxFor, setField: setField, addRow: addRow, delRow: delRow, setCell: setCell, accept: accept, clientName: clientName, idClash: idClash, idKey: idKey, fatherSurname: fatherSurname, baseFileName: baseFileName, pdfFileName: pdfFileName, fromJSON: fromJSON, toJSON: toJSON, counts: counts };
+  return { brFollow: brFollow, hasBrightRock: hasBrightRock, NO_CONTACT_NOTE: NO_CONTACT_NOTE, termValue: termValue, useWorked: useWorked, isPropertyDebt: isPropertyDebt, debtDefaults: debtDefaults, rowBlank: rowBlank, rowFilled: rowFilled, debtSplit: debtSplit, setProtect: setProtect, setProtectAll: setProtectAll, setPa: setPa, setFocus: setFocus, blankPa: blankPa, cleanPa: cleanPa, setSum: setSum, cleanSum: cleanSum, addUnplaced: addUnplaced, closeUnplaced: closeUnplaced, unplacedCovered: unplacedCovered, closeCovered: closeCovered, unplacedKey: unplacedKey, blank: blank, blankTally: blankTally, blankSpeech: blankSpeech, ctxFor: ctxFor, setField: setField, addRow: addRow, delRow: delRow, setCell: setCell, accept: accept, clientName: clientName, idClash: idClash, idKey: idKey, fatherSurname: fatherSurname, baseFileName: baseFileName, pdfFileName: pdfFileName, fromJSON: fromJSON, toJSON: toJSON, counts: counts };
 });

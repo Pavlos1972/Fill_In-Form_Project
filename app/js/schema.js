@@ -60,7 +60,7 @@
     return [
       { id: p + '_hh', l: 'Client take-home income (R)', t: 'txt', calc: 'hh', s: 3 },
       { id: p + '_cc', l: 'Minus childcare costs (R)', t: 'txt', calc: 'cc', s: 3 },
-      { id: p + '_dr', l: 'Minus debt repayments paid by the client (R)', t: 'txt', calc: 'dr', s: 3 },
+      { id: p + '_dr', l: 'Minus debt repayments paid by the client (R)', t: 'txt', calc: 'dr', calcNote: 'dr', s: 3 },
       { id: p + '_need', l: 'Total household income needed (R)', t: 'txt', calc: 'need', s: 3 }
     ];
   }
@@ -72,8 +72,8 @@
       { id: p + '_term', l: 'Term', t: 'sel', o: ['WOL', 'Specified Age', 'Other'], opt: 1, preset: 'WOL', s: 3 },
       { id: p + '_termv', l: 'Term value', t: 'txt', opt: 1, s: 3 },
       { id: p + '_aci', l: 'ACI', t: 'sel', o: ['Fixed', 'Age-rated', 'Other'], opt: 1, preset: 'Fixed', s: 3 },
-      { id: p + '_aciv', l: 'ACI value', t: 'txt', opt: 1, preset: '?', s: 3 },
-      { id: p + '_abiv', l: 'ABI', t: 'txt', opt: 1, preset: '3%', s: 3 },
+      { id: p + '_aciv', pct: 1, l: 'ACI value', t: 'txt', opt: 1, preset: '?', s: 3 },
+      { id: p + '_abiv', pct: 1, l: 'ABI', t: 'txt', opt: 1, preset: '3%', s: 3 },
       N(p + '_cmt', 'Comments', 1)
     ];
   }
@@ -312,8 +312,8 @@
         { id: 'lc_term', l: 'Term', t: 'sel', o: ['WOL', 'Fixed term', 'Other'], opt: 1 },
         { id: 'lc_termv', l: 'Term value', t: 'txt', opt: 1 },
         { id: 'lc_aci', l: 'ACI', t: 'sel', o: ACI, opt: 1 },
-        { id: 'lc_aciv', l: 'ACI value', t: 'txt', opt: 1 },
-        { id: 'lc_abiv', l: 'ABI', t: 'txt', opt: 1 },
+        { id: 'lc_aciv', pct: 1, l: 'ACI value', t: 'txt', opt: 1 },
+        { id: 'lc_abiv', pct: 1, l: 'ABI', t: 'txt', opt: 1 },
         N('lc_cmt', 'Comments')
       ] },
       { pri: 'life', sqd: 'pd', sq: { name: 'Permanent disability', amt: 'pd_sa', term: ['pd_term', 'pd_termv'], aci: ['pd_aci', 'pd_aciv'], abi: 'pd_abiv', cmt: 'pd_cmt' }, title: 'Permanent disability: standard', fields: [
@@ -321,8 +321,8 @@
         { id: 'pd_term', l: 'Term', t: 'sel', o: ['To age 65', 'To age 70', 'Fixed term', 'Other'], opt: 1 },
         { id: 'pd_termv', l: 'Term value', t: 'txt', opt: 1 },
         { id: 'pd_aci', l: 'ACI', t: 'sel', o: ACI, opt: 1 },
-        { id: 'pd_aciv', l: 'ACI value', t: 'txt', opt: 1 },
-        { id: 'pd_abiv', l: 'ABI', t: 'txt', opt: 1 },
+        { id: 'pd_aciv', pct: 1, l: 'ACI value', t: 'txt', opt: 1 },
+        { id: 'pd_abiv', pct: 1, l: 'ABI', t: 'txt', opt: 1 },
         N('pd_cmt', 'Comments')
       ] },
       { pri: 'life', sqd: 'ip', sq: { name: 'Income protection / sickness benefit', amt: 'ips_amt', term: ['ips_age'], aci: ['ips_aci', 'ips_aciv'], abi: 'ips_abiv', wait: 'ips_wait', cmt: 'ips_cmt' }, title: 'Income protection / sickness benefit: standard', fields: [
@@ -330,8 +330,8 @@
         { id: 'ips_amt', money: 1, l: 'Insured amount (R p.m.)', t: 'txt', opt: 1 },
         { id: 'ips_wait', l: 'Waiting period', t: 'sel', o: WAIT, opt: 1 },
         { id: 'ips_aci', l: 'ACI', t: 'sel', o: ['Fixed', 'Age-rated', 'Other'], opt: 1, preset: 'Fixed' },
-        { id: 'ips_aciv', l: 'ACI value', t: 'txt', opt: 1, preset: '?' },
-        { id: 'ips_abiv', l: 'ABI', t: 'txt', opt: 1, preset: '5%' },
+        { id: 'ips_aciv', pct: 1, l: 'ACI value', t: 'txt', opt: 1, preset: '?' },
+        { id: 'ips_abiv', pct: 1, l: 'ABI', t: 'txt', opt: 1, preset: '5%' },
         N('ips_cmt', 'Comments')
       ] },
       { pri: 'life', sqd: 'dd', sq: { name: 'Dread disease', amt: 'dds_cover', term: ['dds_term', 'dds_termv'], aci: ['dds_aci', 'dds_aciv'], abi: 'dds_abiv', cmt: 'dds_cmt' }, title: 'Dread disease: standard', fields: dread('dds', 'R 0.00') },
@@ -387,19 +387,28 @@
        the standard quotes of every other insurer are asked for on Client priorities and quotes needed. Income protection also splits the insured amount into the instalment protector, one box for each debt on the Debts page, and household needs. */
     { id: 'calc', adv: 1, title: 'BrightRock Risk Calculation', intro: 'How a BrightRock Fractured quote is built. This page is for BrightRock only: standard quotes (every other insurer, and BrightRock standard) are asked for, and described, on Client priorities and quotes needed.', blocks: [
       { strip: 'br' },
+      /* The client's BrightRock policy in force (3.9), from the policy schedule in the client's file (BR Cover Summary, "Definition sets and policy structure"): BrightRock is needs-based and gives one figure for the whole policy,
+         the Yearly base increase, which is the ACI of all four benefits; and the cover "That you can recover from" (the Dread-like cover), summed over the needs. Typed here, or written by a skill that reads the schedule.
+         Shown only when the existing personal risk policies hold a BrightRock policy. The ACI value of each fractured quote below follows it (store.brFollow); the ABI never does; the Dread cover quoted is the greater of
+         R 500 000.00 and this. */
+      { title: 'Current BrightRock policy (from the policy schedule)', layout: 'g12', hide: 1, cond: { rowHas: { list: 'risk', k: 'prov', re: 'bright\\s*rock' } },
+        help: 'Type these from the client\'s BrightRock policy schedule (BR Cover Summary). The Yearly base increase is the ACI of every BrightRock Fractured quote below (the ABI is never filled from it). The Dread disease cover quoted is the greater of R 500 000.00 and the cover on the policy \u201cthat you can recover from\u201d (added up over the needs).', fields: [
+        { id: 'br_aci', pct: 1, l: 'Yearly base increase on the policy (the ACI)', t: 'txt', opt: 1, s: 6 },
+        { id: 'br_dd_cover', money: 1, l: 'Cover that you can recover from, on the policy (R)', t: 'txt', opt: 1, s: 6 }
+      ] },
       { title: 'Life cover: fractured cover', layout: 'g12', fields: riskCalc('lc').concat([
         { id: 'lc_f_aci', l: 'ACI', t: 'sel', o: ACI, opt: 1, preset: 'Fixed', s: 3 },
-        { id: 'lc_f_aciv', l: 'ACI value', t: 'txt', opt: 1, preset: '?', s: 3 },
-        { id: 'lc_wol', l: 'Life cover (WOL) ABI', t: 'txt', opt: 1, preset: '3%', s: 3 },
-        { id: 'lc_ccabi', l: 'Childcare ABI', t: 'txt', opt: 1, preset: '5%', s: 3 }
+        { id: 'lc_f_aciv', pct: 1, l: 'ACI value', t: 'txt', opt: 1, preset: '?', s: 3 },
+        { id: 'lc_wol', pct: 1, l: 'Life cover (WOL) ABI', t: 'txt', opt: 1, preset: '3%', s: 3 },
+        { id: 'lc_ccabi', pct: 1, l: 'Childcare ABI', t: 'txt', opt: 1, preset: '5%', s: 3 }
       ]) },
       /* Lump Sum Disability (it used to be called Permanent disability, and shared the Life cover's household figures): its own four calculation boxes, the same sums as the Life cover (the ids pd_hh, pd_cc, pd_dr, pd_need),
          then ACI, ACI value, Household needs ABI (5%; there is no Life cover (WOL) ABI here) and Childcare ABI. */
       { title: 'Lump Sum Disability: fractured cover', layout: 'g12', fields: riskCalc('pd').concat([
         { id: 'pd_f_aci', l: 'ACI', t: 'sel', o: ACI, opt: 1, preset: 'Fixed', s: 3 },
-        { id: 'pd_f_aciv', l: 'ACI value', t: 'txt', opt: 1, preset: '?', s: 3 },
-        { id: 'pd_hhabi', l: 'Household needs ABI', t: 'txt', opt: 1, preset: '5%', s: 3 },
-        { id: 'pd_ccabi', l: 'Childcare ABI', t: 'txt', opt: 1, preset: '5%', s: 3 }
+        { id: 'pd_f_aciv', pct: 1, l: 'ACI value', t: 'txt', opt: 1, preset: '?', s: 3 },
+        { id: 'pd_hhabi', pct: 1, l: 'Household needs ABI', t: 'txt', opt: 1, preset: '5%', s: 3 },
+        { id: 'pd_ccabi', pct: 1, l: 'Childcare ABI', t: 'txt', opt: 1, preset: '5%', s: 3 }
       ]) },
       { title: 'Income protection / sickness benefit: fractured cover', protector: 1, layout: 'g12', fields: [
         { id: 'ip_age', l: 'Income protection age', t: 'sel', o: ['65', '70'], opt: 1, preset: '65' },
@@ -407,8 +416,8 @@
         { id: 'ip_hh', l: 'Household needs (R p.m.)', t: 'txt', calc: 'ip_hh' },
         { id: 'ip_wait', l: 'Waiting period', t: 'sel', o: WAIT, opt: 1, preset: '1 month', s: 3 },
         { id: 'ip_aci', l: 'ACI', t: 'sel', o: ['Fixed', 'Age-rated', 'Other'], opt: 1, preset: 'Fixed', s: 3 },
-        { id: 'ip_aciv', l: 'ACI value', t: 'txt', opt: 1, preset: '?', s: 3 },
-        { id: 'ip_abiv', l: 'ABI', t: 'txt', opt: 1, preset: '5%', s: 3 },
+        { id: 'ip_aciv', pct: 1, l: 'ACI value', t: 'txt', opt: 1, preset: '?', s: 3 },
+        { id: 'ip_abiv', pct: 1, l: 'ABI', t: 'txt', opt: 1, preset: '5%', s: 3 },
         N('ip_cmt', 'Comments', 1)
       ] },
       { title: 'Dread disease: fractured cover', layout: 'g12', fields: dread('dd', 'R 500 000.00') },
@@ -543,5 +552,5 @@
   var byId = {};
   sections.forEach(function (s) { s.blocks.forEach(function (b) { (b.fields || []).forEach(function (f) { byId[f.id] = f; }); }); });
 
-  return { version: '3.8', released: 'November 2026', sections: sections, lists: lists, panels: panels, panelsById: panelsById, advisor: ADVISOR, brBasis: BR_BASIS, areaTitle: areaTitle, psClient: PS_CLIENT, defaultBroker: DEFAULT_BROKER, psNoSend: PS_NOSEND, psSaved: PS_SAVED, psNone: PS_NONE, psClientOld: PS_CLIENT_OLD, PRIORITY: PRIORITY, NOT_PRIORITY: NOT_PRIORITY, NOT_PRIORITY_OLD: NOT_PRIORITY_OLD, UNSURE: UNSURE, BUDGET: BUDGET, fieldsById: byId };
+  return { version: '3.9', released: 'November 2026', sections: sections, lists: lists, panels: panels, panelsById: panelsById, advisor: ADVISOR, brBasis: BR_BASIS, areaTitle: areaTitle, psClient: PS_CLIENT, defaultBroker: DEFAULT_BROKER, psNoSend: PS_NOSEND, psSaved: PS_SAVED, psNone: PS_NONE, psClientOld: PS_CLIENT_OLD, PRIORITY: PRIORITY, NOT_PRIORITY: NOT_PRIORITY, NOT_PRIORITY_OLD: NOT_PRIORITY_OLD, UNSURE: UNSURE, BUDGET: BUDGET, fieldsById: byId };
 });

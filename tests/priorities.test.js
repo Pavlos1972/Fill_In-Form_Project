@@ -21,9 +21,9 @@ test('the pages: risk cover, retirement funding, then one Client priorities page
   assert.strictEqual(sec('retire').title, 'Retirement funding');
   assert.ok(sec('prio').adv && sec('prio').title === 'Client priorities and quotes needed');
   assert.ok(sec('calc').adv && sec('calc').title === 'BrightRock Risk Calculation' && !sec('calc').cond);                    // its own page in the list, always there, for BrightRock only
-  assert.deepStrictEqual(sec('calc').blocks.map(b => b.strip ? 'strip' : b.title || '-'), ['strip', 'Life cover: fractured cover', 'Lump Sum Disability: fractured cover', 'Income protection / sickness benefit: fractured cover', 'Dread disease: fractured cover', '-']);
+  assert.deepStrictEqual(sec('calc').blocks.map(b => b.strip ? 'strip' : b.title || '-'), ['strip', 'Current BrightRock policy (from the policy schedule)', 'Life cover: fractured cover', 'Lump Sum Disability: fractured cover', 'Income protection / sickness benefit: fractured cover', 'Dread disease: fractured cover', '-']);
   assert.ok(!sec('calc').blocks.some(b => /standard/i.test(b.title || '')) && !['lc_sa', 'pd_sa', 'ips_amt', 'dds_cover'].some(id => sec('calc').blocks.some(b => (b.fields || []).some(f => f.id === id))));    // no standard quote on the BrightRock page
-  assert.ok(sec('calc').blocks.every(b => !b.cond && !b.pri));                                                          // not tied to the Life area, to its decision or to the cover the client has now
+  assert.ok(sec('calc').blocks.every(b => !b.pri) && sec('calc').blocks.filter(b => b.cond).length === 1 && sec('calc').blocks.find(b => b.cond).title === 'Current BrightRock policy (from the policy schedule)');       // not tied to the Life area or its decision; only the block for the policy in force waits for a BrightRock policy
   assert.ok(!schema.fieldsById.advisor && schema.advisor === 'Paul Kafentzis');
   assert.ok(!('docs' in schema));
   assert.ok(!schema.sections.some(s => /^q_/.test(s.id)));
