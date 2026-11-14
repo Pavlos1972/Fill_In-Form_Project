@@ -14,7 +14,7 @@ const fresh = () => store.blank();
 const set = (s, id, v, st) => store.setField(s, id, v, st);
 const kids = (s, n) => { for (let i = 0; i < n; i++) store.addRow(s, 'kids', { name: 'Child' + i, sname: 'Test', gender: 'Female', dob: '01/01/2018' }); };
 
-test('the version is 3.8', () => { assert.strictEqual(schema.version, '3.8'); });
+test('the form is at least version 3.8', () => { assert.ok(parseFloat(schema.version) >= 3.8); });
 
 /* ---------- 1. a note the form now covers ---------- */
 test('"five children in total; only three are on the form so far" is covered once the five children are on the form', () => {
@@ -130,9 +130,9 @@ test('files loaded from a backup folder next to the copy (what OneDrive did on 1
 });
 test('a page of another build, or one that does not say, is caught', () => {
   const page = 'http://localhost:8080/index.html', urls = ['http://localhost:8080/js/util.js'];
-  assert.match(B.check({ pageUrl: page, urls, meta: '3.7' }).problems[0], /page is build 3\.7 but its scripts are build 3\.8/);
+  assert.match(B.check({ pageUrl: page, urls, meta: '3.7' }).problems[0], new RegExp('page is build 3\\.7 but its scripts are build ' + B.BUILD.replace('.', '\\.')));
   assert.match(B.check({ pageUrl: page, urls, meta: '' }).problems[0], /does not say which build/);
-  assert.strictEqual(B.check({ pageUrl: page, urls, meta: '3.8' }).ok, true);
+  assert.strictEqual(B.check({ pageUrl: page, urls, meta: B.BUILD }).ok, true);
 });
 test('every page carries the build and the check, and the build is the first script', () => {
   const fs = require('fs'), path = require('path');

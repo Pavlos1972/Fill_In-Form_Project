@@ -5,7 +5,7 @@
   if (typeof module === 'object' && module.exports) module.exports = factory();
   else { root.FF = root.FF || {}; root.FF.build = factory(); }
 })(typeof self !== 'undefined' ? self : this, function () {
-  var BUILD = '3.8';
+  var BUILD = '3.9';
   function dirOf(u) { return String(u).replace(/[?#].*$/, '').replace(/[^\/]*$/, ''); }
   /* info: { pageUrl, urls: [every script and stylesheet address, as the browser resolved them], meta: the page's wr-build } -> { ok, problems: [], build } */
   function check(info) {

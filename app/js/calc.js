@@ -82,7 +82,7 @@
     /* Household needs: the insured amount less the debt instalments that are protected for the bank (negative when the instalments are more, which the checks flag). */
     ip_hh: function (ctx) { var sp = ipSplit(ctx); return sp.rest == null ? '' : util.money(sp.rest); },
     cc: function (ctx) { return ctx.rows('kids').length ? util.money(sumRows(ctx, 'kids', 'cost')) : ''; },
-    dr: function (ctx) { return ctx.rows('debts').length ? util.money(debtSum(ctx)) : ''; },
+    dr: function (ctx) { return ctx.rows('debts').length ? util.money(debtSum(ctx)) : ctx.v('has_debts') === 'No' ? util.money(0) : ''; },       // 3.9: Has debts answered No: R 0.00 (the note under the box says why); not answered yet: empty
     need: function (ctx) { return ctx.v('net') ? util.money(ctx.n('net') - sumRows(ctx, 'kids', 'cost') - debtSum(ctx)) : ''; }
   };
 
@@ -114,6 +114,7 @@
     if (!cond) return true;
     if (cond.all) return cond.all.every(function (c) { return showIf(c, ctx); });
     if ('rows' in cond) return ctx.rows(cond.rows).length > 0;                                          // a list has at least one row
+    if ('rowHas' in cond) { var re = new RegExp(cond.rowHas.re, 'i'); return ctx.rows(cond.rowHas.list).some(function (r) { return re.test(String((r.d || r)[cond.rowHas.k] || '')); }); }       // a list has a row whose box matches (the existing personal risk policies with BrightRock)
     var v = ctx.v(cond.f);
     if ('has' in cond) return v.split(';').map(function (x) { return x.trim(); }).indexOf(cond.has) >= 0;     // a tick-box box holds this choice
     if ('eq' in cond) return v === cond.eq;
@@ -127,5 +128,8 @@
     return cond.f ? [cond.f] : [];
   }
 
-  return { sumShown: sumShown, colShown: colShown, paidByClient: paidByClient, ipSplit: ipSplit, field: field, rowCalc: rowCalc, showIf: showIf, condFields: condFields, clientAge: clientAge, meetingDate: meetingDate, DUTY_IDS: DUTY_IDS, totalIncome: totalIncome };
+  /* The small line under a calculated box (3.9): the debt repayments say so when the client has no debts. */
+  var fieldNotes = { dr: function (ctx) { return !ctx.rows('debts').length && ctx.v('has_debts') === 'No' ? 'Client has no debts' : ''; } };
+  function fieldNote(name, ctx) { return name && fieldNotes[name] ? fieldNotes[name](ctx) : ''; }
+  return { fieldNote: fieldNote, sumShown: sumShown, colShown: colShown, paidByClient: paidByClient, ipSplit: ipSplit, field: field, rowCalc: rowCalc, showIf: showIf, condFields: condFields, clientAge: clientAge, meetingDate: meetingDate, DUTY_IDS: DUTY_IDS, totalIncome: totalIncome };
 });
