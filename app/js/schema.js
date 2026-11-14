@@ -388,12 +388,12 @@
     { id: 'calc', adv: 1, title: 'BrightRock Risk Calculation', intro: 'How a BrightRock Fractured quote is built. This page is for BrightRock only: standard quotes (every other insurer, and BrightRock standard) are asked for, and described, on Client priorities and quotes needed.', blocks: [
       { strip: 'br' },
       /* The client's BrightRock policy in force (3.9), from the policy schedule in the client's file (BR Cover Summary, "Definition sets and policy structure"): BrightRock is needs-based and gives one figure for the whole policy,
-         the Yearly base increase, which is the ACI of all four benefits; and the cover "That you can recover from" (the Dread-like cover), summed over the needs. Typed here, or written by a skill that reads the schedule.
+         the Yearly premium increase, which is the ACI of all four benefits; and the cover "That you can recover from" (the Dread-like cover), summed over the needs. Typed here, or written by a skill that reads the schedule.
          Shown only when the existing personal risk policies hold a BrightRock policy. The ACI value of each fractured quote below follows it (store.brFollow); the ABI never does; the Dread cover quoted is the greater of
          R 500 000.00 and this. */
       { title: 'Current BrightRock policy (from the policy schedule)', layout: 'g12', hide: 1, cond: { rowHas: { list: 'risk', k: 'prov', re: 'bright\\s*rock' } },
-        help: 'Type these from the client\'s BrightRock policy schedule (BR Cover Summary). The Yearly base increase is the ACI of every BrightRock Fractured quote below (the ABI is never filled from it). The Dread disease cover quoted is the greater of R 500 000.00 and the cover on the policy \u201cthat you can recover from\u201d (added up over the needs).', fields: [
-        { id: 'br_aci', pct: 1, l: 'Yearly base increase on the policy (the ACI)', t: 'txt', opt: 1, s: 6 },
+        help: 'Type these from the client\'s BrightRock policy schedule (BR Cover Summary). The Yearly premium increase is the ACI of every BrightRock Fractured quote below (the ABI is never filled from it). The Dread disease cover quoted is the greater of R 500 000.00 and the cover on the policy \u201cthat you can recover from\u201d (added up over the needs).', fields: [
+        { id: 'br_aci', pct: 1, l: 'Yearly premium increase on the policy (the ACI)', t: 'txt', opt: 1, s: 6 },
         { id: 'br_dd_cover', money: 1, l: 'Cover that you can recover from, on the policy (R)', t: 'txt', opt: 1, s: 6 }
       ] },
       { title: 'Life cover: fractured cover', layout: 'g12', fields: riskCalc('lc').concat([

@@ -1,4 +1,4 @@
-/* Release 3.9 on the real page: the BrightRock Risk Calculation follows the client's BrightRock policy (its Yearly base increase is the ACI of all four benefits, the ABI is left alone; Dread is R 500 000 or the policy's
+/* Release 3.9 on the real page: the BrightRock Risk Calculation follows the client's BrightRock policy (its Yearly premium increase is the ACI of all four benefits, the ABI is left alone; Dread is R 500 000 or the policy's
    cover, whichever is more); a percentage typed alone gets its % when the box is left; no debts is R 0.00 with a note; and the PDF carries the note and the policy block. */
 const { chromium } = require((process.argv[2]) + '/playwright');
 const fs = require('fs'), cp = require('child_process');
@@ -56,7 +56,7 @@ let bad = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if
   fs.writeFileSync(out + '/r39.pdf', Buffer.from(b64, 'base64'));
   const raw = cp.execFileSync('pdftotext', ['-raw', out + '/r39.pdf', '-']).toString().replace(/\s+/g, ' ');
   ok(/Client has no debts/.test(raw), 'the PDF has the note "Client has no debts"');
-  ok(/Current BrightRock policy/.test(raw) && /Yearly base increase on the policy/.test(raw) && /4\.5%/.test(raw) && /R 750 000\.00/.test(raw), 'the PDF has the policy block with its figures');
+  ok(/Current BrightRock policy/.test(raw) && /Yearly premium increase on the policy/.test(raw) && /4\.5%/.test(raw) && /R 750 000\.00/.test(raw), 'the PDF has the policy block with its figures');
 
   /* the policy removed: the block goes and the defaults go back */
   await p.evaluate(() => { FF.store.delRow(FF.app.state, 'risk', 0); FF.app.redraw(); });

@@ -76,7 +76,7 @@
     ASTUTE_BOXES.forEach(function (b) { var x = state.f[b[0]], gate = state.f[b[1]]; if (x && gate && gate.v === 'Yes' && x.v.trim() === '') state.f[b[0]] = { v: PS_ASTUTE_TEXT, st: 'preset' }; });
   }
   /* The client's BrightRock policy in force sets the BrightRock Fractured quote (3.9). A BrightRock policy is a row of the existing personal risk policies whose provider is BrightRock. From the policy (the boxes
-     under "Current BrightRock policy" on the BrightRock Risk Calculation page): the ACI value of Life cover, Lump Sum Disability, Income protection and Dread disease is the policy's one figure, its Yearly base increase
+     under "Current BrightRock policy" on the BrightRock Risk Calculation page): the ACI value of Life cover, Lump Sum Disability, Income protection and Dread disease is the policy's one figure, its Yearly premium increase
      (BrightRock is needs-based: the schedule gives one for the whole policy), and the Dread disease cover quoted is the greater of R 500 000.00 and the cover "that you can recover from" on the policy (so R 500 000.00 with
      no policy, with none on it, or with less). The ABI is never touched. These are defaults (status "preset"): an answer typed or said is never put over; with no BrightRock policy, or nothing on it, a default the policy
      had set goes back to "?" and to R 500 000.00. */
