@@ -19,7 +19,7 @@ const autoOn = (s, area, ref) => s.f['pr_' + area].v === NO && preset(s, 'pr_' +
 const untouched = (s, area, ref) => s.f['pr_' + area].v === '' && s.f['pr_' + area + '_cm'].v === '' && s.f[ref].v === '';
 
 test('the one no is plain Not a priority; the older words open as the new, with the status kept', () => {
-  assert.strictEqual(NO, 'Not a priority'); assert.strictEqual(schema.NOT_PRIORITY_OLD, 'Not a priority: client not interested'); assert.strictEqual(schema.version, '3.8');
+  assert.strictEqual(NO, 'Not a priority'); assert.strictEqual(schema.NOT_PRIORITY_OLD, 'Not a priority: client not interested'); assert.strictEqual(schema.version, '3.9');
   schema.panels.filter(P => P.dec).forEach(P => assert.ok(schema.fieldsById[P.dec].o.includes(NO) && !schema.fieldsById[P.dec].o.includes(schema.NOT_PRIORITY_OLD), P.id));
   assert.deepStrictEqual(schema.fieldsById.pr_life.o, [YES, schema.UNSURE, schema.BUDGET, NO], 'no new choice: the same four');
   assert.deepStrictEqual(schema.fieldsById.pr_med.o, [YES, NO]);

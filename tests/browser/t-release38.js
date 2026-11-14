@@ -79,9 +79,9 @@ let bad = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if
   const q = await (await b.newContext()).newPage(); await q.goto('file://' + idx);
   const bar = await q.evaluate(() => (document.getElementById('buildBanner') || {}).textContent || '');
   ok(/Mixed versions/.test(bar) && /another folder/.test(bar) && /before 3\.6/.test(bar), 'a page that loads a script from the backup folder shows the red bar: ' + bar.slice(0, 200));
-  fs.writeFileSync(idx, fs.readFileSync(path.join(dir, 'index.html'), 'utf8').replace('content="3.8"', 'content="3.7"'));
+  fs.writeFileSync(idx, fs.readFileSync(path.join(dir, 'index.html'), 'utf8').replace(/content="3\.\d+"/, 'content="3.7"'));
   await q.goto('file://' + idx); const bar2 = await q.evaluate(() => (document.getElementById('buildBanner') || {}).textContent || '');
-  ok(/page is build 3\.7 but its scripts are build 3\.8/.test(bar2), 'a page of another build shows it: ' + bar2.slice(0, 200));
+  ok(/page is build 3\.7 but its scripts are build 3\.\d+/.test(bar2), 'a page of another build shows it: ' + bar2.slice(0, 200));
   fs.rmSync(path.join(tmp, 'WR Fact Find', 'js', 'build.js')); fs.writeFileSync(idx, fs.readFileSync(path.join(dir, 'index.html'), 'utf8'));
   await q.goto('file://' + idx); const bar3 = await q.evaluate(() => (document.getElementById('buildBanner') || {}).textContent || '');
   ok(/js\/build\.js is missing/.test(bar3), 'an old copy with no build.js shows the bar too: ' + bar3.slice(0, 120));

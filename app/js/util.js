@@ -181,5 +181,10 @@
     var s = String(line == null ? '' : line).trim();
     return s.length >= 4 && s === s.toUpperCase() && s.indexOf('- ') !== 0;
   }
-  return { isHeadingLine: isHeadingLine, sexFromSaId: sexFromSaId, splitFullName: splitFullName, num: num, money: money, money2: money2, formatMoney: formatMoney, isAmount: isAmount, parseDate: parseDate, weekdayName: weekdayName, parseTime: parseTime, formatTime: formatTime, ageAt: ageAt, isoToday: isoToday, termMonths: termMonths, formatDate: formatDate, todayDMY: todayDMY, longDate: longDate, dobFromSaId: dobFromSaId, saIdValid: saIdValid };
+  /* A percentage box (the ACI value and the ABI boxes of the BrightRock Risk Calculation): a number typed alone gets its %. "5" is "5%", "7,5" is "7.5%", "5 %" is "5%"; "?" and any words are left as they are. */
+  function formatPct(v) {
+    var t = String(v == null ? '' : v).trim(), m = /^(\d{1,3}(?:[.,]\d{1,2})?)\s*%?$/.exec(t);
+    return m ? m[1].replace(',', '.') + '%' : t;
+  }
+  return { formatPct: formatPct, isHeadingLine: isHeadingLine, sexFromSaId: sexFromSaId, splitFullName: splitFullName, num: num, money: money, money2: money2, formatMoney: formatMoney, isAmount: isAmount, parseDate: parseDate, weekdayName: weekdayName, parseTime: parseTime, formatTime: formatTime, ageAt: ageAt, isoToday: isoToday, termMonths: termMonths, formatDate: formatDate, todayDMY: todayDMY, longDate: longDate, dobFromSaId: dobFromSaId, saIdValid: saIdValid };
 });
