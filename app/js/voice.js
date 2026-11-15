@@ -557,7 +557,7 @@
     var lists = {};
     schema.sections.forEach(function (sec) {
       sec.blocks.forEach(function (b, bi) {
-        if (!b.list) return;
+        if (!b.list || schema.lists[b.list].novoice) return;                                            // the meetings held are added by the adviser's button or by the question on opening a file, never from what is said
         var L = schema.lists[b.list];
         lists[b.list] = { key: b.list, title: L.title, add: L.add, cards: !!L.cards, sec: sec.id, blk: bi, cond: b.cond, secCond: sec.cond, first: L.cols[0].k, cols: [] };
         L.cols.forEach(function (c) {
