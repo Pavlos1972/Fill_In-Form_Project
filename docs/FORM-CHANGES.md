@@ -4,11 +4,16 @@ A dated list of what changed in the form's boxes, newest first. **One line for e
 
 The version is `version` in `app/js/schema.js` (the Fact Find), `app/js/sr-schema.js` (the Short Risk Application) and `app/js/cs-schema.js` (the Investment Capture Sheet); a saved file carries it as `schema`. Earlier changes are in the README and in the git history; this list starts with 3.1.
 
+## 4.0: 15 November 2026 (Fact Find 3.9 to 4.0)
+
+Fact Find (the BrightRock Risk Calculation). **No id added, removed or relabelled. No box, choice, sum, tax table or list column changed.** Detail in the README ("Release 4.0").
+- **One ACI for every benefit:** a value entered (typed or said) in `lc_f_aciv`, `pd_f_aciv`, `ip_aciv` or `dd_aciv` is put in the other three, with the same status, and in `br_aci` while a BrightRock policy is listed; a value entered in `br_aci` is put in the four as presets, over what was typed. Empty and "?" spread nothing. ABI boxes, the ACI choice boxes and the standard quote boxes are not part of it. A skill that writes the saved file does not need to change anything: the form still brings the four ACI defaults up to date when a file opens.
+
 ## 3.9: 14 November 2026 (Fact Find 3.8 to 3.9)
 
 Fact Find (the BrightRock Risk Calculation). Detail in the README ("Release 3.9").
 - **Ids added:** `br_aci` (Yearly premium increase on the policy, the ACI; a percentage. The schedule's Yearly base increase is the ABI and is not used) and `br_dd_cover` (Cover that you can recover from, on the policy, R; money), in a new block "Current BrightRock policy (from the policy schedule)" at the top of the BrightRock Risk Calculation page, shown only when `risk` has a row whose provider is BrightRock. A skill that reads the BR Cover Summary can write them (page 2, "Definition sets and policy structure": Yearly premium increase; the schedule's cover "That you can recover from", added up over the needs). No id removed or relabelled.
-- **Presets that now follow the policy:** `lc_f_aciv`, `pd_f_aciv`, `ip_aciv`, `dd_aciv` (status preset) take `br_aci`; `dd_cover` (preset) is the greater of R 500 000.00 and `br_dd_cover`. With no BrightRock policy, or nothing on it, they are "?" and R 500 000.00 as before. An answer typed or said is never put over. The ABI boxes are not touched.
+- **Presets that now follow the policy:** `lc_f_aciv`, `pd_f_aciv`, `ip_aciv`, `dd_aciv` (status preset) take `br_aci`; `dd_cover` (preset) is the greater of R 500 000.00 and `br_dd_cover`. With no BrightRock policy, or nothing on it, they are "?" and R 500 000.00 as before. An answer typed or said is not put over by the policy when a file opens (4.0: an ACI entered in any box replaces the others). The ABI boxes are not touched.
 - **Percentage boxes** (every ACI value and ABI box of the BrightRock page and of the standard quotes, and `br_aci`) complete a number typed alone with "%".
 - **A sum that changed:** `lc_dr` and `pd_dr` (Minus debt repayments paid by the client) are R 0.00 when `has_debts` is No and there is no debt row (empty before); a line "Client has no debts" is under both and in the PDF. The block `worked` of a saved file shows the R 0.00.
 
