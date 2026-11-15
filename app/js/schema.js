@@ -72,7 +72,7 @@
       { id: p + '_term', l: 'Term', t: 'sel', o: ['WOL', 'Specified Age', 'Other'], opt: 1, preset: 'WOL', s: 3 },
       { id: p + '_termv', l: 'Term value', t: 'txt', opt: 1, s: 3 },
       { id: p + '_aci', l: 'ACI', t: 'sel', o: ['Fixed', 'Age-rated', 'Other'], opt: 1, preset: 'Fixed', s: 3 },
-      { id: p + '_aciv', pct: 1, l: 'ACI value', t: 'txt', opt: 1, preset: '?', s: 3 },
+      { id: p + '_aciv', pct: 1, l: 'ACI value', t: 'txt', opt: 1, s: 3 },
       { id: p + '_abiv', pct: 1, l: 'ABI', t: 'txt', opt: 1, preset: '3%', s: 3 },
       N(p + '_cmt', 'Comments', 1)
     ];
@@ -330,7 +330,7 @@
         { id: 'ips_amt', money: 1, l: 'Insured amount (R p.m.)', t: 'txt', opt: 1 },
         { id: 'ips_wait', l: 'Waiting period', t: 'sel', o: WAIT, opt: 1 },
         { id: 'ips_aci', l: 'ACI', t: 'sel', o: ['Fixed', 'Age-rated', 'Other'], opt: 1, preset: 'Fixed' },
-        { id: 'ips_aciv', pct: 1, l: 'ACI value', t: 'txt', opt: 1, preset: '?' },
+        { id: 'ips_aciv', pct: 1, l: 'ACI value', t: 'txt', opt: 1 },
         { id: 'ips_abiv', pct: 1, l: 'ABI', t: 'txt', opt: 1, preset: '5%' },
         N('ips_cmt', 'Comments')
       ] },
@@ -398,7 +398,7 @@
       ] },
       { title: 'Life cover: fractured cover', layout: 'g12', fields: riskCalc('lc').concat([
         { id: 'lc_f_aci', l: 'ACI', t: 'sel', o: ACI, opt: 1, preset: 'Fixed', s: 3 },
-        { id: 'lc_f_aciv', pct: 1, l: 'ACI value', t: 'txt', opt: 1, preset: '?', s: 3 },
+        { id: 'lc_f_aciv', pct: 1, l: 'ACI value', t: 'txt', opt: 1, s: 3 },
         { id: 'lc_wol', pct: 1, l: 'Life cover (WOL) ABI', t: 'txt', opt: 1, preset: '3%', s: 3 },
         { id: 'lc_ccabi', pct: 1, l: 'Childcare ABI', t: 'txt', opt: 1, preset: '5%', s: 3 }
       ]) },
@@ -406,7 +406,7 @@
          then ACI, ACI value, Household needs ABI (5%; there is no Life cover (WOL) ABI here) and Childcare ABI. */
       { title: 'Lump Sum Disability: fractured cover', layout: 'g12', fields: riskCalc('pd').concat([
         { id: 'pd_f_aci', l: 'ACI', t: 'sel', o: ACI, opt: 1, preset: 'Fixed', s: 3 },
-        { id: 'pd_f_aciv', pct: 1, l: 'ACI value', t: 'txt', opt: 1, preset: '?', s: 3 },
+        { id: 'pd_f_aciv', pct: 1, l: 'ACI value', t: 'txt', opt: 1, s: 3 },
         { id: 'pd_hhabi', pct: 1, l: 'Household needs ABI', t: 'txt', opt: 1, preset: '5%', s: 3 },
         { id: 'pd_ccabi', pct: 1, l: 'Childcare ABI', t: 'txt', opt: 1, preset: '5%', s: 3 }
       ]) },
@@ -416,7 +416,7 @@
         { id: 'ip_hh', l: 'Household needs (R p.m.)', t: 'txt', calc: 'ip_hh' },
         { id: 'ip_wait', l: 'Waiting period', t: 'sel', o: WAIT, opt: 1, preset: '1 month', s: 3 },
         { id: 'ip_aci', l: 'ACI', t: 'sel', o: ['Fixed', 'Age-rated', 'Other'], opt: 1, preset: 'Fixed', s: 3 },
-        { id: 'ip_aciv', pct: 1, l: 'ACI value', t: 'txt', opt: 1, preset: '?', s: 3 },
+        { id: 'ip_aciv', pct: 1, l: 'ACI value', t: 'txt', opt: 1, s: 3 },
         { id: 'ip_abiv', pct: 1, l: 'ABI', t: 'txt', opt: 1, preset: '5%', s: 3 },
         N('ip_cmt', 'Comments', 1)
       ] },

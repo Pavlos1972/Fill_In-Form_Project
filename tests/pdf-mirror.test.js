@@ -125,9 +125,10 @@ test('the instalment protector prints which debts are protected, the total of th
   store.setProtectAll(s, true); pdf(s); assert.ok(rec.join(' | ').includes('Instalment protector: all debts protected.') && !rec.join(' | ').includes('Not protected (switched off)'));
 });
 
-test('a placeholder question mark (the ACI value before it is known) is not printed', () => {
+test('the ACI value starts empty (no "?" placeholder any more) and a "?" typed is an empty box, and neither is printed', () => {
   const s = store.blank();
-  assert.strictEqual(s.f.lc_f_aciv.v, '?');                                                       // on screen it starts as "?"
+  assert.strictEqual(s.f.lc_f_aciv.v, '');
+  set(s, 'lc_f_aciv', '?'); assert.strictEqual(s.f.lc_f_aciv.v, '');
   pdf(s);
   assert.ok(!rec.some(x => x.trim() === '?'), 'a "?" was printed');
   set(s, 'lc_f_aciv', '2.5%'); pdf(s); assert.ok(rec.some(x => x.trim() === '2.5%'));

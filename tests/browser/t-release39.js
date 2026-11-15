@@ -15,10 +15,10 @@ let bad = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if
   const typeIn = async (id, t) => { await p.fill('[data-f="' + id + '"]', t); await p.keyboard.press('Tab'); await p.waitForTimeout(300); };
   const text = () => p.evaluate(() => document.getElementById('main').textContent);
 
-  /* no BrightRock policy: no block, the ACI values are "?", Dread R 500 000 */
+  /* no BrightRock policy: no block, the ACI values are empty, Dread R 500 000 */
   await nav('calc');
   ok(!(await text()).includes('Current BrightRock policy'), 'no BrightRock policy: the policy block is not there');
-  ok((await val('lc_f_aciv')) === '?' && (await val('dd_aciv')) === '?' && (await val('dd_cover')) === 'R 500 000.00', 'no policy: the ACI values are "?" and Dread is R 500 000.00');
+  ok((await val('lc_f_aciv')) === '' && (await val('dd_aciv')) === '' && (await val('dd_cover')) === 'R 500 000.00', 'no policy: the ACI values are empty and Dread is R 500 000.00');
 
   /* a BrightRock policy on the cover page: the block appears */
   await p.evaluate(() => { FF.store.setField(FF.app.state, 'has_risk', 'Yes'); FF.store.addRow(FF.app.state, 'risk', { prov: 'BrightRock', spend: 'R 1 607.60' }); FF.app.redraw(); });
@@ -66,7 +66,7 @@ let bad = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if
   /* the policy removed: the block goes and the defaults go back */
   await p.evaluate(() => { FF.store.delRow(FF.app.state, 'risk', 0); FF.app.redraw(); });
   await nav('calc');
-  ok(!(await text()).includes('Current BrightRock policy') && (await val('lc_f_aciv')) === '?' && (await val('ip_aciv')) === '?' && (await val('dd_cover')) === 'R 500 000.00', 'the policy removed: the block goes, the defaults go back to "?" and R 500 000.00');
+  ok(!(await text()).includes('Current BrightRock policy') && (await val('lc_f_aciv')) === '' && (await val('ip_aciv')) === '' && (await val('dd_cover')) === 'R 500 000.00', 'the policy removed: the block goes, the defaults go back to empty and R 500 000.00');
   ok(errs.length === 0, 'no page errors ' + errs.join('|'));
   console.log(bad ? bad + ' FAILED' : 'all pass'); await b.close(); process.exit(bad ? 1 : 0);
 })();

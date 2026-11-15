@@ -115,7 +115,7 @@ test('Lump Sum Disability (fractured) has its own household boxes, the same sums
   assert.deepStrictEqual(pd.fields.slice(0, 4).map(f => f.l), ['Client take-home income (R)', 'Minus childcare costs (R)', 'Minus debt repayments paid by the client (R)', 'Total household income needed (R)']);
   assert.ok(!pd.help && !JSON.stringify(pd).includes('same household income'), 'it no longer says it is built on the Life cover');
   assert.ok(!ids(pd).includes('pd_wol') && !pd.fields.some(f => /WOL/.test(f.l)), 'no Life cover (WOL) ABI under disability');
-  assert.deepStrictEqual(pd.fields.slice(4).map(f => [f.id, f.preset]), [['pd_f_aci', 'Fixed'], ['pd_f_aciv', '?'], ['pd_hhabi', '5%'], ['pd_ccabi', '5%']]);
+  assert.deepStrictEqual(pd.fields.slice(4).map(f => [f.id, f.preset]), [['pd_f_aci', 'Fixed'], ['pd_f_aciv', undefined], ['pd_hhabi', '5%'], ['pd_ccabi', '5%']]);
   const s = fresh(); set(s, 'net', 'R 20 000.00'); store.addRow(s, 'kids', { name: 'A', cost: 'R 5 950.00' }); store.addRow(s, 'kids', { name: 'B', cost: 'R 5 150.00' });
   store.addRow(s, 'debts', { type: 'Credit card', inst: 'R 2 000.00', payer: 'Client' }); store.addRow(s, 'debts', { type: 'Revolving credit', inst: 'R 700.00', payer: 'Client' }); store.addRow(s, 'debts', { type: 'Home loan', inst: 'R 9 000.00', payer: 'Spouse' });
   const f = id => calc.field(schema.fieldsById[id].calc, store.ctxFor(s));
@@ -123,5 +123,5 @@ test('Lump Sum Disability (fractured) has its own household boxes, the same sums
   assert.deepStrictEqual(['pd_hh', 'pd_cc', 'pd_dr', 'pd_need'].map(f), ['lc_hh', 'lc_cc', 'lc_dr', 'lc_need'].map(f), 'the same figures as the Life cover');
   assert.strictEqual(fresh().f.pd_hhabi.v, '5%'); assert.strictEqual(fresh().f.pd_hhabi.st, 'preset');
   const q = fresh(); set(q, 'bf_fna_req', 'Request a quote'); set(q, 'pr_life', schema.PRIORITY);
-  assert.ok(validate.check(store.ctxFor(q)).some(w => w.id === 'pd_f_aciv' && /^Lump Sum Disability \(BrightRock Fractured quote\): the ACI value is still/.test(w.msg)), 'the Checks name it Lump Sum Disability');
+  assert.ok(validate.check(store.ctxFor(q)).some(w => w.id === 'pd_f_aciv' && /^Lump Sum Disability \(BrightRock Fractured quote\): the ACI value is empty/.test(w.msg)), 'the Checks name it Lump Sum Disability');
 });

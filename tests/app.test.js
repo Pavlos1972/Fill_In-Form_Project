@@ -217,13 +217,14 @@ test('a child\'s age is worked out from the date of birth on the date of the for
 
 test('the risk calculation boxes start with the agreed defaults', () => {
   const s = store.blank(), want = {
-    lc_f_aci: 'Fixed', lc_f_aciv: '?', lc_wol: '3%', lc_ccabi: '5%',
-    pd_f_aci: 'Fixed', pd_f_aciv: '?', pd_ccabi: '5%',
-    dd_aci: 'Fixed', dd_aciv: '?', dd_abiv: '3%', dd_cover: 'R 500 000.00', dd_term: 'WOL',
-    dds_aci: 'Fixed', dds_aciv: '?', dds_abiv: '3%', dds_cover: 'R 0.00', dds_term: 'WOL',
-    ip_age: '65', ips_age: '65', ip_aci: 'Fixed', ip_aciv: '?', ip_abiv: '5%', ips_aci: 'Fixed', ips_aciv: '?', ips_abiv: '5%'
+    lc_f_aci: 'Fixed', lc_wol: '3%', lc_ccabi: '5%',
+    pd_f_aci: 'Fixed', pd_ccabi: '5%',
+    dd_aci: 'Fixed', dd_abiv: '3%', dd_cover: 'R 500 000.00', dd_term: 'WOL',
+    dds_aci: 'Fixed', dds_abiv: '3%', dds_cover: 'R 0.00', dds_term: 'WOL',
+    ip_age: '65', ips_age: '65', ip_aci: 'Fixed', ip_abiv: '5%', ips_aci: 'Fixed', ips_abiv: '5%'
   };
   Object.keys(want).forEach(id => { assert.strictEqual(s.f[id].v, want[id], id); assert.strictEqual(s.f[id].st, 'preset', id); });
+  ['lc_f_aciv', 'pd_f_aciv', 'ip_aciv', 'dd_aciv', 'lc_aciv', 'pd_aciv', 'ips_aciv', 'dds_aciv'].forEach(id => assert.deepStrictEqual(s.f[id], { v: '', st: 'empty' }, id + ' starts empty (no "?" any more)'));
   Object.keys(want).filter(id => schema.fieldsById[id].t === 'sel').forEach(id => assert.ok(schema.fieldsById[id].o.includes(want[id]), id + ' is not one of its choices'));
   ['pd_wol', 'lc_aci', 'pd_aci', 'lc_abiv', 'pd_abiv'].forEach(id => assert.ok(!schema.fieldsById[id] || !schema.fieldsById[id].preset, id + ' should have no default'));   // the standard cover boxes are left alone
   const o = store.blank(); store.setField(o, 'lc_wol', '4%');
