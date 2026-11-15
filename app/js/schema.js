@@ -520,8 +520,8 @@
       { k: 'cl', l: 'Credit life with lender', o: YNS }, { k: 'surety', l: 'Surety signed', o: ['Yes', 'No', 'Unsure'] },
       { k: 'notes', l: 'Notes', t: 'area', wide: 1 }
     ], sum: { inst: 'Total monthly', sinst: 'Total spouse monthly', bal: 'Total liabilities', asset: 'Total assets' } },
-    meetings: { novoice: 1, cards: 'Meeting', title: 'Meetings held', add: 'Add another meeting', empty: 'This is the only meeting so far. When the client is seen again, press the button: Date completed then becomes the date of the last meeting.', cols: [
-      { k: 'date', l: 'Date', date: 1 }, { k: 'type', l: 'Type of meeting', o: MEETING_TYPES }, { k: 'covered', l: 'What was covered', wide: 1 }
+    meetings: { novoice: 1, cards: 'Meeting', title: 'Meetings held', add: 'Add another meeting', empty: 'This is the only meeting so far. When the client is seen again, press the button: Date completed then becomes the date of the last meeting, and each meeting records who was on the call and which pages were covered.', cols: [
+      { k: 'date', l: 'Date', date: 1 }, { k: 'type', l: 'Type of meeting', o: MEETING_TYPES }, { k: 'who', l: 'Others on the call', wide: 1 }, { k: 'covered', l: 'What was covered (written by the form)', wide: 1 }
     ], sum: {} },
     kids: { need: 1, cards: 'Child', title: 'Children', add: 'Add child', cols: [
       { k: 'name', l: 'Name' }, { k: 'sname', l: 'Surname' }, { k: 'gender', l: 'Gender', o: ['Female', 'Male'] }, { k: 'dob', l: 'Date of birth', date: 1 }, { k: 'age', l: 'Age', calc: 'age' },

@@ -26,6 +26,11 @@ let bad = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if
   ok(await p.evaluate(() => document.querySelectorAll('.rc-meetings').length === 2), 'two meeting cards after the first press');
   ok((await val('date')) === today, 'Date completed is today, the date of the last meeting: ' + await val('date'));
   ok(await p.evaluate(() => document.querySelector('[data-l="meetings"][data-i="0"][data-k="date"]').value === '12/11/2026'), 'meeting 1 is the date it was before: 12/11/2026');
+  ok(await p.evaluate(() => document.querySelector('[data-l="meetings"][data-i="0"][data-k="covered"]').value === 'Client info'), 'meeting 1\'s What was covered was written by the form: ' + await p.evaluate(() => document.querySelector('[data-l="meetings"][data-i="0"][data-k="covered"]').value));
+  await p.fill('[data-l="meetings"][data-i="1"][data-k="who"]', 'Marie-Louise (spouse)'); await p.keyboard.press('Tab'); await p.waitForTimeout(300);
+  ok((await val('on_call')) === 'Marie-Louise (spouse)', 'who was on the call of the last meeting is Others on the call');
+  await p.evaluate(() => { FF.store.setField(FF.app.state, 'gross', 'R 50 000.00'); FF.store.setField(FF.app.state, 'ps_risk', 'Policy Schedules saved in Client File'); FF.app.redraw(); });
+  ok(await p.evaluate(() => document.querySelector('[data-l="meetings"][data-i="1"][data-k="covered"]').value === 'Income & household, Personal & group risk cover'), 'meeting 2\'s What was covered follows what was answered in it: ' + await p.evaluate(() => document.querySelector('[data-l="meetings"][data-i="1"][data-k="covered"]').value));
   await p.fill('[data-l="meetings"][data-i="1"][data-k="covered"]', 'Cover, retirement and the will'); await p.keyboard.press('Tab'); await p.waitForTimeout(200);
   await p.fill('[data-l="meetings"][data-i="1"][data-k="date"]', '26/11/2026'); await p.keyboard.press('Tab'); await p.waitForTimeout(300);
   ok((await val('date')) === '26/11/2026', 'changing the last meeting\'s date changes Date completed');
@@ -38,7 +43,7 @@ let bad = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if
   const b64 = await p.evaluate(() => FF.pdf.build(FF.app.state).output('datauristring').split(',')[1]);
   fs.writeFileSync(out + '/r40.pdf', Buffer.from(b64, 'base64'));
   const raw = cp.execFileSync('pdftotext', ['-raw', out + '/r40.pdf', '-']).toString().replace(/\s+/g, ' ');
-  ok(/Meetings held/.test(raw) && /12\/11\/2026/.test(raw) && /26\/11\/2026/.test(raw) && /Cover, retirement and the will/.test(raw), 'the PDF lists the meetings with their dates and what was covered');
+  ok(/Meetings held/.test(raw) && /12\/11\/2026/.test(raw) && /26\/11\/2026/.test(raw) && /Cover, retirement and the will/.test(raw) && /Marie-Louise \(spouse\)/.test(raw), 'the PDF lists the meetings with their dates, who was on the call and what was covered');
 
   /* the question on opening a saved file */
   await p.evaluate(() => { const s = FF.store.blank(); FF.store.setField(s, 'fname', 'Ann'); FF.store.setField(s, 'sname', 'Old'); FF.store.setField(s, 'date', '12/11/2026'); FF.app.setState(FF.store.fromJSON(FF.store.toJSON(s))); });
