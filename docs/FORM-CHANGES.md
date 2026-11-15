@@ -7,6 +7,7 @@ The version is `version` in `app/js/schema.js` (the Fact Find), `app/js/sr-schem
 ## 4.0: 15 November 2026 (Fact Find 3.9 to 4.0)
 
 Fact Find (the BrightRock Risk Calculation). **No id added, removed or relabelled. No box, choice, sum, tax table or list column changed.** Detail in the README ("Release 4.0").
+- **The "?" placeholder is removed from every ACI value box** (`lc_f_aciv`, `pd_f_aciv`, `ip_aciv`, `dd_aciv`, `dds_aciv`, `ips_aciv`; the others never had it): they start empty and a "?" typed or said is an empty box; a file saved before 4.0 opens with the old "?" default empty, or filled from the policy's ACI. The Checks now flag an empty ACI value once a quote is asked for (they flagged "?"). No id changed.
 - **One ACI for every benefit:** a value entered (typed or said) in `lc_f_aciv`, `pd_f_aciv`, `ip_aciv` or `dd_aciv` is put in the other three, with the same status, and in `br_aci` while a BrightRock policy is listed; a value entered in `br_aci` is put in the four as presets, over what was typed. Empty and "?" spread nothing. ABI boxes, the ACI choice boxes and the standard quote boxes are not part of it. A skill that writes the saved file does not need to change anything: the form still brings the four ACI defaults up to date when a file opens.
 
 ## 3.9: 14 November 2026 (Fact Find 3.8 to 3.9)

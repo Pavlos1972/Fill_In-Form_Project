@@ -228,7 +228,7 @@
     var brAsked = bfFna || bfSf || rows('bfred').some(function (r) { return r.d.req === REQUEST; }), stdAsked = asked('fna_req') || asked('sf_req') || rows('redq').some(function (r) { return r.d.req === REQUEST; });
     [[brAsked, [['lc_f_aciv', 'Life cover'], ['pd_f_aciv', 'Lump Sum Disability'], ['ip_aciv', 'Income protection'], ['dd_aciv', 'Dread disease']], 'BrightRock Fractured'],
       [stdAsked, [['lc_aciv', 'Life cover'], ['pd_aciv', 'Permanent disability'], ['ips_aciv', 'Income protection'], ['dds_aciv', 'Dread disease']], 'standard']].forEach(function (g) {
-      if (g[0]) g[1].forEach(function (c) { if (schema.fieldsById[c[0]] && v(c[0]) === '?') warn(c[0], c[1] + ' (' + g[2] + ' quote): the ACI value is still “?”. Type the real value.'); });
+      if (g[0]) g[1].forEach(function (c) { if (schema.fieldsById[c[0]] && v(c[0]) === '') warn(c[0], c[1] + ' (' + g[2] + ' quote): the ACI value is empty. Type the real value.'); });
     });
     if (asked('bs_req') && !ctx.rows('shares').length) warn('bs_req', 'A Buy & Sell quote needs the partners: add them to the Partners and shareholders list on the Occupation page.');
     if (asked('cl_req')) {

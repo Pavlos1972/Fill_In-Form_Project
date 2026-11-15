@@ -87,7 +87,7 @@
     BR_ACI.forEach(function (id) {
       var t = box(id); if (!t || !s) return;
       if (from) { if (t.st === 'preset' && t.v !== from) state.f[id] = { v: from, st: 'preset' }; }
-      else if (t.st === 'preset' && t.v !== '?') state.f[id] = { v: '?', st: 'preset' };
+      else if (t.st === 'preset' && t.v !== '') state.f[id] = { v: '', st: 'empty' };
     });
     var d = box('dd_cover'), sc = box('br_dd_cover'); if (!d || !sc) return;
     var pol = on && String(sc.v || '').trim() !== '' && util.isAmount(sc.v) ? util.num(sc.v) : 0, want = util.formatMoney(String(Math.max(BR_DREAD_MIN, pol)));
@@ -98,13 +98,13 @@
      (br_aci), the four get it as defaults (preset). An empty box or a "?" spreads nothing. The ACI choice (Fixed, Age-rated ...) and the standard quotes are not part of it. */
   function aciSync(state, id) {
     var src = state.f[id], val = String(src.v || '').trim();
-    if (!val || val === '?') return;
+    if (!val) return;
     if (id === 'br_aci') { BR_ACI.forEach(function (t) { if (state.f[t]) state.f[t] = { v: val, st: 'preset' }; }); return; }
     BR_ACI.concat(hasBrightRock(state) ? ['br_aci'] : []).forEach(function (t) { if (t !== id && state.f[t]) state.f[t] = { v: val, st: src.st }; });
   }
   function setField(state, id, v, st) {
     var def = schema.fieldsById[id];
-    if (def && def.pct) v = util.formatPct(v);                                                                // a number typed alone in a percentage box gets its %
+    if (def && def.pct) { v = util.formatPct(v); if (v === '?') v = ''; }                                      // a number typed alone in a percentage box gets its %; the "?" placeholder is gone (4.0): a "?" is an empty box
     if (def && def.time) { var pt = util.parseTime(v); if (pt) v = util.formatTime(pt); }                  // "2pm" and "2:30 pm" are kept as 14:30, however they got here
     var was = id === 'sname' || id === 'gender' ? fatherSurname(state) : null, prevBox = state.f[id];
     state.f[id] = { v: v, st: st || (v === '' ? 'empty' : 'confirmed') };
@@ -292,7 +292,8 @@
     priorityWording(s);
     brokerChoices(s);
     openDefaults(s);
-    brFollow(s);                                                                                     // the BrightRock policy's ACI and Dread (3.9)
+    brFollow(s);                                                                                     // the BrightRock policy's ACI and Dread (3.9); an ACI value still holding the old "?" default is filled from the policy, or emptied (4.0)
+    Object.keys(schema.fieldsById).forEach(function (id) { var d = schema.fieldsById[id]; if (d.pct && s.f[id] && String(s.f[id].v).trim() === '?') s.f[id] = { v: '', st: 'empty' }; });       // then a "?" that was typed: the placeholder is gone (4.0), an older file opens with the box empty
     autoprio.apply(s);                                                                               // an older file with an empty decision gets the outcomes the facts already give
     s.sum = cleanSum(j.sum);
     s.pa = cleanPa(j.pa);
