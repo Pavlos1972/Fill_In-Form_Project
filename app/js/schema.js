@@ -94,16 +94,19 @@
     ] };
   }
   var WAIT = ['7 days', '14 days', '1 month', '3 months', 'Other'];
+  var MEETING_TYPES = ['Teams Meeting', 'Telephonic Meeting', 'Physical Meeting', 'Other'];
 
   var sections = [
     { id: 'info', title: 'Client info', roomy: 1, fit: 1, blocks: [
       { title: 'Meeting', layout: 'g12', fields: [
         { id: 'consent', l: 'Consent to record and transcribe', t: 'sel', o: YN, s: 3 },
         { id: 'date', l: 'Date completed', t: 'txt', date: 1, preset: '@today', s: 3 },
-        { id: 'meet', l: 'Type of meeting', t: 'sel', o: ['Teams Meeting', 'Telephonic Meeting', 'Physical Meeting', 'Other'], preset: 'Teams Meeting', s: 3 },
+        { id: 'meet', l: 'Type of meeting', t: 'sel', o: MEETING_TYPES, preset: 'Teams Meeting', s: 3 },
         { id: 'ref', l: 'Referral from', t: 'sel', o: ['D&R Marketing', 'Current client', 'Referral prospect', 'Spouse', 'Other'], s: 3 },
         { id: 'on_call', l: 'Others on the call', t: 'txt', opt: 1, voice: 1, hint: 'e.g. Mariette (the client\u2019s spouse)', s: 12 }
       ] },
+      /* Meetings held (4.0): a Fact Find done over two or three meetings. Empty while there has been one meeting (Date completed and Type of meeting say it); "Add another meeting" makes the meeting so far meeting 1 and adds today as the next. Date completed is always the date of the last meeting. */
+      { list: 'meetings' },
       { title: 'Client', layout: 'g12', fields: [
         { id: 'fname', l: 'First name', t: 'txt', s: 3 },
         { id: 'sname', l: 'Surname', t: 'txt', risky: 1, s: 3 },
@@ -517,6 +520,9 @@
       { k: 'cl', l: 'Credit life with lender', o: YNS }, { k: 'surety', l: 'Surety signed', o: ['Yes', 'No', 'Unsure'] },
       { k: 'notes', l: 'Notes', t: 'area', wide: 1 }
     ], sum: { inst: 'Total monthly', sinst: 'Total spouse monthly', bal: 'Total liabilities', asset: 'Total assets' } },
+    meetings: { novoice: 1, cards: 'Meeting', title: 'Meetings held', add: 'Add another meeting', empty: 'This is the only meeting so far. When the client is seen again, press the button: Date completed then becomes the date of the last meeting.', cols: [
+      { k: 'date', l: 'Date', date: 1 }, { k: 'type', l: 'Type of meeting', o: MEETING_TYPES }, { k: 'covered', l: 'What was covered', wide: 1 }
+    ], sum: {} },
     kids: { need: 1, cards: 'Child', title: 'Children', add: 'Add child', cols: [
       { k: 'name', l: 'Name' }, { k: 'sname', l: 'Surname' }, { k: 'gender', l: 'Gender', o: ['Female', 'Male'] }, { k: 'dob', l: 'Date of birth', date: 1 }, { k: 'age', l: 'Age', calc: 'age' },
       { k: 'stage', l: 'Education stage', o: STAGES }, { k: 'cost', money: 1, l: 'Childcare (R p.m.)', num: 1 }

@@ -116,6 +116,7 @@
     if (BROKER_OF[id]) brokerDefault(state, id);
     if (id === 'edu') eduDefault(state);
     if (id === 'employed') employerDefault(state);
+    if ((id === 'date' || id === 'meet') && state.l.meetings && state.l.meetings.length) { var lm = state.l.meetings[state.l.meetings.length - 1]; if (id === 'date') { var pdm = util.parseDate(v); lm.d.date = pdm ? util.formatDate(pdm) : v; } else lm.d.type = v; }       // Date completed and Type of meeting are the last meeting's
     if (id === 'dob' || id === 'date') termsFollow(state);                                                   // a term said as an age becomes months once the date of birth is known
     astuteAll(state);
     if (id === 'br_aci' || BR_ACI.indexOf(id) >= 0) aciSync(state, id);
@@ -195,10 +196,20 @@
       else if (!full && c.st === 'preset' && c.v === '0') state.f[id] = { v: '', st: 'empty' };
     });
   }
+  /* Meetings held (4.0). Date completed (date) and Type of meeting (meet) are always those of the LAST meeting in the list. The list is empty while there has been one meeting; the first "Add another meeting" makes the meeting
+     so far meeting 1 (its date and type taken from the two boxes) and adds today as the next. Changing the last meeting's date or type, or Date completed or Type of meeting, changes the other. */
+  function meetingsFollow(state) {
+    var rows = state.l.meetings || [], last = rows[rows.length - 1]; if (!last) return;
+    var pd = util.parseDate(last.d.date);
+    if (pd && state.f.date) { state.f.date = { v: util.formatDate(pd), st: 'confirmed' }; termsFollow(state); }
+    if (last.d.type && state.f.meet) state.f.meet = { v: last.d.type, st: 'confirmed' };
+  }
   function addRow(state, key, data, st) {
+    if (key === 'meetings' && !state.l.meetings.length) state.l.meetings.push({ d: { date: String(state.f.date && state.f.date.v || ''), type: String(state.f.meet && state.f.meet.v || ''), covered: '' }, st: 'confirmed' });       // the meeting so far becomes meeting 1
     var d = {};
     schema.lists[key].cols.forEach(function (c) { d[c.k] = (data && data[c.k]) || c.def || ''; });         // a column can have a value a new row starts with (Broker on record: Other broker)
     if (key === 'kids' && !d.sname) d.sname = fatherSurname(state);
+    if (key === 'meetings') { if (!d.date) d.date = util.todayDMY(); if (!d.type) d.type = String(state.f.meet && state.f.meet.v || '') || 'Teams Meeting'; }
     if (key === 'invq' && !d.req) d.req = 'Request a quote';                                         // a row in the investment quotes is a quote asked for until it says otherwise
     if ((key === 'bfred' || key === 'redq') && !d.type) d.type = autoprio.typeStartValue(state);          // Type of quote starts as New Business (no personal risk cover) or Servicing (a policy with Paul K)
     var r = { d: d, st: st || 'confirmed' };
@@ -208,12 +219,14 @@
     LIST_GATES.forEach(function (g) { if (g[1] === key && state.f[g[0]] && state.f[g[0]].v !== 'Yes') state.f[g[0]] = { v: 'Yes', st: 'confirmed' }; });      // a row added is a Yes to "Has debts", "Has children" and the like
     astuteAll(state);
     brFollow(state);
+    if (key === 'meetings') meetingsFollow(state);
     autoprio.apply(state);
     return r;
   }
   function delRow(state, key, i) {
     state.l[key].splice(i, 1);
     if (key === 'risk') brFollow(state);
+    if (key === 'meetings') meetingsFollow(state);
     if (key === 'debts' && !state.l.debts.length && state.f.debts_end && state.f.debts_end.v) state.f.debts_end = { v: '', st: 'empty' };      // no debt left: nothing for the line to be under
     autoprio.apply(state);
   }
@@ -226,6 +239,7 @@
     if (key === 'debts' && (k === 'type' || k === 'desc' || k === 'notes')) debtDefaults(r);
     if ((key === 'redq' || key === 'bfred') && k === 'req' && v === 'Not required') { r.d.type = ''; r.d.amt = ''; if ('ins' in r.d) r.d.ins = ''; }        // a reduced quote that is not required keeps nothing
     if (key === 'risk') brFollow(state);
+    if (key === 'meetings') meetingsFollow(state);
     autoprio.apply(state);
   }
   function accept(state, target) {
@@ -543,5 +557,5 @@
     return { tot: tot, fill: fill, ver: ver };
   }
 
-  return { brFollow: brFollow, hasBrightRock: hasBrightRock, NO_CONTACT_NOTE: NO_CONTACT_NOTE, termValue: termValue, useWorked: useWorked, isPropertyDebt: isPropertyDebt, debtDefaults: debtDefaults, rowBlank: rowBlank, rowFilled: rowFilled, debtSplit: debtSplit, setProtect: setProtect, setProtectAll: setProtectAll, setPa: setPa, setFocus: setFocus, blankPa: blankPa, cleanPa: cleanPa, setSum: setSum, cleanSum: cleanSum, addUnplaced: addUnplaced, closeUnplaced: closeUnplaced, unplacedCovered: unplacedCovered, closeCovered: closeCovered, unplacedKey: unplacedKey, blank: blank, blankTally: blankTally, blankSpeech: blankSpeech, ctxFor: ctxFor, setField: setField, addRow: addRow, delRow: delRow, setCell: setCell, accept: accept, clientName: clientName, idClash: idClash, idKey: idKey, fatherSurname: fatherSurname, baseFileName: baseFileName, pdfFileName: pdfFileName, fromJSON: fromJSON, toJSON: toJSON, counts: counts };
+  return { meetingsFollow: meetingsFollow, brFollow: brFollow, hasBrightRock: hasBrightRock, NO_CONTACT_NOTE: NO_CONTACT_NOTE, termValue: termValue, useWorked: useWorked, isPropertyDebt: isPropertyDebt, debtDefaults: debtDefaults, rowBlank: rowBlank, rowFilled: rowFilled, debtSplit: debtSplit, setProtect: setProtect, setProtectAll: setProtectAll, setPa: setPa, setFocus: setFocus, blankPa: blankPa, cleanPa: cleanPa, setSum: setSum, cleanSum: cleanSum, addUnplaced: addUnplaced, closeUnplaced: closeUnplaced, unplacedCovered: unplacedCovered, closeCovered: closeCovered, unplacedKey: unplacedKey, blank: blank, blankTally: blankTally, blankSpeech: blankSpeech, ctxFor: ctxFor, setField: setField, addRow: addRow, delRow: delRow, setCell: setCell, accept: accept, clientName: clientName, idClash: idClash, idKey: idKey, fatherSurname: fatherSurname, baseFileName: baseFileName, pdfFileName: pdfFileName, fromJSON: fromJSON, toJSON: toJSON, counts: counts };
 });
