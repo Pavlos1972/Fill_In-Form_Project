@@ -35,7 +35,7 @@
   /* The Priorities to be Focused on box (top of Client priorities and quotes needed) is kept the same way as the action points: what it was written from, when, by what, and whether the adviser has typed in it since. */
   function setFocus(state, key, by) { state.focus = { key: String(key || ''), at: new Date().toISOString(), by: by === 'claude' ? 'claude' : 'form', edited: false }; }
   function blank() {
-    var s = { app: APP_ID, schema: schema.version, created: new Date().toISOString(), modified: null, f: {}, l: {}, sum: {}, auto: blankAuto(), pa: blankPa(), focus: blankPa(), unplaced: [], claude: blankTally(), openai: blankSpeech() };
+    var s = { app: APP_ID, schema: schema.version, created: new Date().toISOString(), modified: null, f: {}, l: {}, covered: {}, sum: {}, auto: blankAuto(), pa: blankPa(), focus: blankPa(), unplaced: [], claude: blankTally(), openai: blankSpeech() };
     Object.keys(schema.fieldsById).forEach(function (id) {
       var d = schema.fieldsById[id], p = d.preset === '@today' ? util.todayDMY() : d.preset;
       s.f[id] = p ? { v: p, st: 'preset' } : { v: '', st: 'empty' };
@@ -116,8 +116,9 @@
     if (BROKER_OF[id]) brokerDefault(state, id);
     if (id === 'edu') eduDefault(state);
     if (id === 'employed') employerDefault(state);
-    if ((id === 'date' || id === 'meet') && state.l.meetings && state.l.meetings.length) { var lm = state.l.meetings[state.l.meetings.length - 1]; if (id === 'date') { var pdm = util.parseDate(v); lm.d.date = pdm ? util.formatDate(pdm) : v; } else lm.d.type = v; }       // Date completed and Type of meeting are the last meeting's
+    if ((id === 'date' || id === 'meet' || id === 'on_call') && state.l.meetings && state.l.meetings.length) { var lm = state.l.meetings[state.l.meetings.length - 1]; if (id === 'date') { var pdm = util.parseDate(v); lm.d.date = pdm ? util.formatDate(pdm) : v; } else if (id === 'meet') lm.d.type = v; else lm.d.who = v; }       // Date completed and Type of meeting are the last meeting's
     if (id === 'dob' || id === 'date') termsFollow(state);                                                   // a term said as an age becomes months once the date of birth is known
+    if (SEC_OF[id] && !NOT_COVERED[id] && !(def && def.calc) && String(v).trim() !== '' && state.f[id].st !== 'preset') coverNote(state, SEC_OF[id]);       // an answer typed or said covers its page (4.0)
     astuteAll(state);
     if (id === 'br_aci' || BR_ACI.indexOf(id) >= 0) aciSync(state, id);
     brFollow(state);
@@ -198,18 +199,45 @@
   }
   /* Meetings held (4.0). Date completed (date) and Type of meeting (meet) are always those of the LAST meeting in the list. The list is empty while there has been one meeting; the first "Add another meeting" makes the meeting
      so far meeting 1 (its date and type taken from the two boxes) and adds today as the next. Changing the last meeting's date or type, or Date completed or Type of meeting, changes the other. */
+  /* What was covered (4.0): the form notes, for the meeting in progress (the last one), the pages on which an answer was typed or said, and writes them in brief (the page names) in that meeting's "What was covered" box,
+     until the adviser types in that box himself. Boxes the form fills itself (the dates, the action points, the Priorities box, defaults) and the calculated boxes are not an answer. The notes are kept in the file
+     (covered) for the meeting in progress; "Add another meeting" writes them in the finished meeting and starts afresh. */
+  var SEC_OF = {}, SEC_OF_LIST = {}, NOT_COVERED = { date: 1, meet: 1, pa_actions: 1, focus: 1 };
+  schema.sections.forEach(function (sec) { sec.blocks.forEach(function (b) { (b.fields || []).forEach(function (f) { SEC_OF[f.id] = sec.id; }); if (b.list) SEC_OF_LIST[b.list] = sec.id; }); });
+  function coverText(state) { return schema.sections.filter(function (sec) { return state.covered && state.covered[sec.id]; }).map(function (sec) { return sec.title; }).join(', '); }
+  function coverNote(state, secId) {
+    if (!secId) return;
+    state.covered = state.covered || {}; state.covered[secId] = true;
+    var rows = state.l.meetings || [], last = rows[rows.length - 1]; if (last && !last.hand) last.d.covered = coverText(state);
+  }
+  /* The pages with an answer in them now: used for the first meeting of a file that did not note them (an older file). */
+  function filledSections(state) {
+    var out = {};
+    schema.sections.forEach(function (sec) { sec.blocks.forEach(function (b) {
+      (b.fields || []).forEach(function (f) { var c = state.f[f.id]; if (c && !f.calc && !NOT_COVERED[f.id] && c.v !== '' && c.st !== 'preset') out[sec.id] = true; });
+      if (b.list && (state.l[b.list] || []).some(function (r) { return rowFilled(b.list, r); }) && b.list !== 'meetings') out[sec.id] = true;
+    }); });
+    return out;
+  }
   function meetingsFollow(state) {
     var rows = state.l.meetings || [], last = rows[rows.length - 1]; if (!last) return;
+    if (state.f.on_call) state.f.on_call = { v: String(last.d.who || ''), st: last.d.who ? 'confirmed' : 'empty' };
     var pd = util.parseDate(last.d.date);
     if (pd && state.f.date) { state.f.date = { v: util.formatDate(pd), st: 'confirmed' }; termsFollow(state); }
     if (last.d.type && state.f.meet) state.f.meet = { v: last.d.type, st: 'confirmed' };
   }
   function addRow(state, key, data, st) {
-    if (key === 'meetings' && !state.l.meetings.length) state.l.meetings.push({ d: { date: String(state.f.date && state.f.date.v || ''), type: String(state.f.meet && state.f.meet.v || ''), covered: '' }, st: 'confirmed' });       // the meeting so far becomes meeting 1
+    if (key === 'meetings') {
+      var rs = state.l.meetings;
+      if (!rs.length) rs.push({ d: { date: String(state.f.date && state.f.date.v || ''), type: String(state.f.meet && state.f.meet.v || ''), who: String(state.f.on_call && state.f.on_call.v || ''), covered: '' }, st: 'confirmed' });       // the meeting so far becomes meeting 1
+      var fin = rs[rs.length - 1]; if (!fin.hand) { if (!Object.keys(state.covered || {}).length) state.covered = filledSections(state); fin.d.covered = coverText(state); }      // the meeting that is over: what was covered, in brief
+      state.covered = {};                                                                              // the new meeting starts with nothing covered
+    }
     var d = {};
     schema.lists[key].cols.forEach(function (c) { d[c.k] = (data && data[c.k]) || c.def || ''; });         // a column can have a value a new row starts with (Broker on record: Other broker)
     if (key === 'kids' && !d.sname) d.sname = fatherSurname(state);
     if (key === 'meetings') { if (!d.date) d.date = util.todayDMY(); if (!d.type) d.type = String(state.f.meet && state.f.meet.v || '') || 'Teams Meeting'; }
+    else if (data && SEC_OF_LIST[key] && Object.keys(data).some(function (k) { return String(data[k] || '') !== ''; })) coverNote(state, SEC_OF_LIST[key]);       // a row with something in it covers its page
     if (key === 'invq' && !d.req) d.req = 'Request a quote';                                         // a row in the investment quotes is a quote asked for until it says otherwise
     if ((key === 'bfred' || key === 'redq') && !d.type) d.type = autoprio.typeStartValue(state);          // Type of quote starts as New Business (no personal risk cover) or Servicing (a policy with Paul K)
     var r = { d: d, st: st || 'confirmed' };
@@ -219,7 +247,7 @@
     LIST_GATES.forEach(function (g) { if (g[1] === key && state.f[g[0]] && state.f[g[0]].v !== 'Yes') state.f[g[0]] = { v: 'Yes', st: 'confirmed' }; });      // a row added is a Yes to "Has debts", "Has children" and the like
     astuteAll(state);
     brFollow(state);
-    if (key === 'meetings') meetingsFollow(state);
+    if (key === 'meetings') { if (data && data.covered) r.hand = true; meetingsFollow(state); }
     autoprio.apply(state);
     return r;
   }
@@ -239,7 +267,8 @@
     if (key === 'debts' && (k === 'type' || k === 'desc' || k === 'notes')) debtDefaults(r);
     if ((key === 'redq' || key === 'bfred') && k === 'req' && v === 'Not required') { r.d.type = ''; r.d.amt = ''; if ('ins' in r.d) r.d.ins = ''; }        // a reduced quote that is not required keeps nothing
     if (key === 'risk') brFollow(state);
-    if (key === 'meetings') meetingsFollow(state);
+    if (key === 'meetings') { if (k === 'covered') { r.hand = String(v).trim() !== ''; if (!r.hand && i === state.l.meetings.length - 1) r.d.covered = coverText(state); } meetingsFollow(state); }
+    else if (SEC_OF_LIST[key] && String(v).trim() !== '') coverNote(state, SEC_OF_LIST[key]);                  // an answer typed or said in a list covers its page (4.0)
     autoprio.apply(state);
   }
   function accept(state, target) {
@@ -280,6 +309,7 @@
     s.created = j.created || s.created; s.modified = j.modified || null;
     Object.keys(j.f || {}).forEach(function (id) { if (s.f[id]) s.f[id] = { v: String(j.f[id].v == null ? '' : j.f[id].v), st: j.f[id].st || 'confirmed' }; });
     s.auto = cleanAuto(j.auto);
+    s.covered = {}; if (j.covered && typeof j.covered === 'object') schema.sections.forEach(function (sec) { if (j.covered[sec.id] === true) s.covered[sec.id] = true; });       // the pages covered by the meeting in progress (4.0)
     Object.keys(j.l || {}).forEach(function (k) {
       if (!schema.lists[k]) return;
       s.l[k] = (j.l[k] || []).map(function (r) {
@@ -294,6 +324,7 @@
           d.name = sp.first; d.sname = sp.last;
         }
         var row = { d: d, st: r.st || 'confirmed' };
+        if (k === 'meetings' && r.hand === true) row.hand = true;                               // a "What was covered" the adviser typed himself
         if (k === 'debts' && r.off === true) row.off = true;                                    // a debt the instalment protector was switched off for
         return row;
       });

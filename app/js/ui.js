@@ -684,6 +684,7 @@
         var el = document.querySelector('[data-l="' + key + '"][data-i="' + i + '"][data-k="' + c.k + '"]'); if (el) el.value = FF.calc.rowCalc(c.calc, r, ctx());
       }); });
     });
+    (state.l.meetings || []).forEach(function (r, i) { var el = document.querySelector('[data-l="meetings"][data-i="' + i + '"][data-k="covered"]'); if (el && document.activeElement !== el) el.value = r.d.covered; });       // what was covered follows the talk
     ['idno', 'tax'].forEach(function (id) { showLen(id, state.f[id].v); });
     refreshWarnings(); refreshChrome();
   }
@@ -813,7 +814,7 @@
       if (dobSet) paintField('dob');
       if (sexSet) paintField('gender');
       if (/^br_/.test(t.dataset.f) || ['lc_f_aciv', 'pd_f_aciv', 'ip_aciv', 'dd_aciv'].indexOf(t.dataset.f) >= 0) ['br_aci', 'lc_f_aciv', 'pd_f_aciv', 'ip_aciv', 'dd_aciv', 'dd_cover'].forEach(function (x) { if (x !== t.dataset.f) paintField(x); });       // the policy's ACI and Dread set the quote's boxes (3.9); one ACI for every benefit (4.0)
-      if ((t.dataset.f === 'date' || t.dataset.f === 'meet') && state.l.meetings.length) { redraw(); }                            // the last meeting's row follows (4.0)
+      if ((t.dataset.f === 'date' || t.dataset.f === 'meet' || t.dataset.f === 'on_call') && state.l.meetings.length) { redraw(); }                            // the last meeting's row follows (4.0)
       if (t.dataset.f === 'edu') paintField('edu_notes'); if (t.dataset.f === 'employed') paintField('employer');           // the defaults that follow these answers (N/A)
       if (FF.calc.DUTY_IDS.indexOf(t.dataset.f) >= 0) FF.calc.DUTY_IDS.forEach(function (d) { if (d !== t.dataset.f) paintField(d); });       // the duties that were set to 0 (or taken back) when the total reached (or left) 100%
       if (condIds[t.dataset.f]) { redraw(); var again = document.querySelector('[data-f="' + t.dataset.f + '"]'); if (again) again.focus(); if ((state.unplaced || []).length && vmRetryUnplaced) vmRetryUnplaced(); } else refreshLive();
@@ -838,7 +839,7 @@
       }
       if (key === 'debts' && (k === 'type' || k === 'desc' || k === 'notes')) ['term', 'asset'].forEach(function (dk) { var de = document.querySelector('[data-l="debts"][data-i="' + i + '"][data-k="' + dk + '"]'); if (de) de.value = row0.d[dk]; });      // the defaults that follow the type
       var row = t.closest('.rowcard, tr'); if (row) row.className = row.className.replace(/\bs-(heard|verify)\b/, 's-confirmed');
-      if (key === 'meetings') { paintField('date'); paintField('meet'); }                          // Date completed and Type of meeting are the last meeting's (4.0)
+      if (key === 'meetings') { paintField('date'); paintField('meet'); paintField('on_call'); }                          // Date completed and Type of meeting are the last meeting's (4.0)
       if (key === 'risk' && k === 'prov') { touch(); redraw(); return; }                          // the BrightRock policy block on the calculation page comes and goes with a BrightRock provider (3.9)
       if (key === 'debts' && (k === 'payer' || k === 'inst' || k === 'sinst')) { touch(); redraw(); return; }       // the Spouse instalment box comes and goes with the Payer, and the 50/50 split shows in both boxes
       touch(); refreshLive();
