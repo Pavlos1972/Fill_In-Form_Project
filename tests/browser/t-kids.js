@@ -38,7 +38,7 @@ srv.listen(0, async () => {
   await p.click('#btnVoice'); await p.waitForTimeout(200);
   // the defaults on the risk calculation page
   await p.click('.nav button[data-sec="calc"]'); await p.waitForTimeout(300);
-  const want = { lc_f_aci: 'Fixed', lc_f_aciv: '?', lc_wol: '3%', lc_ccabi: '5%', pd_f_aci: 'Fixed', pd_f_aciv: '?', pd_ccabi: '5%', dd_aci: 'Fixed', dd_aciv: '?', dd_abiv: '3%', ip_aci: 'Fixed', ip_aciv: '?', ip_abiv: '5%' };
+  const want = { lc_f_aci: 'Fixed', lc_f_aciv: '', lc_wol: '3%', lc_ccabi: '5%', pd_f_aci: 'Fixed', pd_f_aciv: '', pd_ccabi: '5%', dd_aci: 'Fixed', dd_aciv: '', dd_abiv: '3%', ip_aci: 'Fixed', ip_aciv: '', ip_abiv: '5%' };
   const got = await p.evaluate(ids => Object.fromEntries(ids.map(i => [i, document.querySelector('[data-f="' + i + '"]').value])), Object.keys(want));
   ok(JSON.stringify(got) === JSON.stringify(want), 'all 13 defaults are on the form: ' + JSON.stringify(got));
   ok(await p.evaluate(() => document.querySelector('[data-field="lc_wol"]').classList.contains('s-preset') && /preset/.test(document.querySelector('[data-field="lc_wol"] .badge').textContent)), 'and are marked "preset"');

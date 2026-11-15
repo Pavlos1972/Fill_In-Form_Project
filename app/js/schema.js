@@ -72,7 +72,7 @@
       { id: p + '_term', l: 'Term', t: 'sel', o: ['WOL', 'Specified Age', 'Other'], opt: 1, preset: 'WOL', s: 3 },
       { id: p + '_termv', l: 'Term value', t: 'txt', opt: 1, s: 3 },
       { id: p + '_aci', l: 'ACI', t: 'sel', o: ['Fixed', 'Age-rated', 'Other'], opt: 1, preset: 'Fixed', s: 3 },
-      { id: p + '_aciv', pct: 1, l: 'ACI value', t: 'txt', opt: 1, preset: '?', s: 3 },
+      { id: p + '_aciv', pct: 1, l: 'ACI value', t: 'txt', opt: 1, s: 3 },
       { id: p + '_abiv', pct: 1, l: 'ABI', t: 'txt', opt: 1, preset: '3%', s: 3 },
       N(p + '_cmt', 'Comments', 1)
     ];
@@ -94,16 +94,19 @@
     ] };
   }
   var WAIT = ['7 days', '14 days', '1 month', '3 months', 'Other'];
+  var MEETING_TYPES = ['Teams Meeting', 'Telephonic Meeting', 'Physical Meeting', 'Other'];
 
   var sections = [
     { id: 'info', title: 'Client info', roomy: 1, fit: 1, blocks: [
       { title: 'Meeting', layout: 'g12', fields: [
         { id: 'consent', l: 'Consent to record and transcribe', t: 'sel', o: YN, s: 3 },
         { id: 'date', l: 'Date completed', t: 'txt', date: 1, preset: '@today', s: 3 },
-        { id: 'meet', l: 'Type of meeting', t: 'sel', o: ['Teams Meeting', 'Telephonic Meeting', 'Physical Meeting', 'Other'], preset: 'Teams Meeting', s: 3 },
+        { id: 'meet', l: 'Type of meeting', t: 'sel', o: MEETING_TYPES, preset: 'Teams Meeting', s: 3 },
         { id: 'ref', l: 'Referral from', t: 'sel', o: ['D&R Marketing', 'Current client', 'Referral prospect', 'Spouse', 'Other'], s: 3 },
         { id: 'on_call', l: 'Others on the call', t: 'txt', opt: 1, voice: 1, hint: 'e.g. Mariette (the client\u2019s spouse)', s: 12 }
       ] },
+      /* Meetings held (4.0): a Fact Find done over two or three meetings. Empty while there has been one meeting (Date completed and Type of meeting say it); "Add another meeting" makes the meeting so far meeting 1 and adds today as the next. Date completed is always the date of the last meeting. */
+      { list: 'meetings' },
       { title: 'Client', layout: 'g12', fields: [
         { id: 'fname', l: 'First name', t: 'txt', s: 3 },
         { id: 'sname', l: 'Surname', t: 'txt', risky: 1, s: 3 },
@@ -330,7 +333,7 @@
         { id: 'ips_amt', money: 1, l: 'Insured amount (R p.m.)', t: 'txt', opt: 1 },
         { id: 'ips_wait', l: 'Waiting period', t: 'sel', o: WAIT, opt: 1 },
         { id: 'ips_aci', l: 'ACI', t: 'sel', o: ['Fixed', 'Age-rated', 'Other'], opt: 1, preset: 'Fixed' },
-        { id: 'ips_aciv', pct: 1, l: 'ACI value', t: 'txt', opt: 1, preset: '?' },
+        { id: 'ips_aciv', pct: 1, l: 'ACI value', t: 'txt', opt: 1 },
         { id: 'ips_abiv', pct: 1, l: 'ABI', t: 'txt', opt: 1, preset: '5%' },
         N('ips_cmt', 'Comments')
       ] },
@@ -398,7 +401,7 @@
       ] },
       { title: 'Life cover: fractured cover', layout: 'g12', fields: riskCalc('lc').concat([
         { id: 'lc_f_aci', l: 'ACI', t: 'sel', o: ACI, opt: 1, preset: 'Fixed', s: 3 },
-        { id: 'lc_f_aciv', pct: 1, l: 'ACI value', t: 'txt', opt: 1, preset: '?', s: 3 },
+        { id: 'lc_f_aciv', pct: 1, l: 'ACI value', t: 'txt', opt: 1, s: 3 },
         { id: 'lc_wol', pct: 1, l: 'Life cover (WOL) ABI', t: 'txt', opt: 1, preset: '3%', s: 3 },
         { id: 'lc_ccabi', pct: 1, l: 'Childcare ABI', t: 'txt', opt: 1, preset: '5%', s: 3 }
       ]) },
@@ -406,7 +409,7 @@
          then ACI, ACI value, Household needs ABI (5%; there is no Life cover (WOL) ABI here) and Childcare ABI. */
       { title: 'Lump Sum Disability: fractured cover', layout: 'g12', fields: riskCalc('pd').concat([
         { id: 'pd_f_aci', l: 'ACI', t: 'sel', o: ACI, opt: 1, preset: 'Fixed', s: 3 },
-        { id: 'pd_f_aciv', pct: 1, l: 'ACI value', t: 'txt', opt: 1, preset: '?', s: 3 },
+        { id: 'pd_f_aciv', pct: 1, l: 'ACI value', t: 'txt', opt: 1, s: 3 },
         { id: 'pd_hhabi', pct: 1, l: 'Household needs ABI', t: 'txt', opt: 1, preset: '5%', s: 3 },
         { id: 'pd_ccabi', pct: 1, l: 'Childcare ABI', t: 'txt', opt: 1, preset: '5%', s: 3 }
       ]) },
@@ -416,7 +419,7 @@
         { id: 'ip_hh', l: 'Household needs (R p.m.)', t: 'txt', calc: 'ip_hh' },
         { id: 'ip_wait', l: 'Waiting period', t: 'sel', o: WAIT, opt: 1, preset: '1 month', s: 3 },
         { id: 'ip_aci', l: 'ACI', t: 'sel', o: ['Fixed', 'Age-rated', 'Other'], opt: 1, preset: 'Fixed', s: 3 },
-        { id: 'ip_aciv', pct: 1, l: 'ACI value', t: 'txt', opt: 1, preset: '?', s: 3 },
+        { id: 'ip_aciv', pct: 1, l: 'ACI value', t: 'txt', opt: 1, s: 3 },
         { id: 'ip_abiv', pct: 1, l: 'ABI', t: 'txt', opt: 1, preset: '5%', s: 3 },
         N('ip_cmt', 'Comments', 1)
       ] },
@@ -517,6 +520,9 @@
       { k: 'cl', l: 'Credit life with lender', o: YNS }, { k: 'surety', l: 'Surety signed', o: ['Yes', 'No', 'Unsure'] },
       { k: 'notes', l: 'Notes', t: 'area', wide: 1 }
     ], sum: { inst: 'Total monthly', sinst: 'Total spouse monthly', bal: 'Total liabilities', asset: 'Total assets' } },
+    meetings: { novoice: 1, cards: 'Meeting', title: 'Meetings held', add: 'Add another meeting', empty: 'This is the only meeting so far. When the client is seen again, press the button: Date completed then becomes the date of the last meeting, and each meeting records who was on the call and which pages were covered.', cols: [
+      { k: 'date', l: 'Date', date: 1 }, { k: 'type', l: 'Type of meeting', o: MEETING_TYPES }, { k: 'who', l: 'Others on the call', wide: 1 }, { k: 'covered', l: 'What was covered (written by the form)', wide: 1 }
+    ], sum: {} },
     kids: { need: 1, cards: 'Child', title: 'Children', add: 'Add child', cols: [
       { k: 'name', l: 'Name' }, { k: 'sname', l: 'Surname' }, { k: 'gender', l: 'Gender', o: ['Female', 'Male'] }, { k: 'dob', l: 'Date of birth', date: 1 }, { k: 'age', l: 'Age', calc: 'age' },
       { k: 'stage', l: 'Education stage', o: STAGES }, { k: 'cost', money: 1, l: 'Childcare (R p.m.)', num: 1 }
@@ -552,5 +558,5 @@
   var byId = {};
   sections.forEach(function (s) { s.blocks.forEach(function (b) { (b.fields || []).forEach(function (f) { byId[f.id] = f; }); }); });
 
-  return { version: '3.9', released: 'November 2026', sections: sections, lists: lists, panels: panels, panelsById: panelsById, advisor: ADVISOR, brBasis: BR_BASIS, areaTitle: areaTitle, psClient: PS_CLIENT, defaultBroker: DEFAULT_BROKER, psNoSend: PS_NOSEND, psSaved: PS_SAVED, psNone: PS_NONE, psClientOld: PS_CLIENT_OLD, PRIORITY: PRIORITY, NOT_PRIORITY: NOT_PRIORITY, NOT_PRIORITY_OLD: NOT_PRIORITY_OLD, UNSURE: UNSURE, BUDGET: BUDGET, fieldsById: byId };
+  return { version: '4.0', released: 'November 2026', sections: sections, lists: lists, panels: panels, panelsById: panelsById, advisor: ADVISOR, brBasis: BR_BASIS, areaTitle: areaTitle, psClient: PS_CLIENT, defaultBroker: DEFAULT_BROKER, psNoSend: PS_NOSEND, psSaved: PS_SAVED, psNone: PS_NONE, psClientOld: PS_CLIENT_OLD, PRIORITY: PRIORITY, NOT_PRIORITY: NOT_PRIORITY, NOT_PRIORITY_OLD: NOT_PRIORITY_OLD, UNSURE: UNSURE, BUDGET: BUDGET, fieldsById: byId };
 });

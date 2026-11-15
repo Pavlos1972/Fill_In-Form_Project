@@ -279,7 +279,7 @@
       return h + '<button type="button" class="addrow" data-add="' + key + '">+ ' + esc(L.add) + '</button>';
     }
     if (L.cards) {
-      if (!rows.length) h += '<div class="empty-list">None recorded yet.</div>';
+      if (!rows.length) h += '<div class="empty-list">' + esc(L.empty || 'None recorded yet.') + '</div>';
       rows.forEach(function (r, i) {
         h += '<div class="rowcard rc-' + key + ' s-' + r.st + '"><div class="rowhead"><b>' + esc(L.cards) + ' ' + (i + 1) + '</b>' +
           ((r.st === 'heard' || r.st === 'verify') ? badge(r.st, 'r:' + key + ':' + i) : '') +
@@ -684,6 +684,7 @@
         var el = document.querySelector('[data-l="' + key + '"][data-i="' + i + '"][data-k="' + c.k + '"]'); if (el) el.value = FF.calc.rowCalc(c.calc, r, ctx());
       }); });
     });
+    (state.l.meetings || []).forEach(function (r, i) { var el = document.querySelector('[data-l="meetings"][data-i="' + i + '"][data-k="covered"]'); if (el && document.activeElement !== el) el.value = r.d.covered; });       // what was covered follows the talk
     ['idno', 'tax'].forEach(function (id) { showLen(id, state.f[id].v); });
     refreshWarnings(); refreshChrome();
   }
@@ -812,7 +813,8 @@
       if (PROFILE_SRC.indexOf(t.dataset.f) >= 0) autoProfileLookup();
       if (dobSet) paintField('dob');
       if (sexSet) paintField('gender');
-      if (/^br_/.test(t.dataset.f)) ['lc_f_aciv', 'pd_f_aciv', 'ip_aciv', 'dd_aciv', 'dd_cover'].forEach(paintField);              // the policy's ACI and Dread set the quote's boxes (3.9)
+      if (/^br_/.test(t.dataset.f) || ['lc_f_aciv', 'pd_f_aciv', 'ip_aciv', 'dd_aciv'].indexOf(t.dataset.f) >= 0) ['br_aci', 'lc_f_aciv', 'pd_f_aciv', 'ip_aciv', 'dd_aciv', 'dd_cover'].forEach(function (x) { if (x !== t.dataset.f) paintField(x); });       // the policy's ACI and Dread set the quote's boxes (3.9); one ACI for every benefit (4.0)
+      if ((t.dataset.f === 'date' || t.dataset.f === 'meet' || t.dataset.f === 'on_call') && state.l.meetings.length) { redraw(); }                            // the last meeting's row follows (4.0)
       if (t.dataset.f === 'edu') paintField('edu_notes'); if (t.dataset.f === 'employed') paintField('employer');           // the defaults that follow these answers (N/A)
       if (FF.calc.DUTY_IDS.indexOf(t.dataset.f) >= 0) FF.calc.DUTY_IDS.forEach(function (d) { if (d !== t.dataset.f) paintField(d); });       // the duties that were set to 0 (or taken back) when the total reached (or left) 100%
       if (condIds[t.dataset.f]) { redraw(); var again = document.querySelector('[data-f="' + t.dataset.f + '"]'); if (again) again.focus(); if ((state.unplaced || []).length && vmRetryUnplaced) vmRetryUnplaced(); } else refreshLive();
@@ -837,6 +839,7 @@
       }
       if (key === 'debts' && (k === 'type' || k === 'desc' || k === 'notes')) ['term', 'asset'].forEach(function (dk) { var de = document.querySelector('[data-l="debts"][data-i="' + i + '"][data-k="' + dk + '"]'); if (de) de.value = row0.d[dk]; });      // the defaults that follow the type
       var row = t.closest('.rowcard, tr'); if (row) row.className = row.className.replace(/\bs-(heard|verify)\b/, 's-confirmed');
+      if (key === 'meetings') { paintField('date'); paintField('meet'); paintField('on_call'); }                          // Date completed and Type of meeting are the last meeting's (4.0)
       if (key === 'risk' && k === 'prov') { touch(); redraw(); return; }                          // the BrightRock policy block on the calculation page comes and goes with a BrightRock provider (3.9)
       if (key === 'debts' && (k === 'payer' || k === 'inst' || k === 'sinst')) { touch(); redraw(); return; }       // the Spouse instalment box comes and goes with the Payer, and the 50/50 split shows in both boxes
       touch(); refreshLive();
@@ -2761,11 +2764,23 @@
     p = vm.queue.then(function () { return entry; }); p.entry = entry;
     return p;
   }
+  /* A saved Fact Find opened on a later day and voice switched on (4.0): the form asks whether today is another meeting with the client. Yes adds today to the meetings held (the meeting so far becomes meeting 1) and
+     Date completed becomes today; No carries on as the same meeting. Asked once for each client and Date completed in a session, and never for a new form. */
+  function meetingAsk() {
+    var d = util.parseDate(state.f.date.v), t = util.parseDate(util.isoToday()), askKey = store.clientName(state) + '|' + state.f.date.v;
+    if (!d || !t || vm.meetingAsked === askKey || !(fileBase || store.clientName(state))) return;
+    if (!(d.y < t.y || (d.y === t.y && (d.m < t.m || (d.m === t.m && d.d < t.d))))) return;
+    vm.meetingAsked = askKey;
+    if (!window.confirm('This Fact Find was last worked on ' + state.f.date.v + '.\n\nIs today (' + util.todayDMY() + ') another meeting with this client?\n\nOK: add today as the next meeting (Date completed becomes today).\nCancel: carry on as the same meeting.')) return;
+    store.addRow(state, 'meetings', {}); touch(); redraw();
+    toast('Meeting ' + state.l.meetings.length + ' added: ' + util.todayDMY() + '. Date completed is now ' + state.f.date.v + '.');
+  }
   function vmToggle(on) {
     var drained = vm.queue;                                                                                    // lines still being put on the form finish before the final check
     vm.done = {}; vm.on = on; vm.target = null; vm.answered = false; vm.secGlow = on; vm.noteMode = null; vm.rowCur = {}; vm.queue = Promise.resolve(); vm.slow = 0; vm.epoch++; vm.digits = null; vm.run = null; vm.erun = null; vm.eann = null; vm.paused = false; vm.pointed = null; vm.moveSeq = 0; vm.laneTarget = null; cv.live = ''; vmCur = null;
     if (vm.wipe) { vm.wipe = null; var wd = document.getElementById('wipe'); if (wd && wd.open) wd.close(); }   // switching Voice on or off never leaves the question hanging
     if (on) consentNote();
+    if (on) meetingAsk();
     if (!on) listenStop();                                                                                       // no voice mode, nothing to listen for
     clearTimeout(vm.sweepT); vm.sweepSecs = {};
     if (!on && vmSweepMode() !== '0' && vmAIReady() && cv.all.length - vm.sweptAll >= 6) drained.then(function () { vmSweep({ sec: null, from: 0, why: 'end' }); });     // the end of the meeting: nothing said is left unchecked
