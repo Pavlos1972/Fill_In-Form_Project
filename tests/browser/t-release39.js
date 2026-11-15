@@ -33,8 +33,13 @@ let bad = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if
   /* typing over, and the % on any percentage box */
   await typeIn('ip_aciv', '6');
   ok((await val('ip_aciv')) === '6%', 'typing 6 in an ACI box gives 6%');
+  ok((await val('lc_f_aciv')) === '6%' && (await val('pd_f_aciv')) === '6%' && (await val('dd_aciv')) === '6%' && (await val('br_aci')) === '6%', 'the ACI typed in one box is put in the other three and in the policy box (one ACI for every benefit)');
+  ok(await p.evaluate(() => ['lc_f_aciv', 'pd_f_aciv', 'dd_aciv'].every(id => FF.app.state.f[id].st === 'confirmed')), 'typed stays typed in the others');
+  await typeIn('dd_aciv', '5');
+  ok((await val('lc_f_aciv')) === '5%' && (await val('pd_f_aciv')) === '5%' && (await val('ip_aciv')) === '5%', 'the next ACI typed, in another box, replaces it everywhere');
   await typeIn('br_aci', '4.5');
-  ok((await val('lc_f_aciv')) === '4.5%' && (await val('ip_aciv')) === '6%', 'a new policy figure follows, except the box typed over');
+  ok((await val('lc_f_aciv')) === '4.5%' && (await val('ip_aciv')) === '4.5%' && (await val('dd_aciv')) === '4.5%', 'a new policy figure replaces them all, over what was typed');
+  ok((await val('lc_ccabi')) === '5%' && (await val('dd_abiv')) === '3%', 'the ABI boxes were not touched');
   await typeIn('lc_ccabi', '7'); ok((await val('lc_ccabi')) === '7%', 'an ABI box takes the % too');
 
   /* Dread */
@@ -61,7 +66,7 @@ let bad = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if
   /* the policy removed: the block goes and the defaults go back */
   await p.evaluate(() => { FF.store.delRow(FF.app.state, 'risk', 0); FF.app.redraw(); });
   await nav('calc');
-  ok(!(await text()).includes('Current BrightRock policy') && (await val('lc_f_aciv')) === '?' && (await val('ip_aciv')) === '6%' && (await val('dd_cover')) === 'R 500 000.00', 'the policy removed: the block goes, the defaults go back to "?" and R 500 000.00, the typed 6% stays');
+  ok(!(await text()).includes('Current BrightRock policy') && (await val('lc_f_aciv')) === '?' && (await val('ip_aciv')) === '?' && (await val('dd_cover')) === 'R 500 000.00', 'the policy removed: the block goes, the defaults go back to "?" and R 500 000.00');
   ok(errs.length === 0, 'no page errors ' + errs.join('|'));
   console.log(bad ? bad + ' FAILED' : 'all pass'); await b.close(); process.exit(bad ? 1 : 0);
 })();

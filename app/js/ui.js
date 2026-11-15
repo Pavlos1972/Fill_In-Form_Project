@@ -812,7 +812,7 @@
       if (PROFILE_SRC.indexOf(t.dataset.f) >= 0) autoProfileLookup();
       if (dobSet) paintField('dob');
       if (sexSet) paintField('gender');
-      if (/^br_/.test(t.dataset.f)) ['lc_f_aciv', 'pd_f_aciv', 'ip_aciv', 'dd_aciv', 'dd_cover'].forEach(paintField);              // the policy's ACI and Dread set the quote's boxes (3.9)
+      if (/^br_/.test(t.dataset.f) || ['lc_f_aciv', 'pd_f_aciv', 'ip_aciv', 'dd_aciv'].indexOf(t.dataset.f) >= 0) ['br_aci', 'lc_f_aciv', 'pd_f_aciv', 'ip_aciv', 'dd_aciv', 'dd_cover'].forEach(function (x) { if (x !== t.dataset.f) paintField(x); });       // the policy's ACI and Dread set the quote's boxes (3.9); one ACI for every benefit (4.0)
       if (t.dataset.f === 'edu') paintField('edu_notes'); if (t.dataset.f === 'employed') paintField('employer');           // the defaults that follow these answers (N/A)
       if (FF.calc.DUTY_IDS.indexOf(t.dataset.f) >= 0) FF.calc.DUTY_IDS.forEach(function (d) { if (d !== t.dataset.f) paintField(d); });       // the duties that were set to 0 (or taken back) when the total reached (or left) 100%
       if (condIds[t.dataset.f]) { redraw(); var again = document.querySelector('[data-f="' + t.dataset.f + '"]'); if (again) again.focus(); if ((state.unplaced || []).length && vmRetryUnplaced) vmRetryUnplaced(); } else refreshLive();

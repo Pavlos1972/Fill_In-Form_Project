@@ -93,6 +93,15 @@
     var pol = on && String(sc.v || '').trim() !== '' && util.isAmount(sc.v) ? util.num(sc.v) : 0, want = util.formatMoney(String(Math.max(BR_DREAD_MIN, pol)));
     if (d.st === 'preset' && d.v !== want) state.f.dd_cover = { v: want, st: 'preset' };
   }
+  /* One ACI for every benefit (4.0): the ACI is the same for all benefits of a BrightRock quote (and of the policy), so a value entered in any ACI value box of the BrightRock Risk Calculation page, typed or said, is put in
+     all the others, over what they held. Entered in one of the four quote boxes, the others get the same status (typed stays typed), and the policy's ACI box too while the policy block shows; entered in the policy's box
+     (br_aci), the four get it as defaults (preset). An empty box or a "?" spreads nothing. The ACI choice (Fixed, Age-rated ...) and the standard quotes are not part of it. */
+  function aciSync(state, id) {
+    var src = state.f[id], val = String(src.v || '').trim();
+    if (!val || val === '?') return;
+    if (id === 'br_aci') { BR_ACI.forEach(function (t) { if (state.f[t]) state.f[t] = { v: val, st: 'preset' }; }); return; }
+    BR_ACI.concat(hasBrightRock(state) ? ['br_aci'] : []).forEach(function (t) { if (t !== id && state.f[t]) state.f[t] = { v: val, st: src.st }; });
+  }
   function setField(state, id, v, st) {
     var def = schema.fieldsById[id];
     if (def && def.pct) v = util.formatPct(v);                                                                // a number typed alone in a percentage box gets its %
@@ -109,6 +118,7 @@
     if (id === 'employed') employerDefault(state);
     if (id === 'dob' || id === 'date') termsFollow(state);                                                   // a term said as an age becomes months once the date of birth is known
     astuteAll(state);
+    if (id === 'br_aci' || BR_ACI.indexOf(id) >= 0) aciSync(state, id);
     brFollow(state);
     autoprio.apply(state);                                                                                   // the outcomes the facts give (autoprio.js)
   }
