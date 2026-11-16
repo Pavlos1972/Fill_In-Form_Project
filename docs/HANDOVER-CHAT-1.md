@@ -575,6 +575,7 @@ The artifacts are private to Paul's account (only Paul can open them): to update
 
 | Gap | Detail |
 |---|---|
+| **Paul's exact words** | **`docs/PAUL-MESSAGES-CHAT-1.md` keeps every message Paul wrote from 13 November 2026, 08:05 UTC, word for word, with date, time and what was done in answer.** Before that moment the transcript is not on disk: the file's Appendix A holds the few messages the compaction summaries quoted, and the rest are not recoverable. |
 | **Paul's exact words for most of the early chat** (before 3.8: PR 1 to PR 68) | The conversation's early part was compacted. Only what the pull requests, the commit messages, the README, `CLAUDE.md` and `docs/` say survived; where this file quotes Paul it is from the later part of the chat (3.8 to 4.5) or from `CLAUDE.md`/the README. His decisions about earlier releases are recorded as **what was built**, not as his words. |
 | **Why a particular early pull request was asked for** | The pull request bodies sometimes name the meeting or request that prompted it (the Vicky Zachos, Sitamah Nathoo, Roquelle Damir, Warren Bleksley, Edwin Joubert and Sasson meetings; the 27 October Teams meeting; the Erika Kuiper log); where they do not, the reason is not recorded. |
 | **PR 1's own description** | It has only attribution lines. |
