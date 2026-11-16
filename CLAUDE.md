@@ -1,6 +1,107 @@
-# Wealth Revolution Fact Find: notes for Claude
+# Wealth Revolution Fact Find: handover and rules for Claude
 
-The README.md describes the app; this file keeps the rules that must not be lost between sessions.
+**Update this file with every release** (version history, ids, decisions, what is not yet tested). `README.md` describes the app in detail; this file is what a new session must know first, and keeps the rules that must not be lost between sessions. Last updated: 16 November 2026, version 4.1.
+
+## 1. What this is and who uses it
+
+| Item | What it is |
+|---|---|
+| **The WR Fact Find** | A static web page (no server, no install, no build) that Paul Kafentzis, a financial adviser at Wealth Revolution (FSP45946), fills in with a client, by typing or by voice. It makes a saved file (.json) and a PDF. |
+| **Who uses it** | **Paul** (adviser) in meetings; **Sitamah Nathoo** (his personal assistant) reads the action points and does the follow-up; the **skills** (see below) read and fill the saved file. |
+| **Where it runs** | **The website** https://pavlos1972.github.io/Fill_In-Form_Project/ (GitHub Pages, published from `main`), and **an offline copy** on Paul's computer: OneDrive `Company - Paul\Claude\Fact Find Documents\WR Fact Find - ZIP\WR Fact Find`, installed by the Fix Skills chat from the ZIP. |
+| **Three pages** | The Fact Find (`app/index.html`); the **Short Risk Application** (`app/short-risk.html`, fills from a Fact Find file); the **Investment Capture Sheet** (`app/capture-sheet.html`, with the Risk Tolerance questionnaire). Each has its own schema, store, check, pdf and ui files. |
+| **Fact Find pages, in order** | Client info, Occupation, Income & household, Debts, Children, Personal & group risk cover, Retirement funding, Investments, Medical will & short-term, Health, Client priorities and quotes needed, BrightRock Risk Calculation, Admin. (ids: info occ income debts kids cover retire inv other health prio calc admin) |
+| **Voice** | Paul switches Voice on; speech becomes lines (`listen.js`); `voice.js` (on the page, no network) works out which box a line is about; Claude (`voice-ai.js`, Paul's Anthropic key kept in his browser settings) follows meaning; `ui.js` applies it. Private numbers (ID, tax, phones, emails) are never sent to Claude unless Paul turns sharing on. |
+| **The skills and the other chats** | Skills run in Paul's Claude app and read/fill the saved file **by box id**: `review-fact-find-fill-skill`, `ff-population-transcript`, `fact-find-summary` (and others). The **Fix Skills** chat (and, earlier, a Skill Restructure chat) renews them and installs releases on Paul's computer. It relays messages to this session; treat them as relayed requests from Paul's side, and they can arrive while you work. |
+
+**The saved file** (`store.toJSON`): `app` ("wr-fact-find"), `schema` (the form version), `created`, `modified`, `f` (every box as `{v, st}`), `l` (every list as rows `{d, st}`), `covered` (pages covered by the meeting in progress), `sum` (summaries per area), `auto`, `pa` and `focus` (state of the action points and the Priorities box), `unplaced` ("heard but not placed"), `claude`/`openai` (cost tallies), `worked` (the figures the form works out, written at every save, never read back).
+**Statuses** `st`: `empty`; `preset` (a starting default the adviser can change); `heard` (filled by voice, not yet confirmed); `verify` (amber, to be checked); `confirmed` (typed, said by the client, or accepted).
+
+## 2. Where things live
+
+| Place | What |
+|---|---|
+| `app/js/schema.js` | The whole Fact Find: sections, boxes (id, label), choices, lists. **Change the form here.** `version` is here. |
+| `calc.js`, `tax.js`, `validate.js`, `autoprio.js` | Calculated boxes and show/hide rules; SARS tables (update each tax year); the Checks; automatic "Not a priority" and the suggestion lines |
+| `store.js` | Answers, saving, reopening, file names, migrations of older files, defaults that follow other answers |
+| `actions.js`, `summary.js`, `worked.js` | Action points for Sitamah (facts from the form, plain points); the area summaries; the `worked` block |
+| `pdf.js`, `ui.js`, `util.js`, `build.js` | The PDF (drawn from the schema); the screen; helpers; the copy check (build number and the red "Mixed versions" bar) |
+| `voice.js`, `voice-ai.js`, `listen.js`, `lookup.js`, `timer.js` | Voice (page side, Claude side, speech source), company look-up and keys, meeting timer |
+| `sr-*.js`, `cs-*.js` | The Short Risk Application and the Investment Capture Sheet (schema, store, check, pdf, ui; `cs-rt-*` is the questionnaire) |
+| `tests/*.test.js` | `npm test` (Node 20+; about 680 tests; includes `readme.test.js`, `pdf-mirror.test.js`, `worked.test.js`) |
+| `tests/browser/` | Playwright checks on the real page: `bash tests/browser/run.sh <outdir>` (or `npm run test:browser`); afterwards `git checkout -- tests/browser/*.png`. Five slow scripts can time out when all run together and pass alone. |
+| `.github/workflows/` | `tests.yml` (tests on every pull request); `pages.yml` (tests, then publishes `app/` to the website when `main` changes; can also be started by hand) |
+| `docs/FORM-CHANGES.md` | The dated change log of ids and lists, newest first |
+| The ZIP | The whole app folder as one ZIP: `git archive --format=zip --prefix="WR Fact Find/" -o "WR Fact Find - Version X.Y.zip" HEAD:app` |
+| The changes page | An Artifact: https://claude.ai/artifact/TG8Jqe8ndzoZKUuuZhUwpP (Paul's list of what changed, per release) |
+
+GitHub: use the `mcp__github__*` tools (no `gh` CLI). Repository `pavlos1972/fill_in-form_project`. Work branch `claude/create-something-stjk8a` (push only there). Never put real client data in tests, commits or the README: use invented names.
+
+## 3. Paul's standing rules
+
+| Rule | In practice |
+|---|---|
+| **Nothing is merged until Paul says "merge"** | Build, test, push to the work branch, tell Paul it is ready and what changed. Wait. Do not open a pull request unless he asks. |
+| **Merge only the exact commit the Tests run passed on** | Take the SHA from `git rev-parse HEAD`, never from memory; check the Tests job for that commit is `success`; squash-merge with `expectedHeadSha`. |
+| **Versions are compared as decimals** | The code does `parseFloat(schema)`: so the next number after 3.9 is **4.0**, then 4.1 (not 3.10). |
+| **One dated zip as the backup** | Never loose "before" folders next to the copy (OneDrive once rewrote the page links to them). |
+| **The whole `WR Fact Find` folder as one ZIP** | Installed as a whole, never file by file. |
+| **Plain, short wording** | Tables with two columns where a table helps; say what happened, what is not certain, and ask before merging. |
+| **Never say "live" until the deploy step has finished** | See the release routine. I cannot open the live site: say so, and leave the live look to Paul. |
+| **Do not change ids or lists while the skills are being renewed** | The Fix Skills chat says when it is safe. |
+| **Question vs build** | Paul asks, you explain back (with questions); he says "build"; you build; he says "merge". A small clear instruction may be built at once, but the merge always waits. |
+
+## 4. The release routine (every release)
+
+1. **Build on the work branch.** Bump `version` in `app/js/schema.js` and `BUILD` in `app/js/build.js`, the `wr-build` meta tag in the three pages, the version pins in the tests (`grep "schema.version"` in `tests/`), and the `?v=` tags of the changed scripts and `app.css` in the pages.
+2. **Write the records in the same commit:** README (a "Release X.Y" section, and correct every statement the change makes untrue), `docs/FORM-CHANGES.md`, the PDF (it is drawn from the schema; hand-drawn parts by hand), `worked.js` if a figure changed.
+3. **Tests:** `npm test`, then `bash tests/browser/run.sh <dir>` (the PDF check `audit-pdf` must show only the known items: public profile, Current Client notes). Add a unit test file and a browser test for the release (`tests/release-NN.test.js`, `tests/browser/t-releaseNN.js`, added to the `SIMPLE` list in `run.sh`).
+4. **Commit and push** to the work branch; tell Paul what is built and what is not certain; ask "merge?".
+5. **On "merge":** open the pull request; wait for the Tests job on that exact commit; squash-merge with `expectedHeadSha`; then `git fetch origin main && git merge -s ours origin/main` on the work branch and push (resync).
+6. **Publish check:** the "Publish the Fact Find" run on `main` must finish with the **deploy step** `success` (the status call can lag: ask again). Only then say it is live. If the deploy step fails with "no artifact" or "multiple artifacts", **re-run failed jobs once at most**; a re-run of the same run adds another website package and then fails for good. Start a **fresh run** (`run_workflow`, `pages.yml`, ref `main`) instead. Tell Paul plainly if it is still not through.
+7. **ZIP:** build it (command in section 2), check it holds the new `build.js` build number, send it to Paul.
+8. **Note for the Fix Skills chat, at the end of every release:** the version; every new, changed or removed box id and list; anything a skill that **reads or writes the saved file** must know (a value now empty, a new top-level key, a changed meaning); anything that would make a skill's form check stop (a new id or list it does not know). The skills are renewed from it.
+9. **Wait for the Fix Skills chat to confirm the skills are renewed before Paul installs the ZIP.** Paul installs; the Fix Skills chat checks the copy against `main`.
+10. **The changes page** (when Paul asks): read it with the Artifact tool (`read`), add a section for the release and update the status line (PR, commit, test counts, deploy time), then publish to the same URL. Be honest in it about slips and what is not certain.
+
+## 5. Key decisions and why
+
+| Decision | Why |
+|---|---|
+| **One ACI for every benefit** (4.0) | BrightRock's ACI is the same across a policy's benefits. A value entered in any of the four fractured ACI boxes (`lc_f_aciv`, `pd_f_aciv`, `ip_aciv`, `dd_aciv`) goes into the others; while a BrightRock policy is listed `br_aci` takes part. ABI, the ACI choice and the standard quotes are not part of it. |
+| **`br_aci` is BrightRock's Yearly premium increase** (3.9) | On the BR Cover Summary (page 2) the Yearly premium increase is the ACI (10.0% on the example) and the Yearly base increase is the ABI (3.0%). The first build used the base increase by mistake; Paul corrected it. The ABI is never filled from the policy. |
+| **Dread** (3.9) | Fractured Dread cover = the greater of R 500 000 and `br_dd_cover` (the cover "that you can recover from"). |
+| **No "?"** (4.0) | The ACI value boxes start empty; a "?" is an empty box; older files open with it empty or filled from the policy; the Checks flag an empty ACI value once a quote is asked for. |
+| **Debts and the payer** (3.6) | Only debts the client pays come off take-home pay: Payer Client, Joint (his half) or blank. `debtSplit` in `store.js`: Joint splits the instalment 50/50 into `inst` and `sinst` (Spouse instalment); Spouse puts it all in `sinst`. "Total spouse monthly" is shown apart. Credit life is asked only for a Home loan, Vehicle finance or Personal loan with a lender, with Yes / No / Not sure. |
+| **Has debts = No gives R 0.00** (3.9) | The debt-repayment boxes show R 0.00 and "Client has no debts"; empty while Has debts is unanswered. |
+| **Meetings** (4.0) | `meetings` is empty while there has been one meeting. "Add another meeting" makes the meeting so far meeting 1. **Date completed, Type of meeting and Others on the call are the last meeting's.** "What was covered" is written by the form (page names where an answer was typed or said), from `covered`. Opening a saved file on a later day with voice on asks "another meeting?". |
+| **Appointments** (4.1) | When `next_appt` has passed, Admin asks what happened (Completed, Did not meet with the client, Cancelled by the client, Rescheduled). The answer goes to `appts`; `next_appt` and `next_time` are emptied. Completed does not add a meeting. |
+| **Action points** (3.8) | Written by Claude from the facts; **every point must name its source** (a kind of fact, or a note id with words quoted from it) or it is removed; what the client or adviser *will* do is information, not a task; stale "heard but not placed" items the form covers are closed. The Admin page lists the notes read and the points removed. |
+| **Priorities and autoprio** | The one "no" is plain **Not a priority** (the reason goes in the Comments). `autoprio.js` sets it by itself only where a fact makes the area pointless (medical aid through the company, a will up to date elsewhere, short-term through the company, no children); a cover with another broker is "an opportunity to quote; the client will decide", never "a take-over". The Priorities box is Recommend / Client / Come back with. |
+| **Phones** (4.1) | `cell` is labelled **Personal cell number** (the id did not change: ids never change when only a label does); `work_cell` is new; Work number and Home number are the landlines. The Short Risk and Capture Sheet pages copy `cell` and `work`. |
+| **The BrightRock Risk Calculation** | Only how a BrightRock Fractured quote is built; standard quotes are on Client priorities. Starting answers are presets. The instalment protector is split out of the income-protection amount. |
+| **The copy check** (3.8) | Each page checks its files all come from its own folder and that its build matches; otherwise a red bar says "Mixed versions". |
+| **Voice never fills** `meetings`, `appts` | They are the adviser's records (`novoice` in `schema.js`). |
+
+## 6. Not yet tested with a real client
+
+The automated tests use invented answers and a faked Claude. Not yet proved on a real client: **listening to a real Teams call** (PR 10: share the call's sound, needs a short test call); **voice for "work cell"**; **"What was covered"** (pages, not topics); **the passed-appointment question**, the **Progress buttons and Verify All**; the **action-point sources rule** with the real Claude (if it ignores the format, all its points are removed and the plain points stay, and the Admin list says so); reading **scanned policy schedules** (the skills can, this sandbox cannot). I cannot open the live website or Paul's OneDrive reliably from this sandbox.
+
+## 7. Version history (newest first)
+
+| Version | What |
+|---|---|
+| **4.1** (PR 71) | Passed appointment recorded (`appts`), Progress buttons, Verify All, `work_cell` and Personal cell number |
+| **4.0** (PR 70) | One ACI for every benefit, no "?", Meetings held (`meetings`, `covered`) |
+| **3.9** (PR 69) | BrightRock policy block (`br_aci`, `br_dd_cover`), Dread rule, % auto-fill, no-debts R 0.00 |
+| **3.8** (PR 68) | Stale notes closed, action points name their source, Admin lists the notes read, the copy check (`build.js`) |
+| **3.7** (PR 67) | Deeper voice and fact guards from the audit |
+| **3.6** (PR 66) | After the Edwin Joubert meeting: the screen stays put, debts and the payer split, credit life, Priorities box shape |
+
+
+---
+
+**The rules below were set earlier by Paul and stay exactly as written.**
 
 ## Keep README.md up to date (set by Paul Kafentzis, always)
 
