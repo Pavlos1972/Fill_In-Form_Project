@@ -169,7 +169,7 @@
     'Speech-to-text often leaves the first part of an email address outside the marker: the client says "jonathan snow at discovery dot co dot za" and the line reads "my work email is Jonathan [E1]".',
     'When the word or words right before an [E] marker are clearly the start of the address (a name, not a word like "is", "my", "email", "address", "at" or "on"), give them in front of the marker, separated by a space:',
     '{"do":"fill","field":"wemail","value":"Jonathan [E1]"}. Use only words that are really there, immediately before the marker. Otherwise give the marker alone.',
-    'A plain "my email" or "email address" is the personal email (pemail); "work email" or "office email" is the work email (wemail). A plain "my number" or "cell" is the cell number, an "office" or "work" number is the work number.',
+    'A plain "my email" or "email address" is the personal email (pemail); "work email" or "office email" is the work email (wemail). A plain "my number" or "cell" is the personal cell number (cell), a "work cell" or "work mobile" is the work cell number (work_cell), an "office" or "work" number (a landline) is the work number (work).',
     '',
     'Some sections hold LISTS of rows: children, debts, existing personal and group policies, retirement annuities, pension and provident funds, investments, business assurance policies, partners and shareholders, quotes. "lists" describes every list of the form: its section, its columns, and the rows already there (row numbers start at 1).',
     'Three more actions work on lists:',

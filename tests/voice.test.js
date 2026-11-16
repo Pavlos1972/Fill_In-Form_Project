@@ -272,7 +272,7 @@ test('answers that cannot be used are reported, not guessed', () => {
   assert.strictEqual(ans('marital', "I'm married", '').kind, 'error');
 });
 test('private fields are the ones that are never sent to Claude', () => {
-  assert.deepStrictEqual([...V.PRIVATE_IDS].sort(), ['cell', 'home', 'idno', 'pemail', 'shares.cell', 'shares.id', 'sp_tel', 'tax', 'wemail', 'work']);
+  assert.deepStrictEqual([...V.PRIVATE_IDS].sort(), ['cell', 'home', 'idno', 'pemail', 'shares.cell', 'shares.id', 'sp_tel', 'tax', 'wemail', 'work', 'work_cell']);
 });
 
 test('the adviser asking or steering is told apart from the client answering', () => {

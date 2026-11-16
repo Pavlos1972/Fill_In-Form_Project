@@ -4,6 +4,13 @@ A dated list of what changed in the form's boxes, newest first. **One line for e
 
 The version is `version` in `app/js/schema.js` (the Fact Find), `app/js/sr-schema.js` (the Short Risk Application) and `app/js/cs-schema.js` (the Investment Capture Sheet); a saved file carries it as `schema`. Earlier changes are in the README and in the git history; this list starts with 3.1.
 
+## 4.1: 16 November 2026 (Fact Find 4.0 to 4.1)
+
+Fact Find (the Admin page, the Progress card, the phone numbers). Detail in the README ("Release 4.1").
+- **Id added, `work_cell`: "Work cell number"** (with its "No work cell number" tick, a 10-digit check, private). **`cell` is relabelled "Personal cell number"** (same id, same meaning: it was the client's cell number). `work` (Work number) and `home` (Home number) are unchanged. The Short Risk Application and Investment Capture Sheet still copy `cell` (and `work`).
+- **List added, `appts` (Previous appointments), on Admin under Next appointment:** columns `date` (Date), `time` (Time) and `outcome` (What happened: Completed, Did not meet with the client, Cancelled by the client, Rescheduled). When the next appointment has passed the adviser chooses what happened: the row is added and `next_appt` and `next_time` are emptied (so a skill that reads them sees an empty next appointment until a new one is set). Not filled by voice, not read for the action points; a file without it opens with none.
+- **No other id added, removed or relabelled. No sum or tax table changed.** The Progress card's *to verify* and *not asked* are buttons and a **Verify All** button is added (they change statuses only: `verify` becomes `confirmed`).
+
 ## 4.0: 15 November 2026 (Fact Find 3.9 to 4.0)
 
 Fact Find (the BrightRock Risk Calculation, and the meetings). Detail in the README ("Release 4.0").
