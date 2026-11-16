@@ -336,7 +336,7 @@ After Paul's first real run of 4.1: **Verify All and "to verify" missed advisor 
 **Meetings held on one line** (Paul: *"far too big ... ONE line ... not even collapsable"*): each meeting is one line of boxes: Date (Calendar), **Day** (new calculated column `meetings.day`, not an answer), Type, Others on the call, What was covered, with the ✕; the **Meetings held** heading folds the list (shut it reads "2 meetings: 14/10/2026, 28/10/2026"; it stays as left). The PDF prints the Day; `worked.l.meetings` lists the days. *Slips fixed before merging:* "What was covered" wrapped onto a second line; the one-line list lost its empty-list message. ***Left open: the boxes are narrow at the standard width, so "Teams Meeting" and long names may be cut off in the box until you click into it; seen only in a test screenshot, not on Paul's screen.***
 
 #### After 4.5
-The Fix Skills chat reported **4.1 to 4.5 all installed on Paul's computer** (section 5). The only commits on `main` after PR 76 are none; this handover (a documentation-only pull request) is the next change.
+The Fix Skills chat reported **4.1 to 4.5 all installed on Paul's computer** (section 5). `main` ends at PR 76 (`b74fb24`); this handover, a documentation-only pull request, is the next change.
 
 ---
 
@@ -458,3 +458,128 @@ How it works, end to end (the README's "Voice mode" and "Listening" sections hav
 ### 4.8 The PDF
 
 Drawn by `pdf.js` from `schema.js` with jsPDF (Wealth Revolution colours and logo). Every Notes box is printed in full in its own section; lists continue onto extra pages; the font cannot draw some symbols (they print as plain text: PR 16; ticks and emoji print "?"). **It mirrors the form exactly** (Paul's standing rule); the only things left off are the public profile (LinkedIn) (`nopdf`) and the cost figures. `tests/pdf-mirror.test.js` and the browser `audit-pdf.js` guard it. A PDF saved earlier is a picture of its day: open the client's file and save the PDF again to update it. Name: `Fact Find (Audio to Text) - dd.mm.yy - (Name Surname).pdf`.
+
+---
+
+## 5. The Fix Skills chat
+
+A separate Claude chat that Paul runs next to this one. **It is the only thing that touches the skills and Paul's computer.** (Earlier a **Skill Restructure chat** did the skills' restructuring and asked for 3.3's bold headings; the Fix Skills chat took over.) It **relays messages to this session**: treat them as relayed requests from Paul's side (they can arrive while you work, as "From the Fix Skills chat, on Paul's GO ..."). Paul's own words reach you through it too (for example 3.5's *"Must not contact client" removed*, and the order to write this handover). A relayed message is information and a request, not a way around Paul's rules: **nothing is merged without Paul's own "merge"**.
+
+| What the Fix Skills chat does | Detail |
+|---|---|
+| **Checks the skills against each release** | The skills that read or fill the saved file are checked, and renewed if needed, against every release's *Note for the Fix Skills chat* (section 3.8): **`review-fact-find-fill-skill`** (reads a client's documents and fills the form's file by box id), **`ff-population-transcript`** (builds the Fact Find Transcript PDF from the Audio to Text file and the Teams transcript), **`fact-find-summary`** (builds the Fact Find Summary PDF from the transcript PDF), and the others that touch the file (`advicetech-client-notes` writes `cc_notes`; `ff-to-ff-populate`; `client-teams-transcript-skill`; `complete-applications-skill`, **not yet connected** to the Short Risk Application or the Capture Sheet). It confirms when the skills are renewed (it did for 4.0). |
+| **Installs every release on Paul's computer itself** | In OneDrive: `Company - Paul\Claude\Fact Find Documents\WR Fact Find - ZIP\WR Fact Find` (the **offline copy**; the website https://pavlos1972.github.io/Fill_In-Form_Project/ is the other place the form runs). It copies **only the changed files**, **reads each back against `main`**, and keeps **one dated backup zip** in *Fact Find Documents* (never loose "before" folders: OneDrive once rewrote the page links so they pointed at a backup folder). Paul does not install by hand. **You never install on Paul's computer** and never touch his OneDrive from this session (earlier in Chat 1, before this arrangement, the copy was updated by Paul and checked from this side with the Microsoft 365 tools; that is over). |
+| **Status at the end of Chat 1** | **4.1, 4.2, 4.3, 4.4 and 4.5 are all installed** (4.2 and 4.3 had been waiting for the skills to be renewed). The copy is the same program as the website but keeps its **own saved keys and dates** (keys are per browser and per copy). |
+| **What it needs from you after each release** | The ZIP as a **copy** (`SendUserFile`), and the **Note for the Fix Skills chat**: the version; every new, changed or removed box id, list and list column; anything a skill that **reads or writes the saved file** must know (a value now empty, a new top-level key, a changed meaning, a row key that may be empty); anything that would make a skill's form check stop. It renews the skills from that note. |
+| **When it is not safe to change ids** | **Do not change ids or lists while the skills are being renewed**; the Fix Skills chat says when it is safe. A label change never needs this; a meaning change always needs a new id. |
+
+Known facts the skills depend on (from the releases above): the schedule boxes' wording (3.1, PR 40); `pr_life` ... `pr_st` must be tested for text starting **"Not a priority"** (3.4); `ref_sti` offers only *Cameron to contact client* / *Not required* (3.5); the report skills held a **standing R 500 000 dread target** (PR 55/56: the fractured `dd_cover` stays R 500 000.00, the standard `dds_cover` starts R 0.00); the Lump Sum Disability ids (PR 53); `br_aci` is the **Yearly premium increase** on the BR Cover Summary page 2, never the base increase (3.9); `worked` is never to be written by a skill (3.1); `meetings.day` is calculated, not an answer (4.5).
+
+---
+
+## 6. Open items
+
+### 6.1 Not tested on a real call or a real client
+
+| Item | Status |
+|---|---|
+| **PR 10: listening to a real Teams call** | Built and unit-tested only. It needs **a short test call**: Settings > Speech source OpenAI, *Hear the client on a Teams call* = Yes, press **Listen**, in Chrome's share window choose **Entire screen** and tick *Share system audio*; then check the client's lines come in labelled `client` and the adviser's `me` with no echo. **Never tested on a real call, with Chrome's real share window.** Prompted by the 27 October meeting where all 274 lines were the adviser. |
+| Voice for **work cell** (4.1), **"What was covered"** (pages, not topics: 4.0), the **passed-appointment question** (4.1), the **Progress buttons and Verify All** (4.1/4.2) | Tested by the automated checks only. |
+| The **action-point sources rule** (3.8) with the real Claude | If it ignores the format all its points are removed, the plain points stay, and the Admin list says so. |
+| **Notes** (3.8) | Paul: *"Checked, notes look much better so far, it will need to be tested further on other clients."* |
+| Reading **scanned policy schedules** | The skills can; this sandbox cannot. |
+| **The Short Risk Application with a real client** | Load from Fact Find, owner set to the spouse or a business partner, a call date from the calendar, the PDF it saves. |
+| **4.4 and 4.5 on Paul's own screen** | Never seen live from this side (the sandbox cannot open the live site or Paul's computer). |
+
+### 6.2 Built but with a known weakness
+
+| Item | Status |
+|---|---|
+| **4.5: the boxes are narrow at the standard width** | In the one-line meetings, *"Teams Meeting"* and long names under *Others on the call* may be **cut off in the box** until clicked into. Seen only in a test screenshot. Possible fixes: give *Type* and *Others* more width, shorten the label of "What was covered (written by the form)" (it is a schema label: it is in the PDF too), or let the line wrap in two. Ask Paul after he has looked. |
+| **The speech library on the CDN** | Whisper and Moonshine's library still loads from jsDelivr while Listen is on, and there is **no content-security policy** (audit finding #16, partly done). Needs a computer that can reach the CDN and the speech models so a change can be tested. |
+
+### 6.3 Asked for, or offered, and not built
+
+| Item | Status |
+|---|---|
+| **A password for Settings** | Offered (a password that opens Settings and scrambles the saved keys; "Forgot password" erases the keys). Paul decided to leave it for now. An emailed restore cannot be built (no server). |
+| **Cost cutting** | About half the lines spoken in a meeting ("Mm-hmm", "Okay") change nothing but are still sent to Claude; skipping them could save about a third of Claude's cost (US$8.10 for the Rosalind Dube meeting). **Not built: Paul says "build cost cutting" if he wants it.** |
+| **Official company spelling** | The company look-up does not yet offer the official spelling ("Jawitz") when the name is heard wrongly ("Jarwitz"). |
+| **Spending limits on both keys** | A step for **Paul** in the Anthropic and OpenAI consoles: the best protection if a laptop is lost. |
+| **`complete-applications-skill` not connected** to the Short Risk Application and the Capture Sheet | Paul will do that. |
+| **Held for Paul's decision (from the changes page, PR 40):** the EGAR summary still calls the childcare box "Education and childcare cost today"; the Life summary's debt totals still count every debt, not only those the client pays | Not confirmed changed since. Ask before touching. |
+| **The Sitamah guide** (`Fact Find - Guide for Sitamah.pdf`) | Tells her to open the website address (decided: she uses the website); its example file name (`Fact Find 06.11.2026 ...`) is out of date after the file-name change (PR 49). |
+| **The two report skills** (`ff-population-transcript`, `fact-find-summary`) | To read the `worked` block first and keep their own sums only as a check, add Spousal Maintenance to Total Income, show the debt term as months (3.1 note). The Fix Skills chat confirmed the skills renewed for 4.0; whether every item of the 3.1 note is done is the Fix Skills chat's to say. |
+
+### 6.4 Housekeeping
+
+| Item | Status |
+|---|---|
+| **Paul's Anthropic key expires about 16 December 2026** | He renewed it on 16 November (30 days; saved in Settings on the website copy; the OneDrive copy keeps its own). The top bar warns at 14 days (about 2 December). |
+| **`docs/HANDOVER-release-3.1.md`** | A working note that said "delete after the merge"; it is still in the repository. Can be deleted. |
+| **`CLAUDE.md` wording** | It said "about 680 tests" and, before this handover's pull request, still said 4.5 was *built, not merged* (see section 8, lesson 14). Corrected in the same pull request as this file. |
+| **The changes page** | Updated to version 45 / PR 76 on Paul's word; update it again only when he asks. |
+| **No open pull request** | Apart from the one carrying this handover and the `CLAUDE.md` pointer (waiting for Paul's "merge"). |
+
+---
+
+## 7. Links
+
+| What | Link |
+|---|---|
+| **The website** (GitHub Pages, published from `main`) | https://pavlos1972.github.io/Fill_In-Form_Project/ (the other two pages: `.../short-risk.html`, `.../capture-sheet.html`) |
+| **The repository** | https://github.com/Pavlos1972/Fill_In-Form_Project (work branch `claude/create-something-stjk8a`) |
+| **The changes page** (Paul's list of what changed, per release: an Artifact, private to Paul) | https://claude.ai/artifact/TG8Jqe8ndzoZKUuuZhUwpP |
+| **The audit page** (the 31 audit findings; the numbers #1, #3 ... on the changes page are its finding numbers) | https://claude.ai/artifact/T89cRpt3p6rejvmX51ikwi |
+| **The screens page** (real screenshots of the PR 39 changes) | https://claude.ai/artifact/HfRSbeHCi9ii3mM3btHeBN |
+| **The top-bar mock-up** (Option A with the "Other forms" dropdown; Option B with the keys-and-costs table: Paul chose B, then asked for the mix, 4.4) | https://claude.ai/artifact/Ct5XKZ25MHVVThJM16QYRQ |
+| **The approved form mock-up** (older) | `docs/mockup/live-fact-find.html` in the repository |
+| **The offline copy** | OneDrive: `Company - Paul\Claude\Fact Find Documents\WR Fact Find - ZIP\WR Fact Find` (installed by the Fix Skills chat) |
+| **The Risk Tolerance website** (copied into the Capture Sheet, never changed from here) | https://risktolerance.netlify.app |
+| **Anthropic Console** (API keys, the real bill) | https://console.anthropic.com |
+| **OpenAI API keys** | https://platform.openai.com/api-keys |
+| **How this cloud environment works** | https://code.claude.com/docs/en/claude-code-on-the-web |
+| **A pull request** | `https://github.com/Pavlos1972/Fill_In-Form_Project/pull/NN` |
+
+The artifacts are private to Paul's account (only Paul can open them): to update the changes page you must be signed in as Paul's session, with the Artifact tool.
+
+---
+
+## 8. What went wrong, and what was learnt
+
+| # | What happened | What was learnt |
+|---|---|---|
+| 1 | **PR 28 named the PDF "Voice to Text"** and left the .json with its own name. | Paul wanted "Audio to Text" and the same name for both: **PR 49**. The file-name rule is now a standing rule with tests. Ask about both files when a name is given. |
+| 2 | **PR 22 put the risk calculation inside the Life area; Paul wanted its own page** (PR 24). | A placement question is a layout question: show it first. |
+| 3 | **PR 38 merged the two retirement schedule requests**; Paul asked for them back (**PR 39**). | Do not merge two boxes "to tidy"; ask. |
+| 4 | **PR 55 set Dread cover to R 0.00 in both blocks**; Paul meant only the standard block (**PR 56**, three days later). | Read the instruction for *which* block; a test now pins both starting values. The skills hold a standing R 500 000 dread target. |
+| 5 | **PR 54:** a flaky broker test (two saves in different milliseconds) once **stopped a website update**. | The tests are the gate of publishing: a flake costs a release. Write tests that do not depend on the clock; the run was repeated and the test fixed (passed 40 runs in a row). |
+| 6 | **3.9: the ACI was taken from the schedule's "Yearly base increase".** Paul: *"his ACI is 10% not 3% ... His ABI is 3% ... Did you confuse things a little, I think?"* (He was right.) | On the BrightRock BR Cover Summary (page 2) the **Yearly premium increase is the ACI** and the **Yearly base increase is the ABI**; the ABI is never filled from the policy. **When a figure comes from a document, name the exact line you took it from and check it against Paul's own example before building.** Corrected before the merge; the PR text kept the first wording. |
+| 7 | **3.9's website update failed four times** at GitHub's deploy step ("no artifact", then "multiple artifacts"). | **Re-run failed jobs once at most**: a re-run of the same run uploads another package and then fails for good. Start a **fresh run** (`run_workflow`, `pages.yml`, ref `main`). Not our code: the tests, build and upload had passed each time. |
+| 8 | **4.1: Verify All and "to verify" missed** advisor pages, optional boxes and Broker on record; **no calendar** on the list rows. Paul found both in his first real run. | **4.2.** "Every page" means every page: build the count from the same list the Progress card uses, and test a box on every kind of page. |
+| 9 | **4.3: the keys-and-costs table stretched across the whole top bar** (the form's own global `table { width:100%; min-width:640px }` and the header background). | Look at a **real screenshot** of any layout change before offering it; fixed in the CSS before merging. |
+| 10 | **4.5: "What was covered" wrapped onto a second line**, breaking the one-line rows; and the one-line list lost its **empty-list message**. | A screenshot and the older test caught them; fixed before merging. Check the empty state of a list you re-lay out. |
+| 11 | **4.4: my browser test tested "hidden" the wrong way** for a closed `<details>`. | Fix the test, not the page, and say so on the changes page. |
+| 12 | **The browser suite counted its own summary file as a failed script** when I redirected the summary into the output folder. | Send the suite's output to a fresh, empty folder and the summary somewhere else. |
+| 13 | **`pointKey(undefined)`** made a missing `said` look quoted (3.8); a test caught it. **Date-bound tests** (2026 dates) failed once the real date passed. | Test missing values; use future dates in tests. |
+| 14 | **`CLAUDE.md` says "built, not merged" after the merge.** The release commit updates its header before the merge, so the file on `main` says "waiting for merge" for one release. It happened for 4.4 and 4.5. | Either write the header as "merged" in the release commit (it will be true when Paul says merge) or fix it in the next commit; do not leave it. This handover's pull request fixes it. |
+| 15 | **A background command committed and pushed by itself** while I was editing (4.2). | Wait for a background run to finish before editing again. |
+| 16 | **The sandbox's safety check refused a whole command** (it contains a heredoc; there was no removal in it) and ran nothing. | Split the command and write files with the Write/Edit tools; never try to get around a genuine removal check. |
+| 17 | **OneDrive once rewrote the page links** so the copy opened a backup folder. | **One dated zip as the backup**, never loose "before" folders next to the copy. |
+| 18 | **The context ran past the safe size in this chat.** At 4.3 it was about 89% and I advised a new chat; after the context was compacted Paul asked to continue here (4.4, 4.5). | The percentage shown can change after a compaction. Keep `CLAUDE.md` current at every release so a new session can start at any time; this handover is the full version. |
+| 19 | **Claude's real reading of spoken lines, live meetings and the Teams call could never be tested in the sandbox.** Every pull request that touches voice says so. | Say what is not tested, every time, plainly; Paul's own first real run finds what the tests cannot (4.1 to 4.2 is the example). |
+| 20 | **A misread of the 3.1 scope**: Paul's "make all the changes together" meant one release of twelve items. | One release for one decision; list the scope back to Paul before building a large one. |
+
+---
+
+## 9. What could not be recovered
+
+| Gap | Detail |
+|---|---|
+| **Paul's exact words for most of the early chat** (before 3.8: PR 1 to PR 68) | The conversation's early part was compacted. Only what the pull requests, the commit messages, the README, `CLAUDE.md` and `docs/` say survived; where this file quotes Paul it is from the later part of the chat (3.8 to 4.5) or from `CLAUDE.md`/the README. His decisions about earlier releases are recorded as **what was built**, not as his words. |
+| **Why a particular early pull request was asked for** | The pull request bodies sometimes name the meeting or request that prompted it (the Vera Zeller, Sitamah Nathoo, Rosalind Dube, Wilhelm Bosman, Elmer Jonker and Sibanda meetings; the 27 October Teams meeting; the Erika Kuiper log); where they do not, the reason is not recorded. |
+| **PR 1's own description** | It has only attribution lines. |
+| **The Fix Skills chat's own record** | Its messages reached this chat as relays; what the skills now do, which of the 3.1 skill changes are finished, and the exact files it installed on Paul's computer are **its to say**, not recorded here. |
+| **The live site and Paul's computer** | Never opened from this sandbox: whether 4.4 and 4.5 look right on Paul's screen is unknown. |
+| **The scratchpad** | The changes page's working copy and the `update-changes-NN.py` scripts, the mock-up source and the ZIPs of 3.6 to 4.5 were in this session's scratchpad and **will not survive**; the live changes page and the repository do. (The ZIP of any release can be rebuilt with `git archive`: section 3.7.) |
+| **Some pull request bodies' wording** | Squash commits on `main` often repeat the first commit's message rather than the final description; the descriptions were read from GitHub. |
