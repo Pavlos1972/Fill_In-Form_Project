@@ -14,9 +14,9 @@ const set = (s, id, v, st) => store.setField(s, id, v, st);
 test('the meetings list is on Client info under the Meeting box, with date, type, who was on the call and what was covered', () => {
   const info = schema.sections.find(x => x.id === 'info'), i = info.blocks.findIndex(b => b.list === 'meetings');
   assert.ok(i === 1 && info.blocks[0].title === 'Meeting', 'right under the Meeting box');
-  assert.deepStrictEqual(schema.lists.meetings.cols.map(c => c.k), ['date', 'type', 'who', 'covered']);
+  assert.deepStrictEqual(schema.lists.meetings.cols.map(c => c.k), ['date', 'day', 'type', 'who', 'covered']);
   assert.strictEqual(schema.lists.meetings.add, 'Add another meeting'); assert.strictEqual(schema.lists.meetings.cards, 'Meeting');
-  assert.deepStrictEqual(schema.lists.meetings.cols[1].o, schema.fieldsById.meet.o, 'the same choices as Type of meeting');
+  assert.deepStrictEqual(schema.lists.meetings.cols[2].o, schema.fieldsById.meet.o, 'the same choices as Type of meeting');
 });
 test('one meeting: the list is empty and nothing changes; a new form has no meeting rows', () => {
   const s = fresh(); assert.deepStrictEqual(s.l.meetings, []); assert.strictEqual(s.f.date.v, '12/11/2026');
