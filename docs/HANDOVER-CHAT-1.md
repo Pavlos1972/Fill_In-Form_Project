@@ -4,7 +4,7 @@ Written on 16 November 2026 by the Claude Code session that built versions 3.1 t
 
 **How this file was made, and what that means for how far to trust it.** The early part of Chat 1 was lost when its context was compacted. This file was rebuilt from: the repository (`git log` of `main`, `docs/FORM-CHANGES.md`, `README.md`, `CLAUDE.md`, `docs/HANDOVER-release-3.1.md`, the tests), the list of pull requests 1 to 76 and their descriptions (a digest was made by a helper and is cited where used), the summary Chat 1 kept of its own later part (releases 3.8 to 4.5), and what Paul said, which is quoted where it is known word for word. Section 9 lists what could **not** be recovered. Where a statement comes from memory of the later part of the chat rather than from the repository, it is marked *(from the chat)*. The repository is the proof for anything about code; this file is the proof only for what Paul said and why.
 
-The clone this was written in is a **shallow clone: its history starts at pull request 16 (27 October 2026)**. Pull requests 1 to 15 exist on GitHub (titles are in section 2) but their commits are not in the local history.
+The clone this was written in started **shallow** (history from pull request 16); it was completed with `git fetch --unshallow origin`, so the whole history is available: `main` starts with an *Initial commit* (`8e83a7d`, 14 October 2026), then PR 1 (`06ff522`, 20 October). If a future clone is shallow, run `git fetch --unshallow origin` first.
 
 ## Contents
 
@@ -204,7 +204,7 @@ After a release the skills are renewed and the release is installed on Paul's co
 
 **How the numbering works.** The form had no version number in its first weeks: work was tracked by **pull request number** (PR 1 to PR 59). The form became **version 3.0** by the time PR 60 was made, and the first numbered release was **3.1 (PR 60, 11 November 2026)**. From then every release has a version, a `docs/FORM-CHANGES.md` entry, a "Release X.Y" section in the README and its own test files. The Short Risk Application (`app/js/sr-schema.js`) and the Investment Capture Sheet (`app/js/cs-schema.js`) have their own versions (Short Risk 1.0, 1.1, 1.2; Capture Sheet 1.0).
 
-All 76 pull requests were made from the one work branch `claude/create-something-stjk8a` and **squash-merged on Paul's word**; every one is merged, none was closed unmerged and none was reverted. "Commit" below is the squash commit on `main`. The local clone is shallow, so the commits of PR 1 to PR 15 are not available here (their titles and merge dates are from GitHub).
+All 76 pull requests were made from the one work branch `claude/create-something-stjk8a` and **squash-merged on Paul's word**; every one is merged, none was closed unmerged and none was reverted. "Commit" below is the squash commit on `main`.
 
 ### 2.1 Before version numbers: PR 1 to PR 59 (20 October to 10 November 2026)
 
@@ -212,21 +212,21 @@ Test counts are unit tests (`npm test`) as the pull request stated them. "Not te
 
 | PR (merged) | Commit | What it did, and why |
 |---|---|---|
-| **1** (20.10) | not in this clone | *Add Fact Find revision analysis.* The first PR: `docs/Fact_Find_Revision_Analysis.md`. |
-| **2** (20.10) | not in this clone | Voice fixes from the live sessions of 20 October: a misheard email name or domain repaired from the form and common domains, "email address is incorrect" and "delete that" empty a box, more consent-to-record wordings, Chrome listening restarts when it freezes and logs what it heard. 185 tests. |
-| **3** (20.10) | not in this clone | **Cut the web look-up cost:** the look-up model defaults to Sonnet (a saved Opus replaced once); the LinkedIn search runs only on its button. 186 tests. |
-| **4** (22.10) | not in this clone | Occupation moved before Income & household (form, side menu, voice, PDF). |
-| **5** (26.10) | not in this clone | Hearing, from the 26 October log: Chrome's other wordings sent to Claude, restart after an aborted listening, a fuller listening log. 188 tests. |
-| **6** (26.10) | not in this clone | **OpenAI transcription as a third speech source** for names and addresses (Chrome's recogniser cannot produce rare names, e.g. the adviser's own surname, and its 5-minute sessions end). `listen.js` `openaiEngine`; needs an OpenAI key. 192 tests. *Not tested with a live OpenAI key and voice.* |
-| **7** (26.10) | not in this clone | The **meeting timer** (`timer.js`: starts at the first Listen, pause, Reset, survives a reload); Chrome listening renewed at a 1.5 s pause after 4 minutes. 200 tests. *Renewal tested only with a simulated recogniser.* |
-| **8** (27.10) | not in this clone | The **top bar in three groups**: Settings/New/Open, Meeting/Voice/Listen, saving. Layout only. |
-| **9** (27.10) | not in this clone | Settings: a link to the OpenAI console beside the OpenAI key. |
-| **10** (27.10) | not in this clone | **Hear the client on a Teams call.** Prompted by the first real client meeting (27 October, Teams, headset: all 274 log lines were the adviser). New Settings option *Hear the client on a Teams call* (OpenAI source): **Listen** opens Chrome's share window, the call's sound is transcribed beside the microphone, lines are labelled `who: me` / `who: client`, an echo of a mic line repeating a client line is dropped. 207 tests. ***NOT tested against a real Teams call or Chrome's real share window (a short test call is needed). Still open: section 6.*** |
-| **11** (27.10) | not in this clone | Labelled sound bars ("Paul Sound", "Client Sound"); Health moved after Children. |
-| **12** (27.10) | not in this clone | **Type of quote** dropdown (New Business / Servicing / N/A); dropdowns open by themselves while voice waits on them. 210 tests. |
-| **13** (27.10) | not in this clone | A child's **Age** beside the date of birth; defaults for the risk calculation boxes (ACI Fixed, ACI value "?", ABI 3%/5%). 212 tests. |
-| **14** (27.10) | not in this clone | Shortfall quote only with a group; children's Name and Surname apart; the client's Gender from a valid ID; an ID number can appear once. 219 tests. |
-| **15** (27.10) | not in this clone | Income protection insured amount = the take-home net income (calculated). 220 tests. |
+| **1** (20.10) | `06ff522` | The first PR. Its squash commit is titled *Fact Find: voice mode, Chrome listening fixes and online publishing*; the pull request's own title on GitHub is *Add Fact Find revision analysis* (`docs/Fact_Find_Revision_Analysis.md`). So the base of the app (the form, voice mode, listening, the website publishing) is PR 1, on top of the *Initial commit* (14 October). |
+| **2** (20.10) | `67d5834` | Voice fixes from the live sessions of 20 October: a misheard email name or domain repaired from the form and common domains, "email address is incorrect" and "delete that" empty a box, more consent-to-record wordings, Chrome listening restarts when it freezes and logs what it heard. 185 tests. |
+| **3** (20.10) | `6784acf` | **Cut the web look-up cost:** the look-up model defaults to Sonnet (a saved Opus replaced once); the LinkedIn search runs only on its button. 186 tests. |
+| **4** (22.10) | `0101638` | Occupation moved before Income & household (form, side menu, voice, PDF). |
+| **5** (26.10) | `f199c06` | Hearing, from the 26 October log: Chrome's other wordings sent to Claude, restart after an aborted listening, a fuller listening log. 188 tests. |
+| **6** (26.10) | `72db712` | **OpenAI transcription as a third speech source** for names and addresses (Chrome's recogniser cannot produce rare names, e.g. the adviser's own surname, and its 5-minute sessions end). `listen.js` `openaiEngine`; needs an OpenAI key. 192 tests. *Not tested with a live OpenAI key and voice.* |
+| **7** (26.10) | `d4ef079` | The **meeting timer** (`timer.js`: starts at the first Listen, pause, Reset, survives a reload); Chrome listening renewed at a 1.5 s pause after 4 minutes. 200 tests. *Renewal tested only with a simulated recogniser.* |
+| **8** (27.10) | `eb39736` | The **top bar in three groups**: Settings/New/Open, Meeting/Voice/Listen, saving. Layout only. |
+| **9** (27.10) | `e5322d0` | Settings: a link to the OpenAI console beside the OpenAI key. |
+| **10** (27.10) | `fd351ce` | **Hear the client on a Teams call.** Prompted by the first real client meeting (27 October, Teams, headset: all 274 log lines were the adviser). New Settings option *Hear the client on a Teams call* (OpenAI source): **Listen** opens Chrome's share window, the call's sound is transcribed beside the microphone, lines are labelled `who: me` / `who: client`, an echo of a mic line repeating a client line is dropped. 207 tests. ***NOT tested against a real Teams call or Chrome's real share window (a short test call is needed). Still open: section 6.*** |
+| **11** (27.10) | `019faff` | Labelled sound bars ("Paul Sound", "Client Sound"); Health moved after Children. |
+| **12** (27.10) | `ef1df48` | **Type of quote** dropdown (New Business / Servicing / N/A); dropdowns open by themselves while voice waits on them. 210 tests. |
+| **13** (27.10) | `6047b2a` | A child's **Age** beside the date of birth; defaults for the risk calculation boxes (ACI Fixed, ACI value "?", ABI 3%/5%). 212 tests. |
+| **14** (27.10) | `b1f4425` | Shortfall quote only with a group; children's Name and Surname apart; the client's Gender from a valid ID; an ID number can appear once. 219 tests. |
+| **15** (27.10) | `372c3c7` | Income protection insured amount = the take-home net income (calculated). 220 tests. |
 | **16** (27.10) | `cb47c64` | PDF: symbols the font cannot draw print as plain text (they printed as "?"). |
 | **17** (28.10) | `e2fda92` | **Date of marriage**; voice lines read at the same time (up to four requests at once, applied in spoken order): median heard-to-form time 5.99 s down to 1.41 s on the replay of a 274-line log (the Erika Kuiper meeting label). 225 tests. *Not tried in a live meeting.* |
 | **18** (28.10) | `d286d42` | **"Heard but not placed" list** (saved as `unplaced`) and the **catch-up check** that re-reads the conversation and fills only empty boxes (amber). 229 tests. *Not tried live with a real key.* |
