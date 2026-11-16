@@ -4,6 +4,10 @@ A dated list of what changed in the form's boxes, newest first. **One line for e
 
 The version is `version` in `app/js/schema.js` (the Fact Find), `app/js/sr-schema.js` (the Short Risk Application) and `app/js/cs-schema.js` (the Investment Capture Sheet); a saved file carries it as `schema`. Earlier changes are in the README and in the git history; this list starts with 3.1.
 
+## 4.3: 16 November 2026 (Fact Find 4.2 to 4.3)
+
+Fact Find (the top bar). **No id, list, box, choice or sum changed; display only.** The key countdowns and the costs of Anthropic and OpenAI are one table in the top bar (a line for each service). A skill that reads the saved file sees nothing new. Detail in the README ("Release 4.3").
+
 ## 4.2: 16 November 2026 (Fact Find 4.1 to 4.2)
 
 Fact Find (the Progress card, the list rows). **No id added, removed or relabelled. No box, choice, sum or list column changed.** Detail in the README ("Release 4.2").
