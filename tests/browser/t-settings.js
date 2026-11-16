@@ -64,7 +64,8 @@ srv.listen(0, async () => {
   await p.evaluate(() => { const t = new Date(), add = n => { const x = new Date(t.getFullYear(), t.getMonth(), t.getDate() + n); return x.getFullYear() + '-' + String(x.getMonth() + 1).padStart(2, '0') + '-' + String(x.getDate()).padStart(2, '0'); };
     FF.lookup.saveSettings({ apiKey: 'sk-ant-test', expires: add(27), openaiKey: 'sk-test', openaiExpires: add(9), voiceModel: 'claude-sonnet-5-5', model: 'claude-sonnet-5-5', openaiModel: 'gpt-4o-transcribe' }); FF.app.redraw(); });
   const chips = await p.evaluate(() => ['#keyState', '#keyState2'].map(s => { const e = document.querySelector(s); return { text: e.textContent, hidden: e.hidden, color: e.style.color }; }));
-  ok(chips[0].text === 'Anthropic key: 27 days left' && !chips[0].hidden && chips[1].text === 'OpenAI key: 9 days left' && /warn/.test(chips[1].color), 'the top bar shows each key with its own label and days: ' + JSON.stringify(chips));
+  ok(chips[0].text === '27 days left' && !chips[0].hidden && chips[1].text === '9 days left' && /warn/.test(chips[1].color), 'the top bar shows each key\'s days in its own row (4.3: the row says Anthropic or OpenAI): ' + JSON.stringify(chips));
+  ok(await p.evaluate(() => [...document.querySelectorAll('#svcTable tbody tr')].map(r => r.cells[0].textContent).join('|') === 'Anthropic|OpenAI' && !document.getElementById('svcTable').hidden), 'the rows are named Anthropic and OpenAI (not Claude)');
   await p.click('#btnSettings'); await p.waitForTimeout(250);
   const labels = await p.evaluate(() => ['setExpires', 'setOpenaiExpires', 'setOpenaiPrice'].map(id => { const e = document.getElementById(id); return e && e.closest('label').innerText.trim().split('\n')[0]; }));
   ok(labels.join('|') === 'Anthropic key expires on|OpenAI key expires on|OpenAI speech price (US$ per minute)', 'Settings has both expiry dates, each labelled: ' + labels.join(' | '));
@@ -76,9 +77,9 @@ srv.listen(0, async () => {
   // 9. the OpenAI speech cost
   await p.evaluate(() => { FF.lookup.saveSettings({ apiKey: '', openaiKey: 'sk-test', openaiModel: 'gpt-4o-transcribe', model: 'claude-sonnet-5-5', voiceModel: 'claude-sonnet-5-5' }); FF.app.redraw(); FF.app.spendSpeech(60, 'gpt-4o-transcribe'); FF.app.spendSpeech(30, 'gpt-4o-transcribe'); });
   const cost = await p.evaluate(() => { const e = document.querySelector('#speechCostState'); return { text: e.textContent, hidden: e.hidden, title: e.title, claudeHidden: document.querySelector('#costState').hidden }; });
-  ok(!cost.hidden && cost.text === 'OpenAI: US$0.0090 this fact find' && /2 spoken lines/.test(cost.title) && /1\.5 minutes/.test(cost.title), 'the OpenAI speech cost is shown, apart from Claude\'s: ' + cost.text + ' | ' + cost.title.slice(0, 70));
+  ok(!cost.hidden && cost.text === 'US$0.0090' && /2 spoken lines/.test(cost.title) && /1\.5 minutes/.test(cost.title), 'the OpenAI speech cost is shown, apart from Claude\'s: ' + cost.text + ' | ' + cost.title.slice(0, 70));
   await p.evaluate(() => { FF.lookup.saveSettings({ apiKey: '', openaiKey: 'sk-test', openaiModel: 'gpt-4o-transcribe', openaiPrice: '0.01', model: 'claude-sonnet-5-5', voiceModel: 'claude-sonnet-5-5' }); FF.app.spendSpeech(60, 'gpt-4o-transcribe'); });
-  ok((await p.evaluate(() => document.querySelector('#speechCostState').textContent)) === 'OpenAI: US$0.019 this fact find', 'a price typed in Settings is used for the next lines');
+  ok((await p.evaluate(() => document.querySelector('#speechCostState').textContent)) === 'US$0.019', 'a price typed in Settings is used for the next lines');
   const back = await p.evaluate(() => { const s = FF.store.fromJSON(FF.store.toJSON(FF.app.state)); return s.openai; });
   ok(back.calls === 3 && Math.round(back.seconds) === 150, 'the cost is saved with the Fact Find: ' + JSON.stringify(back));
   await p.evaluate(() => { FF.lookup.saveSettings({ apiKey: '', openaiKey: '', model: 'claude-sonnet-5-5', voiceModel: 'claude-sonnet-5-5' }); FF.app.setState(FF.store.blank()); });
@@ -92,13 +93,13 @@ srv.listen(0, async () => {
   // the four chips sit together at the far right of the title row, in order
   const where = () => p.evaluate(() => {
     const top = document.querySelector('.top'), cs = getComputedStyle(top), right = top.getBoundingClientRect().right - parseFloat(cs.paddingRight), brand = document.querySelector('.top .brand').getBoundingClientRect();
-    const ids = ['#keyState', '#keyState2', '#costState', '#speechCostState'], r = ids.map(i => document.querySelector(i).getBoundingClientRect());
-    return { gap: right - r[3].right, order: r.every((x, i) => i === 0 || x.top > r[i - 1].top + 4 || x.left >= r[i - 1].right - 1), sameRow: r.every(x => x.top < brand.bottom), visible: ids.every(i => !document.querySelector(i).hidden) };
+    const ids = ['#keyState', '#keyState2', '#costState', '#speechCostState'], q = i => document.querySelector(i).getBoundingClientRect(), tb = document.querySelector('#svcTable').getBoundingClientRect();
+    return { gap: right - tb.right, order: q('#keyState').right <= q('#costState').left + 1 && q('#keyState2').right <= q('#speechCostState').left + 1 && q('#keyState').bottom <= q('#keyState2').top + 2, sameRow: tb.top < brand.bottom, visible: ids.every(i => !document.querySelector(i).hidden) && !document.querySelector('#svcTable').hidden };
   });
   for (const w of [1280, 1500, 1920]) {
     await p.setViewportSize({ width: w, height: 800 }); await p.waitForTimeout(200);
     const c = await where();
-    ok(c.visible && c.order && c.sameRow && c.gap >= -1 && c.gap < 6, 'the four chips are at the far right of the title row, in order, at ' + w + ' wide ' + JSON.stringify(c));
+    ok(c.visible && c.order && c.sameRow && c.gap >= -1 && c.gap < 6, 'the keys and costs table is at the far right of the title row, key left of its cost, Anthropic above OpenAI, at ' + w + ' wide ' + JSON.stringify(c));
   }
 
   // the client's name and the save state are centred directly above the meeting, voice and listen buttons, and nothing overlaps (also with a long name)

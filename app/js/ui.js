@@ -718,11 +718,22 @@
   }
   /* The top bar counts down to the day the Anthropic key stops working. */
   /* The top bar shows the days left of each key that is saved, each with its own label: the Anthropic key, then the OpenAI key. */
-  function refreshKey() {
+  /* The key and the cost of each service sit in one small table (4.3): a row shows when its key is saved or it has cost something; the table shows when a row does. */
+  function svcRows() {
+    var shown = 0;
+    [['#svcRow1', ['#keyState', '#costState']], ['#svcRow2', ['#keyState2', '#speechCostState']]].forEach(function (r) {
+      var row = $(r[0]), on = r[1].some(function (id) { var e = $(id); return e && !e.hidden; }); if (row) { row.hidden = !on; if (on) shown++; }
+    });
+    var tb = $('#svcTable'); if (tb) tb.hidden = !shown;
+  }
+  ['#svcRow1', '#svcRow2'].forEach(function (id) { var r = $(id); if (!r) return; r.addEventListener('click', function () { openSettings(); }); });
+  ['#keyState', '#keyState2', '#costState', '#speechCostState'].forEach(function (id) { var e = $(id); if (e) e.addEventListener('keydown', function (ev) { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); openSettings(); } }); });
+  function refreshKey() { refreshKey0(); svcRows(); }
+  function refreshKey0() {
     var set = FF.lookup.getSettings();
     [['#keyState', 'anthropic'], ['#keyState2', 'openai']].forEach(function (k) {
       var el = $(k[0]), st = FF.lookup.keyStatus(set, null, k[1]);
-      el.textContent = st.text; el.hidden = !st.text;
+      el.textContent = st.text.replace(/^(?:Anthropic|OpenAI) key:?\s*/, ''); el.hidden = !st.text;                                                       // the row is named Anthropic or OpenAI: the text is only what is left (4.3)
       el.style.color = st.level === 'expired' ? 'var(--bad)' : (st.level === 'soon' || st.level === 'unset') ? 'var(--warn)' : '';
     });
   }
@@ -1078,16 +1089,17 @@
     el.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openSettings(); } });
     return el;
   }
-  function refreshCost() {
+  function refreshCost() { refreshCost0(); svcRows(); }
+  function refreshCost0() {
     var el = costChip(), t = state.claude || store.blankTally(), left = creditLeft(), tok = function (n) { return Math.round(n).toLocaleString('en-US').replace(/,/g, ' '); };
     el.hidden = !FF.lookup.getSettings().apiKey && !(t.usd > 0);
-    el.textContent = 'Claude: ' + usd(t.usd) + ' this fact find' + (left != null ? ' · about ' + usd(left) + ' left' : '');
+    el.textContent = usd(t.usd) + (left != null ? ' · about ' + usd(left) + ' left' : '');
     el.title = t.calls + ' requests to Claude for this fact find: ' + tok(t.input + t.read + t.write) + ' tokens read (' + tok(t.read) + ' of them from memory, which costs a tenth or less), ' + tok(t.output) + ' written' + (t.searches ? ', ' + t.searches + ' web searches' : '') +
       '. An estimate from the published prices; the Anthropic Console has the real figure.' + (left == null ? ' Click to type the credit you have left, and it is counted down here.' : ' Click to change the credit.');
     el.style.color = left == null ? '' : left < 1 ? 'var(--bad)' : left < 5 ? 'var(--warn)' : '';
     var sp = speechChip(), sv = state.openai || store.blankSpeech(), set = FF.lookup.getSettings(), rate = FF.lookup.speechRate(set.openaiModel, set.openaiPrice), mins = sv.seconds / 60;
     sp.hidden = !set.openaiKey && !(sv.usd > 0);
-    sp.textContent = 'OpenAI: ' + usd(sv.usd) + ' this fact find';
+    sp.textContent = usd(sv.usd);
     sp.title = sv.calls + ' spoken lines sent to OpenAI for this fact find: ' + (Math.round(mins * 10) / 10) + ' minutes of sound at about US$' + rate + ' a minute. An estimate: OpenAI charges by audio token, so the OpenAI usage page has the real figure. Click to change the price in Settings.';
   }
   /* The "fill at once" choice is added to Settings from here too. */
