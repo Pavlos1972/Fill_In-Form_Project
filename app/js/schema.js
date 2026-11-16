@@ -95,6 +95,7 @@
   }
   var WAIT = ['7 days', '14 days', '1 month', '3 months', 'Other'];
   var MEETING_TYPES = ['Teams Meeting', 'Telephonic Meeting', 'Physical Meeting', 'Other'];
+  var APPT_OUTCOMES = ['Completed', 'Did not meet with the client', 'Cancelled by the client', 'Rescheduled'];
 
   var sections = [
     { id: 'info', title: 'Client info', roomy: 1, fit: 1, blocks: [
@@ -120,9 +121,10 @@
         { id: 'tax', l: 'Income tax number', t: 'txt', risky: 1, len: 1, s: 4 }
       ] },
       { title: 'Contact details', layout: 'g12', fields: [
-        { id: 'cell', l: 'Cell number', t: 'txt', risky: 1, s: 4 },
-        { id: 'work', l: 'Work number', t: 'txt', risky: 1, none: 'No work number', s: 4 },
-        { id: 'home', l: 'Home number', t: 'txt', risky: 1, none: 'No home number', s: 4 },
+        { id: 'cell', l: 'Personal cell number', t: 'txt', risky: 1, s: 3 },
+        { id: 'work_cell', l: 'Work cell number', t: 'txt', risky: 1, none: 'No work cell number', s: 3 },
+        { id: 'work', l: 'Work number', t: 'txt', risky: 1, none: 'No work number', s: 3 },
+        { id: 'home', l: 'Home number', t: 'txt', risky: 1, none: 'No home number', s: 3 },
         { id: 'pemail', l: 'Personal email', t: 'txt', risky: 1, none: 'No personal email', s: 6 },
         { id: 'wemail', l: 'Work email', t: 'txt', risky: 1, none: 'No work email', s: 6 }
       ] },
@@ -433,11 +435,12 @@
       { title: 'Letter of Authority', left: 1, help: 'The Letter of Authority (LOA) lets us get the policy schedules through Astute: the retirement, investment and risk policy schedules all depend on it.', fields: [
         { id: 'loa', l: 'Can we send you a LOA to sign?', t: 'sel', o: ['Yes', 'No', 'Not now'] }
       ] },
-      { title: 'Next appointment', left: 1, layout: 'g12', fields: [
+      { title: 'Next appointment', left: 1, layout: 'g12', apptprompt: 1, fields: [
         { id: 'next_appt', l: 'Next appointment (date)', t: 'txt', date: 1, cal: 1, hint: 'e.g. 05/11/2026', s: 12 },
         { id: 'next_day', l: 'Next appointment (day)', sl: 'Day', t: 'txt', calc: 'weekday', s: 5 },
         { id: 'next_time', l: 'Next appointment (time)', sl: 'Time', t: 'txt', time: 1, hint: 'e.g. 14:30', s: 7 }
       ] },
+      { list: 'appts', left: 1 },
       { title: 'Action Points for Personal Assistant', actions: 1, fields: [{ id: 'pa_actions', l: 'Action points for Sitamah Nathoo (personal assistant)', t: 'area', wide: 1, opt: 1, nonotes: 1, rows: 16 }] },
       /* Current Client: for a client whose Referral from is Current client only. A skill reads the client's file in AdviceTech (Basic Info) and writes the summary, in points, into this box in the saved file (id cc_notes). Typed by hand too; never filled by voice, and not read for the action points. heads: a line that is all capitals (4 or more characters, not starting with "- ") is shown and printed bold; the text stays plain. */
       { title: 'Current Client', full: 1, cond: { f: 'ref', eq: 'Current client' }, grey: 1, condMsg: 'Only for a current client: this is active when Referral from (on Client info) is Current client.', fields: [{ id: 'cc_notes', l: 'Current Client File Summary Notes', t: 'area', wide: 1, opt: 1, nonotes: 1, heads: 1, rows: 12 }] }
@@ -520,6 +523,9 @@
       { k: 'cl', l: 'Credit life with lender', o: YNS }, { k: 'surety', l: 'Surety signed', o: ['Yes', 'No', 'Unsure'] },
       { k: 'notes', l: 'Notes', t: 'area', wide: 1 }
     ], sum: { inst: 'Total monthly', sinst: 'Total spouse monthly', bal: 'Total liabilities', asset: 'Total assets' } },
+    appts: { novoice: 1, cards: 'Appointment', title: 'Previous appointments', add: 'Add a previous appointment', empty: 'None yet. When the day of the next appointment has passed, the form asks what happened and records it here; the date is then open for the next appointment.', cols: [
+      { k: 'date', l: 'Date', date: 1 }, { k: 'time', l: 'Time' }, { k: 'outcome', l: 'What happened', o: APPT_OUTCOMES }
+    ], sum: {} },
     meetings: { novoice: 1, cards: 'Meeting', title: 'Meetings held', add: 'Add another meeting', empty: 'This is the only meeting so far. When the client is seen again, press the button: Date completed then becomes the date of the last meeting, and each meeting records who was on the call and which pages were covered.', cols: [
       { k: 'date', l: 'Date', date: 1 }, { k: 'type', l: 'Type of meeting', o: MEETING_TYPES }, { k: 'who', l: 'Others on the call', wide: 1 }, { k: 'covered', l: 'What was covered (written by the form)', wide: 1 }
     ], sum: {} },
@@ -558,5 +564,5 @@
   var byId = {};
   sections.forEach(function (s) { s.blocks.forEach(function (b) { (b.fields || []).forEach(function (f) { byId[f.id] = f; }); }); });
 
-  return { version: '4.0', released: 'November 2026', sections: sections, lists: lists, panels: panels, panelsById: panelsById, advisor: ADVISOR, brBasis: BR_BASIS, areaTitle: areaTitle, psClient: PS_CLIENT, defaultBroker: DEFAULT_BROKER, psNoSend: PS_NOSEND, psSaved: PS_SAVED, psNone: PS_NONE, psClientOld: PS_CLIENT_OLD, PRIORITY: PRIORITY, NOT_PRIORITY: NOT_PRIORITY, NOT_PRIORITY_OLD: NOT_PRIORITY_OLD, UNSURE: UNSURE, BUDGET: BUDGET, fieldsById: byId };
+  return { version: '4.1', released: 'November 2026', sections: sections, lists: lists, panels: panels, panelsById: panelsById, advisor: ADVISOR, brBasis: BR_BASIS, areaTitle: areaTitle, psClient: PS_CLIENT, defaultBroker: DEFAULT_BROKER, psNoSend: PS_NOSEND, psSaved: PS_SAVED, psNone: PS_NONE, psClientOld: PS_CLIENT_OLD, PRIORITY: PRIORITY, NOT_PRIORITY: NOT_PRIORITY, NOT_PRIORITY_OLD: NOT_PRIORITY_OLD, UNSURE: UNSURE, BUDGET: BUDGET, fieldsById: byId };
 });

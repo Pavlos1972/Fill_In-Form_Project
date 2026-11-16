@@ -563,6 +563,42 @@
   function rowFilled(key, r) { return !rowBlank(key, r); }
   /* Progress for a section: how many answers are filled out of those that count. A row of a list counts when something is in it; a list that is on show and empty is one answer still to give; the seven duties boxes
      are one answer (they add up to 100%). */
+  /* The boxes and rows behind the Progress numbers, in the order of the pages (4.1): "to verify" (amber) and "not asked" (empty), exactly the ones counts() counts. Each is { n (its place in the order), sec, id } for a box,
+     { n, sec, list, i } for a row (i -1: the list needs a first row). The Progress card walks through them one by one; Verify All confirms the "to verify" ones. */
+  function pending(state, kind) {
+    var ctx = ctxFor(state), out = [], n = 0;
+    schema.sections.forEach(function (sec) {
+      if (sec.adv || !calc.showIf(sec.cond, ctx)) return;                                                // the advisor pages are not in the Progress numbers
+      sec.blocks.forEach(function (b) {
+        if (!calc.showIf(b.cond, ctx)) return;
+        (b.fields || []).forEach(function (f) {
+          if (f.calc || f.opt || f.preset || !calc.showIf(f.cond, ctx)) return;
+          var g = PS_GATE[f.id], c = state.f[f.id];
+          if (g && g.every(function (x) { return ctx.v(x[0]).trim() === x[1]; })) return;
+          if (calc.DUTY_IDS.indexOf(f.id) >= 0) {
+            n++;
+            if (kind === 'verify' ? c.st === 'verify' : (f.id === calc.DUTY_IDS[0] && Math.abs(calc.DUTY_IDS.reduce(function (a, id) { return a + ctx.n(id); }, 0) - 100) >= 0.001)) out.push({ n: n, sec: sec.id, id: f.id });
+            return;
+          }
+          n++;
+          if (kind === 'verify' ? c.st === 'verify' : c.v === '') out.push({ n: n, sec: sec.id, id: f.id });
+        });
+        if (b.list) {
+          var rows = state.l[b.list];
+          rows.forEach(function (r, i) { n++; if (kind === 'verify' ? r.st === 'verify' : !rowFilled(b.list, r)) out.push({ n: n, sec: sec.id, list: b.list, i: i }); });
+          if (!rows.length && schema.lists[b.list].need) { n++; if (kind === 'empty') out.push({ n: n, sec: sec.id, list: b.list, i: -1 }); }
+        }
+      });
+    });
+    return out;
+  }
+  /* The next appointment has passed and the adviser says what happened (4.1): it goes to the Previous appointments (date, time, what happened) and the next appointment's date, day and time are open again. */
+  function recordAppt(state, outcome) {
+    var date = String(state.f.next_appt && state.f.next_appt.v || '').trim(); if (!date) return null;
+    var row = addRow(state, 'appts', { date: date, time: String(state.f.next_appt && state.f.next_time && state.f.next_time.v || ''), outcome: outcome });
+    setField(state, 'next_appt', ''); setField(state, 'next_time', '');
+    return row;
+  }
   function counts(state, sec) {
     var ctx = ctxFor(state), tot = 0, fill = 0, ver = 0;
     if (!calc.showIf(sec.cond, ctx)) return { tot: 0, fill: 0, ver: 0 };
@@ -588,5 +624,5 @@
     return { tot: tot, fill: fill, ver: ver };
   }
 
-  return { meetingsFollow: meetingsFollow, brFollow: brFollow, hasBrightRock: hasBrightRock, NO_CONTACT_NOTE: NO_CONTACT_NOTE, termValue: termValue, useWorked: useWorked, isPropertyDebt: isPropertyDebt, debtDefaults: debtDefaults, rowBlank: rowBlank, rowFilled: rowFilled, debtSplit: debtSplit, setProtect: setProtect, setProtectAll: setProtectAll, setPa: setPa, setFocus: setFocus, blankPa: blankPa, cleanPa: cleanPa, setSum: setSum, cleanSum: cleanSum, addUnplaced: addUnplaced, closeUnplaced: closeUnplaced, unplacedCovered: unplacedCovered, closeCovered: closeCovered, unplacedKey: unplacedKey, blank: blank, blankTally: blankTally, blankSpeech: blankSpeech, ctxFor: ctxFor, setField: setField, addRow: addRow, delRow: delRow, setCell: setCell, accept: accept, clientName: clientName, idClash: idClash, idKey: idKey, fatherSurname: fatherSurname, baseFileName: baseFileName, pdfFileName: pdfFileName, fromJSON: fromJSON, toJSON: toJSON, counts: counts };
+  return { pending: pending, recordAppt: recordAppt, meetingsFollow: meetingsFollow, brFollow: brFollow, hasBrightRock: hasBrightRock, NO_CONTACT_NOTE: NO_CONTACT_NOTE, termValue: termValue, useWorked: useWorked, isPropertyDebt: isPropertyDebt, debtDefaults: debtDefaults, rowBlank: rowBlank, rowFilled: rowFilled, debtSplit: debtSplit, setProtect: setProtect, setProtectAll: setProtectAll, setPa: setPa, setFocus: setFocus, blankPa: blankPa, cleanPa: cleanPa, setSum: setSum, cleanSum: cleanSum, addUnplaced: addUnplaced, closeUnplaced: closeUnplaced, unplacedCovered: unplacedCovered, closeCovered: closeCovered, unplacedKey: unplacedKey, blank: blank, blankTally: blankTally, blankSpeech: blankSpeech, ctxFor: ctxFor, setField: setField, addRow: addRow, delRow: delRow, setCell: setCell, accept: accept, clientName: clientName, idClash: idClash, idKey: idKey, fatherSurname: fatherSurname, baseFileName: baseFileName, pdfFileName: pdfFileName, fromJSON: fromJSON, toJSON: toJSON, counts: counts };
 });

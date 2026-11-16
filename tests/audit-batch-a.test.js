@@ -101,7 +101,7 @@ test('Date completed, next appointment, will date and dates of birth are read an
   set(s, 'date', '29/10/2026'); assert.strictEqual(at(s, 'date').length, 0);
   set(s, 'next_appt', 'soon'); assert.strictEqual(at(s, 'next_appt').length, 1);
   set(s, 'next_appt', '01/10/2026'); assert.match(at(s, 'next_appt')[0].msg, /before the date of the form/);
-  set(s, 'next_appt', '05/11/2026'); assert.strictEqual(at(s, 'next_appt').length, 0);
+  set(s, 'next_appt', '05/11/2099'); assert.strictEqual(at(s, 'next_appt').length, 0);
   set(s, 'will_date', 'long ago'); assert.strictEqual(at(s, 'will_date').length, 1);
   set(s, 'will_date', '2019'); assert.strictEqual(at(s, 'will_date').length, 0);
   set(s, 'will_date', '2031'); assert.strictEqual(at(s, 'will_date').length, 1);

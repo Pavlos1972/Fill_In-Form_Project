@@ -129,7 +129,15 @@
   }
 
   /* The small line under a calculated box (3.9): the debt repayments say so when the client has no debts. */
+  /* The next appointment when its day has come and gone (4.1): { date, time, text } or null. The day is before today, or it is today and the time given has passed. now: { y, m, d, mins } (today and the minutes since midnight). */
+  function apptPassed(ctx, now) {
+    var d = util.parseDate(ctx.v('next_appt')); if (!d || !now) return null;
+    var before = d.y < now.y || (d.y === now.y && (d.m < now.m || (d.m === now.m && d.d < now.d)));
+    var t = util.parseTime(ctx.v('next_time')), same = d.y === now.y && d.m === now.m && d.d === now.d;
+    if (!before && !(same && t && t.h * 60 + t.m < now.mins)) return null;
+    return { date: util.formatDate(d), time: t ? util.formatTime(t) : '', text: util.weekdayName(d) + ' ' + util.formatDate(d) + (t ? ' at ' + util.formatTime(t) : '') };
+  }
   var fieldNotes = { dr: function (ctx) { return !ctx.rows('debts').length && ctx.v('has_debts') === 'No' ? 'Client has no debts' : ''; } };
   function fieldNote(name, ctx) { return name && fieldNotes[name] ? fieldNotes[name](ctx) : ''; }
-  return { fieldNote: fieldNote, sumShown: sumShown, colShown: colShown, paidByClient: paidByClient, ipSplit: ipSplit, field: field, rowCalc: rowCalc, showIf: showIf, condFields: condFields, clientAge: clientAge, meetingDate: meetingDate, DUTY_IDS: DUTY_IDS, totalIncome: totalIncome };
+  return { apptPassed: apptPassed, fieldNote: fieldNote, sumShown: sumShown, colShown: colShown, paidByClient: paidByClient, ipSplit: ipSplit, field: field, rowCalc: rowCalc, showIf: showIf, condFields: condFields, clientAge: clientAge, meetingDate: meetingDate, DUTY_IDS: DUTY_IDS, totalIncome: totalIncome };
 });

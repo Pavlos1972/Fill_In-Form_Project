@@ -176,6 +176,19 @@ a.btn { display: inline-block; text-decoration: none; }              /* a link t
 .summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; text-align: center; }
 .summary b { display: block; font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .summary span { font-size: 11px; color: var(--muted); }
+.summary .sbtn { cursor: pointer; border-radius: 8px; padding: 2px 0; }
+.summary .sbtn:hover { background: var(--surface-2); }
+.summary .sbtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.verifyall { width: 100%; margin-top: 10px; padding: 7px 10px; border-radius: 8px; border: 1px solid var(--accent); background: var(--surface); color: var(--accent); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+.verifyall:hover { background: var(--surface-2); }
+.verifyall:disabled { opacity: .5; cursor: default; }
+.toast-undo { background: none; border: 0; color: inherit; text-decoration: underline; cursor: pointer; font: inherit; padding: 0 0 0 6px; }
+.apptdone { margin-top: 10px; padding: 10px 12px; border: 1px solid #c9a227; border-left-width: 4px; border-radius: 8px; background: var(--surface-2); font-size: 13px; }
+.apptq { margin-bottom: 6px; }
+.apptbtns { display: flex; flex-wrap: wrap; gap: 6px; }
+.apptbtn { padding: 5px 10px; border-radius: 16px; border: 1px solid var(--accent); background: var(--surface); color: var(--accent); font: inherit; font-size: 12.5px; cursor: pointer; }
+.apptbtn:hover { background: var(--accent); color: var(--surface); }
+.apptnote { margin-top: 6px; font-size: 12px; color: var(--muted); }
 .toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(16px + env(safe-area-inset-bottom, 0px)); background: var(--ink); color: var(--bg); padding: 9px 16px; border-radius: 8px; font-size: 13px; z-index: 10; max-width: 90vw; }
 .link-btn { background: none; border: 0; color: var(--accent); cursor: pointer; padding: 0; font: inherit; text-decoration: underline; }
 .addrow + .f, .sumstrip + .addrow { margin-top: 10px; }

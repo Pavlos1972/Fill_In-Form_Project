@@ -17,7 +17,7 @@ const SAMPLE = f => {
   if (vid(f) === 'next_appt') return '14 March 2099';                                                       // an appointment is never before the meeting
   if (['dob', 'will_date', 'marr_date'].includes(vid(f))) return '14 March 1986';
   if (vid(f) === 'next_time') return 'half past two';
-  if (['cell', 'work', 'home', 'sp_tel'].includes(vid(f))) return '082 555 0148';
+  if (['cell', 'work_cell', 'work', 'home', 'sp_tel'].includes(vid(f))) return '082 555 0148';
   if (['pemail', 'wemail'].includes(vid(f))) return 'john at gmail dot com';
   if (vid(f) === 'idno') return '8001015800087';
   if (vid(f) === 'tax') return '1234567890';
@@ -76,7 +76,7 @@ test('every section with a notes box can be told to take notes, and each box is 
 
 test('in every free-text box, lead-in words are never typed and a sentence that stops short fills nothing', () => {
   const misses = [];
-  const typed = ['dob', 'will_date', 'marr_date', 'next_appt', 'next_time', 'cell', 'work', 'home', 'sp_tel', 'pemail', 'wemail', 'idno', 'tax', 'years', 'debts.term'];
+  const typed = ['dob', 'will_date', 'marr_date', 'next_appt', 'next_time', 'cell', 'work_cell', 'work', 'home', 'sp_tel', 'pemail', 'wemail', 'idno', 'tax', 'years', 'debts.term'];
   idx.fields.filter(f => f.t === 'txt' && !f.options && !f.money && !f.date && !typed.includes(vid(f)) && !/^d_|biz_pct/.test(vid(f))).forEach(f => {
     const lab = (f.list ? nounOf(f) : '') + labelOf(f);
     // 1. stops at "is": nothing goes into the box (while it waits, or with nothing waiting)
