@@ -1,6 +1,6 @@
 # Wealth Revolution Fact Find: handover and rules for Claude
 
-**Update this file with every release** (version history, ids, decisions, what is not yet tested). `README.md` describes the app in detail; this file is what a new session must know first, and keeps the rules that must not be lost between sessions. Last updated: 16 November 2026, version 4.1.
+**Update this file with every release** (version history, ids, decisions, what is not yet tested). `README.md` describes the app in detail; this file is what a new session must know first, and keeps the rules that must not be lost between sessions. Last updated: 16 November 2026, version 4.1 (installed on Paul's computer, read back identical to `main` 57497d6).
 
 ## 1. What this is and who uses it
 
@@ -49,6 +49,7 @@ GitHub: use the `mcp__github__*` tools (no `gh` CLI). Repository `pavlos1972/fil
 | **Plain, short wording** | Tables with two columns where a table helps; say what happened, what is not certain, and ask before merging. |
 | **Never say "live" until the deploy step has finished** | See the release routine. I cannot open the live site: say so, and leave the live look to Paul. |
 | **Do not change ids or lists while the skills are being renewed** | The Fix Skills chat says when it is safe. |
+| **Session size** | When this session's context passes about **80%**, finish the release in hand, update this file (version history, decisions, not yet tested), and tell Paul in one line to start a new session. **Never start a release above about 85%.** |
 | **Question vs build** | Paul asks, you explain back (with questions); he says "build"; you build; he says "merge". A small clear instruction may be built at once, but the merge always waits. |
 
 ## 4. The release routine (every release)
@@ -61,7 +62,7 @@ GitHub: use the `mcp__github__*` tools (no `gh` CLI). Repository `pavlos1972/fil
 6. **Publish check:** the "Publish the Fact Find" run on `main` must finish with the **deploy step** `success` (the status call can lag: ask again). Only then say it is live. If the deploy step fails with "no artifact" or "multiple artifacts", **re-run failed jobs once at most**; a re-run of the same run adds another website package and then fails for good. Start a **fresh run** (`run_workflow`, `pages.yml`, ref `main`) instead. Tell Paul plainly if it is still not through.
 7. **ZIP:** build it (command in section 2), check it holds the new `build.js` build number, send it to Paul.
 8. **Note for the Fix Skills chat, at the end of every release:** the version; every new, changed or removed box id and list; anything a skill that **reads or writes the saved file** must know (a value now empty, a new top-level key, a changed meaning); anything that would make a skill's form check stop (a new id or list it does not know). The skills are renewed from it.
-9. **Wait for the Fix Skills chat to confirm the skills are renewed before Paul installs the ZIP.** Paul installs; the Fix Skills chat checks the copy against `main`.
+9. **Wait for the Fix Skills chat to confirm the skills are renewed before the release is installed on Paul's computer.** **The Fix Skills chat installs the release on Paul's computer itself** (only the changed files, read back against `main`) and keeps one dated zip in Fact Find Documents; Paul does not need to install it by hand. (Still send Paul the ZIP, as a copy.)
 10. **The changes page** (when Paul asks): read it with the Artifact tool (`read`), add a section for the release and update the status line (PR, commit, test counts, deploy time), then publish to the same URL. Be honest in it about slips and what is not certain.
 
 ## 5. Key decisions and why
