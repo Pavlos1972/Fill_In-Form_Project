@@ -270,3 +270,70 @@ Test counts are unit tests (`npm test`) as the pull request stated them. "Not te
 | **58** (10.11) / **59** (10.11) | `2625f39`, `9b7c292` | **The Short Risk Application page** (`app/short-risk.html`): the General Short Risk Application, filled from the Fact Find (Load from Fact Find), its own PDF, Checks; 59 added call Day/Date/Time, Product type, and Owner of the policy (Short Risk 1.1). 459 / 468 tests. ***The `complete-applications-skill` is not connected to it yet (Paul will do that).*** |
 
 The pull request descriptions often also said what was **not tested**: live meetings and Claude's real reading of spoken lines could never be tested in the sandbox (they need a live key and a real conversation).
+
+### 2.2 The numbered releases: 3.1 to 4.5 (11 to 16 November 2026)
+
+Test counts: unit tests / browser checks, as stated when the release was built (4.5 was the last: **694 / 721**). The full ids and lists of each release are in `docs/FORM-CHANGES.md`; the README has a "Release X.Y" section for each from 3.6 on (3.1's is spread over its own bullets).
+
+#### 3.1: PR 60, `76f01db`, 11 November (516 / 446)
+*Fact Find 3.0 to 3.1, Short Risk 1.1 to 1.2.* A big release Paul approved as one ("make all the changes together"; its working note is `docs/HANDOVER-release-3.1.md`, written to be deleted after the merge: it is still in the repo).
+- **Defaults that save typing:** Debts *Term left* starts as **Max term** for a credit card and revolving credit; *Asset value* **R 0.00** for every debt not on a property; *Qualification details* **N/A** when Highest education is Matric; *Employer* **N/A** when Employed is No.
+- **Ids:** new `spmaint` (**Spousal Maintenance**: what an ex-spouse pays the client; a new id because the meaning of the old `spinc` "Spousal Income" changed: `spinc` stays as a **legacy** box shown only while a file holds a value, still added into Total Income); `maint` relabelled **Child Maintenance** (same id); new `on_call` (**Others on the call**); new `debts_end` (**No more debts**); Debts column `term` relabelled **Term left (months)**, always a number of months.
+- **Schedule boxes:** *Policy Schedules saved in Client File* added, *Client does not need to send through* removed (older files migrate).
+- **Action Points read every note** (every Notes box, the Health notes, the quote comments, the BrightRock comments, "heard but not placed") and decide what Sitamah must do.
+- **Debts by voice:** stay on one debt until told; "remove debt 2" removes it; "No more debts".
+- **Seven voice fixes** from the Wilhelm Bosman log (a rounder figure never replaces an agreed exact one, take-home above gross refused, and so on); a **spouse on the call**.
+- **New top-level key `worked`** in the saved file: the figures the form works out, as the PDF prints them (`app/js/worked.js`); never read back, rebuilt at every save.
+- **The skills' rules** were set in this release: an id never changes for a label; a meaning change gets a new id; `docs/FORM-CHANGES.md`.
+- Short Risk: a file saved by 1.0 opens with Owner = The client.
+
+#### 3.2: PR 61, `5e4925e`, 11 November (523 / 460)
+New optional box **`cc_notes`** (*Current Client File Summary Notes*) in a **Current Client** section at the bottom of Admin, active only when `ref` (Referral from) is "Current client", greyed otherwise. Written by a skill (`advicetech-client-notes`, from the client's AdviceTech Basic Info notes) as points with status `verify`; never filled by voice, never read for the action points, printed in the PDF only while active.
+
+#### 3.3: PR 62, `70a748c`, 12 November (528 / pass)
+Asked via the Skill Restructure chat: a heading line in `cc_notes` (no lower-case letters, at least four characters, not starting "- ": `util.isHeadingLine`) is shown **bold** in the box (a read view; the plain text opens on a click, Edit or Enter) and printed bold in the PDF. The saved file is unchanged (plain text).
+
+#### Investment Capture Sheet 1.0: PR 63, `ff80f66`, 12 November (558 / 549)
+A **third page**, `app/capture-sheet.html`, for investment applications at any insurer, made from Old Mutual's *Application Details for Finalisor* (made generic), with the **Risk Tolerance questionnaire** copied in (not a link). **Load from Fact Find** and **Load from Short Risk file**. Two PDFs: the application, and the questionnaire's own PDF (the firm's fillable form filled with `pdf-lib`, signature, place and date left blank; the Save window opens in the loaded Fact Find's folder). Paul asked for the page to have its own website address (it exists once published). The Fact Find stayed at 3.3. *Not tested: Chrome's real Save window with a real folder (only a stand-in).*
+
+#### 3.4: PR 64, `b7cf78b`, 13 November (580 / 573)
+**Client priorities follow what the client already has** (`autoprio.js`): an automatic **Not a priority**, with a reason and the referral set to Not required (all `preset`), only where a fact makes the area pointless: medical aid or hospital plan through the company; a will up to date elsewhere (or held by Capital Legacy with Paul K); short-term through the company; no children (EGAR). Life, RA, RGAR and Invest are **never** decided by the form. Once the adviser changes the decision the area is his (`auto` top-level key). **One "no":** the choice *Not a priority: client not interested* became plain **Not a priority** (the reason goes in the comments); *Not interested* became *Not required*; the quote lists lost *Cannot afford now* and *Not interested*. Suggestion lines with buttons (take-over chances, tertiary children, no retirement funds). *A skill that reads `pr_life` to `pr_st` must test for text starting "Not a priority".*
+
+#### 3.5: PR 65, `2ceb44a`, 13 November (581 / 573)
+At Paul's word, relayed by the Fix Skills chat: **"Must not contact client" removed** from the Short-term referral box `ref_sti`. An older file holding it opens with *Not required* and the sentence `Marked "Must not contact client" in an earlier version of the form.` is added to `pr_st_cm`.
+
+#### 3.6: PR 66, `74e524f`, 13 November (598 / 591)
+After the **Elmer Jonker meeting** and the audit: the screen stays on its page until the adviser says; debts removed for real and kept removed; no rows from passing remarks; the next appointment only when discussed ("same time next week" worked out). **Debts:** new column `sinst` (**Spouse instalment**, R p.m.), and the **payer** rule: *Joint* splits the instalment 50/50 into `inst` (client) and `sinst`, *Spouse* puts it all in `sinst`; new total **Total spouse monthly**; the client's total and the instalment protector carry only the client's part; **credit life** asked only for a Home loan, Vehicle finance or Personal loan with a lender, and *Not sure* added. Other-broker cover wording: "an opportunity to quote; the client will decide" (never "a take-over"). The **Priorities to be Focused on** box writes `Recommend:` / `Client:` / `Come back with:`. Audit fixes: money and date parsing (`6.500` is R 6 500.00), the SARS age rebate by age at 28 February.
+
+#### 3.7: PR 67, `cd5e623`, 13 November (628 / 599)
+**The deeper guards from the audit.** No id, box or choice changed. Voice: a confirm on a line the adviser said is not applied (only the client's agreement turns a box green); a box emptied on purpose is not refilled (`emptied`); strict row numbers; an action point, Priorities line or note with an amount (100 or more) that is nowhere in the facts is dropped; ex-smokers and a spouse's smoking do not fill Smoker; someone else's ID, phone or email never fills the client's boxes; no rows from a third party's loan.
+
+#### 3.8: PR 68, `244570d`, 13 November (643 / 616)
+After the **Sibanda meeting** (12 November, recorded; invented names in the tests): a "heard but not placed" note saying only three of five children were given was still open though the form held them. **Stale notes closed** (`unplacedCovered`); the facts carry `on_the_form_now`; **every action point names its source** (a kind of fact, or a note id with words quoted from it) or is removed (and listed on Admin, screen only); small talk is not noted; the **copy check** (`build.js`, the `wr-build` meta tag on all three pages, the red **"Mixed versions"** bar) after Paul's computer once ran old scripts. The Admin page lists *Notes read* and *Points removed*. Paul: *"Checked, notes look much better so far, it will need to be tested further on other clients."*
+
+#### 3.9: PR 69, `e3ca5c6`, 14 November (653 / 636)
+**The BrightRock calculation follows the client's BrightRock policy.** A new block *Current BrightRock policy (from the policy schedule)* with `br_aci` (**Yearly premium increase**, the ACI) and `br_dd_cover` (**Cover that you can recover from**), shown only when a BrightRock policy is listed; the four ACI value boxes (`lc_f_aciv`, `pd_f_aciv`, `ip_aciv`, `dd_aciv`) follow it; the fractured **Dread cover** = the greater of R 500 000 and `br_dd_cover`; a percentage typed alone gets its "%"; **Has debts = No** gives R 0.00 and "Client has no debts". **The ACI/ABI correction:** the first build took the schedule's *Yearly base increase* as the ACI; Paul caught it (section 1.5); it was corrected on the work branch before the merge (*from the chat: the pull request description still carries the first wording*). **The deploy failed four times** on GitHub's side ("no artifact", then "multiple artifacts"); a fresh run succeeded (section 8).
+
+#### 4.0: PR 70, `9f2cf25`, 15 November (672 / 659)
+**One ACI for every benefit** (a value in any of the four ACI value boxes goes into the others, with the same status, and into `br_aci` while a BrightRock policy is listed; ABI, the ACI choice boxes and the standard quotes are not part of it); **the "?" is gone** from every ACI value box; **Meetings held**: a new list `meetings` on Client info (columns `date`, `type`, `who`, `covered`) for a Fact Find done over two or three meetings, empty while there has been one meeting, the first "Add another meeting" makes the meeting so far meeting 1; `date` (Date completed), `meet` (Type of meeting) and `on_call` are the last meeting's; "What was covered" is **written by the form** from a new top-level key `covered` (page names where an answer was typed or said); opening a file on a later day with voice on asks "another meeting?". Not filled by voice (`novoice`). *The release that taught the numbering rule: the next number after 3.9 is 4.0.*
+
+#### 4.1: PR 71, `57497d6`, 16 November (681 / 685)
+**An appointment that has passed:** when `next_appt` has gone by, Admin asks what happened (Completed / Did not meet with the client / Cancelled by the client / Rescheduled), records it in the new list **`appts`** (*Previous appointments*: `date`, `time`, `outcome`) and empties `next_appt` and `next_time`; **the Progress numbers lead to the boxes** ("to verify" and "not asked" are buttons that walk to each box); **Verify All** (asks, with an Undo for about 10 seconds); **`cell` relabelled Personal cell number** (same id) and a new **`work_cell`** (Work cell number, with a "No work cell number" tick). *Not yet proved with a real client.*
+
+#### 4.2: PR 72, `dea5d25`, 16 November (686 / 691)
+After Paul's first real run of 4.1: **Verify All and "to verify" missed advisor pages, optional boxes and Broker on record**: now every amber box on every page (not an empty box, a calculated box or the online profile); a **Calendar** button on the Date of Previous appointments and Meetings held (Paul: *"There is no Calendar drop down - please ADD"*); the **gender is filled from a valid ID number** (typed, said, confirmed, or a file opened; never overwrites). **`CLAUDE.md` was rewritten as the handover** in this release.
+
+#### 4.3: PR 73, `bd75044`, 16 November (686 / 692)
+**The keys and costs in one small table** in the top bar (display only): a line for **Anthropic** and one for **OpenAI** (Paul: *"Claude must be renamed 'Anthropic'"*), columns *Key* and *This Fact Find*; amber at 14 days or fewer or with no expiry date, red once expired; a click opens Settings. Paul chose "Option B" from a mock-up page I drew. On the same day I took Paul through renewing his Anthropic key (30 days, saved in Settings with its expiry date: the top bar then showed 30 days left). *Slip: the global table style first stretched the table across the bar; fixed before merging.*
+
+#### PR 74, `a3d16ef`, 16 November (documentation only)
+`CLAUDE.md`: 4.3 merged, the keys-and-costs table decision, the API key renewal note. Nothing under `app/`, so no website update ran.
+
+#### 4.4: PR 75, `e40dec1`, 16 November (690 / 707)
+**"Other forms ▾"** (display only): the Short Risk Application and Investment Capture Sheet links are one menu button (a native `<details id="otherForms">`; closes on Escape, a click elsewhere and a chosen link); the keys-and-costs table stays. The mix of Paul's Option B (the table) and Option A (the dropdown). Built in this chat because Paul asked after the context was at 16%.
+
+#### 4.5: PR 76, `b74fb24`, 16 November (694 / 721)
+**Meetings held on one line** (Paul: *"far too big ... ONE line ... not even collapsable"*): each meeting is one line of boxes: Date (Calendar), **Day** (new calculated column `meetings.day`, not an answer), Type, Others on the call, What was covered, with the ✕; the **Meetings held** heading folds the list (shut it reads "2 meetings: 14/10/2026, 28/10/2026"; it stays as left). The PDF prints the Day; `worked.l.meetings` lists the days. *Slips fixed before merging:* "What was covered" wrapped onto a second line; the one-line list lost its empty-list message. ***Left open: the boxes are narrow at the standard width, so "Teams Meeting" and long names may be cut off in the box until you click into it; seen only in a test screenshot, not on Paul's screen.***
+
+#### After 4.5
+The Fix Skills chat reported **4.1 to 4.5 all installed on Paul's computer** (section 5). The only commits on `main` after PR 76 are none; this handover (a documentation-only pull request) is the next change.
