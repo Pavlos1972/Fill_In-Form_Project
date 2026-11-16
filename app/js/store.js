@@ -566,6 +566,7 @@
   /* The boxes and rows behind the Progress numbers, in the order of the pages (4.1): "to verify" (amber) and "not asked" (empty), exactly the ones counts() counts. Each is { n (its place in the order), sec, id } for a box,
      { n, sec, list, i } for a row (i -1: the list needs a first row). The Progress card walks through them one by one; Verify All confirms the "to verify" ones. */
   function pending(state, kind) {
+    if (kind === 'verify') return verifyList(state);
     var ctx = ctxFor(state), out = [], n = 0;
     schema.sections.forEach(function (sec) {
       if (sec.adv || !calc.showIf(sec.cond, ctx)) return;                                                // the advisor pages are not in the Progress numbers
@@ -588,6 +589,24 @@
           rows.forEach(function (r, i) { n++; if (kind === 'verify' ? r.st === 'verify' : !rowFilled(b.list, r)) out.push({ n: n, sec: sec.id, list: b.list, i: i }); });
           if (!rows.length && schema.lists[b.list].need) { n++; if (kind === 'empty') out.push({ n: n, sec: sec.id, list: b.list, i: -1 }); }
         }
+      });
+    });
+    return out;
+  }
+  /* "To verify" (4.1, widened): EVERY box and row that is amber (status verify) on EVERY page, in the order of the pages: the advisor pages (priorities, the BrightRock calculation, Admin) too, and the optional boxes and the boxes
+     with a starting value (Broker on record) that the "not asked" count leaves out. A box that holds nothing, a calculated box and the client's online profile (looked up on the internet, it can be someone else: verified by hand) are
+     not in it. The Progress number, the button, and Verify All all use this one list. */
+  var NEVER_VERIFIED_ALL = { profile: 1 };
+  function verifyList(state) {
+    var out = [], n = 0;
+    schema.sections.forEach(function (sec) {
+      sec.blocks.forEach(function (b) {
+        (b.fields || []).forEach(function (f) {
+          if (f.calc || NEVER_VERIFIED_ALL[f.id]) return;
+          var c = state.f[f.id]; n++;
+          if (c && c.st === 'verify' && String(c.v).trim() !== '') out.push({ n: n, sec: sec.id, id: f.id });
+        });
+        if (b.list) (state.l[b.list] || []).forEach(function (r, i) { n++; if (r.st === 'verify') out.push({ n: n, sec: sec.id, list: b.list, i: i }); });
       });
     });
     return out;

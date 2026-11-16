@@ -49,10 +49,10 @@ test('the Checks say the appointment has passed; the action points ask for a new
 
 /* ---------- 2. the Progress numbers lead to the boxes ---------- */
 const progress = s => schema.sections.reduce((a, sec) => { if (sec.adv) return a; const c = store.counts(s, sec); return { verify: a.verify + c.ver, empty: a.empty + c.tot - c.fill }; }, { verify: 0, empty: 0 });
-test('the boxes behind "to verify" and "not asked" are exactly the numbers on the Progress card, in the order of the pages', () => {
+test('the boxes behind "to verify" and "not asked" are the numbers on the Progress card, in the order of the pages', () => {
   const s = fresh(); set(s, 'fname', 'Sam', 'verify'); set(s, 'gross', 'R 1.00', 'verify'); set(s, 'has_kids', 'Yes', 'verify'); store.addRow(s, 'debts', { type: 'Home loan' }, 'verify');
   const v = store.pending(s, 'verify'), e = store.pending(s, 'empty');
-  assert.strictEqual(v.length, progress(s).verify); assert.strictEqual(e.length, progress(s).empty);
+  assert.strictEqual(v.length, 4); assert.strictEqual(e.length, progress(s).empty, '"not asked" is exactly the counted boxes');
   assert.deepStrictEqual(v.map(x => x.id || x.list + ':' + x.i), ['fname', 'gross', 'debts:0', 'has_kids'], 'in the order of the pages, top to bottom');
   const order = v.map(x => x.sec); assert.deepStrictEqual(order, order.slice().sort((a, b) => schema.sections.findIndex(x => x.id === a) - schema.sections.findIndex(x => x.id === b)), 'page by page');
   assert.ok(v.every((x, i) => i === 0 || x.n > v[i - 1].n), 'each has its place in the order');
@@ -81,4 +81,27 @@ test('the Short Risk and Capture Sheet pages copy the personal cell number, as b
   const ff = fresh(); set(ff, 'cell', '082 555 0148'); set(ff, 'work_cell', '083 555 0000'); set(ff, 'work', '011 555 0000'); set(ff, 'fname', 'Sam');
   const a = sr.blank(); sr.loadFromFactFind(a, store.toJSON(ff), 'x.json'); assert.strictEqual(a.f.cell.v, '082 555 0148'); assert.strictEqual(a.f.work.v, '011 555 0000');
   const b = cs.blank(); cs.loadFromFactFind(b, store.toJSON(ff), 'x.json'); assert.strictEqual(b.f.cell.v, '082 555 0148'); assert.strictEqual(b.f.tel_w.v, '011 555 0000');
+});
+
+/* ---------- Verify All and "to verify" work on every page ---------- */
+test('"to verify" is every amber box on every page: the boxes with a starting value, the optional boxes and the advisor pages too, but not an empty box, a calculated box or the online profile', () => {
+  const s = fresh();
+  set(s, 'ma_broker', 'Other broker', 'verify');                       // Broker on record: a box with a starting value (left out of the "not asked" count)
+  set(s, 'n_income', 'Some note', 'verify');                          // an optional notes box
+  set(s, 'pr_life', 'Priority: client agrees', 'verify');             // an advisor page (Client priorities)
+  set(s, 'br_aci', '10%', 'verify');                                   // the BrightRock page
+  set(s, 'cc_notes', 'Summary', 'verify');                            // Admin
+  set(s, 'profile', 'Possible match', 'verify');                      // looked up on the internet: verified by hand
+  s.f.gender = { v: '', st: 'verify' };                               // amber with nothing in it
+  store.addRow(s, 'risk', { prov: 'BrightRock' }, 'verify');
+  const ids = store.pending(s, 'verify').map(x => x.id || x.list + ':' + x.i);
+  assert.deepStrictEqual(ids.slice().sort(), ['br_aci', 'cc_notes', 'ma_broker', 'n_income', 'pr_life', 'risk:0'].sort(), ids.join(','));
+  const secs = store.pending(s, 'verify').map(x => schema.sections.findIndex(y => y.id === x.sec)); assert.deepStrictEqual(secs, secs.slice().sort((a, b) => a - b), 'in the order of the pages');
+  assert.ok(!progress(s).verify || progress(s).verify < ids.length, 'the old per-page count missed most of them');
+});
+test('when nothing is amber nothing is waiting', () => { assert.strictEqual(store.pending(fresh(), 'verify').length, 0); });
+
+/* ---------- the calendar in the list rows ---------- */
+test('the date of a previous appointment and of a meeting has the calendar, like the next appointment', () => {
+  assert.ok(schema.lists.appts.cols[0].cal && schema.lists.meetings.cols[0].cal && schema.fieldsById.next_appt.cal);
 });

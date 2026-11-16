@@ -4,6 +4,12 @@ A dated list of what changed in the form's boxes, newest first. **One line for e
 
 The version is `version` in `app/js/schema.js` (the Fact Find), `app/js/sr-schema.js` (the Short Risk Application) and `app/js/cs-schema.js` (the Investment Capture Sheet); a saved file carries it as `schema`. Earlier changes are in the README and in the git history; this list starts with 3.1.
 
+## 4.2: 16 November 2026 (Fact Find 4.1 to 4.2)
+
+Fact Find (the Progress card, the list rows). **No id added, removed or relabelled. No box, choice, sum or list column changed.** Detail in the README ("Release 4.2").
+- **"to verify" and Verify All now cover every box with the status `verify` on every page** (the advisor pages, optional boxes and boxes with a starting value included; not an empty box, a calculated box or `profile`). A skill that reads statuses sees no change; the button only turns `verify` into `confirmed`.
+- **The list columns `appts.date` and `meetings.date` have a calendar** (`cal: 1`), as `next_appt` has.
+
 ## 4.1: 16 November 2026 (Fact Find 4.0 to 4.1)
 
 Fact Find (the Admin page, the Progress card, the phone numbers). Detail in the README ("Release 4.1").

@@ -1,6 +1,6 @@
 # Wealth Revolution Fact Find: handover and rules for Claude
 
-**Update this file with every release** (version history, ids, decisions, what is not yet tested). `README.md` describes the app in detail; this file is what a new session must know first, and keeps the rules that must not be lost between sessions. Last updated: 16 November 2026, version 4.1 (installed on Paul's computer, read back identical to `main` 57497d6).
+**Update this file with every release** (version history, ids, decisions, what is not yet tested). `README.md` describes the app in detail; this file is what a new session must know first, and keeps the rules that must not be lost between sessions. Last updated: 16 November 2026, version 4.2 (4.1 is installed on Paul's computer, read back identical to `main` 57497d6; 4.2 is built and waits for Paul's merge).
 
 ## 1. What this is and who uses it
 
@@ -92,6 +92,7 @@ The automated tests use invented answers and a faked Claude. Not yet proved on a
 
 | Version | What |
 |---|---|
+| **4.2** (after the first real run of 4.1) | Verify All and "to verify" cover every amber box on every page (advisor pages, optional boxes and Broker on record too; not the online profile); a Calendar button on the Date of Previous appointments and Meetings |
 | **4.1** (PR 71) | Passed appointment recorded (`appts`), Progress buttons, Verify All, `work_cell` and Personal cell number |
 | **4.0** (PR 70) | One ACI for every benefit, no "?", Meetings held (`meetings`, `covered`) |
 | **3.9** (PR 69) | BrightRock policy block (`br_aci`, `br_dd_cover`), Dread rule, % auto-fill, no-debts R 0.00 |
