@@ -1,6 +1,6 @@
 # Wealth Revolution Fact Find: handover and rules for Claude
 
-**Update this file with every release** (version history, ids, decisions, what is not yet tested). `README.md` describes the app in detail; this file is what a new session must know first, and keeps the rules that must not be lost between sessions. Last updated: 16 November 2026, version 4.3 (4.2 is merged and live; 4.3 is built and waits for Paul's merge; the Fix Skills chat installs releases once the skills are renewed).
+**Update this file with every release** (version history, ids, decisions, what is not yet tested). `README.md` describes the app in detail; this file is what a new session must know first, and keeps the rules that must not be lost between sessions. Last updated: 16 November 2026, version 4.3 (4.1, 4.2 and 4.3 are merged and live on the website; the Fix Skills chat installs releases on Paul's computer once the skills are renewed: 4.2 and 4.3 were sent as ZIPs and are waiting on that).
 
 ## 1. What this is and who uses it
 
@@ -81,10 +81,13 @@ GitHub: use the `mcp__github__*` tools (no `gh` CLI). Repository `pavlos1972/fil
 | **Priorities and autoprio** | The one "no" is plain **Not a priority** (the reason goes in the Comments). `autoprio.js` sets it by itself only where a fact makes the area pointless (medical aid through the company, a will up to date elsewhere, short-term through the company, no children); a cover with another broker is "an opportunity to quote; the client will decide", never "a take-over". The Priorities box is Recommend / Client / Come back with. |
 | **Phones** (4.1) | `cell` is labelled **Personal cell number** (the id did not change: ids never change when only a label does); `work_cell` is new; Work number and Home number are the landlines. The Short Risk and Capture Sheet pages copy `cell` and `work`. |
 | **The BrightRock Risk Calculation** | Only how a BrightRock Fractured quote is built; standard quotes are on Client priorities. Starting answers are presets. The instalment protector is split out of the income-protection amount. |
+| **Keys and costs table** (4.3) | Paul found the top right muddled; he chose "Option B" from a mock-up page and asked for "Anthropic" instead of "Claude". One table: a line per service, columns Key and This Fact Find; the two page buttons stay above it. When a design question is visual, **draw a mock-up Artifact first** and let Paul choose. |
 | **The copy check** (3.8) | Each page checks its files all come from its own folder and that its build matches; otherwise a red bar says "Mixed versions". |
 | **Voice never fills** `meetings`, `appts` | They are the adviser's records (`novoice` in `schema.js`). |
 
 ## 6. Not yet tested with a real client
+
+**Paul's API key** (Console > API keys; the form's Settings holds the key and its expiry date, per browser and per copy): keys last 30 days and are renewed by hand; the top bar counts the days down (amber at 14). The key is renewed by Paul in the console; never ask him to paste a key into the chat.
 
 The automated tests use invented answers and a faked Claude. Not yet proved on a real client: **listening to a real Teams call** (PR 10: share the call's sound, needs a short test call); **voice for "work cell"**; **"What was covered"** (pages, not topics); **the passed-appointment question**, the **Progress buttons and Verify All**; the **action-point sources rule** with the real Claude (if it ignores the format, all its points are removed and the plain points stay, and the Admin list says so); reading **scanned policy schedules** (the skills can, this sandbox cannot). I cannot open the live website or Paul's OneDrive reliably from this sandbox.
 
@@ -92,8 +95,8 @@ The automated tests use invented answers and a faked Claude. Not yet proved on a
 
 | Version | What |
 |---|---|
-| **4.3** | The keys and costs of Anthropic and OpenAI are one small table in the top bar (a line for each service; "Anthropic", not "Claude"); display only |
-| **4.2** (after the first real run of 4.1; the handover file `CLAUDE.md` came in with it) | Verify All and "to verify" cover every amber box on every page (advisor pages, optional boxes and Broker on record too; not the online profile); a Calendar button on the Date of Previous appointments and Meetings; the Gender is filled from a valid ID number, also when a file is opened |
+| **4.3** (PR 73) | The keys and costs of Anthropic and OpenAI are one small table in the top bar (a line for each service; "Anthropic", not "Claude"); display only |
+| **4.2** (PR 72; after the first real run of 4.1; the handover file `CLAUDE.md` came in with it) | Verify All and "to verify" cover every amber box on every page (advisor pages, optional boxes and Broker on record too; not the online profile); a Calendar button on the Date of Previous appointments and Meetings; the Gender is filled from a valid ID number, also when a file is opened |
 | **4.1** (PR 71) | Passed appointment recorded (`appts`), Progress buttons, Verify All, `work_cell` and Personal cell number |
 | **4.0** (PR 70) | One ACI for every benefit, no "?", Meetings held (`meetings`, `covered`) |
 | **3.9** (PR 69) | BrightRock policy block (`br_aci`, `br_dd_cover`), Dread rule, % auto-fill, no-debts R 0.00 |
