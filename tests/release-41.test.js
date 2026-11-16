@@ -105,3 +105,24 @@ test('when nothing is amber nothing is waiting', () => { assert.strictEqual(stor
 test('the date of a previous appointment and of a meeting has the calendar, like the next appointment', () => {
   assert.ok(schema.lists.appts.cols[0].cal && schema.lists.meetings.cols[0].cal && schema.fieldsById.next_appt.cal);
 });
+
+/* ---------- 4.2: the gender follows the ID number ---------- */
+test('a valid South African ID number fills an empty gender when a file is opened (digits 7 to 10: 5000 and over is Male)', () => {
+  const s = fresh(); set(s, 'idno', '8907045123088', 'confirmed'); set(s, 'idtype', 'ID');
+  s.f.gender = { v: '', st: 'empty' };
+  const back = store.fromJSON(store.toJSON(s));
+  assert.deepStrictEqual(back.f.gender, { v: 'Male', st: 'confirmed' }, 'the ID is confirmed, so is the gender that comes from it');
+  const f = fresh(); set(f, 'idno', '8001015800089', 'confirmed'); f.f.gender = { v: '', st: 'empty' };
+  assert.strictEqual(store.fromJSON(store.toJSON(f)).f.gender.v, 'Male');
+  const w = fresh(); set(w, 'idno', '7212090148085', 'heard'); w.f.gender = { v: '', st: 'empty' };
+  assert.deepStrictEqual(store.fromJSON(store.toJSON(w)).f.gender, { v: 'Female', st: 'verify' }, 'an ID that is only heard gives an amber gender');
+});
+test('a gender that is there is never changed; a passport or an ID that is not valid gives nothing', () => {
+  const s = fresh(); set(s, 'idno', '8907045123088', 'confirmed'); set(s, 'gender', 'Female');
+  assert.strictEqual(store.fromJSON(store.toJSON(s)).f.gender.v, 'Female');
+  const p = fresh(); set(p, 'idno', '8907045123088', 'confirmed'); set(p, 'idtype', 'Passport'); p.f.gender = { v: '', st: 'empty' };
+  assert.strictEqual(store.fromJSON(store.toJSON(p)).f.gender.v, '', 'a passport number has no sex in it');
+  const b = fresh(); set(b, 'idno', '8907045123099', 'confirmed'); b.f.gender = { v: '', st: 'empty' };
+  assert.strictEqual(store.fromJSON(store.toJSON(b)).f.gender.v, '', 'a number that is not a valid ID');
+  assert.strictEqual(store.genderFromId(fresh()), false);
+});

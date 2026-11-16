@@ -92,7 +92,7 @@ The automated tests use invented answers and a faked Claude. Not yet proved on a
 
 | Version | What |
 |---|---|
-| **4.2** (after the first real run of 4.1) | Verify All and "to verify" cover every amber box on every page (advisor pages, optional boxes and Broker on record too; not the online profile); a Calendar button on the Date of Previous appointments and Meetings |
+| **4.2** (after the first real run of 4.1) | Verify All and "to verify" cover every amber box on every page (advisor pages, optional boxes and Broker on record too; not the online profile); a Calendar button on the Date of Previous appointments and Meetings; the Gender is filled from a valid ID number, also when a file is opened |
 | **4.1** (PR 71) | Passed appointment recorded (`appts`), Progress buttons, Verify All, `work_cell` and Personal cell number |
 | **4.0** (PR 70) | One ACI for every benefit, no "?", Meetings held (`meetings`, `covered`) |
 | **3.9** (PR 69) | BrightRock policy block (`br_aci`, `br_dd_cover`), Dread rule, % auto-fill, no-debts R 0.00 |
