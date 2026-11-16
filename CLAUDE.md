@@ -1,6 +1,6 @@
 # Wealth Revolution Fact Find: handover and rules for Claude
 
-**Update this file with every release** (version history, ids, decisions, what is not yet tested). `README.md` describes the app in detail; this file is what a new session must know first, and keeps the rules that must not be lost between sessions. Last updated: 16 November 2026, version 4.2 (merged on Paul's word on 16 November; the Fix Skills chat installs it once the skills are renewed; before it, 4.1 was installed, read back identical to `main` 57497d6).
+**Update this file with every release** (version history, ids, decisions, what is not yet tested). `README.md` describes the app in detail; this file is what a new session must know first, and keeps the rules that must not be lost between sessions. Last updated: 16 November 2026, version 4.3 (4.2 is merged and live; 4.3 is built and waits for Paul's merge; the Fix Skills chat installs releases once the skills are renewed).
 
 ## 1. What this is and who uses it
 
@@ -92,6 +92,7 @@ The automated tests use invented answers and a faked Claude. Not yet proved on a
 
 | Version | What |
 |---|---|
+| **4.3** | The keys and costs of Anthropic and OpenAI are one small table in the top bar (a line for each service; "Anthropic", not "Claude"); display only |
 | **4.2** (after the first real run of 4.1; the handover file `CLAUDE.md` came in with it) | Verify All and "to verify" cover every amber box on every page (advisor pages, optional boxes and Broker on record too; not the online profile); a Calendar button on the Date of Previous appointments and Meetings; the Gender is filled from a valid ID number, also when a file is opened |
 | **4.1** (PR 71) | Passed appointment recorded (`appts`), Progress buttons, Verify All, `work_cell` and Personal cell number |
 | **4.0** (PR 70) | One ACI for every benefit, no "?", Meetings held (`meetings`, `covered`) |
