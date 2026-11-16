@@ -786,6 +786,13 @@
     if (e.target.id === 'focusRefresh') focusRefresh(true);                    // one tap: it writes the points again, over what was typed
   });
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape') msClose(); });
+  /* The "Other forms" menu closes on a tap anywhere else, on Escape and once a link is chosen. */
+  function ofClose() { var d = $('#otherForms'); if (d && d.open) d.open = false; }
+  document.addEventListener('click', function (e) {
+    var d = $('#otherForms'); if (!d || !d.open) return;
+    var t = e.target; if (!d.contains(t) || (t.closest && t.closest('.ofmenu a'))) ofClose();
+  });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') ofClose(); });
   document.addEventListener('toggle', function (e) { if (e.target.classList && e.target.classList.contains('sqd')) sqdOpen = e.target.open; }, true);
   document.addEventListener('input', function (e) {                                                       // the first key typed in the action points makes them the adviser's own
     var t = e.target; if (!t.dataset) return;
