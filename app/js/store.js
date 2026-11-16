@@ -302,6 +302,14 @@
   function baseFileName(state) { return pdfFileName(state); }
 
   /* Reopen a saved file. Unknown ids are ignored and missing ones start blank, so older files keep working. */
+  /* The gender follows a South African ID number (4.2): a valid ID number (not a passport) fills an empty Gender box (digits 7 to 10: 5000 and over is Male). It is confirmed when the ID number is, otherwise amber (verify).
+     Done when an ID is typed, said, confirmed or accepted, and when a file is opened (a file written by a skill can hold the ID number and an empty gender). A gender that is there is never changed. */
+  function genderFromId(state) {
+    var g = state.f.gender, id = String(state.f.idno && state.f.idno.v || '').replace(/\s/g, '');
+    if (!g || g.v !== '' || state.f.idtype.v === 'Passport' || !util.saIdValid(id)) return false;
+    state.f.gender = { v: util.sexFromSaId(id), st: state.f.idno.st === 'confirmed' ? 'confirmed' : 'verify' };
+    return true;
+  }
   function fromJSON(text) {
     var j = JSON.parse(text);
     if (!j || j.app !== APP_ID) throw new Error('This file is not a Wealth Revolution Fact Find.');
@@ -337,6 +345,7 @@
     priorityWording(s);
     brokerChoices(s);
     openDefaults(s);
+    genderFromId(s);                                                                                 // a valid ID number fills an empty gender (4.2)
     brFollow(s);                                                                                     // the BrightRock policy's ACI and Dread (3.9); an ACI value still holding the old "?" default is filled from the policy, or emptied (4.0)
     Object.keys(schema.fieldsById).forEach(function (id) { var d = schema.fieldsById[id]; if (d.pct && s.f[id] && String(s.f[id].v).trim() === '?') s.f[id] = { v: '', st: 'empty' }; });       // then a "?" that was typed: the placeholder is gone (4.0), an older file opens with the box empty
     autoprio.apply(s);                                                                               // an older file with an empty decision gets the outcomes the facts already give
@@ -643,5 +652,5 @@
     return { tot: tot, fill: fill, ver: ver };
   }
 
-  return { pending: pending, recordAppt: recordAppt, meetingsFollow: meetingsFollow, brFollow: brFollow, hasBrightRock: hasBrightRock, NO_CONTACT_NOTE: NO_CONTACT_NOTE, termValue: termValue, useWorked: useWorked, isPropertyDebt: isPropertyDebt, debtDefaults: debtDefaults, rowBlank: rowBlank, rowFilled: rowFilled, debtSplit: debtSplit, setProtect: setProtect, setProtectAll: setProtectAll, setPa: setPa, setFocus: setFocus, blankPa: blankPa, cleanPa: cleanPa, setSum: setSum, cleanSum: cleanSum, addUnplaced: addUnplaced, closeUnplaced: closeUnplaced, unplacedCovered: unplacedCovered, closeCovered: closeCovered, unplacedKey: unplacedKey, blank: blank, blankTally: blankTally, blankSpeech: blankSpeech, ctxFor: ctxFor, setField: setField, addRow: addRow, delRow: delRow, setCell: setCell, accept: accept, clientName: clientName, idClash: idClash, idKey: idKey, fatherSurname: fatherSurname, baseFileName: baseFileName, pdfFileName: pdfFileName, fromJSON: fromJSON, toJSON: toJSON, counts: counts };
+  return { genderFromId: genderFromId, pending: pending, recordAppt: recordAppt, meetingsFollow: meetingsFollow, brFollow: brFollow, hasBrightRock: hasBrightRock, NO_CONTACT_NOTE: NO_CONTACT_NOTE, termValue: termValue, useWorked: useWorked, isPropertyDebt: isPropertyDebt, debtDefaults: debtDefaults, rowBlank: rowBlank, rowFilled: rowFilled, debtSplit: debtSplit, setProtect: setProtect, setProtectAll: setProtectAll, setPa: setPa, setFocus: setFocus, blankPa: blankPa, cleanPa: cleanPa, setSum: setSum, cleanSum: cleanSum, addUnplaced: addUnplaced, closeUnplaced: closeUnplaced, unplacedCovered: unplacedCovered, closeCovered: closeCovered, unplacedKey: unplacedKey, blank: blank, blankTally: blankTally, blankSpeech: blankSpeech, ctxFor: ctxFor, setField: setField, addRow: addRow, delRow: delRow, setCell: setCell, accept: accept, clientName: clientName, idClash: idClash, idKey: idKey, fatherSurname: fatherSurname, baseFileName: baseFileName, pdfFileName: pdfFileName, fromJSON: fromJSON, toJSON: toJSON, counts: counts };
 });

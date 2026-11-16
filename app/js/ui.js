@@ -835,7 +835,7 @@
     if (t.dataset.accept) {
       var p = t.dataset.accept.split(':');
       store.accept(state, p[0] === 'r' ? { list: p[1], i: +p[2] } : { id: p[1] });
-      if (p[0] === 'f' && p[1] === 'idno') autoDob();                  // the ID is agreed to, so is the date of birth that came from it
+      if (p[0] === 'f' && p[1] === 'idno') { autoDob(); autoGender(); }                  // the ID is agreed to, so is the date of birth that came from it, and the gender it gives
       touch(); redraw(); return;
     }
     if (t.dataset.add) { store.addRow(state, t.dataset.add); touch(); redraw(); var last = document.querySelectorAll('[data-l="' + t.dataset.add + '"][data-i="' + (state.l[t.dataset.add].length - 1) + '"]')[0]; if (last) last.focus(); return; }
@@ -1736,7 +1736,7 @@
     if (res.kind === 'confirm') {
       if (cell.v === '') return false;
       store.setField(state, id, cell.v, 'confirmed');
-      if (id === 'idno') { var dobAgreed = autoDob(); if (dobAgreed) { entry.extras.push({ id: 'dob', prev: dobAgreed }); extraIds.push('dob'); } }   // the date of birth that came from this ID is agreed to with it
+      if (id === 'idno') { var dobAgreed = autoDob(); if (dobAgreed) { entry.extras.push({ id: 'dob', prev: dobAgreed }); extraIds.push('dob'); } var sexAgreed = autoGender(); if (sexAgreed) { entry.extras.push({ id: 'gender', prev: sexAgreed }); extraIds.push('gender'); } }   // the date of birth and the gender that came from this ID are agreed to with it
     } else {
       var value = res.value;
       var multi = schema.fieldsById[id] && schema.fieldsById[id].t === 'multi';

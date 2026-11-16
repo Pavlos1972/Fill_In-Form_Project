@@ -9,6 +9,7 @@ The version is `version` in `app/js/schema.js` (the Fact Find), `app/js/sr-schem
 Fact Find (the Progress card, the list rows). **No id added, removed or relabelled. No box, choice, sum or list column changed.** Detail in the README ("Release 4.2").
 - **"to verify" and Verify All now cover every box with the status `verify` on every page** (the advisor pages, optional boxes and boxes with a starting value included; not an empty box, a calculated box or `profile`). A skill that reads statuses sees no change; the button only turns `verify` into `confirmed`.
 - **The list columns `appts.date` and `meetings.date` have a calendar** (`cal: 1`), as `next_appt` has.
+- **`gender` is filled from a valid South African `idno`** (not a passport) when it is empty, also when a file is opened: a skill that writes a file with an ID number and no gender gets the gender (status `confirmed` when `idno` is confirmed, else `verify`). A gender that is there is never changed.
 
 ## 4.1: 16 November 2026 (Fact Find 4.0 to 4.1)
 

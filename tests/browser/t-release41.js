@@ -88,6 +88,12 @@ let bad = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if
   const raw = cp.execFileSync('pdftotext', ['-raw', out + '/r41.pdf', '-']).toString().replace(/\s+/g, ' ');
   ok(/Work cell number/.test(raw) && /Personal cell number/.test(raw) && /083 555 0000/.test(raw), 'the PDF has both cell numbers');
   ok(/Previous appointments/.test(raw) && /Did not meet with the client/.test(raw), 'the PDF lists the previous appointment and what happened');
+  /* the gender follows the ID number: typed, and in a file that is opened */
+  await p.fill('[data-f="idno"]', '8907045123088'); await p.keyboard.press('Tab'); await p.waitForTimeout(300);
+  ok(await p.evaluate(() => FF.app.state.f.gender.v === 'Male' && document.querySelector('[data-f="gender"]').value === 'Male'), 'a typed ID number (digits 5123) gives Male: ' + await p.evaluate(() => FF.app.state.f.gender.v));
+  await p.evaluate(() => { const s = FF.store.blank(); FF.store.setField(s, 'fname', 'Ann'); FF.store.setField(s, 'idno', '7212090148085', 'confirmed'); s.f.gender = { v: '', st: 'empty' }; FF.app.setState(FF.store.fromJSON(FF.store.toJSON(s))); });
+  ok(await p.evaluate(() => FF.app.state.f.gender.v === 'Female' && FF.app.state.f.gender.st === 'confirmed'), 'a file opened with an ID number and an empty gender: Female, confirmed with the ID');
+
   ok(errs.length === 0, 'no page errors ' + errs.join('|'));
   console.log(bad ? bad + ' FAILED' : 'all pass'); await b.close(); process.exit(bad ? 1 : 0);
 })();
