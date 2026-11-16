@@ -303,7 +303,7 @@
     var at = 'data-l="' + key + '" data-i="' + i + '" data-k="' + c.k + '"';
     var ctl = control(at, c, v, !!c.calc);
     var cid = key + ':' + i + ':' + c.k;
-    if (card) return '<label class="f' + (c.wide ? ' wide' : '') + '" data-cell="' + cid + '"><span class="l"><span>' + esc(c.l) + '</span></span><span class="box">' + ctl + '</span><span class="warn" data-rwarn="' + key + ':' + i + '" hidden></span></label>';
+    if (card) return '<label class="f' + (c.wide ? ' wide' : '') + '" data-cell="' + cid + '"><span class="l"><span>' + esc(c.l) + '</span>' + (c.cal ? '<span class="rt"><button type="button" class="calbtn" data-cal="' + cid + '" aria-label="Pick ' + esc(c.l.toLowerCase()) + ' from a calendar">\ud83d\udcc5 Calendar</button></span>' : '') + '</span><span class="box">' + ctl + (c.cal ? '<input type="date" class="calpick" data-calpick="' + cid + '" tabindex="-1" aria-hidden="true">' : '') + '</span><span class="warn" data-rwarn="' + key + ':' + i + '" hidden></span></label>';
     return '<td' + (c.num ? ' class="num"' : '') + ' data-cell="' + cid + '">' + ctl + '</td>';
   }
   function sumHTML(key) {
@@ -709,7 +709,7 @@
       var el = document.querySelector('[data-count="' + s.id + '"]'); if (el && !s.adv) el.textContent = c.fill + '/' + c.tot;
       if (!s.adv) { A += c.fill; V += c.ver; E += c.tot - c.fill; }
     });
-    $('#sFilled').textContent = A; $('#sVerify').textContent = V; $('#sEmpty').textContent = E;
+    $('#sFilled').textContent = A; $('#sVerify').textContent = store.pending(state, 'verify').length; $('#sEmpty').textContent = E;       // to verify: every amber box on every page (4.1)
     var tax = FF.tax.taxYearFor(calc.meetingDate(ctx())), ver = $('#verLine');
     refreshKey(); refreshCost();
     if ((state.unplaced && state.unplaced.length) || document.getElementById('convo')) convoSoon();
@@ -797,14 +797,16 @@
     store.setField(state, id, val); vm.noSweep[id] = 1; touch(); redraw();
   }
   /* The calendar button: a hidden date picker opens on the date already typed (or today); the date chosen is written into the text box as day/month/year and saved like a typed one. */
+  /* The text box a calendar belongs to: a box of the form (its id) or a box of a list row ("appts:0:date"). */
+  function calBox(id) { var m = /^(\w+):(\d+):(\w+)$/.exec(id); return m ? document.querySelector('[data-l="' + m[1] + '"][data-i="' + m[2] + '"][data-k="' + m[3] + '"]') : document.querySelector('[data-f="' + id + '"]'); }
   function openCalendar(id) {
-    var pick = document.querySelector('[data-calpick="' + id + '"]'), box = document.querySelector('[data-f="' + id + '"]'); if (!pick || !box) return;
+    var pick = document.querySelector('[data-calpick="' + id + '"]'), box = calBox(id); if (!pick || !box) return;
     var d = util.parseDate(box.value) || util.parseDate(util.isoToday());
     pick.value = d.y + '-' + (d.m < 10 ? '0' : '') + d.m + '-' + (d.d < 10 ? '0' : '') + d.d;
     try { pick.showPicker(); } catch (e) { box.focus(); toast('Your browser cannot open the calendar here. Type the date as day/month/year.'); }
   }
   function calendarPicked(pick) {
-    var box = document.querySelector('[data-f="' + pick.dataset.calpick + '"]'), d = util.parseDate(pick.value); if (!box || !d) return;
+    var box = calBox(pick.dataset.calpick), d = util.parseDate(pick.value); if (!box || !d) return;
     box.value = util.formatDate(d);
     box.dispatchEvent(new Event('change', { bubbles: true }));
   }

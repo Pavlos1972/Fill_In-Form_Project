@@ -37,14 +37,20 @@ let bad = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if
   await p.click('#sEmptyBox'); await p.waitForTimeout(300);
   ok((await focused()) !== first, 'and the next one on the next click: ' + await focused());
 
+  /* the other amber boxes: a box with a starting value, an advisor page, a note; the online profile is left alone */
+  await p.evaluate(() => { const S = FF.app.state, st = FF.store; st.setField(S, 'ma_broker', 'Other broker', 'verify'); st.setField(S, 'pr_life', 'Priority: client agrees', 'verify'); st.setField(S, 'profile', 'Possible match', 'verify'); FF.app.redraw(); });
+  ok((await num('sVerify')) === 5, 'the Progress card counts every amber box on every page (the 3 left + a Broker on record box + a Client priorities box): ' + await num('sVerify'));
+  await p.click('.nav button[data-sec="other"]'); await p.waitForTimeout(250);
+  ok(await p.evaluate(() => /verify/i.test(document.querySelector('[data-field="ma_broker"] .badge').textContent)), 'the Broker on record box shows the amber badge');
+
   /* 3. Verify All: asks, can be refused, can be undone */
   answer = false; asked.length = 0; await p.click('#btnVerifyAll'); await p.waitForTimeout(300);
-  ok(asked.length === 1 && /Mark all 3 answers/.test(asked[0]) && (await num('sVerify')) === 3, 'Verify All asks first, and Cancel changes nothing: ' + JSON.stringify(asked[0] || '').slice(0, 90));
+  ok(asked.length === 1 && /Mark all 5 answers/.test(asked[0]) && (await num('sVerify')) === 5, 'Verify All asks first, and Cancel changes nothing: ' + JSON.stringify(asked[0] || '').slice(0, 90));
   answer = true; await p.click('#btnVerifyAll'); await p.waitForTimeout(400);
-  ok((await num('sVerify')) === 0 && await p.evaluate(() => FF.app.state.f.fname.st === 'confirmed' && FF.app.state.l.debts[0].st === 'confirmed'), 'OK verifies every box waiting: the count is 0');
-  ok(await p.evaluate(() => /Verified 3 answers/.test(document.getElementById('toast').textContent) && !!document.querySelector('#toast .toast-undo')), 'a message with an Undo button');
+  ok((await num('sVerify')) === 0 && await p.evaluate(() => FF.app.state.f.fname.st === 'confirmed' && FF.app.state.l.debts[0].st === 'confirmed' && FF.app.state.f.ma_broker.st === 'confirmed' && FF.app.state.f.pr_life.st === 'confirmed' && FF.app.state.f.profile.st === 'verify'), 'OK verifies every amber box on every page (the online profile is left for you): the count is 0');
+  ok(await p.evaluate(() => /Verified 5 answers/.test(document.getElementById('toast').textContent) && !!document.querySelector('#toast .toast-undo')), 'a message with an Undo button');
   await p.click('#toast .toast-undo'); await p.waitForTimeout(300);
-  ok((await num('sVerify')) === 3 && await p.evaluate(() => FF.app.state.f.fname.st === 'verify'), 'Undo puts them back: 3 to verify again');
+  ok((await num('sVerify')) === 5 && await p.evaluate(() => FF.app.state.f.fname.st === 'verify' && FF.app.state.f.pr_life.st === 'verify'), 'Undo puts them back: 5 to verify again');
   await p.click('#btnVerifyAll'); await p.waitForTimeout(300);
   await p.click('#sVerifyBox'); await p.waitForTimeout(300);
   ok(await p.evaluate(() => /Nothing is waiting to be verified/.test(document.getElementById('toast').textContent)), 'with nothing to verify, the card says so');
@@ -61,6 +67,12 @@ let bad = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if
   await p.evaluate(() => { FF.store.setField(FF.app.state, 'next_appt', '12/12/2099'); FF.app.redraw(); });
   await p.click('.nav button[data-sec="income"]'); await p.click('.nav button[data-sec="admin"]'); await p.waitForTimeout(300);
   ok(await p.evaluate(() => !document.querySelector('.apptdone')), 'a date still to come asks nothing');
+
+  /* the calendar on the Date of a previous appointment */
+  await p.click('.nav button[data-sec="admin"]'); await p.waitForTimeout(300);
+  ok(await p.evaluate(() => !!document.querySelector('[data-cal="appts:0:date"]') && !!document.querySelector('[data-calpick="appts:0:date"]')), 'Previous appointments: the Date has a Calendar button');
+  await p.evaluate(() => { const pk = document.querySelector('[data-calpick="appts:0:date"]'); pk.value = '2026-11-12'; pk.dispatchEvent(new Event('change', { bubbles: true })); }); await p.waitForTimeout(300);
+  ok(await p.evaluate(() => FF.app.state.l.appts[0].d.date === '12/11/2026' && document.querySelector('[data-l="appts"][data-i="0"][data-k="date"]').value === '12/11/2026'), 'a date picked from the calendar is written as day/month/year and saved: ' + await p.evaluate(() => FF.app.state.l.appts[0].d.date));
 
   /* 5. phone numbers */
   await p.click('.nav button[data-sec="info"]'); await p.waitForTimeout(300);
