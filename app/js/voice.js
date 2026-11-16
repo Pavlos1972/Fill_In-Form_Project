@@ -354,7 +354,8 @@
     idno: ['id number', 'identity number', 'id no', 'passport number', 'your id', 'my id', 'id', 'identity', 'sa id'],
     nat: ['nationality', 'citizen', 'citizenship', 'south african citizen', 'what nationality', 'are you south african', 'where are you from'],
     tax: ['tax number', 'income tax number', 'tax reference', 'sars number', 'tax reference number'],
-    cell: ['cell', 'cell number', 'mobile', 'mobile number', 'cellphone', 'cell phone', 'contact number', 'phone number', 'number to reach'],
+    cell: ['cell', 'cell number', 'personal cell', 'personal cell number', 'personal mobile', 'mobile', 'mobile number', 'cellphone', 'cell phone', 'contact number', 'phone number', 'number to reach'],
+    work_cell: ['work cell', 'work cell number', 'work mobile', 'work mobile number', 'office cell', 'office mobile', 'business cell', 'business mobile'],
     work: ['work number', 'work phone', 'office number', 'work telephone'],
     home: ['home number', 'home phone', 'landline', 'home telephone'],
     pemail: ['personal email', 'email', 'email address', 'e mail'],
@@ -489,13 +490,13 @@
     }
     return String(raw);
   }
-  var PHONE_IDS = ['cell', 'work', 'home', 'sp_tel'];
+  var PHONE_IDS = ['cell', 'work_cell', 'work', 'home', 'sp_tel'];
   var EMAIL_IDS = ['pemail', 'wemail'];
   var DIGIT_IDS = ['idno', 'tax'];
   var TYPED_IDS = PHONE_IDS.concat(EMAIL_IDS, DIGIT_IDS, DATE_IDS, TIME_IDS);
   /* The client's own ID, tax, phone and email boxes never take what is said about someone else: "my wife's ID is 8001...", "my son's tax number is ...", "my husband's number is ..." (A13).
      The partner's own boxes (sp_tel, the Shares lists) are not in this set. */
-  var CLIENT_ONLY_IDS = ['idno', 'tax', 'cell', 'work', 'home', 'pemail', 'wemail'];
+  var CLIENT_ONLY_IDS = ['idno', 'tax', 'cell', 'work_cell', 'work', 'home', 'pemail', 'wemail'];
   var OTHER_PERSON = /\b(?:spouse|wife|husband|partner|ex[\s-]?(?:wife|husband|partner|spouse)|fiancee?|girlfriend|boyfriend|son|daughter|child|kid|brother|sister|mother|father|mom|mum|dad|friend|colleague|boss|neighbou?r|cousin|uncle|aunt)(?:'?s)?\s+(?:\w+\s+){0,2}?(?:id|identity|passport|tax|cell|cellphone|mobile|phone|telephone|number|email|e-?mail|address|contact)\b/i;
   var OTHER_PERSON_NOT_PARTNER = new RegExp(OTHER_PERSON.source.replace('|partner|', '|'), 'i');
   var PCT_IDS = ['d_desk', 'd_supo', 'd_trav', 'd_sups', 'd_light', 'd_mod', 'd_heavy', 'biz_pct'];
@@ -1610,7 +1611,7 @@
     }).filter(Boolean);
   }
 
-  var PRIVATE_IDS = ['idno', 'tax', 'cell', 'work', 'home', 'sp_tel', 'pemail', 'wemail', 'shares.id', 'shares.cell'];
+  var PRIVATE_IDS = ['idno', 'tax', 'cell', 'work_cell', 'work', 'home', 'sp_tel', 'pemail', 'wemail', 'shares.id', 'shares.cell'];
   var AGREE = { correct: 1, right: 1, exactly: 1, same: 1, unchanged: 1, still: 1, yes: 1, yeah: 1, yep: 1, yup: 1, ja: 1, sure: 1, indeed: 1, definitely: 1, absolutely: 1, true: 1, thanks: 1, thank: 1, nothing: 1 };
   var NEGATE = { no: 1, nope: 1, nah: 1, not: 1, never: 1, none: 1, really: 1, quite: 1 };
   /* Does the client simply agree with what is there? A bare "yes" counts only for plain text boxes (bare = true). */

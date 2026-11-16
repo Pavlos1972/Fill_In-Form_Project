@@ -100,7 +100,7 @@
     if (v('next_time') && !v('next_appt')) warn('next_appt', 'Add the date of the next appointment (the time is ' + v('next_time') + ').');
 
     ['pemail', 'wemail'].forEach(function (id) { if (v(id) && !EMAIL.test(v(id))) warn(id, 'This does not look like an email address.'); });
-    ['cell', 'work', 'home', 'sp_tel'].forEach(function (id) { if (v(id) && !phoneOk(v(id))) warn(id, 'Expected 10 digits, for example 082 555 0148.'); });
+    ['cell', 'work_cell', 'work', 'home', 'sp_tel'].forEach(function (id) { if (v(id) && !phoneOk(v(id))) warn(id, 'Expected 10 digits, for example 082 555 0148.'); });
 
     if (v('gross') && v('net') && ctx.n('net') > ctx.n('gross')) warn('net', 'Take-home income is higher than gross income.');
     var dn = calc.field('dnet', ctx), dnv = util.num(dn);                                          // the take-home typed, against the Direct Net Income worked out from the gross
@@ -163,6 +163,8 @@
     quoteChecks(ctx, v, warn, rowWarn);
     priorityChecks(ctx, v, warnAnyway);
     affordabilityCheck(ctx, warn);
+    var wall = new Date(), passed = calc.apptPassed(ctx, { y: wall.getFullYear(), m: wall.getMonth() + 1, d: wall.getDate(), mins: wall.getHours() * 60 + wall.getMinutes() });
+    if (passed && !out.some(function (w) { return w.id === 'next_appt'; })) warn('next_appt', 'The appointment on ' + passed.text + ' has passed. On the Admin page, say what happened, then the date is open for the next appointment.');
     return out;
   }
 
