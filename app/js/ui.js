@@ -311,11 +311,19 @@
     return Object.keys(L.sum).filter(function (k) { return calc.sumShown(L, k, state.l[key]); }).map(function (k) { return '<span>' + esc(L.sum[k]) + '<b data-sum="' + key + ':' + k + '">' + util.money(listSum(key, k)) + '</b></span>'; }).join('');
   }
   function listSum(key, col) { return state.l[key].reduce(function (a, r) { return a + util.num(r.d[col]); }, 0); }
+  /* A list that folds (the meetings held, 4.5): its title and a short summary stay on one line when it is shut. Open at first; it stays as it was left. */
+  var foldOpen = {};
+  function foldHTML(key) {
+    var L = schema.lists[key], rows = state.l[key], dates = rows.map(function (r) { return r.d.date; }).filter(Boolean);
+    var open = foldOpen[key] === undefined ? true : foldOpen[key];
+    return '<details class="fold" data-fold="' + key + '"' + (open ? ' open' : '') + '><summary><span class="block-title">' + esc(L.title) + '</span><span class="foldsum">' +
+      (rows.length ? rows.length + (rows.length === 1 ? ' meeting' : ' meetings') + (dates.length ? ': ' + esc(dates.join(', ')) : '') : 'none yet') + '</span></summary>' + listHTML(key) + '</details>';
+  }
   function listHTML(key, hideTitle) {
     var L = schema.lists[key], rows = state.l[key], h = '';
     var hasSum = Object.keys(L.sum).length > 0;
     if (L.dense) {                                                                                  // one short row for each quote: its boxes side by side, wrapping when the space is narrow
-      if (!rows.length) return '<div class="dempty"><span>None recorded yet.</span><button type="button" class="addrow" data-add="' + key + '">+ ' + esc(L.add) + '</button></div>';
+      if (!rows.length) return '<div class="dempty"><span>' + esc(L.empty || 'None recorded yet.') + '</span><button type="button" class="addrow" data-add="' + key + '">+ ' + esc(L.add) + '</button></div>';
       rows.forEach(function (r, i) {
         h += '<div class="rowcard drow rc-' + key + ' s-' + r.st + '"><div class="dcells">' + L.cols.map(function (c) { return cellHTML(key, i, c, r, true); }).join('') + '</div><div class="dtools">' +
           ((r.st === 'heard' || r.st === 'verify') ? badge(r.st, 'r:' + key + ':' + i) : '') + '<button type="button" class="x" data-del="' + key + ':' + i + '" aria-label="Remove ' + esc(L.cards.toLowerCase()) + ' ' + (i + 1) + '">✕</button></div></div>';
@@ -429,7 +437,8 @@
     var inner = '';
     if (b.help) inner += '<p class="help">' + esc(b.help) + '</p>';
     if (b.apptprompt && b.fields) inner += gridHTML(b, c) + apptPromptHTML(); else if (b.protector) inner += protectorHTML(b, c); else if (b.actions) inner += paHTML(b, c); else if (b.focus) inner += focusHTML(b, c); else if (b.endline) inner += endLineHTML(b); else if (b.fields) inner += gridHTML(b, c);
-    if (b.list) { if (!b.title && !notitle && schema.lists[b.list].title !== sec.title) inner += '<div class="block-title">' + esc(schema.lists[b.list].title) + '</div>'; inner += listHTML(b.list); }
+    if (b.list && schema.lists[b.list].fold) inner += foldHTML(b.list);
+    else if (b.list) { if (!b.title && !notitle && schema.lists[b.list].title !== sec.title) inner += '<div class="block-title">' + esc(schema.lists[b.list].title) + '</div>'; inner += listHTML(b.list); }
     if (b.note) inner += '<p class="blocknote">' + esc(b.note) + '</p>';
     return h + (ok ? inner : '<div class="off" inert>' + inner + '</div>');
   }
@@ -793,7 +802,7 @@
     var t = e.target; if (!d.contains(t) || (t.closest && t.closest('.ofmenu a'))) ofClose();
   });
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape') ofClose(); });
-  document.addEventListener('toggle', function (e) { if (e.target.classList && e.target.classList.contains('sqd')) sqdOpen = e.target.open; }, true);
+  document.addEventListener('toggle', function (e) { if (e.target.classList && e.target.classList.contains('sqd')) sqdOpen = e.target.open; if (e.target.classList && e.target.classList.contains('fold')) foldOpen[e.target.dataset.fold] = e.target.open; }, true);
   document.addEventListener('input', function (e) {                                                       // the first key typed in the action points makes them the adviser's own
     var t = e.target; if (!t.dataset) return;
     if (t.dataset.f === 'focus') { state.focus.edited = t.value !== ''; focusLabels(); return; }       // and so does the first key typed in the Priorities to be Focused on

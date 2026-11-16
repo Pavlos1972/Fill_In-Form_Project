@@ -87,6 +87,8 @@
   };
 
   var rowCalcs = {
+    /* The weekday of a meeting's date (4.5): Wednesday for 14/10/2026. */
+    day: function (row) { var d = util.parseDate(row.d.date); return d ? util.weekdayName(d) : ''; },
     /* A child's age on the date of the form (Date completed), from the date of birth: whole years, or months under a year. */
     age: function (row, ctx) {
       var dob = util.parseDate(row.d.dob), at = meetingDate(ctx);
