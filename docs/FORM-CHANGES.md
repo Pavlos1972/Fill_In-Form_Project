@@ -4,6 +4,12 @@ A dated list of what changed in the form's boxes, newest first. **One line for e
 
 The version is `version` in `app/js/schema.js` (the Fact Find), `app/js/sr-schema.js` (the Short Risk Application) and `app/js/cs-schema.js` (the Investment Capture Sheet); a saved file carries it as `schema`. Earlier changes are in the README and in the git history; this list starts with 3.1.
 
+## 4.5: 16 November 2026 (Fact Find 4.4 to 4.5)
+
+Fact Find (Client info, Meetings held). **One list column added; no id removed or relabelled.** Detail in the README ("Release 4.5").
+- **`meetings.day` (Day), new calculated column** (the weekday of `meetings.date`; `calc: 'day'`). It is not an answer: a saved file's meeting rows still hold `date`, `type`, `who` and `covered` as before (the row may carry an empty `day`), and `worked.l.meetings` lists the days. It is printed in the PDF.
+- The list is shown as one line for each meeting (`dense`) inside a heading that folds (`fold`); display only.
+
 ## 4.4: 16 November 2026 (Fact Find 4.3 to 4.4)
 
 Fact Find (the top bar). **No id, list, box, choice or sum changed; display only.** The Short Risk Application and Investment Capture Sheet links are one **Other forms ▾** menu. A skill that reads the saved file sees nothing new. Detail in the README ("Release 4.4").

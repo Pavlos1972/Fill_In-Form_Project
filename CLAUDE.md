@@ -1,6 +1,6 @@
 # Wealth Revolution Fact Find: handover and rules for Claude
 
-**Update this file with every release** (version history, ids, decisions, what is not yet tested). `README.md` describes the app in detail; this file is what a new session must know first, and keeps the rules that must not be lost between sessions. Last updated: 16 November 2026, version 4.4 built on the work branch, waiting for Paul's "merge" (4.1, 4.2 and 4.3 are merged and live on the website; the Fix Skills chat installs releases on Paul's computer once the skills are renewed: 4.2 and 4.3 were sent as ZIPs and are waiting on that).
+**Update this file with every release** (version history, ids, decisions, what is not yet tested). `README.md` describes the app in detail; this file is what a new session must know first, and keeps the rules that must not be lost between sessions. Last updated: 16 November 2026, version 4.5 built on the work branch, waiting for Paul's "merge" (4.1 to 4.4 are merged and live on the website; the Fix Skills chat installs releases on Paul's computer once the skills are renewed: 4.2 and 4.3 were sent as ZIPs and are waiting on that).
 
 ## 1. What this is and who uses it
 
@@ -81,7 +81,7 @@ GitHub: use the `mcp__github__*` tools (no `gh` CLI). Repository `pavlos1972/fil
 | **Priorities and autoprio** | The one "no" is plain **Not a priority** (the reason goes in the Comments). `autoprio.js` sets it by itself only where a fact makes the area pointless (medical aid through the company, a will up to date elsewhere, short-term through the company, no children); a cover with another broker is "an opportunity to quote; the client will decide", never "a take-over". The Priorities box is Recommend / Client / Come back with. |
 | **Phones** (4.1) | `cell` is labelled **Personal cell number** (the id did not change: ids never change when only a label does); `work_cell` is new; Work number and Home number are the landlines. The Short Risk and Capture Sheet pages copy `cell` and `work`. |
 | **The BrightRock Risk Calculation** | Only how a BrightRock Fractured quote is built; standard quotes are on Client priorities. Starting answers are presets. The instalment protector is split out of the income-protection amount. |
-| **Keys and costs table** (4.3) | Paul found the top right muddled; he chose "Option B" from a mock-up page and asked for "Anthropic" instead of "Claude". One table: a line per service, columns Key and This Fact Find; the two page buttons stay above it. When a design question is visual, **draw a mock-up Artifact first** and let Paul choose. | Since 4.4 the two page links are one "Other forms ▾" menu (the mix of Option B and Option A that Paul asked for).
+| **Keys and costs table** (4.3) | Paul found the top right muddled; he chose "Option B" from a mock-up page and asked for "Anthropic" instead of "Claude". One table: a line per service, columns Key and This Fact Find; the two page buttons stay above it. When a design question is visual, **draw a mock-up Artifact first** and let Paul choose. Since 4.4 the two page links are one "Other forms ▾" menu (the mix of Option B and Option A that Paul asked for). |
 | **The copy check** (3.8) | Each page checks its files all come from its own folder and that its build matches; otherwise a red bar says "Mixed versions". |
 | **Voice never fills** `meetings`, `appts` | They are the adviser's records (`novoice` in `schema.js`). |
 
@@ -95,7 +95,8 @@ The automated tests use invented answers and a faked Claude. Not yet proved on a
 
 | Version | What |
 |---|---|
-| **4.4** (built, not merged) | The Short Risk Application and Investment Capture Sheet links are one **Other forms ▾** menu in the top bar (native `<details id="otherForms">`, closes on Escape, outside click, chosen link); the keys-and-costs table stays; display only |
+| **4.5** (built, not merged) | The meetings held are one line each (Date, Day, Type, Others on the call, What was covered) and the list folds; new calculated column `meetings.day` (not an answer) |
+| **4.4** (PR 75) | The Short Risk Application and Investment Capture Sheet links are one **Other forms ▾** menu in the top bar (native `<details id="otherForms">`, closes on Escape, outside click, chosen link); the keys-and-costs table stays; display only |
 | **4.3** (PR 73) | The keys and costs of Anthropic and OpenAI are one small table in the top bar (a line for each service; "Anthropic", not "Claude"); display only |
 | **4.2** (PR 72; after the first real run of 4.1; the handover file `CLAUDE.md` came in with it) | Verify All and "to verify" cover every amber box on every page (advisor pages, optional boxes and Broker on record too; not the online profile); a Calendar button on the Date of Previous appointments and Meetings; the Gender is filled from a valid ID number, also when a file is opened |
 | **4.1** (PR 71) | Passed appointment recorded (`appts`), Progress buttons, Verify All, `work_cell` and Personal cell number |
