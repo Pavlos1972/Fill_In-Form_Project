@@ -337,3 +337,124 @@ After Paul's first real run of 4.1: **Verify All and "to verify" missed advisor 
 
 #### After 4.5
 The Fix Skills chat reported **4.1 to 4.5 all installed on Paul's computer** (section 5). The only commits on `main` after PR 76 are none; this handover (a documentation-only pull request) is the next change.
+
+---
+
+## 4. The repo map
+
+Repository: **`pavlos1972/fill_in-form_project`** on GitHub (the account's name is capitalised `Pavlos1972/Fill_In-Form_Project`; both spellings work in the tools). Branches: `main` (what the website publishes) and the one work branch **`claude/create-something-stjk8a`** (push only there). The README (`README.md`, about 335 lines) describes every screen and rule in detail; its **Layout** table is checked against the code by `tests/readme.test.js`. This section is the map.
+
+### 4.1 What the app is
+
+A **static web page: no server, no install, no build step.** Plain JavaScript files that work both in the browser and in Node (the tests load them with `require`: each is a "UMD" script that puts its API on `window.FF` in the page). Libraries (jsPDF and its table add-on, pdf-lib) are kept in `app/vendor/` so nothing is downloaded, except the **speech library for Whisper and Moonshine, which still loads from the jsDelivr CDN while Listen is on** (a known open point: section 6).
+
+Three pages on one site:
+
+| Page | File | What it is |
+|---|---|---|
+| **The Fact Find** | `app/index.html` | The form Paul fills in with a client, by typing or by voice. 13 pages (below). Makes a `.json` file and a PDF. |
+| **Short Risk Application** | `app/short-risk.html` | The General Short Risk Application (the one-page form used for every insurer). Fills from a Fact Find file (**Load from Fact Find**, amber, never overwrites typed text). No voice, no keys. Five pages: Cover & client, Home & doctor, Banking, Family, Declarations. Version 1.2. Its own PDF. |
+| **Investment Capture Sheet** | `app/capture-sheet.html` | Investment applications at any insurer (made from Old Mutual's *Application Details for Finalisor*, made generic), with the **Risk Tolerance questionnaire** built in. Loads from a Fact Find or Short Risk file. Version 1.0. Two PDFs (the application; the questionnaire's own). |
+
+**The Fact Find's 13 pages, in order** (id: title): `info` Client info · `occ` Occupation · `income` Income & household · `debts` Debts · `kids` Children · `cover` Personal & group risk cover · `retire` Retirement funding · `inv` Investments · `other` Medical, will & short-term · `health` Health · `prio` Client priorities and quotes needed · `calc` BrightRock Risk Calculation · `admin` Admin. (241 boxes and 15 lists at 4.5.) The page order is pinned by `tests/readme.test.js` and by the README's "Use it" text: **changing the order means changing both**.
+
+**The lists** (`schema.lists`): `risk` (existing personal policies), `grp` (group risk), `ret_ra` (retirement annuities), `ret_pp` (pension and provident funds), `inv` (investments), `bizpol` (business assurance policies), `shares` (partners and shareholders), `debts`, `appts` (previous appointments), `meetings` (meetings held), `kids` (children), and the four quote lists `bfred` (BrightRock reduced quotes), `redq` (standard reduced quotes), `raq` (RA quotes), `invq` (investment quotes).
+
+### 4.2 The app files
+
+| File | What it does |
+|---|---|
+| `app/js/schema.js` (about 58 KB) | **The whole Fact Find**: sections, blocks, boxes (`id`, label `l`, short label `sl`, type `t`, choices `o`, flags such as `calc`, `voice`, `free`, `money`, `pct`, `nopdf`, `legacy`, `cond`), lists and their columns. `version` is here. **Change the form here.** |
+| `calc.js` | Calculated boxes (`fieldCalcs`) and list-row calculations (`rowCalcs`: child `age`, `stage`, meeting `day`), show/hide rules (`showIf` with conditions), the passed-appointment test, Total Income, the instalment protector split. |
+| `tax.js` | SARS tax tables and Direct Net Income (`dnet`). **Update each tax year (1 March):** add the brackets and rebates, add that year's TaxTim results to `docs/`, extend `tests/tax.test.js`. |
+| `validate.js` | The **Checks** panel: what is still to answer and what looks wrong (dates, amounts, quote requests with a missing box, ID numbers, and so on). |
+| `autoprio.js` | The automatic **Not a priority**, the suggestion lines and the starting Type of quote. |
+| `store.js` (about 57 KB) | **The answers** (`state.f` and `state.l`), saving and reopening (`toJSON`, `fromJSON` with **migrations of older files**), file names (`pdfFileName`, `baseFileName`), defaults that follow other answers (broker defaults, `debtSplit`, `brFollow`, `aciSync`, `meetingsFollow`, `genderFromId`), progress counts (`pending`, `verifyList`). |
+| `actions.js`, `summary.js` | The **Action Points for the Personal Assistant** (facts from the form, the opening line to Sitamah, plain points used until Claude has written them; `directToSitamah`, `pointSourceWhy`) and the per-area summaries on the priorities page. |
+| `worked.js` | Writes the `worked` block of the saved file (the figures the form works out, as the PDF prints them). |
+| `pdf.js` | **The PDF**, drawn from the schema (a box added to the schema appears by itself); hand-drawn: the priorities and quotes page, the BrightRock Risk Calculation page, the quote tables, the lists and the Admin page. |
+| `ui.js` (about 287 KB, the biggest file) | The screen: rendering of pages, boxes, lists (`listHTML`, dense/folding lists), the Progress card, Settings, Save/Open/draft, the top bar, the voice mode's side of things (`vm*` functions), Verify All. Exposes `FF.app` (`state`, `redraw`, `setState`, `makePdf`, `voiceHear`). |
+| `util.js`, `build.js` | Helpers (money and date reading, ID number checks, `splitFullName`, `isHeadingLine`, `formatPct`, `weekdayName`); the copy check (the `BUILD` number and the red **"Mixed versions"** bar). |
+| `voice.js` (about 169 KB) | **Voice, page side** (no microphone, no network): works out which box a line is about and what it fills; `PRIVATE_IDS`; many guards (section 4.6). |
+| `voice-ai.js` (about 117 KB) | **Voice, Claude side**: the prompts, the request (prompt-cached), reading Claude's answer, the guards on it (`emptied`, strict row numbers, quoted words must be in the transcript, amounts must be in the facts), the summaries and action points. |
+| `listen.js` | **The speech source**: the microphone becomes lines of text (Whisper or Moonshine on this computer, Chrome's recogniser, or OpenAI transcription; with the option to hear the client on a Teams call). |
+| `lookup.js` | The company look-up and the client's public profile (Claude with web search), the **keys and Settings** (`SETTINGS_KEY` = `wr-fact-find-settings` in the browser's `localStorage`), the **price tables** (`PRICES`, `TRANSCRIBE_PRICES`) and the cost tallies. |
+| `timer.js` | The meeting timer in the top bar. |
+| `sr-*.js` (`schema`, `store`, `check`, `pdf`, `ui`) | The Short Risk Application. |
+| `cs-*.js` (`schema`, `store`, `check`, `pdf`, `ui`, `rt-data`, `rt-pdf`) | The Investment Capture Sheet; `cs-rt-data.js` holds the questionnaire's statements, scoring and profiles (a copy of the Risk Tolerance website's); `cs-rt-pdf.js` the questionnaire's PDF. |
+| `app/css/app.css`, `short-risk.css`, `capture-sheet.css` | Colours and layout (light and dark; the logo blue `#27a8e0` and a deeper blue `#0f6fa3`). |
+| `app/assets/` | `logo.png`, `logo.js`, and `rt-form.js` (the firm's Risk Tolerance PDF form). |
+| `app/vendor/` | jsPDF, its table add-on, pdf-lib. |
+| `app/Start Fact Find.bat`, `app/FactFindServer.ps1` | Open the app from a folder on a computer (so Chrome remembers the microphone). **Left off the website.** |
+| `.github/workflows/tests.yml` | `npm test` on every pull request (Node 22). |
+| `.github/workflows/pages.yml` | On a change to `app/**` (or the workflow) on `main`: runs the tests, stamps the `?v=` tags so browsers fetch the new scripts, leaves the launcher files off, and publishes `app/` to GitHub Pages; can also be started by hand (`workflow_dispatch`). |
+| `docs/` | `FORM-CHANGES.md` (the dated change log of ids and lists; **the skills read it**), `Fact_Find_Revision_Analysis.md` (PR 1), `HANDOVER-release-3.1.md` (a working note from 3.1: can be deleted), `tax_tables.json` and TaxTim example files, `mockup/` (the approved mock-up), `sample/` (a sample PDF with example data), and this file. |
+| `package.json` | Only two scripts: `npm test` (`node --test tests/*.test.js`) and `npm run test:browser`. The package version (3.0.0) is not the form's version. |
+
+### 4.3 The tests
+
+`npm test` runs the 49 files `tests/*.test.js` (694 tests at 4.5, about 20 seconds). Every release adds `tests/release-NN.test.js`. They load the real app files in Node with a faked Claude and invented answers.
+
+| Group | Files |
+|---|---|
+| **README and PDF guards** | `readme.test.js` (page order, the Layout table's paths, the standing rules are in the README), `pdf-mirror.test.js` (every box, heading, note of the form is in the PDF under the same words), `worked.test.js` (the `worked` block equals the PDF text; pins `schema.version`) |
+| **Form, answers, calculations** | `app.test.js`, `util.test.js`, `tax.test.js`, `autoprio.test.js`, `priorities.test.js`, `quote-lanes.test.js`, `broker-default.test.js`, `income-duties.test.js`, `debts-r31.test.js`, `defaults-r31.test.js`, `term-months.test.js`, `current-client.test.js`, `notes-headings.test.js`, `schedule-wording.test.js`, `appointment.test.js`, `focus-today.test.js`, `action-notes.test.js`, `action-points-sitamah.test.js`, `meeting-fixes.test.js` |
+| **The audit** | `audit-batch-a.test.js`, `audit-batch-b.test.js`, `audit-batch-c.test.js`, `audit-batch-d.test.js`, `audit-last-three.test.js`, `audit-notes.test.js` |
+| **Voice** | `voice.test.js`, `voice-ai.test.js`, `voice-sweep.test.js` (every voice box tried), `voice-r31.test.js`, `release-37-voice.test.js`, `release-37-voice-ai.test.js`, `release-37-facts.test.js`, `listen.test.js`, `lookup.test.js`, `timer.test.js` |
+| **Release tests** | `release-36`, `release-38`, `release-39`, `release-40-meetings`, `release-41`, `release-44`, `release-45` (`.test.js`) |
+| **The other two pages** | `sr-store.test.js`, `sr-pdf.test.js`, `cs-store.test.js` (pins the Risk Tolerance scoring), `cs-pdf.test.js` |
+
+**The browser suite** (`tests/browser/`, run with `bash tests/browser/run.sh <outdir>`; 721 checks at 4.5): about 60 Playwright scripts that open the **real page** in Chrome: the `t-*.js` scripts (one per area or release: `t-settings`, `t-sr`, `t-cs`, `t-release36` ... `t-release45`, and so on), the `demo-*.js` voice scenarios, `audit-pdf.js` (the text of every screen against the text of a filled PDF), `audit-fuzz.js` (120 random forms, no page errors), `audit-narrow-all.js` (layout at several widths). `run.sh` runs the `SIMPLE` list (add each new script's name there), prints PASS/FAIL lines and a summary line, and exits non-zero on a failure. Slow scripts time out (240 s) when all run together; they pass alone.
+
+### 4.4 The saved file (`store.toJSON`)
+
+A `.json` file made by **Save**. The skills read and fill it **by box id**.
+
+| Top-level key | What it holds |
+|---|---|
+| `app` | `"wr-fact-find"` (the Short Risk Application: its own; the Capture Sheet: `"wr-capture-sheet"`) |
+| `schema` | The form version that wrote it (`"4.5"`) |
+| `created`, `modified` | ISO times |
+| `f` | **Every box**, by id: `{ "v": "<text>", "st": "<status>" }` |
+| `l` | **Every list**, by list key: an array of rows `{ "d": { "<column>": "<text>", ... }, "st": "<status>" }` (a debt row also keeps its instalment-protector switch) |
+| `covered` | (4.0) The pages covered by the meeting in progress; the form writes "What was covered" from it |
+| `sum` | Claude-written summaries per priority area |
+| `auto` | (3.4) `{ "skip": { "<area>": true } }`: the areas the adviser took over from the automatic Not a priority (`egar`, `med`, `will`, `st`) |
+| `pa`, `focus` | State of the Action Points box and the Priorities to be Focused on box (text, whether edited, the facts it was written from) |
+| `unplaced` | "Heard but not placed" items |
+| `claude`, `openai` | Cost tallies (never printed in the PDF) |
+| `worked` | (3.1) The figures the form works out, as the PDF prints them (calculated boxes, per-row worked boxes such as a child's age and stage, list and area totals, the instalment protector per debt, `worked.l.meetings` days). **Not an answer; never read back; rebuilt at every save.** `worked.form` is the version. |
+
+**Statuses** (`st`): `empty` (not asked); `preset` (a starting default the adviser can change: it does not count as an answer); `heard` (filled by voice, not yet confirmed); `verify` (amber: to be checked: **only the client agreeing, or the adviser typing it, turns it to `confirmed`; a line the adviser said never confirms**); `confirmed` (typed, said by the client, or accepted). **Verify All** turns every `verify` box to `confirmed`.
+
+**Reopening an older file**: `store.fromJSON` migrates: old choice words become the new ones (e.g. `Not a priority: client not interested` to `Not a priority`), old single-name children split, the old combined retirement list split, the old "?" ACI default emptied or filled from the policy, `Must not contact client` to `Not required` with a note, and so on. **Every release that changes a choice or a meaning adds a migration and a test for it**; the older value is never lost.
+
+### 4.5 Ids and the skills
+
+The id of a box is its contract with the skills. **An id never changes when only its label changes; a changed meaning gets a new id and the old one stays as `legacy`** (examples: `spinc` legacy beside the new `spmaint`; `cell` keeps its id though labelled Personal cell number). The ids that matter most to the skills at 4.5: `idno`, `fname`, `sname`, `cell`, `work_cell`, `work`, `home`, `ref`, `loa`, `ps_risk`/`ps_grp`/`ps_ra`/`ps_pp`/`ps_inv` (the five schedule boxes), `pr_life` ... `pr_st` and their `_cm` comments, `ref_med`/`ref_will`/`ref_sti`, `br_aci`, `br_dd_cover`, `lc_f_aciv`/`pd_f_aciv`/`ip_aciv`/`dd_aciv`, `dd_cover` (fractured Dread) and `dds_cover` (standard), the Lump Sum Disability boxes `pd_hh`/`pd_cc`/`pd_dr`/`pd_need`/`pd_hhabi`, `cc_notes`, `tinc`, `net`, `disp`, `next_appt`/`next_time`, `meet`/`date`/`on_call`, and the lists above.
+
+### 4.6 Voice
+
+How it works, end to end (the README's "Voice mode" and "Listening" sections have the detail):
+
+1. **Listen** turns sound into lines (`listen.js`). Sources: Whisper or Moonshine **on this computer** (default, nothing leaves the computer), **Chrome's recogniser**, or **OpenAI transcription** (best for rare names and addresses; each line is sent with a hint list of names and trade terms). Chrome's session ends every 5 minutes (it is renewed at a pause). **The microphone only hears this computer**, so on a Teams call with a headset the client never reaches it: the OpenAI source plus *Hear the client on a Teams call* shares the call's sound and labels lines `me` / `client` (**PR 10, never tested on a real call**).
+2. Each line goes to `FF.app.voiceHear(text, who)`. **`voice.js`** (page side, no network) works out which box it is about and what it fills, with the guards; **`voice-ai.js`** sends the line, the last lines, the position and what is filled to Claude (the unchanging instructions are **prompt-cached** for an hour and warmed when Voice is switched on; low effort; no thinking where the model allows), reads the answer and applies it through `ui.js`. Up to four lines are read at once and applied in spoken order.
+3. **Private values** (`V.PRIVATE_IDS`: `idno`, `tax`, `cell`, `work_cell`, `work`, `home`, `sp_tel`, `pemail`, `wemail`, `shares.id`, `shares.cell`) are **never sent to Claude** unless Paul turns *sharing* on in Settings (Claude is told only the kind of value, e.g. "10 digits, starts like a cell number").
+4. A box filled by voice is `heard` (green flash) until the client confirms. `meetings` and `appts` are never filled by voice (`novoice`).
+5. Things Claude is told every request: today's date and the form's date (`a_week_from_today`, `meeting_started`), which boxes take any value (`free`) and which are switched off (`off`), what is on the form now (`on_the_form_now`), the boxes the adviser emptied on purpose (`emptied`).
+6. A **catch-up check** re-reads the conversation (at a section change, Voice off, or by a button) and fills only empty boxes (amber), never ID, tax, phone or email; **"Heard but not placed"** lists what was said and not placed.
+7. **Action points**: written by Claude from the facts and the notes; **every point must name its source** or it is removed; the Admin page lists the notes read and the points removed.
+
+### 4.7 API keys and costs
+
+| Item | What to know |
+|---|---|
+| **Anthropic key** | Paul's own key (Console, API keys), pasted into the form's **Settings**, kept **in the browser's `localStorage` on that computer, as plain text** (per browser and per copy: the website and the OneDrive copy each hold their own; Settings says so and has a *Remove saved keys* button). Keys last **30 days** and are renewed by hand: Paul creates a new one in the console, saves it in Settings with its **expiry date**; the top bar counts the days down (amber at 14 days or fewer or with no date, red once expired). **Never ask Paul to paste a key into the chat.** |
+| **OpenAI key** | Only for the OpenAI speech source; has its own expiry date and chip/line. |
+| **Models** | Voice and look-ups default to **`claude-sonnet-5-5`** (the voice choice is Sonnet because it follows the read-back/undo rules; Haiku invented answers; Opus is dearer). The company look-up and LinkedIn search use web search (up to 3 or 4 searches at US$0.01 each plus pages read): the dearest thing the form does; LinkedIn runs only on its button. |
+| **Cost meter** | `FF.lookup.costOf` prices every answer's tokens from `PRICES` (US$ per million tokens: Opus 5.5 4/20, Sonnet 5.5 2/10, Haiku 5.5 0.1/0.5, with cache write and read prices; an unlisted model is priced as the dearest so the meter never reads low). The total is saved in the file as `claude` (never in the PDF). The OpenAI speech cost is estimated from seconds of sound times the price per minute (US$0.006 for gpt-4o-transcribe and whisper-1, 0.003 for gpt-4o-mini-transcribe; a price box in Settings overrides it): saved as `openai`. Both are in the **keys-and-costs table** (4.3), one line per service. The credit left is the balance Paul typed less what the page counted: an estimate (Anthropic has no way to read a prepaid balance for an individual account). |
+| **The Console is the real bill** | The meter is an estimate. |
+
+### 4.8 The PDF
+
+Drawn by `pdf.js` from `schema.js` with jsPDF (Wealth Revolution colours and logo). Every Notes box is printed in full in its own section; lists continue onto extra pages; the font cannot draw some symbols (they print as plain text: PR 16; ticks and emoji print "?"). **It mirrors the form exactly** (Paul's standing rule); the only things left off are the public profile (LinkedIn) (`nopdf`) and the cost figures. `tests/pdf-mirror.test.js` and the browser `audit-pdf.js` guard it. A PDF saved earlier is a picture of its day: open the client's file and save the PDF again to update it. Name: `Fact Find (Audio to Text) - dd.mm.yy - (Name Surname).pdf`.
