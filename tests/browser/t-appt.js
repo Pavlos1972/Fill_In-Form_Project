@@ -33,7 +33,9 @@ srv.listen(0, async () => {
   // Checks (the form's date is set, so this does not depend on the day it is run: an appointment before the form's date is warned about)
   await p.evaluate(() => { FF.store.setField(FF.app.state, 'date', '01/11/2026'); FF.app.redraw(); });
   const checks = () => p.evaluate(() => [...document.querySelectorAll('#checks button')].map(e => e.textContent));
+  await type('next_appt', '06/11/2099');                                                       // a date still to come, whatever day this is run (an appointment that has passed is warned about since 4.1)
   ok(!(await checks()).some(t => /next appointment/i.test(t)), 'a date and a time: nothing to warn about');
+  await type('next_appt', '06/11/2026');
   await type('next_time', '');
   ok((await checks()).some(t => /Next appointment \(time\): Add the time of the next appointment/.test(t)), 'a date with no time is warned about: ' + JSON.stringify(await checks()));
   ok(await p.evaluate(() => { const w = document.querySelector('[data-warn="next_time"]'); return !w.hidden && /Add the time/.test(w.textContent); }), 'and the warning shows under the time box');

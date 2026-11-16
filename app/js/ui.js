@@ -82,6 +82,50 @@
     var c = state.f[id]; el.value = c.v; if (schema.fieldsById[id] && schema.fieldsById[id].heads) rvSync(id);
     var wrap = el.closest('.f'); if (wrap) { wrap.className = wrap.className.replace(/\bs-\w+/, 's-' + c.st); var b = wrap.querySelector('.st'), ab = wrap.querySelector('.rt > .badge'); if (b) b.innerHTML = badge(c.st, 'f:' + id); if (ab) ab.outerHTML = badge(c.st, 'f:' + id); }
   }
+  /* A toast with an Undo button (4.1). */
+  function toastUndo(msg, undo, ms) {
+    var t = $('#toast'); t.textContent = msg + ' ';
+    var b = document.createElement('button'); b.type = 'button'; b.className = 'toast-undo'; b.textContent = 'Undo';
+    b.addEventListener('click', function () { undo(); t.hidden = true; });
+    t.appendChild(b); t.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(function () { t.hidden = true; }, ms || 10000);
+  }
+  /* The Progress card (4.1): "to verify" and "not asked" take you to the first such box in the order of the pages, and again to the next one (and round to the first after the last); Verify All verifies every box that is waiting. */
+  var progLast = { verify: 0, empty: 0 };
+  function progLabel(it) {
+    if (it.id) return schema.fieldsById[it.id].l;
+    var L = schema.lists[it.list]; return it.i < 0 ? L.title + ': add the first row' : (L.cards || 'Row') + ' ' + (it.i + 1) + ' of ' + L.title;
+  }
+  function progGo(kind) {
+    var items = store.pending(state, kind);
+    if (!items.length) { toast(kind === 'verify' ? 'Nothing is waiting to be verified.' : 'Every box has been asked.'); return; }
+    var next = items.filter(function (x) { return x.n > progLast[kind]; })[0] || items[0];
+    progLast[kind] = next.n;
+    cur = next.sec; redraw();
+    var el = document.querySelector(next.id ? '[data-f="' + next.id + '"]' : next.i < 0 ? '[data-add="' + next.list + '"]' : '[data-l="' + next.list + '"][data-i="' + next.i + '"]');
+    if (el) {
+      var w = el.closest('.f, .rowcard, tr, .dempty') || el; w.classList.add('flash'); setTimeout(function () { w.classList.remove('flash'); }, 1600);
+      if (el.scrollIntoView) el.scrollIntoView({ block: 'center' }); if (el.focus) el.focus();
+    }
+    toast((kind === 'verify' ? 'To verify: ' : 'Not asked: ') + progLabel(next) + ' (' + (items.indexOf(next) + 1) + ' of ' + items.length + ')', 3000);
+  }
+  function verifyAll() {
+    var items = store.pending(state, 'verify');
+    if (!items.length) { toast('Nothing is waiting to be verified.'); return; }
+    if (!window.confirm('Mark all ' + items.length + ' answers waiting to be verified as verified?\n\nThis accepts them without checking each one.')) return;
+    var undo = items.map(function (it) { return it.id ? { id: it.id, st: state.f[it.id].st } : { list: it.list, i: it.i, st: state.l[it.list][it.i].st }; });
+    items.forEach(function (it) { if (it.id) state.f[it.id].st = 'confirmed'; else state.l[it.list][it.i].st = 'confirmed'; });
+    touch(); redraw();
+    toastUndo('Verified ' + items.length + ' answers.', function () {
+      undo.forEach(function (u) { if (u.id) { if (state.f[u.id]) state.f[u.id].st = u.st; } else if (state.l[u.list] && state.l[u.list][u.i]) state.l[u.list][u.i].st = u.st; });
+      touch(); redraw();
+    });
+  }
+  [['sVerifyBox', 'verify'], ['sEmptyBox', 'empty']].forEach(function (p) {
+    var el = document.getElementById(p[0]); if (!el) return;
+    el.addEventListener('click', function () { progGo(p[1]); });
+    el.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); progGo(p[1]); } });
+  });
+  document.getElementById('btnVerifyAll').addEventListener('click', verifyAll);
   function toast(msg, ms) {
     var t = $('#toast'); t.textContent = msg; t.hidden = false;
     clearTimeout(toastTimer); toastTimer = setTimeout(function () { t.hidden = true; }, ms || 3500);
@@ -363,6 +407,18 @@
     touch(); redraw();
     return true;
   }
+  /* The next appointment has come and gone (4.1): under its date, a line asks what happened. The answer is kept under Previous appointments and the date, day and time are open for the next appointment. */
+  function apptNow() { var d = new Date(); return { y: d.getFullYear(), m: d.getMonth() + 1, d: d.getDate(), mins: d.getHours() * 60 + d.getMinutes() }; }
+  function apptPromptHTML() {
+    var p = calc.apptPassed(ctx(), apptNow()); if (!p) return '';
+    return '<div class="apptdone" role="group" aria-label="The appointment has passed"><div class="apptq">The appointment on <b>' + esc(p.text) + '</b> has passed. What happened?</div><div class="apptbtns">' +
+      schema.lists.appts.cols[2].o.map(function (o) { return '<button type="button" class="apptbtn" data-appt="' + esc(o) + '">' + esc(o) + '</button>'; }).join('') + '</div><div class="apptnote">Choosing one keeps this appointment under Previous appointments and opens the date for the next one.</div></div>';
+  }
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest && e.target.closest('[data-appt]'); if (!b) return;
+    var was = calc.apptPassed(ctx(), apptNow()); if (!store.recordAppt(state, b.dataset.appt)) return;
+    touch(); redraw(); toast('Recorded: ' + (was ? was.text : 'the appointment') + ' - ' + b.dataset.appt.toLowerCase() + '. The next appointment is open.', 5000);
+  });
   function blockHTML(b, sec, c, notitle) {
     if (b.strip) return stripHTML();
     var ok = calc.showIf(b.cond, c), own = calc.showIf('own' in b ? b.own : b.cond, c), h = '';
@@ -372,7 +428,7 @@
     if (!ok && !own && b.condMsg && !b.nomsg) h += '<div class="note">' + esc(b.condMsg) + '</div>';
     var inner = '';
     if (b.help) inner += '<p class="help">' + esc(b.help) + '</p>';
-    if (b.protector) inner += protectorHTML(b, c); else if (b.actions) inner += paHTML(b, c); else if (b.focus) inner += focusHTML(b, c); else if (b.endline) inner += endLineHTML(b); else if (b.fields) inner += gridHTML(b, c);
+    if (b.apptprompt && b.fields) inner += gridHTML(b, c) + apptPromptHTML(); else if (b.protector) inner += protectorHTML(b, c); else if (b.actions) inner += paHTML(b, c); else if (b.focus) inner += focusHTML(b, c); else if (b.endline) inner += endLineHTML(b); else if (b.fields) inner += gridHTML(b, c);
     if (b.list) { if (!b.title && !notitle && schema.lists[b.list].title !== sec.title) inner += '<div class="block-title">' + esc(schema.lists[b.list].title) + '</div>'; inner += listHTML(b.list); }
     if (b.note) inner += '<p class="blocknote">' + esc(b.note) + '</p>';
     return h + (ok ? inner : '<div class="off" inert>' + inner + '</div>');
@@ -2136,7 +2192,7 @@
   }
   /* A number said in pieces ("082 454", then "1751") arrives as separate lines, from a pause or from the speech recogniser. Lines that are only digits, one after another within 12 seconds,
      are joined until there are enough digits for a number (10 for a phone or tax number, 13 for an ID). One that starts while a phone, ID or tax box is waiting, or with a 0, starts the run. */
-  var DIGIT_WORD = /^(?:\d+|oh|zero|one|two|three|four|five|six|seven|eight|nine|double|triple)$/, NUMBER_BOXES = ['idno', 'tax', 'cell', 'work', 'home', 'sp_tel'];
+  var DIGIT_WORD = /^(?:\d+|oh|zero|one|two|three|four|five|six|seven|eight|nine|double|triple)$/, NUMBER_BOXES = ['idno', 'tax', 'cell', 'work_cell', 'work', 'home', 'sp_tel'];
   /* The ID and cell number of a partner or shareholder (a row of the "shares" list) are said in pieces just like the client's own. */
   var PARTNER_NUM = /^shares:\d+:(id|cell)$/;
   function isNumBox(id) { return !!id && (NUMBER_BOXES.indexOf(id) >= 0 || PARTNER_NUM.test(id)); }
