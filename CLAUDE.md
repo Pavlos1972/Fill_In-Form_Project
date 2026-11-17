@@ -35,7 +35,7 @@
 | `docs/PAUL-MESSAGES-CHAT-1.md` | Paul's 73 messages of Chat 1 from 13 to 16 November, word for word (the earlier ones are not recoverable; client names are in it as Paul typed them) |
 | `docs/HANDOVER-CHAT-1.md` | The full handover of Chat 1 (history of every PR, Paul's rules and decisions, the release routine in detail, repo map, the Fix Skills chat, open items, links, lessons, what could not be recovered) |
 | The ZIP | The whole app folder as one ZIP: `git archive --format=zip --prefix="WR Fact Find/" -o "WR Fact Find - Version X.Y.zip" HEAD:app` |
-| The changes page | An Artifact: https://claude.ai/artifact/TG8Jqe8ndzoZKUuuZhUwpP (Paul's list of what changed, per release; at version 47 it covers 4.7 / PR 80; 4.8 is not on it yet: it waits for Paul's word) |
+| The changes page | An Artifact: https://claude.ai/artifact/TG8Jqe8ndzoZKUuuZhUwpP (Paul's list of what changed, per release; at version 48 it covers 4.8 / PR 82, updated on Paul's word on 17 November) |
 
 GitHub: use the `mcp__github__*` tools (no `gh` CLI). Repository `pavlos1972/fill_in-form_project`. Work branch: **Chat 1 used `claude/create-something-stjk8a`; Chat 2 works and pushes only on `claude/gallant-turing-hoe5mi`** (the session sets it; everywhere this file or the handover says "the work branch" it means the one the current session was given). Never put real client data in tests, commits or the README: use invented names.
 
