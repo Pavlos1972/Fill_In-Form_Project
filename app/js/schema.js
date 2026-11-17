@@ -287,7 +287,7 @@
     /* Client priorities identified: what is recommended to the client, area by area. Each area has a decision (priority, or not a priority), a box for the reason or instructions,
        a short summary of what the client has now (written from the rest of the form, see summary.js) and the quotes and referrals that belong to it. The earlier advisor pages are merged in here. */
     { id: 'prio', adv: 1, title: 'Client priorities and quotes needed', intro: 'What the client decides, area by area, and what we need to quote or refer. A priority turns the area green, not a priority red, and "not sure" or "check the budget" yellow.', blocks: [
-      { title: 'Priorities to be Focused on', focus: 1, fields: [{ id: 'focus', l: 'What is needed for each green priority', t: 'area', wide: 1, opt: 1, nonotes: 1, rows: 10 }] },
+      { title: 'Priorities to be Focused on', focus: 1, fields: [{ id: 'focus', l: 'What is needed for each green priority', t: 'area', wide: 1, opt: 1, nonotes: 1, heads: 'focus', rows: 10 }] },
       HEAD('life'),
       /* The two kinds of quote, side by side: BrightRock Fractured (built on the BrightRock Risk Calculation page, so BrightRock is the only insurer) and Standard (any insurer, BrightRock too). Each has the same three rows,
          FNA, Shortfall and Reduced. lane / row place a block in that grid; vl is the label voice and Claude use, so the two kinds of the same quote are told apart. */
@@ -441,7 +441,7 @@
         { id: 'next_time', l: 'Next appointment (time)', sl: 'Time', t: 'txt', time: 1, hint: 'e.g. 14:30', s: 7 }
       ] },
       { list: 'appts', left: 1 },
-      { title: 'Action Points for Personal Assistant', actions: 1, fields: [{ id: 'pa_actions', l: 'Action points for Sitamah Nathoo (personal assistant)', t: 'area', wide: 1, opt: 1, nonotes: 1, rows: 16 }] },
+      { title: 'Action Points for Personal Assistant', actions: 1, fields: [{ id: 'pa_actions', l: 'Action points for Sitamah Nathoo (personal assistant)', t: 'area', wide: 1, opt: 1, nonotes: 1, heads: 'pa', rows: 16 }] },
       /* Current Client: for a client whose Referral from is Current client only. A skill reads the client's file in AdviceTech (Basic Info) and writes the summary, in points, into this box in the saved file (id cc_notes). Typed by hand too; never filled by voice, and not read for the action points. heads: a line that is all capitals (4 or more characters, not starting with "- ") is shown and printed bold; the text stays plain. */
       { title: 'Current Client', full: 1, cond: { f: 'ref', eq: 'Current client' }, grey: 1, condMsg: 'Only for a current client: this is active when Referral from (on Client info) is Current client.', fields: [{ id: 'cc_notes', l: 'Current Client File Summary Notes', t: 'area', wide: 1, opt: 1, nonotes: 1, heads: 1, rows: 12 }] }
     ] }
@@ -564,5 +564,5 @@
   var byId = {};
   sections.forEach(function (s) { s.blocks.forEach(function (b) { (b.fields || []).forEach(function (f) { byId[f.id] = f; }); }); });
 
-  return { version: '4.7', released: 'November 2026', sections: sections, lists: lists, panels: panels, panelsById: panelsById, advisor: ADVISOR, brBasis: BR_BASIS, areaTitle: areaTitle, psClient: PS_CLIENT, defaultBroker: DEFAULT_BROKER, psNoSend: PS_NOSEND, psSaved: PS_SAVED, psNone: PS_NONE, psClientOld: PS_CLIENT_OLD, PRIORITY: PRIORITY, NOT_PRIORITY: NOT_PRIORITY, NOT_PRIORITY_OLD: NOT_PRIORITY_OLD, UNSURE: UNSURE, BUDGET: BUDGET, fieldsById: byId };
+  return { version: '4.8', released: 'November 2026', sections: sections, lists: lists, panels: panels, panelsById: panelsById, advisor: ADVISOR, brBasis: BR_BASIS, areaTitle: areaTitle, psClient: PS_CLIENT, defaultBroker: DEFAULT_BROKER, psNoSend: PS_NOSEND, psSaved: PS_SAVED, psNone: PS_NONE, psClientOld: PS_CLIENT_OLD, PRIORITY: PRIORITY, NOT_PRIORITY: NOT_PRIORITY, NOT_PRIORITY_OLD: NOT_PRIORITY_OLD, UNSURE: UNSURE, BUDGET: BUDGET, fieldsById: byId };
 });
