@@ -23,7 +23,7 @@ const dir = process.argv[3] || '/home/user/Fill_In-Form_Project/app';
 
   console.log('4 a long line where Claude did fill something is not asked twice');
   p = await fresh(`b => [{do:'section',section:'health'},{do:'ask',field:'h_dia'},{do:'fill',field:'h_dia',value:'No'},{do:'fill',field:'h_bp',value:'Yes'}]`);
-  await say(p, "Now your health. Do you have diabetes? No. High blood pressure? Yes, I'm on tablets for it."); console.log('  ', JSON.stringify(await show(p)));
+  await say(p, "Now your health. Do you have high blood sugar? No. High blood pressure? Yes, I'm on tablets for it."); console.log('  ', JSON.stringify(await show(p)));
 
   console.log('5 debts, children: a move and then rows');
   p = await fresh(`b => /home loan/.test(b.newest.text) ? [{do:'section',section:'debts'},{do:'row',list:'debts',values:{type:'Home loan',prov:'ABSA',inst:'6200',bal:'450000'}}] : [{do:'section',section:'kids'},{do:'row',list:'kids',values:{name:'Thandi',dob:'2019-08-22'}},{do:'row',list:'kids',values:{name:'Sipho',dob:'2021-03-03'}}]`);
