@@ -4,6 +4,13 @@ A dated list of what changed in the form's boxes, newest first. **One line for e
 
 The version is `version` in `app/js/schema.js` (the Fact Find), `app/js/sr-schema.js` (the Short Risk Application) and `app/js/cs-schema.js` (the Investment Capture Sheet); a saved file carries it as `schema`. Earlier changes are in the README and in the git history; this list starts with 3.1.
 
+## 4.6: 17 November 2026 (Fact Find 4.5 to 4.6)
+
+Fact Find (the "heard" tag; Medical, will & short-term). **No id, list, list column, box, choice or sum added, removed or relabelled.** One rule changed. Detail in the README ("Release 4.6").
+- **Gap cover is greyed out while Medical aid (`ma`) is None** (there is no gap cover without a medical aid): `gap`, `gap_prov` and `gap_broker` now have the rule "`ma` is not None" (and `gap_prov` and `gap_broker` still need `gap` not No). Greyed, not hidden, nothing cleared: the answers stay in the saved file (`f.gap`, `f.gap_prov`, `f.gap_broker` keep what they hold). `ma` empty (not answered yet) leaves them open. The notes box `n_gap` is not affected.
+- **What a skill that reads or writes the saved file should know:** (1) while `ma` is "None" the untouched default **Other broker** (status `preset`) in `gap_broker` is now empty (it was `preset` Other broker before); it comes back when `ma` is not None and `gap` is not "No". A broker that was chosen is never changed. (2) A skill that writes `gap` = Yes, `gap_prov` or `gap_broker` while `ma` is "None" writes boxes the form shows greyed and does not count, and the Checks panel will flag them: write `ma` first, or leave the gap boxes empty. A `gap` of "No" with `ma` "None" is fine and is not flagged. (3) The Medical Aid summary and the action points ignore the gap boxes while `ma` is "None". The form check of a skill need not stop: no id or list is new.
+- **Display only:** the "heard" tag (and the amber "verify" tag) beside "Look up online" and in the header of a list card (Debt 1) is a small tag again; the microphone line's style no longer catches it (`div.heard` in `app/css/app.css`). The saved file is unchanged.
+
 ## 4.5: 16 November 2026 (Fact Find 4.4 to 4.5)
 
 Fact Find (Client info, Meetings held). **One list column added; no id removed or relabelled.** Detail in the README ("Release 4.5").

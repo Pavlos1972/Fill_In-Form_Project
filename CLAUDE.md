@@ -1,6 +1,6 @@
 # Wealth Revolution Fact Find: handover and rules for Claude
 
-**Update this file with every release** (version history, ids, decisions, what is not yet tested). `README.md` describes the app in detail; this file is what a new session must know first, and keeps the rules that must not be lost between sessions. Last updated: 16 November 2026, version 4.5 (PR 76; 4.1 to 4.5 are merged and live on the website, and the Fix Skills chat has installed all of them on Paul's computer). **The whole story of Chat 1 (every version with its PR and commit, Paul's rules and decisions in his words, the release routine in detail, the repo map, the Fix Skills chat, open items, links, lessons) is in `docs/HANDOVER-CHAT-1.md`: read it when you need more than this file.**
+**Update this file with every release** (version history, ids, decisions, what is not yet tested). `README.md` describes the app in detail; this file is what a new session must know first, and keeps the rules that must not be lost between sessions. Last updated: 17 November 2026, version 4.6 (4.1 to 4.5 are merged and live on the website, and the Fix Skills chat has installed all of them on Paul's computer; 4.6 is in the pull request that carries this file: if you read this on `main`, 4.6 is merged, so correct this line). Chat 2 ("Fact Find Audio to Text Form - Chat 2") took over from Chat 1 on 16 November. **The whole story of Chat 1 (every version with its PR and commit, Paul's rules and decisions in his words, the release routine in detail, the repo map, the Fix Skills chat, open items, links, lessons) is in `docs/HANDOVER-CHAT-1.md`: read it when you need more than this file.**
 
 ## 1. What this is and who uses it
 
@@ -28,15 +28,16 @@
 | `pdf.js`, `ui.js`, `util.js`, `build.js` | The PDF (drawn from the schema); the screen; helpers; the copy check (build number and the red "Mixed versions" bar) |
 | `voice.js`, `voice-ai.js`, `listen.js`, `lookup.js`, `timer.js` | Voice (page side, Claude side, speech source), company look-up and keys, meeting timer |
 | `sr-*.js`, `cs-*.js` | The Short Risk Application and the Investment Capture Sheet (schema, store, check, pdf, ui; `cs-rt-*` is the questionnaire) |
-| `tests/*.test.js` | `npm test` (Node 20+; 694 tests at 4.5; includes `readme.test.js`, `pdf-mirror.test.js`, `worked.test.js`) |
+| `tests/*.test.js` | `npm test` (Node 20+; 704 tests at 4.6; includes `readme.test.js`, `pdf-mirror.test.js`, `worked.test.js`) |
 | `tests/browser/` | Playwright checks on the real page: `bash tests/browser/run.sh <outdir>` (or `npm run test:browser`); afterwards `git checkout -- tests/browser/*.png`. Five slow scripts can time out when all run together and pass alone. |
 | `.github/workflows/` | `tests.yml` (tests on every pull request); `pages.yml` (tests, then publishes `app/` to the website when `main` changes; can also be started by hand) |
 | `docs/FORM-CHANGES.md` | The dated change log of ids and lists, newest first |
+| `docs/PAUL-MESSAGES-CHAT-1.md` | Paul's 73 messages of Chat 1 from 13 to 16 November, word for word (the earlier ones are not recoverable; client names are in it as Paul typed them) |
 | `docs/HANDOVER-CHAT-1.md` | The full handover of Chat 1 (history of every PR, Paul's rules and decisions, the release routine in detail, repo map, the Fix Skills chat, open items, links, lessons, what could not be recovered) |
 | The ZIP | The whole app folder as one ZIP: `git archive --format=zip --prefix="WR Fact Find/" -o "WR Fact Find - Version X.Y.zip" HEAD:app` |
 | The changes page | An Artifact: https://claude.ai/artifact/TG8Jqe8ndzoZKUuuZhUwpP (Paul's list of what changed, per release) |
 
-GitHub: use the `mcp__github__*` tools (no `gh` CLI). Repository `pavlos1972/fill_in-form_project`. Work branch `claude/create-something-stjk8a` (push only there). Never put real client data in tests, commits or the README: use invented names.
+GitHub: use the `mcp__github__*` tools (no `gh` CLI). Repository `pavlos1972/fill_in-form_project`. Work branch: **Chat 1 used `claude/create-something-stjk8a`; Chat 2 works and pushes only on `claude/gallant-turing-hoe5mi`** (the session sets it; everywhere this file or the handover says "the work branch" it means the one the current session was given). Never put real client data in tests, commits or the README: use invented names.
 
 ## 3. Paul's standing rules
 
@@ -85,17 +86,20 @@ GitHub: use the `mcp__github__*` tools (no `gh` CLI). Repository `pavlos1972/fil
 | **Keys and costs table** (4.3) | Paul found the top right muddled; he chose "Option B" from a mock-up page and asked for "Anthropic" instead of "Claude". One table: a line per service, columns Key and This Fact Find; the two page buttons stay above it. When a design question is visual, **draw a mock-up Artifact first** and let Paul choose. Since 4.4 the two page links are one "Other forms ▾" menu (the mix of Option B and Option A that Paul asked for). |
 | **The copy check** (3.8) | Each page checks its files all come from its own folder and that its build matches; otherwise a red bar says "Mixed versions". |
 | **Voice never fills** `meetings`, `appts` | They are the adviser's records (`novoice` in `schema.js`). |
+| **Gap cover needs a medical aid** (4.6) | Paul: *"where the Medical Aid = NO - the Gap Cover must be greyed out - you can't have a Gap Cover without a Medical Aid"*. `gap`, `gap_prov` and `gap_broker` are greyed (not hidden, nothing cleared) while `ma` is None; an unanswered `ma` leaves them open; the Gap notes box stays open; the untouched Other broker default under Gap goes while `ma` is None (`BROKER_OF` in `store.js` has a second gate); the Checks flag a Yes / Not sure, provider or chosen broker left under it (not a plain No); the summary and action points ignore it. This replaced the 3.6-era test that let a client with no medical aid have gap cover with another broker. |
+| **The "heard" tag** (4.6) | The microphone line under the top bar and the tag on a box both carry the class `heard`; the microphone line's rules are `div.heard` so the tag (a `button`) is never caught. Do not write a bare `.heard` rule. |
 
 ## 6. Not yet tested with a real client
 
 **Paul's API key** (Console > API keys; the form's Settings holds the key and its expiry date, per browser and per copy): keys last 30 days and are renewed by hand; the top bar counts the days down (amber at 14). The key is renewed by Paul in the console; never ask him to paste a key into the chat.
 
-The automated tests use invented answers and a faked Claude. Not yet proved on a real client: **listening to a real Teams call** (PR 10: share the call's sound, needs a short test call); **voice for "work cell"**; **"What was covered"** (pages, not topics); **the passed-appointment question**, the **Progress buttons and Verify All**; the **action-point sources rule** with the real Claude (if it ignores the format, all its points are removed and the plain points stay, and the Admin list says so); reading **scanned policy schedules** (the skills can, this sandbox cannot); **4.4 and 4.5 on Paul's own screen** (in the one-line meetings *Teams Meeting* and long names may be cut off in the box: ask Paul). The full list of open items is in `docs/HANDOVER-CHAT-1.md` section 6. I cannot open the live website or Paul's OneDrive reliably from this sandbox.
+The automated tests use invented answers and a faked Claude. Not yet proved on a real client: **listening to a real Teams call** (PR 10: share the call's sound, needs a short test call); **voice for "work cell"**; **"What was covered"** (pages, not topics); **the passed-appointment question**, the **Progress buttons and Verify All**; the **action-point sources rule** with the real Claude (if it ignores the format, all its points are removed and the plain points stay, and the Admin list says so); reading **scanned policy schedules** (the skills can, this sandbox cannot); **4.4, 4.5 and 4.6 on Paul's own screen** (4.6: the heard tag next to Look up online and in Debt 1, and the greyed Gap cover; seen only in my test screenshots) (in the one-line meetings *Teams Meeting* and long names may be cut off in the box: ask Paul). The full list of open items is in `docs/HANDOVER-CHAT-1.md` section 6. I cannot open the live website or Paul's OneDrive reliably from this sandbox.
 
 ## 7. Version history (newest first)
 
 | Version | What |
 |---|---|
+| **4.6** (Chat 2; PR number is that of the pull request that carries this file) | The "heard" tag no longer stretches into a bar beside "Look up online" and in a list card's header (Debt 1; the Remove button was pushed out of sight); Gap cover is greyed while Medical aid is None (no id, list or choice changed; saved-file note in `docs/FORM-CHANGES.md`) |
 | **4.5** (PR 76) | The meetings held are one line each (Date, Day, Type, Others on the call, What was covered) and the list folds; new calculated column `meetings.day` (not an answer) |
 | **4.4** (PR 75) | The Short Risk Application and Investment Capture Sheet links are one **Other forms ▾** menu in the top bar (native `<details id="otherForms">`, closes on Escape, outside click, chosen link); the keys-and-costs table stays; display only |
 | **4.3** (PR 73) | The keys and costs of Anthropic and OpenAI are one small table in the top bar (a line for each service; "Anthropic", not "Claude"); display only |

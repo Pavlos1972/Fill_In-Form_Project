@@ -178,6 +178,12 @@
       (under.ids || []).forEach(function (id) { if (v(id)) left.push(schema.fieldsById[id].l); });
       if (left.length) warnAnyway(g[0], schema.fieldsById[g[0]].l + ' is ' + ctx.v(g[0]).trim() + ', but the ' + g[3] + ' are still filled in (' + left.join(', ') + '). Change the answer, or clear them.');
     });
+    if (ctx.v('ma').trim() === 'None') {                                                           // 4.6: Gap cover is greyed while Medical aid is None; an answer of Yes or Not sure, a provider or a chosen broker left in it is flagged (a "No" says what the grey says)
+      var gapLeft = [];
+      if (/^(Yes|Not sure)$/.test(ctx.v('gap').trim())) gapLeft.push(schema.fieldsById.gap.l);
+      ['gap_prov', 'gap_broker'].forEach(function (id) { if (v(id)) gapLeft.push(schema.fieldsById[id].l); });
+      if (gapLeft.length) warnAnyway('ma', schema.fieldsById.ma.l + ' is None, but the gap cover details are still filled in (' + gapLeft.join(', ') + '). There is no gap cover without a medical aid: change the answer, or clear them.');
+    }
     var loa = ctx.v('loa').trim();                                                                // "Draw from Astute" needs a signed LOA
     if (loa === 'No' || loa === 'Not now') {
       if (SCHEDULE_BOXES.some(function (id) { return /Draw from Astute/.test(ctx.v(id)); })) warnAnyway('loa', 'Draw from Astute is ticked for the policy schedules, but the LOA is ' + loa + '. Ask the client to send the schedules, or change the LOA answer.');
