@@ -114,6 +114,7 @@
     if (id === 'sname' || id === 'gender') followFather(state, was);
     if (calc.DUTY_IDS.indexOf(id) >= 0) settleDuties(state);
     if (BROKER_OF[id]) brokerDefault(state, id);
+    Object.keys(BROKER_OF).forEach(function (k) { if (BROKER_OF[k][2] === id) brokerDefault(state, k); });         // 4.6: Medical aid also opens and closes the Gap cover broker
     if (id === 'edu') eduDefault(state);
     if (id === 'employed') employerDefault(state);
     if ((id === 'date' || id === 'meet' || id === 'on_call') && state.l.meetings && state.l.meetings.length) { var lm = state.l.meetings[state.l.meetings.length - 1]; if (id === 'date') { var pdm = util.parseDate(v); lm.d.date = pdm ? util.formatDate(pdm) : v; } else if (id === 'meet') lm.d.type = v; else lm.d.who = v; }       // Date completed and Type of meeting are the last meeting's
@@ -180,11 +181,12 @@
   /* "Broker on record" in Medical aid, Gap cover, Will and Short-term insurance starts as Other broker, shown as a default (status "preset"): on a new form, and again whenever the answer above it does not close the boxes
      (Medical aid not None, Gap cover not No, and so on; an answer not given yet does not close them). When the answer closes them (None, No), a default that was not touched goes, so nothing is left under a No.
      A broker the adviser or the client chose is never changed. */
-  var BROKER_OF = { ma: ['ma_broker', ['None']], gap: ['gap_broker', ['No']], will: ['will_broker', ['No']], sti: ['sti_broker', ['No', 'Handled by spouse']] };
+  var BROKER_OF = { ma: ['ma_broker', ['None']], gap: ['gap_broker', ['No'], 'ma', ['None']], will: ['will_broker', ['No']], sti: ['sti_broker', ['No', 'Handled by spouse']] };      // 4.6: the optional 3rd and 4th items are a second answer that also closes the boxes (no gap cover without a medical aid)
   function brokerDefault(state, id) {
     var b = BROKER_OF[id], gate = state.f[id].v, box = state.f[b[0]];
     if (!box) return;
-    if (b[1].indexOf(gate) < 0) { if (box.v === '') state.f[b[0]] = { v: schema.defaultBroker, st: 'preset' }; }               // an answer not given yet ('') does not close the boxes
+    var closed = b[1].indexOf(gate) >= 0 || !!(b[2] && state.f[b[2]] && b[3].indexOf(state.f[b[2]].v) >= 0);
+    if (!closed) { if (box.v === '') state.f[b[0]] = { v: schema.defaultBroker, st: 'preset' }; }               // an answer not given yet ('') does not close the boxes
     else if (box.st === 'preset' && box.v === schema.defaultBroker) state.f[b[0]] = { v: '', st: 'empty' };
   }
   /* Duties split: once the boxes that are filled add up to 100%, the boxes still empty are set to 0 (shown as a default, status "preset": nothing was heard). When the total moves off 100% again, those automatic

@@ -145,7 +145,8 @@
       var out = [];
       if (d.ma === 'None') out.push('Medical aid: none');
       else if (d.ma) out.push(d.ma + ': ' + parts(d.ma_prov, d.ma_plan, d.ma_broker));
-      if (d.gap === 'No') out.push('Gap cover: none');
+      if (d.ma === 'None') { /* 4.6: no gap cover without a medical aid: the Gap cover boxes are greyed and not counted */ }
+      else if (d.gap === 'No') out.push('Gap cover: none');
       else if (d.gap === 'Yes') out.push('Gap cover: ' + parts(d.gap_prov || 'yes', d.gap_broker));
       if (!out.length) out.push('Nothing recorded yet for medical aid or gap cover');
       if (d.ref_med && d.ref_med !== 'Not required') out.push('Referral: ' + d.ref_med);

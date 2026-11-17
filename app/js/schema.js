@@ -244,9 +244,9 @@
         N('n_ma', 'Notes', 2)
       ] },
       { title: 'Gap cover', half: 1, layout: 'g12', fields: [
-        { id: 'gap', l: 'Gap cover', t: 'sel', o: ['Yes', 'No', 'Not sure'], s: 6 },
-        { id: 'gap_prov', l: 'Gap cover provider', t: 'sel', free: 1, o: GAP_PROVIDERS, cond: GAP_ON, grey: 1, s: 6 },
-        { id: 'gap_broker', l: 'Broker on record', vl: 'Gap cover broker on record', t: 'sel', o: BROKER, preset: DEFAULT_BROKER, voice: 1, cond: GAP_ON, grey: 1, s: 6 },
+        { id: 'gap', l: 'Gap cover', t: 'sel', o: ['Yes', 'No', 'Not sure'], cond: MA_ON, grey: 1, s: 6 },                     // 4.6: there is no gap cover without a medical aid: greyed while Medical aid is None
+        { id: 'gap_prov', l: 'Gap cover provider', t: 'sel', free: 1, o: GAP_PROVIDERS, cond: { all: [MA_ON, GAP_ON] }, grey: 1, s: 6 },
+        { id: 'gap_broker', l: 'Broker on record', vl: 'Gap cover broker on record', t: 'sel', o: BROKER, preset: DEFAULT_BROKER, voice: 1, cond: { all: [MA_ON, GAP_ON] }, grey: 1, s: 6 },
         N('n_gap', 'Notes', 2)
       ] },
       { title: 'Will', layout: 'g12', fields: [
@@ -564,5 +564,5 @@
   var byId = {};
   sections.forEach(function (s) { s.blocks.forEach(function (b) { (b.fields || []).forEach(function (f) { byId[f.id] = f; }); }); });
 
-  return { version: '4.5', released: 'November 2026', sections: sections, lists: lists, panels: panels, panelsById: panelsById, advisor: ADVISOR, brBasis: BR_BASIS, areaTitle: areaTitle, psClient: PS_CLIENT, defaultBroker: DEFAULT_BROKER, psNoSend: PS_NOSEND, psSaved: PS_SAVED, psNone: PS_NONE, psClientOld: PS_CLIENT_OLD, PRIORITY: PRIORITY, NOT_PRIORITY: NOT_PRIORITY, NOT_PRIORITY_OLD: NOT_PRIORITY_OLD, UNSURE: UNSURE, BUDGET: BUDGET, fieldsById: byId };
+  return { version: '4.6', released: 'November 2026', sections: sections, lists: lists, panels: panels, panelsById: panelsById, advisor: ADVISOR, brBasis: BR_BASIS, areaTitle: areaTitle, psClient: PS_CLIENT, defaultBroker: DEFAULT_BROKER, psNoSend: PS_NOSEND, psSaved: PS_SAVED, psNone: PS_NONE, psClientOld: PS_CLIENT_OLD, PRIORITY: PRIORITY, NOT_PRIORITY: NOT_PRIORITY, NOT_PRIORITY_OLD: NOT_PRIORITY_OLD, UNSURE: UNSURE, BUDGET: BUDGET, fieldsById: byId };
 });

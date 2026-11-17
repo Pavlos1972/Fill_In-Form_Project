@@ -135,7 +135,7 @@
     var other = function (id) { return v(id) === 'Other broker' && !(state.f[id] && state.f[id].st === 'preset'); };       // the Broker on record boxes start as Other broker (preset): only an answered one means the cover is with another broker
     if (shows('ref_med') && /^Valerie/.test(v('ref_med'))) {
       var mAbout = /both/.test(v('ref_med')) ? 'medical aid and gap cover' : /gap/.test(v('ref_med')) ? 'gap cover' : 'medical aid';
-      var mMed = /medical aid/.test(mAbout) && (v('ma') === 'Medical aid' || v('ma') === 'Hospital plan') && other('ma_broker'), mGap = /gap/.test(mAbout) && v('gap') === 'Yes' && other('gap_broker');
+      var mMed = /medical aid/.test(mAbout) && (v('ma') === 'Medical aid' || v('ma') === 'Hospital plan') && other('ma_broker'), mGap = /gap/.test(mAbout) && v('ma') !== 'None' && v('gap') === 'Yes' && other('gap_broker');       // 4.6: no gap cover without a medical aid
       out.referrals.push(mMed || mGap ? { who: 'Valerie', about: mAbout, takeover: true, takeover_of: mMed && mGap ? 'medical aid and gap cover' : mMed ? 'medical aid' : 'gap cover' } : { who: 'Valerie', about: mAbout });
     }
     if (shows('ref_will') && /^Capital Legacy/.test(v('ref_will'))) out.referrals.push(v('will') === 'Yes' && v('will_where') === 'Capital Legacy' && other('will_broker') ? { who: 'Capital Legacy', about: 'the will', takeover: true } : { who: 'Capital Legacy', about: 'the will' });
