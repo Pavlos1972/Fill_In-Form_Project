@@ -4,6 +4,12 @@ A dated list of what changed in the form's boxes, newest first. **One line for e
 
 The version is `version` in `app/js/schema.js` (the Fact Find), `app/js/sr-schema.js` (the Short Risk Application) and `app/js/cs-schema.js` (the Investment Capture Sheet); a saved file carries it as `schema`. Earlier changes are in the README and in the git history; this list starts with 3.1.
 
+## 4.8: 17 November 2026 (Fact Find 4.7 to 4.8)
+
+Fact Find (Client priorities and quotes needed, Admin). **Display and PDF only. No id, list, list column, box, choice or sum added, removed or relabelled; the saved file is unchanged.** Detail in the README ("Release 4.8").
+- **The boxes `focus` (Priorities to be Focused on) and `pa_actions` (Action points for the personal assistant) now show their headings bold and larger** (about 20% larger, with room above and below): a read view that a click, the Edit link or Enter opens for typing, as the Current Client notes (`cc_notes`, 3.3) have. In `schema.js` the two fields carry `heads: 'focus'` and `heads: 'pa'` (`cc_notes` keeps `heads: 1`). A heading is an area title in `focus` (a line like "3. RGAR") and the opening line "Sitamah, please action these for the client ...:" in `pa_actions`. The PDF prints the same headings bold and larger.
+- **What a skill that reads or writes the saved file should know: nothing changes.** `f.focus` and `f.pa_actions` are the same plain text as before (no markup, nothing about bold or size); the first line of `f.pa_actions` is still the line the form writes. Only the screen and the PDF are drawn differently. A skill that writes into either box writes plain text, and a line of the same shape will be shown as a heading.
+
 ## 4.7: 17 November 2026 (Fact Find 4.6 to 4.7)
 
 Fact Find (Health). **One label changed. No id, list, list column, box, choice or sum added or removed.** Detail in the README ("Release 4.7").
