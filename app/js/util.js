@@ -181,10 +181,20 @@
     var s = String(line == null ? '' : line).trim();
     return s.length >= 4 && s === s.toUpperCase() && s.indexOf('- ') !== 0;
   }
+  /* Which lines of a box with bold headings are headings (the field's `heads` in schema.js). 1: notes written by a skill (all capitals, isHeadingLine). 'focus': the numbered area titles of Priorities to be Focused on
+     ("1. Personal Risk Covers"). 'pa': the line the form puts at the top of the Action Points ("Sitamah, please action these for the client Edwin Joubert:"). The text in the file is always plain. */
+  function headingKind(kind, line) {
+    var s = String(line == null ? '' : line).trim();
+    if (kind === 'focus') return /^\d{1,2}\.\s+[^\s:][^:]{0,56}$/.test(s);
+    if (kind === 'pa') return /^[A-Z][A-Za-z'\-]*, please action these for .+:$/.test(s);
+    return isHeadingLine(s);
+  }
+  /* The headings of Priorities to be Focused on and of the Action Points are larger as well as bold (4.8); the Current Client notes' stay bold at the size of the text. */
+  function headingBig(kind) { return kind === 'focus' || kind === 'pa'; }
   /* A percentage box (the ACI value and the ABI boxes of the BrightRock Risk Calculation): a number typed alone gets its %. "5" is "5%", "7,5" is "7.5%", "5 %" is "5%"; "?" and any words are left as they are. */
   function formatPct(v) {
     var t = String(v == null ? '' : v).trim(), m = /^(\d{1,3}(?:[.,]\d{1,2})?)\s*%?$/.exec(t);
     return m ? m[1].replace(',', '.') + '%' : t;
   }
-  return { formatPct: formatPct, isHeadingLine: isHeadingLine, sexFromSaId: sexFromSaId, splitFullName: splitFullName, num: num, money: money, money2: money2, formatMoney: formatMoney, isAmount: isAmount, parseDate: parseDate, weekdayName: weekdayName, parseTime: parseTime, formatTime: formatTime, ageAt: ageAt, isoToday: isoToday, termMonths: termMonths, formatDate: formatDate, todayDMY: todayDMY, longDate: longDate, dobFromSaId: dobFromSaId, saIdValid: saIdValid };
+  return { formatPct: formatPct, isHeadingLine: isHeadingLine, headingKind: headingKind, headingBig: headingBig, sexFromSaId: sexFromSaId, splitFullName: splitFullName, num: num, money: money, money2: money2, formatMoney: formatMoney, isAmount: isAmount, parseDate: parseDate, weekdayName: weekdayName, parseTime: parseTime, formatTime: formatTime, ageAt: ageAt, isoToday: isoToday, termMonths: termMonths, formatDate: formatDate, todayDMY: todayDMY, longDate: longDate, dobFromSaId: dobFromSaId, saIdValid: saIdValid };
 });
