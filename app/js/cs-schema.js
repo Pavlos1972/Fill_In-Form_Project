@@ -16,6 +16,16 @@
   var ABBR = { 'Old Mutual': 'OM' };
   /* Old Mutual's own product names, as its Application Details for Finalisor sheet lists them: offered as suggestions in the Product box while the insurer is Old Mutual (anything else can be typed). */
   var OM_PRODUCTS = ['OM Flexi Investment Plan', 'OM RA - Xtra Max 8.5% - section 14 transfer', 'OM RA - Xtra Max 8.5%', 'OM RA - Xtra Max 5%', 'OM Optimal RA - Recurring', 'OM Tax Free recurring', 'OM Tax Free Lumpsum', 'OM RA - Wealth recurring'];
+  /* How the application's file name is written (version 1.1; the one table, which the skill reads too). The Product part: Old Mutual's own product names first (an exact name, or a name that starts with one of the `prefixes`),
+     then the Product type; for Other, the Product typed (else "Other"). The amount part: "R 2,800.00 p.m." for a recurring contribution, "R 50,000.00 - Lump Sum" for a lump sum or a Section 14 transfer. */
+  var FILE_NAME = {
+    names: { 'OM Optimal RA - Recurring': 'Optimal RA', 'OM Tax Free recurring': 'Tax-Free', 'OM Tax Free Lumpsum': 'Tax-Free', 'OM Flexi Investment Plan': 'Flexi',
+      'OM RA - Xtra Max 8.5% - section 14 transfer': 'Xtra Max RA', 'OM RA - Xtra Max 8.5%': 'Xtra Max RA', 'OM RA - Xtra Max 5%': 'Xtra Max RA', 'OM RA - Wealth recurring': 'Wealth RA' },
+    prefixes: { 'OM RA - Xtra Max': 'Xtra Max RA' },
+    types: { 'Retirement Annuity': 'RA', 'Tax-Free Investment': 'Tax-Free', 'Endowment / Flexible Investment Plan': 'Endowment', 'Living Annuity': 'Living Annuity' },
+    other: 'Other',
+    kinds: { 'Recurring (monthly)': ' p.m.', 'Lump sum': ' - Lump Sum', 'Section 14 transfer': ' - Lump Sum' }
+  };
   var MARRIED = { f: 'marital', in: ['Married', 'Civil Union', 'Customary Marriage', 'Life Partner / Cohabiting', 'Separated'] };
 
   /* the questionnaire's boxes, made from its own questions (cs-rt-data.js): the client's confirmation, 18 statements, 5 capacity questions */
@@ -121,6 +131,6 @@
   var fieldsById = {}, fieldIds = [], sectionOf = {};
   sections.forEach(function (s) { (s.fields || []).forEach(function (f) { fieldsById[f.id] = f; fieldIds.push(f.id); sectionOf[f.id] = s.id; }); });
 
-  return { version: '1.0', released: 'November 2026', title: 'Investment Capture Sheet', sections: sections, sectionsById: sectionsById, pages: pages, pageOf: pageOf, lists: lists, fieldsById: fieldsById, fieldIds: fieldIds, sectionOf: sectionOf,
-    planner: PLANNER, rt: RT, insurers: PROVIDERS, products: PRODUCTS, abbr: ABBR, banks: BANKS, suggestions: { 'Old Mutual': OM_PRODUCTS } };
+  return { version: '1.1', released: 'November 2026', title: 'Investment Capture Sheet', sections: sections, sectionsById: sectionsById, pages: pages, pageOf: pageOf, lists: lists, fieldsById: fieldsById, fieldIds: fieldIds, sectionOf: sectionOf,
+    planner: PLANNER, rt: RT, insurers: PROVIDERS, products: PRODUCTS, abbr: ABBR, fileName: FILE_NAME, banks: BANKS, suggestions: { 'Old Mutual': OM_PRODUCTS } };
 });

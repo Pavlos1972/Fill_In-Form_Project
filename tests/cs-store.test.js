@@ -19,7 +19,7 @@ test('the form: five pages in the order of the work, the Declaration with the ap
   assert.deepStrictEqual(schema.pages[4].sections, ['risk', 'risk_result']);
   const order = schema.sections.map(s => s.id);
   assert.ok(order.indexOf('funds') < order.indexOf('declare') && order.indexOf('declare') < order.indexOf('risk') && order.indexOf('risk') < order.indexOf('risk_result'));
-  assert.strictEqual(schema.version, '1.0');
+  assert.strictEqual(schema.version, '1.1');
   assert.strictEqual(new Set(schema.fieldIds).size, schema.fieldIds.length, 'no box id is used twice');
   schema.sections.forEach(s => assert.ok(schema.pageOf[s.id], s.id + ' is on a page'));
 });
@@ -88,12 +88,13 @@ test('the questionnaire counts in the progress like any other boxes, and its thr
   assert.strictEqual(store.leftIn(s, schema.sectionsById.risk_result), 0, 'the result is worked out, not asked');
 });
 
-test('the files are named in the Fact Find’s way: the application with the insurer, the questionnaire on its own', () => {
+test('the files are named by the application file name rule (1.1; tests/cs-names.test.js has the whole rule), the questionnaire on its own', () => {
   const s = named('Sitamah', 'Nathoo'); store.setField(s, 'date', '04/11/2026');
-  assert.strictEqual(store.pdfFileName(s), 'Provider Capture Sheet - 04.11.26 - (Sitamah Nathoo)');
-  store.setField(s, 'provider', 'Old Mutual'); assert.strictEqual(store.pdfFileName(s), 'OM Capture Sheet - 04.11.26 - (Sitamah Nathoo)');
+  assert.strictEqual(store.pdfFileName(s), 'Provider - Product Application - 04.11.26 - R amount - p.m. or Lump Sum - (Sitamah Nathoo)');
+  store.setField(s, 'provider', 'Old Mutual'); store.setField(s, 'product', 'Retirement Annuity'); store.setField(s, 'contrib_type', 'Recurring (monthly)'); store.setField(s, 'amount', '2800');
+  assert.strictEqual(store.pdfFileName(s), 'OM - RA Application - 04.11.26 - R 2,800.00 p.m. - (Sitamah Nathoo)');
   assert.strictEqual(store.baseFileName(s), store.pdfFileName(s), 'the PDF and the saved file share one name');
-  store.setField(s, 'provider', 'Sanlam'); assert.strictEqual(store.pdfFileName(s), 'Sanlam Capture Sheet - 04.11.26 - (Sitamah Nathoo)');
+  store.setField(s, 'provider', 'Sanlam'); assert.strictEqual(store.pdfFileName(s), 'Sanlam - RA Application - 04.11.26 - R 2,800.00 p.m. - (Sitamah Nathoo)');
   assert.strictEqual(store.rtFileName(s), 'Risk Tolerance - 04.11.26 - (Sitamah Nathoo)');
   assert.strictEqual(store.rtFileName(store.blank()).endsWith('(New client)'), true);
 });
@@ -196,7 +197,7 @@ test('a surname with van, de or du in it stays whole', () => {
 /* ---------- saving and reopening ---------- */
 test('the file round-trips with the questionnaire’s answers, and a file from another app is refused', () => {
   const s = named('Sample', 'Client'); answerAll(s, 3); store.setField(s, 'rt_understand', 'Confirmed'); store.rtSync(s, true); store.addRow(s, 'benef', { name: 'Anna', pct: '100' });
-  const j = JSON.parse(store.toJSON(s)); assert.strictEqual(j.app, 'wr-capture-sheet'); assert.strictEqual(j.schema, '1.0');
+  const j = JSON.parse(store.toJSON(s)); assert.strictEqual(j.app, 'wr-capture-sheet'); assert.strictEqual(j.schema, schema.version);
   const o = store.fromJSON(JSON.stringify(j));
   assert.strictEqual(o.f.risk_score.v, s.f.risk_score.v); assert.strictEqual(o.f.risk_ref.v, s.f.risk_ref.v); assert.strictEqual(o.f.rt_s7.v, 'Agree'); assert.strictEqual(o.l.benef[0].d.name, 'Anna');
   assert.strictEqual(store.rtStatus(o).complete, true);
