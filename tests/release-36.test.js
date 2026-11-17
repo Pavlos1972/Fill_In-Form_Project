@@ -12,7 +12,7 @@ const fresh = () => store.blank();
 const set = (s, id, v, st) => store.setField(s, id, v, st);
 const ctx = s => store.ctxFor(s);
 
-test('the version is 4.5 (3.6 added what this file tests)', () => { assert.strictEqual(schema.version, '4.5'); });
+test('the version is 4.6 (3.6 added what this file tests)', () => { assert.strictEqual(schema.version, '4.6'); });
 
 /* ---------- money and dates ---------- */
 test('number words with "and a half" and ranges: read right, or not read at all', () => {

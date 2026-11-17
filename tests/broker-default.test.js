@@ -43,7 +43,7 @@ test('Medical aid, Gap cover, Will and Short-term: the broker starts as Other br
   set(s, 'ma', 'Medical aid'); assert.deepStrictEqual([s.f.ma_broker.v, s.f.ma_broker.st], ['Other broker', 'preset']);
   set(s, 'ma', 'None'); assert.strictEqual(s.f.ma_broker.v, '', 'None: the untouched default goes, nothing is left under it');
   set(s, 'ma', ''); assert.deepStrictEqual([s.f.ma_broker.v, s.f.ma_broker.st], ['Other broker', 'preset'], 'an answer taken away again is not a No: the default is back');
-  set(s, 'ma', 'None');
+  set(s, 'ma', 'Medical aid');                                                                         // 4.6: there is no gap cover without a medical aid, so the gap boxes open only once Medical aid is not None
   set(s, 'gap', 'Not sure'); assert.strictEqual(s.f.gap_broker.v, 'Other broker', 'Not sure opens the gap boxes');
   set(s, 'gap', 'No'); assert.strictEqual(s.f.gap_broker.v, '');
   set(s, 'will', 'Yes'); assert.strictEqual(s.f.will_broker.v, 'Other broker');
