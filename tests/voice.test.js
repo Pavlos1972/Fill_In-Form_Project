@@ -124,7 +124,7 @@ test('your question points at the right field', () => {
     ['Is your car insured?', 'other', 'sti_car'],
     ['Do you have any life cover?', 'cover', 'has_risk'],
     ['Do you have group risk through work?', 'cover', 'has_group'],
-    ['Do you have diabetes?', 'health', 'h_dia'],
+    ['Do you have high blood sugar?', 'health', 'h_dia'],
     ['Any problems with cholesterol?', 'health', 'h_chol'],
     ['What about blood pressure?', 'health', 'h_bp']
   ];
