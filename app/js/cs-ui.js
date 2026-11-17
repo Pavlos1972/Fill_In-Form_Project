@@ -44,13 +44,21 @@
     return o;
   }
   /* Chrome's "Save as" window where there is one, otherwise a plain download. With a remembered file it writes straight back to it. */
+  var lastWritten = null;                                                                  // what the last write was proved to be: { size, tries, checked }
   function writeFile(blob, name, type, ext, handle, id, startIn) {
+    lastWritten = null;
     if (!window.showSaveFilePicker) { download(blob, name); return Promise.resolve(null); }
     var accept = {}; accept[blob.type] = [ext];
     var open = handle
       ? Promise.resolve(handle.requestPermission ? handle.requestPermission({ mode: 'readwrite' }) : 'granted').then(function (p) { if (p !== 'granted') throw new Error('Chrome did not allow changes to that file.'); return handle; })
       : window.showSaveFilePicker(pickerOptions(name, type, accept, id, startIn));
-    return open.then(function (h) { return h.createWritable().then(function (w) { return w.write(blob).then(function () { return w.close(); }); }).then(function () { return h; }); });
+    return open.then(function (h) { return util.writeVerified(h, blob, { pdf: ext === '.pdf' }).then(function (r) { lastWritten = r; return h; }); });          // written, read back and tried again if OneDrive was in the way (util.writeVerified)
+  }
+  /* A write that failed even after util.writeVerified's tries. Cancel is silent. Anything else keeps the work (a copy is downloaded), and says plainly, for 20 seconds, what happened and what to do. */
+  function saveFailed(e, blob, name) {
+    if (!e || e.name === 'AbortError') return false;
+    download(blob, name); toast(util.saveFailText(name, e, true), 20000);
+    return true;
   }
   function currentBase() { return fileBase || store.baseFileName(state); }
   function readBack(h, text) {
@@ -67,14 +75,14 @@
         if (v === 'different') { refreshChrome(); toast('The saved file does not match the form, so your work is still kept here. Try Save again.', 7000); return; }
         dirty = false; onDisk = v === 'ok'; lastSaved = new Date(); saveDraft(); refreshChrome(); toast('Saved.');
       });
-    }).catch(function (e) { if (e && e.name !== 'AbortError') toast('Could not save: ' + e.message); });
+    }).catch(function (e) { if (saveFailed(e, blob, currentBase() + '.json') && !forceAs && fileHandle) { fileHandle = null; rememberHandle(null); } refreshChrome(); });          // a file reference that failed is let go: the next Save asks where to save
   }
   function makePdf() { return CS.pdf.build(state); }
   function savePdf() {
     var blob = makePdf().output('blob');
     writeFile(blob, store.pdfFileName(state) + '.pdf', 'PDF document', '.pdf', null, 'capture-sheet-pdf', fileHandle)
-      .then(function () { toast('PDF saved.'); })
-      .catch(function (e) { if (e && e.name !== 'AbortError') toast('Could not save the PDF: ' + e.message); });
+      .then(function () { toast(lastWritten && lastWritten.checked ? 'PDF saved and checked (' + util.formatSize(lastWritten.size) + ').' : 'PDF saved.'); })
+      .catch(function (e) { saveFailed(e, blob, store.pdfFileName(state) + '.pdf'); });
   }
   function previewPdf() {
     var blob = makePdf().output('blob'), url = URL.createObjectURL(blob), w = window.open(url, '_blank');
@@ -230,7 +238,7 @@
     CS.rtpdf.build(state).then(function (res) {
       refreshChrome();
       if (how === 'preview') { var u = URL.createObjectURL(res.blob), w = window.open(u, '_blank'); if (!w) download(res.blob, res.fileName + '.pdf'); return; }
-      return writeFile(res.blob, res.fileName + '.pdf', 'PDF document', '.pdf', null, 'capture-sheet-rt-pdf', ffHandle || fileHandle).then(function () { toast('Questionnaire PDF saved.'); });
+      return writeFile(res.blob, res.fileName + '.pdf', 'PDF document', '.pdf', null, 'capture-sheet-rt-pdf', ffHandle || fileHandle).then(function () { toast(lastWritten && lastWritten.checked ? 'Questionnaire PDF saved and checked (' + util.formatSize(lastWritten.size) + ').' : 'Questionnaire PDF saved.'); }, function (e) { saveFailed(e, res.blob, res.fileName + '.pdf'); });
     }).catch(function (e) { if (e && e.name !== 'AbortError') toast(e.message || 'Could not make the questionnaire PDF.', 6000); });
   }
   function sectionHTML(s) {

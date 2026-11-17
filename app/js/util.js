@@ -196,5 +196,50 @@
     var t = String(v == null ? '' : v).trim(), m = /^(\d{1,3}(?:[.,]\d{1,2})?)\s*%?$/.exec(t);
     return m ? m[1].replace(',', '.') + '%' : t;
   }
-  return { formatPct: formatPct, isHeadingLine: isHeadingLine, headingKind: headingKind, headingBig: headingBig, sexFromSaId: sexFromSaId, splitFullName: splitFullName, num: num, money: money, money2: money2, formatMoney: formatMoney, isAmount: isAmount, parseDate: parseDate, weekdayName: weekdayName, parseTime: parseTime, formatTime: formatTime, ageAt: ageAt, isoToday: isoToday, termMonths: termMonths, formatDate: formatDate, todayDMY: todayDMY, longDate: longDate, dobFromSaId: dobFromSaId, saIdValid: saIdValid };
+  /* ---- Writing a file into the folder the adviser picked, and PROVING it was written (4.9) ----
+     Chrome writes to a temporary file beside the real one and swaps it in when the write is closed. In a OneDrive folder, OneDrive can grab that temporary file at that moment: close() then fails with
+     "A requested file or directory could not be found at the time an operation was processed", and the file that the Save window had already created stays EMPTY: it looks saved and will not open.
+     So every write is read back (its size, and "%PDF-" at the start of a PDF); a failed or unproven write is tried again after a pause (a lock is usually short); after the last try it rejects with
+     .failed = true, and the page then keeps the work (a copy is downloaded) and says so plainly. The adviser saying Cancel, or Chrome refusing permission, is not a lock and is never retried. */
+  var WRITE_PAUSES = [800, 2000];
+  function writeVerified(handle, blob, opts) {
+    opts = opts || {};
+    var pauses = opts.pauses || api.WRITE_PAUSES, tries = pauses.length + 1, attempt = 0,
+      sleep = opts.sleep || function (ms) { return new Promise(function (r) { setTimeout(r, ms); }); };
+    function bad(msg) { var e = new Error(msg); e.name = 'VerifyError'; return e; }
+    function check() {
+      if (!handle.getFile) return { size: blob.size, tries: attempt, checked: false };
+      return handle.getFile().then(function (f) {
+        if (typeof f.size === 'number' && f.size !== blob.size) throw bad('The file in the folder is ' + f.size + ' bytes, not the ' + blob.size + ' that were written.');
+        if (!opts.pdf || typeof f.slice !== 'function') return { size: typeof f.size === 'number' ? f.size : blob.size, tries: attempt, checked: typeof f.size === 'number' };
+        return f.slice(0, 5).text().then(function (head) {
+          if (head !== '%PDF-') throw bad('The file in the folder does not start like a PDF.');
+          return { size: f.size, tries: attempt, checked: true };
+        });
+      });
+    }
+    function one() {
+      attempt++;
+      return handle.createWritable().then(function (w) { return w.write(blob).then(function () { return w.close(); }); }).then(check);
+    }
+    function go() {
+      return one().catch(function (e) {
+        if (e && (e.name === 'AbortError' || e.name === 'NotAllowedError' || e.name === 'SecurityError')) throw e;
+        if (attempt >= tries) { var f = new Error(e && e.message ? e.message : 'The file could not be written.'); f.name = (e && e.name) || 'Error'; f.failed = true; f.tries = attempt; throw f; }
+        return sleep(pauses[attempt - 1]).then(go);
+      });
+    }
+    return go();
+  }
+  /* "84.3 KB" */
+  function formatSize(n) { n = +n || 0; return n < 1024 ? n + ' bytes' : n < 1048576 ? (Math.round(n / 102.4) / 10) + ' KB' : (Math.round(n / 104857.6) / 10) + ' MB'; }
+  /* What the page says when a file could not be written into the folder: plain, and where the safety copy went. */
+  function saveFailText(name, err, downloaded) {
+    var why = err && err.message ? ' (Chrome said: ' + String(err.message).replace(/\.\s*$/, '') + '.)' : '';
+    return 'Could not save ' + name + ' into that folder. This usually means OneDrive was busy syncing it.' +
+      (downloaded ? ' A copy was downloaded to your Downloads folder instead: move it into the client’s folder.' : '') +
+      ' An empty file with the same name may be left in the folder: delete it.' + why;
+  }
+  var api = { WRITE_PAUSES: WRITE_PAUSES, writeVerified: writeVerified, formatSize: formatSize, saveFailText: saveFailText, formatPct: formatPct, isHeadingLine: isHeadingLine, headingKind: headingKind, headingBig: headingBig, sexFromSaId: sexFromSaId, splitFullName: splitFullName, num: num, money: money, money2: money2, formatMoney: formatMoney, isAmount: isAmount, parseDate: parseDate, weekdayName: weekdayName, parseTime: parseTime, formatTime: formatTime, ageAt: ageAt, isoToday: isoToday, termMonths: termMonths, formatDate: formatDate, todayDMY: todayDMY, longDate: longDate, dobFromSaId: dobFromSaId, saIdValid: saIdValid };
+  return api;
 });
