@@ -4,6 +4,13 @@ A dated list of what changed in the form's boxes, newest first. **One line for e
 
 The version is `version` in `app/js/schema.js` (the Fact Find), `app/js/sr-schema.js` (the Short Risk Application) and `app/js/cs-schema.js` (the Investment Capture Sheet); a saved file carries it as `schema`. Earlier changes are in the README and in the git history; this list starts with 3.1.
 
+## 4.7: 17 November 2026 (Fact Find 4.6 to 4.7)
+
+Fact Find (Health). **One label changed. No id, list, list column, box, choice or sum added or removed.** Detail in the README ("Release 4.7").
+- **`h_dia` relabelled from "Diabetes / high sugar" to "High blood sugar"** (Paul's words: "Maybe we can just say 'High blood sugar', remove diabetes"). **Same id, same meaning in the file (the client has high blood sugar: Yes / No), same answers (`Yes`, `No`)**: a saved file opens unchanged, with its value and status. The reason for the new label: on a real client with raised sugar levels who is not diabetic, Yes made both reports say diabetes. The other Health boxes (`h_gen`, `h_chol`, `h_bp`, `h_bmi`, `h_oth`, `h_notes`) are unchanged.
+- **What a skill that reads the saved file or the form's labels should know:** (1) a skill that prints the label of `h_dia`, or that tests for the words "diabetes" or "high sugar" in it, must use "High blood sugar" (the id is the contract: read the value by `h_dia`); (2) a report must not say diabetes for `h_dia` = Yes: it means high blood sugar only; diabetes is a diagnosis the form does not record (a client who is diabetic goes in **Other health issues** (`h_oth`) and the Health notes (`h_notes`)); (3) no new id or list, so a skill's form check need not stop.
+- **Voice:** the page's words for the box are now "high blood sugar", "blood sugar", "sugar levels" and "sugar"; "diabetes" and "diabetic" are no longer words for it. A PDF saved earlier shows the old label until the PDF is saved again.
+
 ## 4.6: 17 November 2026 (Fact Find 4.5 to 4.6)
 
 Fact Find (the "heard" tag; Medical, will & short-term). **No id, list, list column, box, choice or sum added, removed or relabelled.** One rule changed. Detail in the README ("Release 4.6").

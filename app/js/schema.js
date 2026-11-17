@@ -275,7 +275,7 @@
     { id: 'health', roomy: 1, title: 'Health', blocks: [
       { fields: [
         { id: 'h_gen', l: 'General health good', t: 'sel', o: YN },
-        { id: 'h_dia', l: 'Diabetes / high sugar', t: 'sel', o: YN },
+        { id: 'h_dia', l: 'High blood sugar', t: 'sel', o: YN },
         { id: 'h_chol', l: 'High cholesterol', t: 'sel', o: YN },
         { id: 'h_bp', l: 'High blood pressure', t: 'sel', o: YN },
         { id: 'h_bmi', l: 'High BMI', t: 'sel', o: YN },
@@ -564,5 +564,5 @@
   var byId = {};
   sections.forEach(function (s) { s.blocks.forEach(function (b) { (b.fields || []).forEach(function (f) { byId[f.id] = f; }); }); });
 
-  return { version: '4.6', released: 'November 2026', sections: sections, lists: lists, panels: panels, panelsById: panelsById, advisor: ADVISOR, brBasis: BR_BASIS, areaTitle: areaTitle, psClient: PS_CLIENT, defaultBroker: DEFAULT_BROKER, psNoSend: PS_NOSEND, psSaved: PS_SAVED, psNone: PS_NONE, psClientOld: PS_CLIENT_OLD, PRIORITY: PRIORITY, NOT_PRIORITY: NOT_PRIORITY, NOT_PRIORITY_OLD: NOT_PRIORITY_OLD, UNSURE: UNSURE, BUDGET: BUDGET, fieldsById: byId };
+  return { version: '4.7', released: 'November 2026', sections: sections, lists: lists, panels: panels, panelsById: panelsById, advisor: ADVISOR, brBasis: BR_BASIS, areaTitle: areaTitle, psClient: PS_CLIENT, defaultBroker: DEFAULT_BROKER, psNoSend: PS_NOSEND, psSaved: PS_SAVED, psNone: PS_NONE, psClientOld: PS_CLIENT_OLD, PRIORITY: PRIORITY, NOT_PRIORITY: NOT_PRIORITY, NOT_PRIORITY_OLD: NOT_PRIORITY_OLD, UNSURE: UNSURE, BUDGET: BUDGET, fieldsById: byId };
 });
