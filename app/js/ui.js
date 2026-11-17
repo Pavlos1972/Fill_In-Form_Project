@@ -268,12 +268,13 @@
   }
   /* A box of notes written by a skill, whose headings are bold (Current Client File Summary Notes): the box is shown as a read view, headings in bold; a click, the Edit link or Enter opens the plain text to type in,
      and leaving it shows the read view again. The text in the file is always plain (util.isHeadingLine says which lines are headings). */
-  function headsHTML(text) {
-    return String(text == null ? '' : text).split(/\r?\n/).map(function (ln) { return util.isHeadingLine(ln) ? '<div class="ln hd">' + esc(ln.trim()) + '</div>' : '<div class="ln">' + (esc(ln) || '&nbsp;') + '</div>'; }).join('');
+  function headsHTML(text, kind) {
+    var big = util.headingBig(kind) ? ' big' : '';
+    return String(text == null ? '' : text).split(/\r?\n/).map(function (ln) { return util.headingKind(kind, ln) ? '<div class="ln hd' + big + '">' + esc(ln.trim()) + '</div>' : '<div class="ln">' + (esc(ln) || '&nbsp;') + '</div>'; }).join('');
   }
   function rvSync(id) {
     var wrap = document.querySelector('[data-field="' + id + '"]'), rv = wrap && wrap.querySelector('.rv'), ta = wrap && wrap.querySelector('textarea'); if (!rv || !ta) return;
-    rv.innerHTML = headsHTML(state.f[id].v);
+    rv.innerHTML = headsHTML(state.f[id].v, schema.fieldsById[id].heads);
     wrap.classList.toggle('rv-on', String(state.f[id].v).trim() !== '' && document.activeElement !== ta);
   }
   function rvOpen(id) {
@@ -294,7 +295,7 @@
     var tag = f.t === 'multi' ? 'div' : 'label', heads = f.t === 'area' && f.heads, showRv = heads && String(v).trim() !== '';
     if (heads) rt += '<button type="button" class="link-btn rvedit" data-rvedit="' + f.id + '">Edit</button>';
     return '<' + tag + ' class="f s-' + st + (f.wide ? ' wide' : '') + (showRv ? ' rv-on' : '') + '" data-field="' + f.id + '"' + style + '><span class="l"><span>' + esc(f.sl || f.l) + '</span>' + (rt ? '<span class="rt">' + rt + '</span>' : '') + '</span>' +
-      '<span class="box">' + control(attrs, f, v, !!f.calc || isNone) + (heads ? '<div class="rv" data-rv="' + f.id + '" tabindex="0" role="button" aria-label="' + esc(f.l) + ': headings in bold; press to edit the plain text" style="min-height:' + ((f.rows || 4) * 21 + 14) + 'px">' + headsHTML(v) + '</div>' : '') + (f.cal ? '<input type="date" class="calpick" data-calpick="' + f.id + '" tabindex="-1" aria-hidden="true">' : '') + (f.t === 'area' ? '' : '<span class="st">' + badge(st, 'f:' + f.id) + '</span>') + '</span>' +
+      '<span class="box">' + control(attrs, f, v, !!f.calc || isNone) + (heads ? '<div class="rv" data-rv="' + f.id + '" tabindex="0" role="button" aria-label="' + esc(f.l) + ': headings in bold; press to edit the plain text" style="min-height:' + ((f.rows || 4) * 21 + 14) + 'px">' + headsHTML(v, f.heads) + '</div>' : '') + (f.cal ? '<input type="date" class="calpick" data-calpick="' + f.id + '" tabindex="-1" aria-hidden="true">' : '') + (f.t === 'area' ? '' : '<span class="st">' + badge(st, 'f:' + f.id) + '</span>') + '</span>' +
       (f.len ? lenChip(f.id) : '') + (f.calcNote ? '<span class="help fnote" data-fnote="' + f.id + '"' + (cnote ? '' : ' hidden') + '>' + esc(cnote) + '</span>' : '') + '<span class="warn" data-warn="' + f.id + '" hidden></span></' + tag + '>';
   }
   function cellHTML(key, i, c, r, card) {
@@ -578,6 +579,7 @@
     if (st) st.textContent = paStatus(); if (bt) { bt.disabled = paBusy; bt.textContent = state.pa.edited ? 'Refresh (replaces what I typed)' : 'Refresh'; }
     paReadPaint();
     if (ta && ta.value !== state.f.pa_actions.v && !(document.activeElement === ta && state.pa.edited)) ta.value = state.f.pa_actions.v;     // never over what is being typed
+    rvSync('pa_actions');                                                                                  // and the read view with the bold headings follows the box
   }
   /* The status line and the button after a key typed in the box (the text itself is never touched while it is being typed). */
   function paLabels() { var st = document.getElementById('paStatus'), bt = document.getElementById('paRefresh'); if (st) st.textContent = paStatus(); if (bt) bt.textContent = state.pa.edited ? 'Refresh (replaces what I typed)' : 'Refresh'; }
@@ -624,6 +626,7 @@
     var st = document.getElementById('focusStatus'), ta = document.querySelector('[data-f="focus"]'), bt = document.getElementById('focusRefresh');
     if (st) st.textContent = focusStatus(); if (bt) { bt.disabled = focusBusy; bt.textContent = state.focus.edited ? 'Refresh (replaces what I typed)' : 'Refresh'; }
     if (ta && ta.value !== state.f.focus.v && !(document.activeElement === ta && state.focus.edited)) ta.value = state.f.focus.v;
+    rvSync('focus');                                                                                       // and the read view with the bold headings follows the box
   }
   function focusLabels() { var st = document.getElementById('focusStatus'), bt = document.getElementById('focusRefresh'); if (st) st.textContent = focusStatus(); if (bt) bt.textContent = state.focus.edited ? 'Refresh (replaces what I typed)' : 'Refresh'; }
   function focusWrite(text, key, by) { store.setField(state, 'focus', text); store.setFocus(state, key, by); touch(); focusPaint(); }

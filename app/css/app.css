@@ -532,6 +532,7 @@ table.sqt .dash { color: var(--muted); display: inline-block; padding-top: 7px; 
 .f.rv-on textarea { display: none; }
 .f .rv .ln { white-space: pre-wrap; }
 .f .rv .hd { font-weight: 700; margin-top: 6px; }
+.f .rv .hd.big { font-size: 1.2em; line-height: 1.3; margin-top: 12px; margin-bottom: 5px; }       /* 4.8: the headings of the Priorities box and the Action Points are larger as well as bold, with room under them */
 .f .rv .ln:first-child.hd { margin-top: 0; }
 .f.s-confirmed .rv { border-color: var(--ok); } .f.s-heard .rv, .f.s-verify .rv { border-color: var(--accent); background: var(--accent-soft); }
 .f .rv:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }

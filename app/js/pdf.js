@@ -69,8 +69,9 @@
       var lines = String(fieldValue(f, state, ctx) || '').split(/\r?\n/);
       ensure(Math.min(lines.length * 5 + 12, 60));
       var body = lines.map(function (ln, i) {
-        var h = util.isHeadingLine(ln);
-        return [{ content: t(ln.replace(/\s+$/, '')) || ' ', styles: { fontStyle: h ? 'bold' : 'normal', lineWidth: { top: 0, bottom: i === lines.length - 1 ? 0.2 : 0, left: 0.2, right: 0.2 } } }];
+        var h = util.headingKind(f.heads, ln), big = h && util.headingBig(f.heads), st = { fontStyle: h ? 'bold' : 'normal', lineWidth: { top: 0, bottom: i === lines.length - 1 ? 0.2 : 0, left: 0.2, right: 0.2 } };
+        if (big) { st.fontSize = 10.5; st.cellPadding = { top: i === 0 ? 1.6 : 3.4, bottom: 1.8, left: 2, right: 2 }; }                  // 4.8: the headings of the Priorities box and the Action Points are larger, with room under them
+        return [{ content: t(ln.replace(/\s+$/, '')) || ' ', styles: st }];
       });
       table({ head: [[t(f.sl || f.l)]], body: body, columnStyles: { 0: { cellWidth: CW } }, rowPageBreak: 'auto' });
     }
