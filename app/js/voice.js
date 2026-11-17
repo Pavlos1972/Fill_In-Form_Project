@@ -443,7 +443,7 @@
     sti_biz: ['business insurance', 'business short term'],
     sti_biz_spend: ['total business spend', 'business premiums'],
     h_gen: ['general health', 'health good', 'how is your health', 'in good health', 'are you healthy'],
-    h_dia: ['diabetes', 'diabetic', 'sugar'],
+    h_dia: ['high blood sugar', 'blood sugar', 'sugar levels', 'sugar'],
     h_chol: ['cholesterol'],
     h_bp: ['blood pressure', 'hypertension'],
     h_bmi: ['bmi', 'body mass', 'weight'],
