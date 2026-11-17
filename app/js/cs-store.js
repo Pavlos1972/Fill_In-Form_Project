@@ -115,10 +115,25 @@
   /* The provider as it is written in the file name: the short name where there is one (OM), otherwise as it is. */
   function insurerShort(name) { return schema.abbr[name] || name; }
   function productName(state) { return state.f.product.v; }
-  /* "OM Capture Sheet - 12.11.26 - (First Last)": the PDF and the saved file (.json) have the same name; only the ending differs. Until the boxes it is made from are filled, the missing parts read as what they are. */
+  /* The product as the file name writes it (schema.fileName, the one table the skill reads too): a product name of Old Mutual's own that is in the table first, then the Product type; for Other, the Product typed, else "Other".
+     Nothing to go by yet: an empty text (the file name then says "Product"). */
+  function productShort(state) {
+    var T = schema.fileName, typed = String(state.f.product_name.v || '').trim(), key = typed.toLowerCase(), hit = '';
+    Object.keys(T.names).forEach(function (k) { if (k.toLowerCase() === key) hit = T.names[k]; });
+    if (!hit) Object.keys(T.prefixes).forEach(function (k) { if (key.indexOf(k.toLowerCase()) === 0) hit = T.prefixes[k]; });
+    if (hit) return hit;
+    return state.f.product.v === 'Other' ? (typed || T.other) : (T.types[state.f.product.v] || '');
+  }
+  /* What the amount reads in the file name: "R 2,800.00 p.m." for a recurring contribution, "R 50,000.00 - Lump Sum" for a lump sum or a Section 14 transfer (R, thousands commas, two decimals). Until the boxes are filled, the missing parts read as what they are. */
+  function amountLabel(state) {
+    var n = util.num(state.f.amount.v), p = n > 0 ? n.toFixed(2).split('.') : null;
+    return (p ? 'R ' + p[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',') + '.' + p[1] : 'R amount') + (schema.fileName.kinds[state.f.contrib_type.v] || ' - p.m. or Lump Sum');
+  }
+  /* "OM - Optimal RA Application - 20.11.26 - R 2,800.00 p.m. - (First Last)": the application file name rule, the same as the Short Risk Application's (from version 1.1; before, "OM Capture Sheet - 12.11.26 - (First Last)").
+     The PDF and the saved file (.json) have the same name; only the ending differs. Until the boxes it is made from are filled, the missing parts read as what they are. */
   function pdfFileName(state) {
     var d = util.parseDate(state.f.date.v) || util.parseDate(util.isoToday());
-    return [(insurerShort(state.f.provider.v) || 'Provider') + ' Capture Sheet', two(d.d) + '.' + two(d.m) + '.' + two(d.y % 100), '(' + (safeName(clientName(state)) || 'New client') + ')'].join(' - ');
+    return [(insurerShort(state.f.provider.v) || 'Provider') + ' - ' + (safeName(productShort(state)) || 'Product') + ' Application', two(d.d) + '.' + two(d.m) + '.' + two(d.y % 100), amountLabel(state), '(' + (safeName(clientName(state)) || 'New client') + ')'].join(' - ');
   }
   function baseFileName(state) { return pdfFileName(state); }
 
@@ -242,6 +257,6 @@
   }
 
   return { blank: blank, setField: setField, addRow: addRow, delRow: delRow, setCell: setCell, accept: accept, acceptAll: acceptAll, shown: shown, counts: counts, leftIn: leftIn,
-    clientName: clientName, rtChoices: rtChoices, rtStatus: rtStatus, rtSync: rtSync, rtFileName: rtFileName, pdfFileName: pdfFileName, baseFileName: baseFileName, insurerShort: insurerShort, toJSON: toJSON, fromJSON: fromJSON, loadFromFactFind: loadFromFactFind, loadFromShortRisk: loadFromShortRisk, splitName: splitName,
+    clientName: clientName, rtChoices: rtChoices, rtStatus: rtStatus, rtSync: rtSync, rtFileName: rtFileName, pdfFileName: pdfFileName, baseFileName: baseFileName, insurerShort: insurerShort, productShort: productShort, amountLabel: amountLabel, toJSON: toJSON, fromJSON: fromJSON, loadFromFactFind: loadFromFactFind, loadFromShortRisk: loadFromShortRisk, splitName: splitName,
     pctNum: pctNum, tidy: tidy, productName: productName, APP_ID: APP_ID };
 });

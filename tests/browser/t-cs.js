@@ -44,7 +44,7 @@ srv.listen(0, async () => {
   ok(await p.title() === 'Investment Capture Sheet', 'the page is called Investment Capture Sheet: ' + await p.title());
   ok(await p.evaluate(() => [...document.querySelectorAll('#nav button')].map(x => x.querySelector('span').textContent).join('|')) === 'Product & client|Contact & work|Beneficiaries & bank|Source of funds|Risk tolerance', 'five pages in the list on the left');
   ok(await p.evaluate(() => !document.querySelector('#btnVoice, #btnListen, #btnTimer, #btnSettings')), 'no voice, listen, meeting or settings buttons: this page needs no voice and no keys');
-  ok(/Version 1\.0/.test(await p.evaluate(() => document.querySelector('#verLine').textContent)), 'the top says the version');
+  ok(/Version 1\.1/.test(await p.evaluate(() => document.querySelector('#verLine').textContent)), 'the top says the version');
   ok(await p.evaluate(() => [...document.querySelectorAll('.top a.btn')].map(a => a.getAttribute('href')).join('|')) === 'index.html|short-risk.html', 'links to the Fact Find and the Short Risk Application in the top bar');
   ok(await p.evaluate(() => ['btnLoad', 'btnLoadSR'].map(i => document.getElementById(i).textContent.replace(/\s+/g, ' ').trim()).join('|')) === 'Load from Fact Find…|Load from Short Risk file…', 'two Load buttons');
   ok(await p.evaluate(() => document.querySelector('[data-f="date"]').value === FF.util.todayDMY()), 'the date of application starts as today');
@@ -62,7 +62,7 @@ srv.listen(0, async () => {
   await type('start_date', '2026-12-01'); ok(await val('[data-f="start_date"]') === '01/12/2026', 'a date is shown day/month/year');
   await type('date', '12/11/2026'); await pick('replace', 'No'); await pick('deferred', 'No');
   await type('fname', 'Anna'); await type('sname', 'Kuiper');
-  ok(await p.evaluate(() => document.querySelector('#meta .fn').textContent) === 'OM Capture Sheet - 12.11.26 - (Anna Kuiper)', 'the card says the name the files will be saved under: ' + await p.evaluate(() => document.querySelector('#meta .fn').textContent));
+  ok(await p.evaluate(() => document.querySelector('#meta .fn').textContent) === 'OM - Tax-Free Application - 12.11.26 - R 2,500.00 p.m. - (Anna Kuiper)', 'the card says the name the files will be saved under: ' + await p.evaluate(() => document.querySelector('#meta .fn').textContent));
   ok(await p.evaluate(() => document.querySelector('#clientName').textContent) === 'Anna Kuiper', 'the client\'s name is at the top');
   ok(await p.evaluate(() => document.querySelector('[data-f="old_policy"]').disabled) , 'the old policy number is greyed out while nothing is replaced');
   await pick('replace', 'Yes'); ok(await p.evaluate(() => !document.querySelector('[data-f="old_policy"]').disabled), 'and opens when the policy is replaced'); await pick('replace', 'No');
@@ -147,8 +147,8 @@ srv.listen(0, async () => {
     window.showSaveFilePicker = o => { window.__sug.push(o && o.suggestedName); window.__start.push(o && o.startIn); return Promise.resolve(handle); };
   });
   await fake(); await p.click('#btnSave'); await p.waitForTimeout(500);
-  ok(await p.evaluate(() => window.__sug[0]) === 'OM Capture Sheet - 12.11.26 - (Anna Kuiper).json', 'Save suggests the application file name: ' + await p.evaluate(() => window.__sug[0]));
-  ok(await p.evaluate(() => { const j = JSON.parse(window.__file.text); return j.app === 'wr-capture-sheet' && j.schema === '1.0' && j.f.rt_s3.v === 'Agree' && j.f.risk_score.v === '52' && j.l.benef.length === 2; }), 'the saved file holds every box, the questionnaire\'s answers, the result and the list');
+  ok(await p.evaluate(() => window.__sug[0]) === 'OM - Tax-Free Application - 12.11.26 - R 2,500.00 p.m. - (Anna Kuiper).json', 'Save suggests the application file name: ' + await p.evaluate(() => window.__sug[0]));
+  ok(await p.evaluate(() => { const j = JSON.parse(window.__file.text); return j.app === 'wr-capture-sheet' && j.schema === CS.schema.version && j.f.rt_s3.v === 'Agree' && j.f.risk_score.v === '52' && j.l.benef.length === 2; }), 'the saved file holds every box, the questionnaire\'s answers, the result and the list');
   ok(await p.evaluate(() => localStorage.getItem('wr-capture-sheet-draft') === null && localStorage.getItem('wr-capture-sheet-draft-dirty') === '0'), 'after a save that is read back the draft is gone from the browser');
   const saved = await p.evaluate(() => window.__file.text);
   // the Fact Find the client was loaded from: its folder is where the questionnaire's PDF is offered
@@ -162,7 +162,7 @@ srv.listen(0, async () => {
   ok(await p.evaluate(() => window.__start[0] === window.__ffh), 'and the Save window opens in the folder of the Fact Find that was loaded (the client\'s "2. Fact Find" folder)');
   ok(await p.evaluate(() => window.__file.type === 'application/pdf' && window.__file.head === '%PDF-' && window.__file.size > 50000), 'what is written is a PDF (' + await p.evaluate(() => window.__file.size) + ' bytes), not the application\'s file');
   await fake(); await p.click('#btnPdf'); await p.waitForTimeout(800);
-  ok(await p.evaluate(() => window.__sug[0]) === 'OM Capture Sheet - 12.11.26 - (Anna Kuiper).pdf' && await p.evaluate(() => window.__start[0] !== window.__ffh), 'Save PDF (the application) is a different file, with the application\'s name');
+  ok(await p.evaluate(() => window.__sug[0]) === 'OM - Tax-Free Application - 12.11.26 - R 2,500.00 p.m. - (Anna Kuiper).pdf' && await p.evaluate(() => window.__start[0] !== window.__ffh), 'Save PDF (the application) is a different file, with the application\'s name');
 
   // 9. the questionnaire's PDF and the application's PDF, read as text
   const pdfText = async b64 => { const f = path.join(os.tmpdir(), 'cs-' + process.pid + '-' + Math.random().toString(36).slice(2) + '.pdf'); fs.writeFileSync(f, Buffer.from(b64, 'base64')); let t = ''; try { t = cp.execFileSync('pdftotext', ['-raw', f, '-'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }); } catch (e) { t = ''; } fs.unlinkSync(f); return t; };
