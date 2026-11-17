@@ -156,19 +156,27 @@
   }
   /* Uses the Windows "Save as" dialog where the browser offers it (Chrome, Edge), otherwise a normal download.
      With a remembered file it writes straight back to that file. The dialog remembers the last folder for each kind of file. */
+  var lastWritten = null;                                                                  // what the last write was proved to be: { size, tries, checked }
   function writeFile(blob, name, type, ext, handle, id, startIn) {
+    lastWritten = null;
     if (!window.showSaveFilePicker) { download(blob, name); return Promise.resolve(null); }
     var accept = {}; accept[blob.type] = [ext];
     var open = handle
       ? Promise.resolve(handle.requestPermission ? handle.requestPermission({ mode: 'readwrite' }) : 'granted').then(function (p) { if (p !== 'granted') throw new Error('Chrome did not allow changes to that file.'); return handle; })
       : window.showSaveFilePicker(pickerOptions(name, type, accept, id, startIn));
-    return open.then(function (h) { return h.createWritable().then(function (w) { return w.write(blob).then(function () { return w.close(); }); }).then(function () { return h; }); });
+    return open.then(function (h) { return util.writeVerified(h, blob, { pdf: ext === '.pdf' }).then(function (r) { lastWritten = r; return h; }); });          // written, read back and tried again if OneDrive was in the way (util.writeVerified)
   }
   /* The picker opens beside the client's saved file when there is one, otherwise in the folder it last used for this kind of file. */
   function pickerOptions(name, type, accept, id, startIn) {
     var o = { suggestedName: name, types: [{ description: type, accept: accept }] };
     if (startIn) o.startIn = startIn; else o.id = id;
     return o;
+  }
+  /* A write that failed even after util.writeVerified's tries. Cancel is silent. Anything else keeps the work (a copy is downloaded), and says plainly, for 20 seconds, what happened and what to do. */
+  function saveFailed(e, blob, name) {
+    if (!e || e.name === 'AbortError') return false;
+    download(blob, name); toast(util.saveFailText(name, e, true), 20000);
+    return true;
   }
   function currentBase() { return fileBase || store.baseFileName(state); }
   /* The file just written is read back and compared with what was written: 'ok', 'different', or 'unchecked' (a plain download, or a browser that will not say). */
@@ -186,14 +194,14 @@
         if (v === 'different') { refreshChrome(); toast('The saved file does not match the form, so your work is still kept here. Try Save again.', 7000); return; }
         dirty = false; onDisk = v === 'ok'; lastSaved = new Date(); saveDraft(); refreshChrome(); toast('Saved.');
       });
-    }).catch(function (e) { if (e && e.name !== 'AbortError') toast('Could not save: ' + e.message); });
+    }).catch(function (e) { if (saveFailed(e, blob, currentBase() + '.json') && !forceAs && fileHandle) { fileHandle = null; rememberHandle(null); } refreshChrome(); });          // a file reference that failed is let go: the next Save asks where to save
   }
   function makePdf() { return FF.pdf.build(state); }
   function savePdf() {
     var blob = makePdf().output('blob');
     writeFile(blob, store.pdfFileName(state) + '.pdf', 'PDF document', '.pdf', null, 'fact-find-pdf', fileHandle)
-      .then(function () { toast('PDF saved.'); })
-      .catch(function (e) { if (e && e.name !== 'AbortError') toast('Could not save the PDF: ' + e.message); });
+      .then(function () { toast(lastWritten && lastWritten.checked ? 'PDF saved and checked (' + util.formatSize(lastWritten.size) + ').' : 'PDF saved.'); })
+      .catch(function (e) { saveFailed(e, blob, store.pdfFileName(state) + '.pdf'); });
   }
   function previewPdf() {
     var url = URL.createObjectURL(makePdf().output('blob'));
@@ -1274,7 +1282,7 @@
     var d = new Date(), pad = function (n) { return (n < 10 ? '0' : '') + n; }, stamp = d.getFullYear() + pad(d.getMonth() + 1) + pad(d.getDate()) + '-' + pad(d.getHours()) + pad(d.getMinutes()),
       blob = new Blob([JSON.stringify(convoLog(), null, 2)], { type: 'application/json' });
     writeFile(blob, 'fact-find-voice-log-' + stamp + '.json', 'Voice log', '.json', null, 'fact-find-voice-log', null)
-      .then(function () { toast('Voice log saved.'); }).catch(function (e) { if (e && e.name !== 'AbortError') toast('Could not save the log: ' + e.message); });
+      .then(function () { toast('Voice log saved.'); }).catch(function (e) { saveFailed(e, blob, 'fact-find-voice-log-' + stamp + '.json'); });
   }
   document.addEventListener('click', function (e) { if (e.target.closest('#cvSave')) { e.preventDefault(); convoSave(); } });
   document.addEventListener('click', function (e) { if (e.target.closest('#cvSweep')) { e.preventDefault(); vmSweep({ sec: null, from: 0, why: 'button' }); } });

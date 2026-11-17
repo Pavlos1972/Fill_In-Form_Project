@@ -4,6 +4,15 @@ A dated list of what changed in the form's boxes, newest first. **One line for e
 
 The version is `version` in `app/js/schema.js` (the Fact Find), `app/js/sr-schema.js` (the Short Risk Application) and `app/js/cs-schema.js` (the Investment Capture Sheet); a saved file carries it as `schema`. Earlier changes are in the README and in the git history; this list starts with 3.1.
 
+## 4.9: 17 November 2026 (Fact Find 4.8 to 4.9; the Short Risk Application stays 1.2 and the Investment Capture Sheet 1.1)
+
+All three pages (how a file is written into the folder). **No id, list, list column, box, choice or sum added, removed or relabelled; the saved file's contents are unchanged apart from `schema` saying `4.9` in a Fact Find file.** Detail in the README ("Release 4.9").
+- **A file written into the adviser's folder is proved to be written** (`util.writeVerified` in `app/js/util.js`, used by `writeFile` in `ui.js`, `sr-ui.js` and `cs-ui.js`): read back after the write (size equals what was written; a PDF starts with `%PDF-`), tried again twice (after 0.8 s and 2 s) when the write fails or leaves an empty or short file. Cancel in the Save window and a refused permission are not retried.
+- **When all three tries fail the work is kept:** a copy is downloaded, and a message that stays for 20 seconds (it was 3.5) says plainly which file could not be saved, that OneDrive was probably busy syncing, to move the downloaded copy into the client's folder and to delete an empty file with the same name that may be left there, and what Chrome said. A Save that failed on a remembered file lets go of it, so the next Save opens the Save window.
+- **The PDF message says "PDF saved and checked (84.3 KB)."** only after the check (a Chrome that will not say the size gives the plain "PDF saved." as before).
+- **Why:** on the Short Risk Application, in a OneDrive folder, Chrome's write failed with "A requested file or directory could not be found at the time an operation was processed" and left empty files that looked saved and that Acrobat called damaged. The cause is inferred from the message and the empty files, not proved (it cannot be reproduced without a syncing OneDrive folder).
+- **What a skill that reads or writes the saved file should know:** nothing in the file changes (the keys are the same; a Fact Find file's `schema` is `"4.9"`; the Short Risk and Capture Sheet files keep `"1.2"` and `"1.1"`). **A file in a client's folder that is 0 bytes is a failed save, not a document:** a skill that finds one should not read it, and should say so. A skill that writes a saved file or a PDF into the folder by its own means should check the size afterwards for the same reason.
+
 ## Investment Capture Sheet 1.1: 17 November 2026 (Investment Capture Sheet 1.0 to 1.1; the Fact Find stays 4.8)
 
 Investment Capture Sheet (the file names). **No id, list, list column, box or choice added, removed or relabelled; the saved file is unchanged apart from `schema` saying `1.1`.** Detail in the README ("Investment Capture Sheet", "File names follow the application file name rule").
