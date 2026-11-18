@@ -52,7 +52,7 @@
     var open = handle
       ? Promise.resolve(handle.requestPermission ? handle.requestPermission({ mode: 'readwrite' }) : 'granted').then(function (p) { if (p !== 'granted') throw new Error('Chrome did not allow changes to that file.'); return handle; })
       : window.showSaveFilePicker(pickerOptions(name, type, accept, id, startIn));
-    return open.then(function (h) { return util.writeVerified(h, blob, { pdf: ext === '.pdf' }).then(function (r) { lastWritten = r; return h; }); });          // written, read back and tried again if OneDrive was in the way (util.writeVerified)
+    return open.then(function (h) { return util.writeVerified(h, blob, { pdf: ext === '.pdf' }).then(function (r) { lastWritten = r; return h; }); });          // written, read back and, unless Chrome says NotFoundError (a path too long for Windows: it never works), tried again (util.writeVerified)
   }
   /* A write that failed even after util.writeVerified's tries. Cancel is silent. Anything else keeps the work (a copy is downloaded), and says plainly, for 20 seconds, what happened and what to do. */
   function saveFailed(e, blob, name) {
@@ -75,7 +75,7 @@
         if (v === 'different') { refreshChrome(); toast('The saved file does not match the form, so your work is still kept here. Try Save again.', 7000); return; }
         dirty = false; onDisk = v === 'ok'; lastSaved = new Date(); saveDraft(); refreshChrome(); toast('Saved.');
       });
-    }).catch(function (e) { if (saveFailed(e, blob, currentBase() + '.json') && !forceAs && fileHandle) { fileHandle = null; rememberHandle(null); } refreshChrome(); });          // a file reference that failed is let go: the next Save asks where to save
+    }).catch(function (e) { if (saveFailed(e, blob, currentBase() + '.json')) { if (!forceAs && fileHandle) { fileHandle = null; rememberHandle(null); } dirty = true; onDisk = false; saveDraft(); } refreshChrome(); });          // a file reference that failed is let go (the next Save asks where to save), and the work counts as UNSAVED with its draft kept: the folder copy may now be empty, even if nothing had changed since it was opened
   }
   function makePdf() { return SR.pdf.build(state); }
   function savePdf() {
