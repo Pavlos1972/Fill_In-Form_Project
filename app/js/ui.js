@@ -5,7 +5,7 @@
   var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
   var DRAFT_KEY = 'wr-fact-find-draft';
 
-  var state, cur = 'info', fileHandle = null, fileBase = '', dirty = false, lastSaved = null, toastTimer = null;
+  var state, cur = 'info', fileHandle = null, forceNormal = false, lastFolder = null, fileBase = '', dirty = false, lastSaved = null, toastTimer = null;
   var ctx = function () { return store.ctxFor(state); };
 
   /* ---------- drafts and saving ---------- */
@@ -157,14 +157,28 @@
   /* Uses the Windows "Save as" dialog where the browser offers it (Chrome, Edge), otherwise a normal download.
      With a remembered file it writes straight back to that file. The dialog remembers the last folder for each kind of file. */
   var lastWritten = null;                                                                  // what the last write was proved to be: { size, tries, checked }
-  function writeFile(blob, name, type, ext, handle, id, startIn) {
-    lastWritten = null;
+  /* For a first Save (o.auto) the client's folder is looked for first (Folders…, folders.js and folders-ui.js, Fact Find 5.2): the file goes into the client's "2. Fact Find" folder, or the normal Save window opens
+     with the reason. A PDF goes beside the saved file (o.sibling). Nothing here creates, renames, moves or deletes a folder. */
+  function writeFile(blob, name, type, ext, handle, id, startIn, o) {
+    o = o || {}; lastWritten = null; if (!handle) lastFolder = null;                       // a straight rewrite of the same file keeps where it lives
     if (!window.showSaveFilePicker) { download(blob, name); return Promise.resolve(null); }
     var accept = {}; accept[blob.type] = [ext];
-    var open = handle
-      ? Promise.resolve(handle.requestPermission ? handle.requestPermission({ mode: 'readwrite' }) : 'granted').then(function (p) { if (p !== 'granted') throw new Error('Chrome did not allow changes to that file.'); return handle; })
-      : window.showSaveFilePicker(pickerOptions(name, type, accept, id, startIn));
-    return open.then(function (h) { return util.writeVerified(h, blob, { pdf: ext === '.pdf' }).then(function (r) { lastWritten = r; return h; }); });          // written, read back and, unless Chrome says NotFoundError (a path too long for Windows: it never works), tried again (util.writeVerified)
+    var FU = window.FF && FF.foldersUI;
+    var picker = function (start) { return window.showSaveFilePicker(pickerOptions(name, type, accept, id, start || startIn)); };
+    var open;
+    if (handle) {
+      open = Promise.resolve(handle.requestPermission ? handle.requestPermission({ mode: 'readwrite' }) : 'granted').then(function (p) { if (p !== 'granted') throw new Error('Chrome did not allow changes to that file.'); return { handle: handle }; });
+    } else if (o.auto && FU && !forceNormal) {
+      open = FU.open({ kind: 'factfind', info: folderInfo(), name: name, hints: [fileHandle].filter(Boolean), sibling: o.sibling || null, openedHandle: fileHandle, picker: picker, toast: toast, startedAt: Date.now(),
+        retry: function () { forceNormal = true; $(ext === '.pdf' ? '#btnPdf' : '#btnSave').click(); } });          // the Save window needs a fresh click after a slow search: the toast's button comes back here
+    } else {
+      forceNormal = false;
+      open = picker().then(function (h) { return { handle: h }; });
+    }
+    return open.then(function (x) {
+      return util.writeVerified(x.handle, blob, { pdf: ext === '.pdf' }).then(function (r) { lastWritten = r; lastFolder = x.folder ? x.folder.label : (handle ? lastFolder : null); return x.handle; },          // written, read back and, unless Chrome says NotFoundError (a path too long for Windows: it never works), tried again (util.writeVerified)
+        function (e) { if (x.folder) FU.failed(x.folder); throw e; });                                                  // an empty file this save created in the client's folder is removed
+    });
   }
   /* The picker opens beside the client's saved file when there is one, otherwise in the folder it last used for this kind of file. */
   function pickerOptions(name, type, accept, id, startIn) {
@@ -179,6 +193,14 @@
     return true;
   }
   function currentBase() { return fileBase || store.baseFileName(state); }
+  /* What Folders… needs to find the client's "2. Fact Find" folder: the first name(s) and the surname on the form. */
+  function folderInfo() { var f = state.f; return { kind: 'factfind', sname: f.sname.v, fname: f.fname.v }; }
+  /* The Folders… button says (in its hover text) which folders are connected; after a Save into the client's folder it also says where the file went. */
+  function folderNote() {
+    var b = $('#btnFolders'); if (!b || !window.FF || !FF.foldersUI) return;
+    var k = FF.foldersUI.connected(), names = { A: 'New Business', B: 'Client Files' };
+    b.title = (k.length ? 'Folders connected: ' + k.map(function (x) { return names[x]; }).join(', ') + '. A first Save goes straight into the client\u2019s \u201c2. Fact Find\u201d folder.' : 'Connect your New Business and Client Files folders, so Save goes straight into the client\u2019s \u201c2. Fact Find\u201d folder.') + (lastFolder ? ' Last saved in ' + lastFolder + '.' : '');
+  }
   /* The file just written is read back and compared with what was written: 'ok', 'different', or 'unchecked' (a plain download, or a browser that will not say). */
   function readBack(h, text) {
     if (!h || !h.getFile) return Promise.resolve('unchecked');
@@ -187,20 +209,20 @@
   /* The draft in the browser is removed only once the file is on disk and has been read back and matches. If the check fails or cannot be made, the draft stays. */
   function saveJson(forceAs) {
     var text = store.toJSON(state), blob = new Blob([text], { type: 'application/json' });
-    writeFile(blob, currentBase() + '.json', 'Fact Find', '.json', forceAs ? null : fileHandle, 'fact-find-data', fileHandle).then(function (h) {
+    writeFile(blob, currentBase() + '.json', 'Fact Find', '.json', forceAs ? null : fileHandle, 'fact-find-data', fileHandle, { auto: !forceAs }).then(function (h) {
       if (h) { fileHandle = h; fileBase = h.name.replace(/\.json$/i, ''); rememberHandle(h); }
       else if (!fileBase) fileBase = currentBase();
       return readBack(h, text).then(function (v) {
         if (v === 'different') { refreshChrome(); toast('The saved file does not match the form, so your work is still kept here. Try Save again.', 7000); return; }
-        dirty = false; onDisk = v === 'ok'; lastSaved = new Date(); saveDraft(); refreshChrome(); toast('Saved.');
+        dirty = false; onDisk = v === 'ok'; lastSaved = new Date(); saveDraft(); refreshChrome(); folderNote(); toast(lastFolder ? 'Saved to ' + lastFolder + '. Wrong folder? Use Save as\u2026' : 'Saved.', lastFolder ? 9000 : 0);
       });
-    }).catch(function (e) { if (saveFailed(e, blob, currentBase() + '.json')) { if (!forceAs && fileHandle) { fileHandle = null; rememberHandle(null); } dirty = true; onDisk = false; saveDraft(); } refreshChrome(); });          // a file reference that failed is let go (the next Save asks where to save), and the work counts as UNSAVED with its draft kept: the folder copy may now be empty, even if nothing had changed since it was opened
+    }).catch(function (e) { if (saveFailed(e, blob, currentBase() + '.json')) { if (!forceAs && fileHandle) { fileHandle = null; lastFolder = null; rememberHandle(null); } dirty = true; onDisk = false; saveDraft(); } refreshChrome(); });          // a file reference that failed is let go (the next Save asks where to save), and the work counts as UNSAVED with its draft kept: the folder copy may now be empty, even if nothing had changed since it was opened
   }
   function makePdf() { return FF.pdf.build(state); }
   function savePdf() {
     var blob = makePdf().output('blob');
-    writeFile(blob, store.pdfFileName(state) + '.pdf', 'PDF document', '.pdf', null, 'fact-find-pdf', fileHandle)
-      .then(function () { toast(lastWritten && lastWritten.checked ? 'PDF saved and checked (' + util.formatSize(lastWritten.size) + ').' : 'PDF saved.'); })
+    writeFile(blob, store.pdfFileName(state) + '.pdf', 'PDF document', '.pdf', null, 'fact-find-pdf', fileHandle, { auto: true, sibling: fileHandle })
+      .then(function () { toast((lastWritten && lastWritten.checked ? 'PDF saved and checked (' + util.formatSize(lastWritten.size) + ').' : 'PDF saved.') + (lastFolder ? ' Saved in ' + lastFolder + '.' : ''), lastFolder ? 9000 : 0); folderNote(); })
       .catch(function (e) { saveFailed(e, blob, store.pdfFileName(state) + '.pdf'); });
   }
   function previewPdf() {
@@ -213,7 +235,7 @@
     var r = new FileReader();
     r.onload = function () {
       try {
-        state = store.fromJSON(r.result); vmFreshForm(); fileHandle = handle || null; fileBase = file.name.replace(/\.json$/i, '');
+        state = store.fromJSON(r.result); vmFreshForm(); fileHandle = handle || null; lastFolder = null; fileBase = file.name.replace(/\.json$/i, '');
         dirty = false; onDisk = true; cur = 'info'; rememberHandle(handle || null); saveDraft(); redraw(); toast('Opened ' + file.name);
       } catch (e) { toast(e.message || 'Could not open that file.'); }
     };
@@ -229,7 +251,7 @@
     var timed = meeting.ms() >= 60000;                                                              // a meeting that has run for a minute is not thrown away by a stray click
     if ((dirty || timed) && !window.confirm('Start a new Fact Find?' + (dirty ? ' Changes you have not saved will be lost.' : '') + (timed ? ' The meeting timer goes back to zero.' : ''))) return;
     meeting.reset(); meetingRender();
-    state = store.blank(); vmFreshForm(); fileHandle = null; fileBase = ''; rememberHandle(null); dirty = false; onDisk = true; lastSaved = null; cur = 'info'; saveDraft(); redraw();
+    state = store.blank(); vmFreshForm(); fileHandle = null; lastFolder = null; fileBase = ''; rememberHandle(null); dirty = false; onDisk = true; lastSaved = null; cur = 'info'; saveDraft(); redraw();
   }
 
   /* ---------- rendering ---------- */
@@ -948,6 +970,8 @@
   $('#fileIn').addEventListener('change', function (e) { if (e.target.files[0]) openFile(e.target.files[0]); e.target.value = ''; });
   $('#btnSave').addEventListener('click', function () { saveJson(false); });
   $('#btnSaveAs').addEventListener('click', function () { saveJson(true); });
+  $('#btnFolders').addEventListener('click', function () { FF.foldersUI.connect().then(folderNote); });
+  if (window.FF && FF.foldersUI) FF.foldersUI.init(folderNote);                              // the connection made on the Risk Application or the Investment Application is the same one: same address, same stored folders
   $('#btnPreview').addEventListener('click', previewPdf);
   $('#btnPdf').addEventListener('click', savePdf);
   document.addEventListener('keydown', function (e) { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); saveJson(false); } });
@@ -1608,7 +1632,7 @@
   function vmWipe() {
     vm.undo.push({ kind: 'wipe', snap: JSON.parse(JSON.stringify(state)), base: fileBase, handle: fileHandle, dirty: dirty, onDisk: onDisk, sec: cur });
     var cost = state.claude; state = store.blank(); state.claude = cost; vmFreshForm();                                  // what Claude has cost stays, however much of the form is cleared
-    fileHandle = null; fileBase = ''; rememberHandle(null); dirty = false; onDisk = true; saveDraft();
+    fileHandle = null; lastFolder = null; fileBase = ''; rememberHandle(null); dirty = false; onDisk = true; saveDraft();
     cur = 'info'; vm.target = null; vm.answered = false; vm.noteMode = null; vm.rowCur = {}; vm.recent = []; vm.flashes = {}; vm.secGlow = true; vm.run = null; vm.erun = null; vm.eann = null; vm.pointed = null; vm.digits = null;
     redraw(); vmMarkWait(); window.scrollTo(0, 0);
     toast('The whole form is empty. Say "undo" to bring everything back.');
