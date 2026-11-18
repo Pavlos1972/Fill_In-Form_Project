@@ -1,4 +1,5 @@
-/* Release 4.9: a file written into the adviser's folder is PROVED to have been written (read back: its size, and "%PDF-" at the start of a PDF), tried again when OneDrive is in the way, and when it still fails the work is kept
+/* (Release 5.0 corrected 4.9's diagnosis: NotFoundError is the Windows path limit, not OneDrive, and is never retried: see release-50.test.js. What is pinned here is the rest of 4.9: the read-back, the retries for every OTHER error, the download copy.)
+   Release 4.9: a file written into the adviser's folder is PROVED to have been written (read back: its size, and "%PDF-" at the start of a PDF), tried again when OneDrive is in the way, and when it still fails the work is kept
    (a copy is downloaded) and the page says so plainly. Why: on the Short Risk Application in a OneDrive folder, Chrome's save failed with "A requested file or directory could not be found at the time an operation was
    processed", the Save window had already created the file, and it stayed EMPTY: it looked saved and would not open. The same code is on the Fact Find and the Capture Sheet. */
 const test = require('node:test');
@@ -11,8 +12,9 @@ const schema = require('../app/js/schema.js');
 const app = f => fs.readFileSync(path.join(__dirname, '..', 'app', f), 'utf8');
 const nf = () => { const e = new Error('A requested file or directory could not be found at the time an operation was processed.'); e.name = 'NotFoundError'; return e; };
 const named = (name, msg) => { const e = new Error(msg || name); e.name = name; return e; };
+const busy = () => named('InvalidModificationError', 'The object can not be modified in this way.');
 
-/* a stand-in for Chrome's file handle: plan says what each createWritable() does ('ok', 'fail' = close() fails and leaves the file empty, 'empty' = close() "succeeds" and leaves the file empty, 'short' = half the bytes) */
+/* a stand-in for Chrome's file handle: plan says what each createWritable() does ('ok', 'fail' = close() fails with NotFoundError and leaves the file empty, 'busy' = close() fails with another error and leaves the file empty, 'empty' = close() "succeeds" and leaves the file empty, 'short' = half the bytes) */
 function handle(plan, o) {
   o = o || {};
   const h = { attempts: 0, bytes: new Uint8Array(0) };
@@ -23,6 +25,7 @@ function handle(plan, o) {
       write: blob => blob.arrayBuffer().then(ab => { pending = new Uint8Array(ab); }),
       close: () => {
         if (step === 'fail') { h.bytes = new Uint8Array(0); return Promise.reject(nf()); }
+        if (step === 'busy') { h.bytes = new Uint8Array(0); return Promise.reject(busy()); }
         if (step === 'empty') { h.bytes = new Uint8Array(0); return Promise.resolve(); }
         if (step === 'short') { h.bytes = pending.slice(0, Math.floor(pending.length / 2)); return Promise.resolve(); }
         h.bytes = pending; return Promise.resolve();
@@ -49,8 +52,8 @@ test('a good write is read back and proved: size, and %PDF- for a PDF', async ()
   assert.strictEqual((await util.writeVerified(handle([]), jsonBlob(), { sleep: s.sleep })).checked, true);
 });
 
-test('OneDrive in the way: close() fails with NotFoundError, the file is left empty, and the second try writes it', async () => {
-  const s = sleeper(), h = handle(['fail', 'ok']);
+test('a write that fails (not NotFoundError) and leaves the file empty is tried again, and the second try writes it', async () => {
+  const s = sleeper(), h = handle(['busy', 'ok']);
   const r = await util.writeVerified(h, pdfBlob(), { pdf: true, sleep: s.sleep });
   assert.strictEqual(h.attempts, 2); assert.strictEqual(r.tries, 2); assert.deepStrictEqual(s.calls, [800], 'one pause of 0.8 s');
   assert.strictEqual(new TextDecoder('latin1').decode(h.bytes.slice(0, 5)), '%PDF-', 'the file now holds the PDF');
@@ -66,11 +69,11 @@ test('a write that "succeeds" and leaves an EMPTY or short file is caught by the
 });
 
 test('it never says saved when it is not: after the last try it rejects with .failed, three tries, pauses of 0.8 s and 2 s', async () => {
-  const s = sleeper(), h = handle(['fail', 'fail', 'fail', 'ok']);
-  await assert.rejects(() => util.writeVerified(h, jsonBlob(), { sleep: s.sleep }), e => { assert.strictEqual(e.failed, true); assert.strictEqual(e.tries, 3); assert.strictEqual(e.name, 'NotFoundError'); assert.match(e.message, /could not be found/); return true; });
+  const s = sleeper(), h = handle(['busy', 'busy', 'busy', 'ok']);
+  await assert.rejects(() => util.writeVerified(h, jsonBlob(), { sleep: s.sleep }), e => { assert.strictEqual(e.failed, true); assert.strictEqual(e.tries, 3); assert.strictEqual(e.name, 'InvalidModificationError'); assert.match(e.message, /can not be modified/); return true; });
   assert.strictEqual(h.attempts, 3); assert.deepStrictEqual(s.calls, [800, 2000]);
   const h2 = handle(['empty', 'empty', 'empty']);
-  await assert.rejects(() => util.writeVerified(h2, pdfBlob(), { pdf: true, sleep: sleeper().sleep }), e => e.failed === true && /0 bytes/.test(e.message), 'an empty file after three tries is a failure, not a save');
+  await assert.rejects(() => util.writeVerified(h2, pdfBlob(), { pdf: true, sleep: sleeper().sleep }), e => e.failed === true && e.zero === true && /0 bytes/.test(e.message), 'an empty file after three tries is a failure, not a save (and says it was 0 bytes)');
 });
 
 test('a file that has the right size but does not start like a PDF is a failure for a PDF only', async () => {
@@ -97,20 +100,20 @@ test('a browser or stand-in that will not say the size (or has no getFile) is tr
 
 test('the pauses can be set (tests and the page use util.WRITE_PAUSES); the default is 0.8 s and 2 s', async () => {
   assert.deepStrictEqual(util.WRITE_PAUSES, [800, 2000]);
-  const s = sleeper(), h = handle(['fail', 'fail', 'fail', 'fail', 'ok']);
+  const s = sleeper(), h = handle(['busy', 'busy', 'busy', 'busy', 'ok']);
   await assert.rejects(() => util.writeVerified(h, jsonBlob(), { pauses: [1, 2, 3], sleep: s.sleep }), e => e.failed && e.tries === 4);
   assert.deepStrictEqual(s.calls, [1, 2, 3], 'four tries when four pauses are given');
   const keep = util.WRITE_PAUSES; util.WRITE_PAUSES = [5]; const s2 = sleeper();
-  await assert.rejects(() => util.writeVerified(handle(['fail', 'fail', 'ok']), jsonBlob(), { sleep: s2.sleep }), e => e.failed && e.tries === 2);
+  await assert.rejects(() => util.writeVerified(handle(['busy', 'busy', 'ok']), jsonBlob(), { sleep: s2.sleep }), e => e.failed && e.tries === 2);
   util.WRITE_PAUSES = keep; assert.deepStrictEqual(s2.calls, [5]);
 });
 
-test('the plain words: size, and what the page says when the file could not be written', () => {
+test('the plain words: size, and what the page says for any OTHER error (OneDrive is named only here; NotFoundError has its own words, see release-50)', () => {
   assert.strictEqual(util.formatSize(500), '500 bytes'); assert.strictEqual(util.formatSize(86300), '84.3 KB'); assert.strictEqual(util.formatSize(2 * 1048576), '2 MB');
-  const t = util.saveFailText('BR - Personal Covers Application - 17.11.26 - R 2,507.64 p.m. - (Ryno Jansen van Vuuren).pdf', nf(), true);
-  assert.match(t, /^Could not save BR - Personal Covers Application/); assert.match(t, /OneDrive was busy syncing/); assert.match(t, /downloaded to your Downloads folder/); assert.match(t, /empty file with the same name may be left in the folder: delete it/);
-  assert.match(t, /Chrome said: A requested file or directory could not be found at the time an operation was processed\./);
-  assert.ok(!/Downloads/.test(util.saveFailText('x.pdf', nf(), false)), 'no claim of a download when there was none');
+  const t = util.saveFailText('BR - Personal Covers Application - 17.11.26 - R 2,507.64 p.m. - (Ryno Jansen van Vuuren).pdf', busy(), true);
+  assert.match(t, /^Could not save BR - Personal Covers Application/); assert.match(t, /OneDrive was busy syncing/); assert.match(t, /downloaded to your Downloads folder/); assert.match(t, /may now be EMPTY: do not use it/);
+  assert.match(t, /Chrome said: The object can not be modified in this way\./);
+  assert.ok(!/Downloads/.test(util.saveFailText('x.pdf', busy(), false)), 'no claim of a download when there was none');
   assert.ok(!/Chrome said/.test(util.saveFailText('x.pdf', null, true)), 'and no "Chrome said" with no message');
 });
 
