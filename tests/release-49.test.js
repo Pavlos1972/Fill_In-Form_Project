@@ -120,12 +120,12 @@ test('the plain words: size, and what the page says for any OTHER error (OneDriv
 test('all three pages write through util.writeVerified, say "checked" only after the check, and keep the work when a write fails', () => {
   ['ui.js', 'sr-ui.js', 'cs-ui.js'].forEach(f => {
     const s = app('js/' + f);
-    assert.ok(s.includes("util.writeVerified(h, blob, { pdf: ext === '.pdf' })"), f + ': the write is proved');
+    assert.ok(/util\.writeVerified\((h|x\.handle), blob, \{ pdf: ext === '\.pdf' \}\)/.test(s), f + ': the write is proved');
     assert.ok(!/h\.createWritable\(\)\.then\(function \(w\) \{ return w\.write\(blob\)/.test(s), f + ': no bare write left');
     assert.ok(/function saveFailed\(e, blob, name\)[\s\S]{0,200}download\(blob, name\); toast\(util\.saveFailText\(name, e, true\), 20000\)/.test(s), f + ': a failed write downloads a copy and says so for 20 seconds');
     assert.ok(/PDF saved and checked \(/.test(s), f + ': the PDF toast says checked, with the size');
     assert.ok(!/toast\('Could not save: ' \+ e\.message\)/.test(s) && !/toast\('Could not save the PDF: ' \+ e\.message\)/.test(s), f + ': the old short cryptic message is gone');
-    assert.ok(/fileHandle = null; rememberHandle\(null\)/.test(s), f + ': a file reference that failed is let go');
+    assert.ok(/fileHandle = null; (lastFolder = null; )?rememberHandle\(null\)/.test(s), f + ': a file reference that failed is let go');
   });
   assert.ok(/saveFailed\(e, res\.blob, res\.fileName \+ '\.pdf'\)/.test(app('js/cs-ui.js')), 'the Capture Sheet questionnaire PDF too');
   assert.ok(/saveFailed\(e, blob, 'fact-find-voice-log-'/.test(app('js/ui.js')), 'and the Fact Find voice log');
