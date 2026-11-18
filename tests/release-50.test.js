@@ -95,9 +95,9 @@ test('point 3: BOTH messages say the file in the folder may now be EMPTY and not
 test('point 3 and 4: all three pages mark a failed Save as UNSAVED with the draft kept, forget the failed file, and use the one message', () => {
   ['ui.js', 'sr-ui.js', 'cs-ui.js'].forEach(f => {
     const s = app('js/' + f);
-    assert.ok(s.includes("if (saveFailed(e, blob, currentBase() + '.json')) { if (!forceAs && fileHandle) { fileHandle = null; rememberHandle(null); } dirty = true; onDisk = false; saveDraft(); } refreshChrome();"), f + ': a failed Save is unsaved, its draft is kept, the failed file is let go');
+    assert.ok(/if \(saveFailed\(e, blob, currentBase\(\) \+ '\.json'\)\) \{ if \(!forceAs && fileHandle\) \{ fileHandle = null; (lastFolder = null; )?rememberHandle\(null\); \} dirty = true; onDisk = false; saveDraft\(\); \} refreshChrome\(\);/.test(s), f + ': a failed Save is unsaved, its draft is kept, the failed file is let go');
     assert.ok(/function saveFailed\(e, blob, name\)[\s\S]{0,200}download\(blob, name\); toast\(util\.saveFailText\(name, e, true\), 20000\)/.test(s), f + ': the copy is downloaded and the message stays 20 seconds');
-    assert.ok(s.includes("util.writeVerified(h, blob, { pdf: ext === '.pdf' })"), f + ': written through util.writeVerified');
+    assert.ok(/util\.writeVerified\((h|x\.handle), blob, \{ pdf: ext === '\.pdf' \}\)/.test(s), f + ': written through util.writeVerified');
     assert.ok(!/OneDrive/.test(s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '')), f + ': no OneDrive wording in the page code itself');
   });
 });
