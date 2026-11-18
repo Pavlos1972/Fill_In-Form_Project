@@ -4,7 +4,7 @@ Written on 16 November 2026 by the Claude Code session that built versions 3.1 t
 
 **How this file was made, and what that means for how far to trust it.** The early part of Chat 1 was lost when its context was compacted. This file was rebuilt from: the repository (`git log` of `main`, `docs/FORM-CHANGES.md`, `README.md`, `CLAUDE.md`, `docs/HANDOVER-release-3.1.md`, the tests), the list of pull requests 1 to 76 and their descriptions (a digest was made by a helper and is cited where used), the summary Chat 1 kept of its own later part (releases 3.8 to 4.5), and what Paul said, which is quoted where it is known word for word. Section 9 lists what could **not** be recovered. Where a statement comes from memory of the later part of the chat rather than from the repository, it is marked *(from the chat)*. The repository is the proof for anything about code; this file is the proof only for what Paul said and why.
 
-The clone this was written in started **shallow** (history from pull request 16); it was completed with `git fetch --unshallow origin`, so the whole history is available: `main` starts with an *Initial commit* (`8e83a7d`, 14 October 2026), then PR 1 (`06ff522`, 20 October). If a future clone is shallow, run `git fetch --unshallow origin` first.
+The clone this was written in started **shallow** (history from pull request 16); it was completed with `git fetch --unshallow origin`, so the whole history is available: `main` starts with an *Initial commit* (`3e9a035`, 14 October 2026), then PR 1 (`6b830f1`, 20 October). If a future clone is shallow, run `git fetch --unshallow origin` first.
 
 ## Contents
 
@@ -115,62 +115,62 @@ Test counts are unit tests (`npm test`) as the pull request stated them. "Not te
 
 | PR (merged) | Commit | What it did, and why |
 |---|---|---|
-| **1** (20.10) | `06ff522` | The first PR. Its squash commit is titled *Fact Find: voice mode, Chrome listening fixes and online publishing*; the pull request's own title on GitHub is *Add Fact Find revision analysis* (`docs/Fact_Find_Revision_Analysis.md`). So the base of the app (the form, voice mode, listening, the website publishing) is PR 1, on top of the *Initial commit* (14 October). |
-| **2** (20.10) | `67d5834` | Voice fixes from the live sessions of 20 October: a misheard email name or domain repaired from the form and common domains, "email address is incorrect" and "delete that" empty a box, more consent-to-record wordings, Chrome listening restarts when it freezes and logs what it heard. 185 tests. |
-| **3** (20.10) | `6784acf` | **Cut the web look-up cost:** the look-up model defaults to Sonnet (a saved Opus replaced once); the LinkedIn search runs only on its button. 186 tests. |
-| **4** (22.10) | `0101638` | Occupation moved before Income & household (form, side menu, voice, PDF). |
-| **5** (26.10) | `f199c06` | Hearing, from the 26 October log: Chrome's other wordings sent to Claude, restart after an aborted listening, a fuller listening log. 188 tests. |
-| **6** (26.10) | `72db712` | **OpenAI transcription as a third speech source** for names and addresses (Chrome's recogniser cannot produce rare names, e.g. the adviser's own surname, and its 5-minute sessions end). `listen.js` `openaiEngine`; needs an OpenAI key. 192 tests. *Not tested with a live OpenAI key and voice.* |
-| **7** (26.10) | `d4ef079` | The **meeting timer** (`timer.js`: starts at the first Listen, pause, Reset, survives a reload); Chrome listening renewed at a 1.5 s pause after 4 minutes. 200 tests. *Renewal tested only with a simulated recogniser.* |
-| **8** (27.10) | `eb39736` | The **top bar in three groups**: Settings/New/Open, Meeting/Voice/Listen, saving. Layout only. |
-| **9** (27.10) | `e5322d0` | Settings: a link to the OpenAI console beside the OpenAI key. |
-| **10** (27.10) | `fd351ce` | **Hear the client on a Teams call.** Prompted by the first real client meeting (27 October, Teams, headset: all 274 log lines were the adviser). New Settings option *Hear the client on a Teams call* (OpenAI source): **Listen** opens Chrome's share window, the call's sound is transcribed beside the microphone, lines are labelled `who: me` / `who: client`, an echo of a mic line repeating a client line is dropped. 207 tests. ***NOT tested against a real Teams call or Chrome's real share window (a short test call is needed). Still open: section 6.*** |
-| **11** (27.10) | `019faff` | Labelled sound bars ("Paul Sound", "Client Sound"); Health moved after Children. |
-| **12** (27.10) | `ef1df48` | **Type of quote** dropdown (New Business / Servicing / N/A); dropdowns open by themselves while voice waits on them. 210 tests. |
-| **13** (27.10) | `6047b2a` | A child's **Age** beside the date of birth; defaults for the risk calculation boxes (ACI Fixed, ACI value "?", ABI 3%/5%). 212 tests. |
-| **14** (27.10) | `b1f4425` | Shortfall quote only with a group; children's Name and Surname apart; the client's Gender from a valid ID; an ID number can appear once. 219 tests. |
-| **15** (27.10) | `372c3c7` | Income protection insured amount = the take-home net income (calculated). 220 tests. |
-| **16** (27.10) | `cb47c64` | PDF: symbols the font cannot draw print as plain text (they printed as "?"). |
-| **17** (28.10) | `e2fda92` | **Date of marriage**; voice lines read at the same time (up to four requests at once, applied in spoken order): median heard-to-form time 5.99 s down to 1.41 s on the replay of a 274-line log (the Erika Kuiper meeting label). 225 tests. *Not tried in a live meeting.* |
-| **18** (28.10) | `d286d42` | **"Heard but not placed" list** (saved as `unplaced`) and the **catch-up check** that re-reads the conversation and fills only empty boxes (amber). 229 tests. *Not tried live with a real key.* |
-| **19** (28.10) | `5006364` | Debts: Ex-Spouse/Partner added to Owner and Payer. |
-| **20** (28.10) | `09b530b` | Fixes from the **Vera Zeller test meeting** (476 lines, 32 minutes): lost answers, short answers re-read, partner ID/cell said in pieces, slow calls raced, year-only dates, "all verified" confirms every waiting answer. 239 tests. |
-| **21** (28.10) | `527a17c` | The **Client priorities page** (Life, RA, RGAR, Invest, EGAR, Medical Aid, Will, Short Term, Business assurance), Personal & group risk cover as one page, Retirement funding its own page, the Advisor box and Documents to request removed. Per-area summaries written by Claude (`summary.js`). 254 tests. |
-| **22** (28.10) / **24** (29.10) | `5d5f622`, `3819a23` | Placement of the risk calculation: 22 kept it open with the Life area; **24 reversed it**: its own page after Client priorities, always there, with its own Notes box (`n_calc`). |
-| **23** (29.10) | `3cec48a` | Summaries no longer claim "none" for what has not been asked yet. |
-| **25** (29.10) | `6a28fc0` | Fixes from the **29 October test meeting (Sitamah Nathoo)**: a line that is only the adviser's own name is ignored (it had filled the client's name); the client's spelling wins; "years in this occupation" from "since February 2022"; Gap cover can be Not sure; Preferred monthly spend. 264 tests. |
-| **26** (29.10) | `1991d8a` | Two batches Paul asked for: the yellow decisions *Client not sure, needs to think about it* / *needs to check their budget*; the Life summary adds total debt, monthly repayments, childcare cost; Business assurance; Retirement funding split into RAs and Pension/provident funds; voice finishes sections; the page became **Risk Calculation & Quotes** with the **Instalment Protector**; Dread cover starts R 500 000. 278 tests. |
-| **27** (29.10) | `6e78517` | Income protection age starts at 65; the Life area is headed **Personal Risk Covers**. |
-| **28** (29.10) | `90d794e` | The saved PDF named `Fact Find (Voice to Text) - dd.mm.yy - (Name Surname)`; the rule written into the README and a new `CLAUDE.md`. **Corrected by PR 49** ("Audio to Text", and the .json shares the name). |
-| **29** (30.10) | `a89a837` | **"Can we send you a LOA to sign?"** (Yes / No / Not now); **Request Current Policy Schedule(s)** tick lists under each cover area; the new **Admin page** with Next appointment and the **Action Points for Personal Assistant** (Claude, with a plain fallback in `actions.js`). 290 tests. |
-| **30** (30.10) | `ffd56ac` | **Two kinds of life quote**: BrightRock Fractured and Standard (insurers as a tick list); the page became **BrightRock Risk Calculation** (fractured covers only); the page "Client priorities and quotes needed". 301 tests. |
-| **31** (30.10) | `71fa9a8` | A note on the RGAR area saying what the report needs. |
-| **32** (30.10) | `38f30b0` | The PDF mirrors the updated Fact Find; new `tests/pdf-mirror.test.js`. 308 tests. |
-| **33** (30.10) | `572296f` | Voice reads the standard quote details; "make a note" goes to the priorities page's notes box. 309 tests. |
-| **34** (30.10) | `43cbf85` | The five schedule boxes are never locked. |
-| **35** (30.10) | `9705cd4` | **Instalment protector**: a master switch and a switch for each debt. 312 tests. |
-| **36** (30.10) | `b2a7e94` | **Audit batch A** (the first of the 31 audit findings): quote checks, hidden boxes, dates, amounts ("R1.000,00" read as 1 000), gates, voice slips. 331 tests; the browser regression (48 scripts) was identical to before. |
-| **37** (30.10) | `30aa915` | **Audit batches B, C and D**: Yes/No list gates; progress counts real answers; boxes under an answer greyed; **only debts the client pays come off the take-home income** (decided with Paul); "Household net income" became "Client take-home income"; **publishing runs the tests first** and a new `tests.yml` runs them on every pull request; the unsaved draft is offered back; Settings says keys are plain text. 356 tests, 162 browser checks. *Not done: the speech library still loads from the jsDelivr CDN.* |
-| **38** (30.10) | `ddabf0c` | The last three audit findings: the child cost box is **Childcare (R p.m.)**; each fact asked once; page order (Debts and Children after Income, Smoker on Health, the LOA on Admin). 365 tests. |
-| **39** (30.10) | `d309110` | Reversed PR 38's merge of the two retirement schedule requests (Paul asked for them back); the three notes under the BrightRock Fractured quotes; BrightRock waiting period starts at 1 month. 367 tests. |
-| **40** (31.10) | `57c01f3` | Schedule requests worded for each area ("Requested Personal Risk Covers in meeting, await client response"); **the README rule** and `tests/readme.test.js`; about 20 README statements corrected. 376 tests. |
-| **41** (31.10) | `5bad752` | **Settings round:** the browser draft is removed only after the saved file is read back and matches; two key expiry dates with top-bar chips; the OpenAI speech spend estimate (`openai`). 381 tests. |
-| **42** (31.10) | `4b804f3` | Top bar: the four key and cost chips together at the far right. |
-| **43** (02.11) | `40b7f81` | Removed the next-session reminder about the page-list screenshot (project notes only). |
-| **44** (02.11) | `f5bdf58` | Reduced quotes note: "... (if BR Shortfall Quote is applicable)". |
-| **45** (02.11) | `2aef976` | The client's name and the save state centred above the meeting buttons (screens at least 1300 px). |
-| **46** (02.11) | `3ee5d38` | **Next appointment: day and time** (auto Day, Time typed as 14:30 / 2pm; Checks; action point; voice reads spoken times; `next_time`). 389 tests. |
-| **47** (02.11) | `9674cbc` | **Action points are always orders to Sitamah**: the box opens with "Sitamah, please action these for the client X:"; the client is always "the client <name>" (a test client named Sitimah made "Follow up with Sitimah" read as if for Sitamah herself); every point starts with a verb (`directToSitamah`). 394 tests. |
-| **48** (02.11) | `d9e3c3b` | **The standing rule: the PDF always mirrors the form** (written into `CLAUDE.md` and the README; tested). |
-| **49** (03.11) | `63e9574` | **File names:** `Fact Find (Audio to Text) - dd.mm.yy - (Name Surname)` for both the PDF and the .json. Corrects PR 28. |
-| **50** (05.11) | `5394a2a` | After the **Rosalind Dube meeting**: Rental, Spousal and Child Maintenance income and **Total Income**; Smoker back on Client info; schedule boxes grey on No; the notes read for the action points; year-less dates counted from the form date; email pieces; no blank Debt 3. 410 tests. |
-| **51** (05.11) | `974abad` | **Broker on record everywhere** (default Other broker); **priorities numbered 1 to 8**; the **Priorities to be Focused on** box; Claude told today's date in every request. 425 tests. |
-| **52** (05.11) | `9b9cecf` | Follow-up to 51: an older file opened gets the new rules once (Duties zeros, broker defaults); the Priorities box writes itself on arrival; each schedule goes to Claude with its page's notes. 429 tests. |
-| **53** (05.11) | `cc9dd4c` | **Lump Sum Disability** (fractured) has its own calculation boxes (`pd_hh`, `pd_cc`, `pd_dr`, `pd_need`, `pd_hhabi`), renamed from "Permanent disability: fractured cover". The report skills did not know the new ids. |
-| **54** (05.11) | `96cc85d` | Test-only: a broker test failed when two saves landed in different milliseconds (it had once stopped a website update). |
-| **55** (07.11) / **56** (10.11) | `6622280`, `caf2af7` | **A mistake and its correction.** 55 set Dread disease cover to R 0.00 in **both** blocks; Paul wanted only the **standard** block at R 0.00. **56 fixed it:** standard `dds_cover` R 0.00, BrightRock fractured `dd_cover` stays R 500 000.00; a test pins both. The report skills hold a standing R 500 000 dread target. |
-| **57** (10.11) | `716dc09` | The four Medical, will & short-term broker boxes start as Other broker from the first screen. |
-| **58** (10.11) / **59** (10.11) | `2625f39`, `9b7c292` | **The Short Risk Application page** (`app/short-risk.html`): the General Short Risk Application, filled from the Fact Find (Load from Fact Find), its own PDF, Checks; 59 added call Day/Date/Time, Product type, and Owner of the policy (Short Risk 1.1). 459 / 468 tests. ***The `complete-applications-skill` is not connected to it yet (Paul will do that).*** |
+| **1** (20.10) | `6b830f1` | The first PR. Its squash commit is titled *Fact Find: voice mode, Chrome listening fixes and online publishing*; the pull request's own title on GitHub is *Add Fact Find revision analysis* (`docs/Fact_Find_Revision_Analysis.md`). So the base of the app (the form, voice mode, listening, the website publishing) is PR 1, on top of the *Initial commit* (14 October). |
+| **2** (20.10) | `80f993b` | Voice fixes from the live sessions of 20 October: a misheard email name or domain repaired from the form and common domains, "email address is incorrect" and "delete that" empty a box, more consent-to-record wordings, Chrome listening restarts when it freezes and logs what it heard. 185 tests. |
+| **3** (20.10) | `cab6853` | **Cut the web look-up cost:** the look-up model defaults to Sonnet (a saved Opus replaced once); the LinkedIn search runs only on its button. 186 tests. |
+| **4** (22.10) | `d49f61b` | Occupation moved before Income & household (form, side menu, voice, PDF). |
+| **5** (26.10) | `a3dd6cc` | Hearing, from the 26 October log: Chrome's other wordings sent to Claude, restart after an aborted listening, a fuller listening log. 188 tests. |
+| **6** (26.10) | `43daa1d` | **OpenAI transcription as a third speech source** for names and addresses (Chrome's recogniser cannot produce rare names, e.g. the adviser's own surname, and its 5-minute sessions end). `listen.js` `openaiEngine`; needs an OpenAI key. 192 tests. *Not tested with a live OpenAI key and voice.* |
+| **7** (26.10) | `173ae57` | The **meeting timer** (`timer.js`: starts at the first Listen, pause, Reset, survives a reload); Chrome listening renewed at a 1.5 s pause after 4 minutes. 200 tests. *Renewal tested only with a simulated recogniser.* |
+| **8** (27.10) | `d9cf07c` | The **top bar in three groups**: Settings/New/Open, Meeting/Voice/Listen, saving. Layout only. |
+| **9** (27.10) | `0cfe4fa` | Settings: a link to the OpenAI console beside the OpenAI key. |
+| **10** (27.10) | `5bfb878` | **Hear the client on a Teams call.** Prompted by the first real client meeting (27 October, Teams, headset: all 274 log lines were the adviser). New Settings option *Hear the client on a Teams call* (OpenAI source): **Listen** opens Chrome's share window, the call's sound is transcribed beside the microphone, lines are labelled `who: me` / `who: client`, an echo of a mic line repeating a client line is dropped. 207 tests. ***NOT tested against a real Teams call or Chrome's real share window (a short test call is needed). Still open: section 6.*** |
+| **11** (27.10) | `811534c` | Labelled sound bars ("Paul Sound", "Client Sound"); Health moved after Children. |
+| **12** (27.10) | `91f2ea0` | **Type of quote** dropdown (New Business / Servicing / N/A); dropdowns open by themselves while voice waits on them. 210 tests. |
+| **13** (27.10) | `ad459e1` | A child's **Age** beside the date of birth; defaults for the risk calculation boxes (ACI Fixed, ACI value "?", ABI 3%/5%). 212 tests. |
+| **14** (27.10) | `bef40c9` | Shortfall quote only with a group; children's Name and Surname apart; the client's Gender from a valid ID; an ID number can appear once. 219 tests. |
+| **15** (27.10) | `b0fffae` | Income protection insured amount = the take-home net income (calculated). 220 tests. |
+| **16** (27.10) | `51a6e83` | PDF: symbols the font cannot draw print as plain text (they printed as "?"). |
+| **17** (28.10) | `da42c35` | **Date of marriage**; voice lines read at the same time (up to four requests at once, applied in spoken order): median heard-to-form time 5.99 s down to 1.41 s on the replay of a 274-line log (the Erika Kuiper meeting label). 225 tests. *Not tried in a live meeting.* |
+| **18** (28.10) | `4726e77` | **"Heard but not placed" list** (saved as `unplaced`) and the **catch-up check** that re-reads the conversation and fills only empty boxes (amber). 229 tests. *Not tried live with a real key.* |
+| **19** (28.10) | `7e4e215` | Debts: Ex-Spouse/Partner added to Owner and Payer. |
+| **20** (28.10) | `d6a830b` | Fixes from the **Vera Zeller test meeting** (476 lines, 32 minutes): lost answers, short answers re-read, partner ID/cell said in pieces, slow calls raced, year-only dates, "all verified" confirms every waiting answer. 239 tests. |
+| **21** (28.10) | `6ae1d2a` | The **Client priorities page** (Life, RA, RGAR, Invest, EGAR, Medical Aid, Will, Short Term, Business assurance), Personal & group risk cover as one page, Retirement funding its own page, the Advisor box and Documents to request removed. Per-area summaries written by Claude (`summary.js`). 254 tests. |
+| **22** (28.10) / **24** (29.10) | `82992b0`, `98241c0` | Placement of the risk calculation: 22 kept it open with the Life area; **24 reversed it**: its own page after Client priorities, always there, with its own Notes box (`n_calc`). |
+| **23** (29.10) | `4783ebc` | Summaries no longer claim "none" for what has not been asked yet. |
+| **25** (29.10) | `6aef6c4` | Fixes from the **29 October test meeting (Sitamah Nathoo)**: a line that is only the adviser's own name is ignored (it had filled the client's name); the client's spelling wins; "years in this occupation" from "since February 2022"; Gap cover can be Not sure; Preferred monthly spend. 264 tests. |
+| **26** (29.10) | `c0d22c3` | Two batches Paul asked for: the yellow decisions *Client not sure, needs to think about it* / *needs to check their budget*; the Life summary adds total debt, monthly repayments, childcare cost; Business assurance; Retirement funding split into RAs and Pension/provident funds; voice finishes sections; the page became **Risk Calculation & Quotes** with the **Instalment Protector**; Dread cover starts R 500 000. 278 tests. |
+| **27** (29.10) | `da4eb99` | Income protection age starts at 65; the Life area is headed **Personal Risk Covers**. |
+| **28** (29.10) | `82678b8` | The saved PDF named `Fact Find (Voice to Text) - dd.mm.yy - (Name Surname)`; the rule written into the README and a new `CLAUDE.md`. **Corrected by PR 49** ("Audio to Text", and the .json shares the name). |
+| **29** (30.10) | `9a66004` | **"Can we send you a LOA to sign?"** (Yes / No / Not now); **Request Current Policy Schedule(s)** tick lists under each cover area; the new **Admin page** with Next appointment and the **Action Points for Personal Assistant** (Claude, with a plain fallback in `actions.js`). 290 tests. |
+| **30** (30.10) | `ff2105c` | **Two kinds of life quote**: BrightRock Fractured and Standard (insurers as a tick list); the page became **BrightRock Risk Calculation** (fractured covers only); the page "Client priorities and quotes needed". 301 tests. |
+| **31** (30.10) | `8a2d995` | A note on the RGAR area saying what the report needs. |
+| **32** (30.10) | `5d6bde8` | The PDF mirrors the updated Fact Find; new `tests/pdf-mirror.test.js`. 308 tests. |
+| **33** (30.10) | `454dd71` | Voice reads the standard quote details; "make a note" goes to the priorities page's notes box. 309 tests. |
+| **34** (30.10) | `1559462` | The five schedule boxes are never locked. |
+| **35** (30.10) | `ab1db62` | **Instalment protector**: a master switch and a switch for each debt. 312 tests. |
+| **36** (30.10) | `a4c1166` | **Audit batch A** (the first of the 31 audit findings): quote checks, hidden boxes, dates, amounts ("R1.000,00" read as 1 000), gates, voice slips. 331 tests; the browser regression (48 scripts) was identical to before. |
+| **37** (30.10) | `b1db6ac` | **Audit batches B, C and D**: Yes/No list gates; progress counts real answers; boxes under an answer greyed; **only debts the client pays come off the take-home income** (decided with Paul); "Household net income" became "Client take-home income"; **publishing runs the tests first** and a new `tests.yml` runs them on every pull request; the unsaved draft is offered back; Settings says keys are plain text. 356 tests, 162 browser checks. *Not done: the speech library still loads from the jsDelivr CDN.* |
+| **38** (30.10) | `16e63d9` | The last three audit findings: the child cost box is **Childcare (R p.m.)**; each fact asked once; page order (Debts and Children after Income, Smoker on Health, the LOA on Admin). 365 tests. |
+| **39** (30.10) | `d72b1f7` | Reversed PR 38's merge of the two retirement schedule requests (Paul asked for them back); the three notes under the BrightRock Fractured quotes; BrightRock waiting period starts at 1 month. 367 tests. |
+| **40** (31.10) | `ea1d4a7` | Schedule requests worded for each area ("Requested Personal Risk Covers in meeting, await client response"); **the README rule** and `tests/readme.test.js`; about 20 README statements corrected. 376 tests. |
+| **41** (31.10) | `243c0fe` | **Settings round:** the browser draft is removed only after the saved file is read back and matches; two key expiry dates with top-bar chips; the OpenAI speech spend estimate (`openai`). 381 tests. |
+| **42** (31.10) | `1ee0b46` | Top bar: the four key and cost chips together at the far right. |
+| **43** (02.11) | `2a18690` | Removed the next-session reminder about the page-list screenshot (project notes only). |
+| **44** (02.11) | `d86d09d` | Reduced quotes note: "... (if BR Shortfall Quote is applicable)". |
+| **45** (02.11) | `4826e8d` | The client's name and the save state centred above the meeting buttons (screens at least 1300 px). |
+| **46** (02.11) | `7a3a7cd` | **Next appointment: day and time** (auto Day, Time typed as 14:30 / 2pm; Checks; action point; voice reads spoken times; `next_time`). 389 tests. |
+| **47** (02.11) | `8e04598` | **Action points are always orders to Sitamah**: the box opens with "Sitamah, please action these for the client X:"; the client is always "the client <name>" (a test client named Sitimah made "Follow up with Sitimah" read as if for Sitamah herself); every point starts with a verb (`directToSitamah`). 394 tests. |
+| **48** (02.11) | `2ffe633` | **The standing rule: the PDF always mirrors the form** (written into `CLAUDE.md` and the README; tested). |
+| **49** (03.11) | `ecbc43d` | **File names:** `Fact Find (Audio to Text) - dd.mm.yy - (Name Surname)` for both the PDF and the .json. Corrects PR 28. |
+| **50** (05.11) | `05306ea` | After the **Rosalind Dube meeting**: Rental, Spousal and Child Maintenance income and **Total Income**; Smoker back on Client info; schedule boxes grey on No; the notes read for the action points; year-less dates counted from the form date; email pieces; no blank Debt 3. 410 tests. |
+| **51** (05.11) | `5a918ff` | **Broker on record everywhere** (default Other broker); **priorities numbered 1 to 8**; the **Priorities to be Focused on** box; Claude told today's date in every request. 425 tests. |
+| **52** (05.11) | `ab68cb8` | Follow-up to 51: an older file opened gets the new rules once (Duties zeros, broker defaults); the Priorities box writes itself on arrival; each schedule goes to Claude with its page's notes. 429 tests. |
+| **53** (05.11) | `2af13e0` | **Lump Sum Disability** (fractured) has its own calculation boxes (`pd_hh`, `pd_cc`, `pd_dr`, `pd_need`, `pd_hhabi`), renamed from "Permanent disability: fractured cover". The report skills did not know the new ids. |
+| **54** (05.11) | `2e063ad` | Test-only: a broker test failed when two saves landed in different milliseconds (it had once stopped a website update). |
+| **55** (07.11) / **56** (10.11) | `dc6dca7`, `5f9b72b` | **A mistake and its correction.** 55 set Dread disease cover to R 0.00 in **both** blocks; Paul wanted only the **standard** block at R 0.00. **56 fixed it:** standard `dds_cover` R 0.00, BrightRock fractured `dd_cover` stays R 500 000.00; a test pins both. The report skills hold a standing R 500 000 dread target. |
+| **57** (10.11) | `1f84b23` | The four Medical, will & short-term broker boxes start as Other broker from the first screen. |
+| **58** (10.11) / **59** (10.11) | `48fdcbb`, `4dcd99c` | **The Short Risk Application page** (`app/short-risk.html`): the General Short Risk Application, filled from the Fact Find (Load from Fact Find), its own PDF, Checks; 59 added call Day/Date/Time, Product type, and Owner of the policy (Short Risk 1.1). 459 / 468 tests. ***The `complete-applications-skill` is not connected to it yet (Paul will do that).*** |
 
 The pull request descriptions often also said what was **not tested**: live meetings and Claude's real reading of spoken lines could never be tested in the sandbox (they need a live key and a real conversation).
 
@@ -178,7 +178,7 @@ The pull request descriptions often also said what was **not tested**: live meet
 
 Test counts: unit tests / browser checks, as stated when the release was built (4.5 was the last: **694 / 721**). The full ids and lists of each release are in `docs/FORM-CHANGES.md`; the README has a "Release X.Y" section for each from 3.6 on (3.1's is spread over its own bullets).
 
-#### 3.1: PR 60, `76f01db`, 11 November (516 / 446)
+#### 3.1: PR 60, `10a3157`, 11 November (516 / 446)
 *Fact Find 3.0 to 3.1, Short Risk 1.1 to 1.2.* A big release Paul approved as one ("make all the changes together"; its working note is `docs/HANDOVER-release-3.1.md`, written to be deleted after the merge: it is still in the repo).
 - **Defaults that save typing:** Debts *Term left* starts as **Max term** for a credit card and revolving credit; *Asset value* **R 0.00** for every debt not on a property; *Qualification details* **N/A** when Highest education is Matric; *Employer* **N/A** when Employed is No.
 - **Ids:** new `spmaint` (**Spousal Maintenance**: what an ex-spouse pays the client; a new id because the meaning of the old `spinc` "Spousal Income" changed: `spinc` stays as a **legacy** box shown only while a file holds a value, still added into Total Income); `maint` relabelled **Child Maintenance** (same id); new `on_call` (**Others on the call**); new `debts_end` (**No more debts**); Debts column `term` relabelled **Term left (months)**, always a number of months.
@@ -190,56 +190,56 @@ Test counts: unit tests / browser checks, as stated when the release was built (
 - **The skills' rules** were set in this release: an id never changes for a label; a meaning change gets a new id; `docs/FORM-CHANGES.md`.
 - Short Risk: a file saved by 1.0 opens with Owner = The client.
 
-#### 3.2: PR 61, `5e4925e`, 11 November (523 / 460)
+#### 3.2: PR 61, `c2aaa6f`, 11 November (523 / 460)
 New optional box **`cc_notes`** (*Current Client File Summary Notes*) in a **Current Client** section at the bottom of Admin, active only when `ref` (Referral from) is "Current client", greyed otherwise. Written by a skill (`advicetech-client-notes`, from the client's AdviceTech Basic Info notes) as points with status `verify`; never filled by voice, never read for the action points, printed in the PDF only while active.
 
-#### 3.3: PR 62, `70a748c`, 12 November (528 / pass)
+#### 3.3: PR 62, `3044ef0`, 12 November (528 / pass)
 Asked via the Skill Restructure chat: a heading line in `cc_notes` (no lower-case letters, at least four characters, not starting "- ": `util.isHeadingLine`) is shown **bold** in the box (a read view; the plain text opens on a click, Edit or Enter) and printed bold in the PDF. The saved file is unchanged (plain text).
 
-#### Investment Capture Sheet 1.0: PR 63, `ff80f66`, 12 November (558 / 549)
+#### Investment Capture Sheet 1.0: PR 63, `d24c019`, 12 November (558 / 549)
 A **third page**, `app/capture-sheet.html`, for investment applications at any insurer, made from Old Mutual's *Application Details for Finalisor* (made generic), with the **Risk Tolerance questionnaire** copied in (not a link). **Load from Fact Find** and **Load from Short Risk file**. Two PDFs: the application, and the questionnaire's own PDF (the firm's fillable form filled with `pdf-lib`, signature, place and date left blank; the Save window opens in the loaded Fact Find's folder). Paul asked for the page to have its own website address (it exists once published). The Fact Find stayed at 3.3. *Not tested: Chrome's real Save window with a real folder (only a stand-in).*
 
-#### 3.4: PR 64, `b7cf78b`, 13 November (580 / 573)
+#### 3.4: PR 64, `7f221e3`, 13 November (580 / 573)
 **Client priorities follow what the client already has** (`autoprio.js`): an automatic **Not a priority**, with a reason and the referral set to Not required (all `preset`), only where a fact makes the area pointless: medical aid or hospital plan through the company; a will up to date elsewhere (or held by Capital Legacy with Paul K); short-term through the company; no children (EGAR). Life, RA, RGAR and Invest are **never** decided by the form. Once the adviser changes the decision the area is his (`auto` top-level key). **One "no":** the choice *Not a priority: client not interested* became plain **Not a priority** (the reason goes in the comments); *Not interested* became *Not required*; the quote lists lost *Cannot afford now* and *Not interested*. Suggestion lines with buttons (take-over chances, tertiary children, no retirement funds). *A skill that reads `pr_life` to `pr_st` must test for text starting "Not a priority".*
 
-#### 3.5: PR 65, `2ceb44a`, 13 November (581 / 573)
+#### 3.5: PR 65, `022fa4d`, 13 November (581 / 573)
 At Paul's word, relayed by the Fix Skills chat: **"Must not contact client" removed** from the Short-term referral box `ref_sti`. An older file holding it opens with *Not required* and the sentence `Marked "Must not contact client" in an earlier version of the form.` is added to `pr_st_cm`.
 
-#### 3.6: PR 66, `74e524f`, 13 November (598 / 591)
+#### 3.6: PR 66, `ed7e6a7`, 13 November (598 / 591)
 After the **Elmer Jonker meeting** and the audit: the screen stays on its page until the adviser says; debts removed for real and kept removed; no rows from passing remarks; the next appointment only when discussed ("same time next week" worked out). **Debts:** new column `sinst` (**Spouse instalment**, R p.m.), and the **payer** rule: *Joint* splits the instalment 50/50 into `inst` (client) and `sinst`, *Spouse* puts it all in `sinst`; new total **Total spouse monthly**; the client's total and the instalment protector carry only the client's part; **credit life** asked only for a Home loan, Vehicle finance or Personal loan with a lender, and *Not sure* added. Other-broker cover wording: "an opportunity to quote; the client will decide" (never "a take-over"). The **Priorities to be Focused on** box writes `Recommend:` / `Client:` / `Come back with:`. Audit fixes: money and date parsing (`6.500` is R 6 500.00), the SARS age rebate by age at 28 February.
 
-#### 3.7: PR 67, `cd5e623`, 13 November (628 / 599)
+#### 3.7: PR 67, `c093d29`, 13 November (628 / 599)
 **The deeper guards from the audit.** No id, box or choice changed. Voice: a confirm on a line the adviser said is not applied (only the client's agreement turns a box green); a box emptied on purpose is not refilled (`emptied`); strict row numbers; an action point, Priorities line or note with an amount (100 or more) that is nowhere in the facts is dropped; ex-smokers and a spouse's smoking do not fill Smoker; someone else's ID, phone or email never fills the client's boxes; no rows from a third party's loan.
 
-#### 3.8: PR 68, `244570d`, 13 November (643 / 616)
+#### 3.8: PR 68, `7817d47`, 13 November (643 / 616)
 After the **Sibanda meeting** (12 November, recorded; invented names in the tests): a "heard but not placed" note saying only three of five children were given was still open though the form held them. **Stale notes closed** (`unplacedCovered`); the facts carry `on_the_form_now`; **every action point names its source** (a kind of fact, or a note id with words quoted from it) or is removed (and listed on Admin, screen only); small talk is not noted; the **copy check** (`build.js`, the `wr-build` meta tag on all three pages, the red **"Mixed versions"** bar) after Paul's computer once ran old scripts. The Admin page lists *Notes read* and *Points removed*. Paul: *"Checked, notes look much better so far, it will need to be tested further on other clients."*
 
-#### 3.9: PR 69, `e3ca5c6`, 14 November (653 / 636)
+#### 3.9: PR 69, `3f8117f`, 14 November (653 / 636)
 **The BrightRock calculation follows the client's BrightRock policy.** A new block *Current BrightRock policy (from the policy schedule)* with `br_aci` (**Yearly premium increase**, the ACI) and `br_dd_cover` (**Cover that you can recover from**), shown only when a BrightRock policy is listed; the four ACI value boxes (`lc_f_aciv`, `pd_f_aciv`, `ip_aciv`, `dd_aciv`) follow it; the fractured **Dread cover** = the greater of R 500 000 and `br_dd_cover`; a percentage typed alone gets its "%"; **Has debts = No** gives R 0.00 and "Client has no debts". **The ACI/ABI correction:** the first build took the schedule's *Yearly base increase* as the ACI; Paul caught it (section 1.5); it was corrected on the work branch before the merge (*from the chat: the pull request description still carries the first wording*). **The deploy failed four times** on GitHub's side ("no artifact", then "multiple artifacts"); a fresh run succeeded (section 8).
 
-#### 4.0: PR 70, `9f2cf25`, 15 November (672 / 659)
+#### 4.0: PR 70, `c66bcef`, 15 November (672 / 659)
 **One ACI for every benefit** (a value in any of the four ACI value boxes goes into the others, with the same status, and into `br_aci` while a BrightRock policy is listed; ABI, the ACI choice boxes and the standard quotes are not part of it); **the "?" is gone** from every ACI value box; **Meetings held**: a new list `meetings` on Client info (columns `date`, `type`, `who`, `covered`) for a Fact Find done over two or three meetings, empty while there has been one meeting, the first "Add another meeting" makes the meeting so far meeting 1; `date` (Date completed), `meet` (Type of meeting) and `on_call` are the last meeting's; "What was covered" is **written by the form** from a new top-level key `covered` (page names where an answer was typed or said); opening a file on a later day with voice on asks "another meeting?". Not filled by voice (`novoice`). *The release that taught the numbering rule: the next number after 3.9 is 4.0.*
 
-#### 4.1: PR 71, `57497d6`, 16 November (681 / 685)
+#### 4.1: PR 71, `7b3b48f`, 16 November (681 / 685)
 **An appointment that has passed:** when `next_appt` has gone by, Admin asks what happened (Completed / Did not meet with the client / Cancelled by the client / Rescheduled), records it in the new list **`appts`** (*Previous appointments*: `date`, `time`, `outcome`) and empties `next_appt` and `next_time`; **the Progress numbers lead to the boxes** ("to verify" and "not asked" are buttons that walk to each box); **Verify All** (asks, with an Undo for about 10 seconds); **`cell` relabelled Personal cell number** (same id) and a new **`work_cell`** (Work cell number, with a "No work cell number" tick). *Not yet proved with a real client.*
 
-#### 4.2: PR 72, `dea5d25`, 16 November (686 / 691)
+#### 4.2: PR 72, `7581e7c`, 16 November (686 / 691)
 After Paul's first real run of 4.1: **Verify All and "to verify" missed advisor pages, optional boxes and Broker on record**: now every amber box on every page (not an empty box, a calculated box or the online profile); a **Calendar** button on the Date of Previous appointments and Meetings held (Paul: *"There is no Calendar drop down - please ADD"*); the **gender is filled from a valid ID number** (typed, said, confirmed, or a file opened; never overwrites). **`CLAUDE.md` was rewritten as the handover** in this release.
 
-#### 4.3: PR 73, `bd75044`, 16 November (686 / 692)
+#### 4.3: PR 73, `f157d0b`, 16 November (686 / 692)
 **The keys and costs in one small table** in the top bar (display only): a line for **Anthropic** and one for **OpenAI** (Paul: *"Claude must be renamed 'Anthropic'"*), columns *Key* and *This Fact Find*; amber at 14 days or fewer or with no expiry date, red once expired; a click opens Settings. Paul chose "Option B" from a mock-up page I drew. On the same day I took Paul through renewing his Anthropic key (30 days, saved in Settings with its expiry date: the top bar then showed 30 days left). *Slip: the global table style first stretched the table across the bar; fixed before merging.*
 
-#### PR 74, `a3d16ef`, 16 November (documentation only)
+#### PR 74, `3e66091`, 16 November (documentation only)
 `CLAUDE.md`: 4.3 merged, the keys-and-costs table decision, the API key renewal note. Nothing under `app/`, so no website update ran.
 
-#### 4.4: PR 75, `e40dec1`, 16 November (690 / 707)
+#### 4.4: PR 75, `511b670`, 16 November (690 / 707)
 **"Other forms ▾"** (display only): the Short Risk Application and Investment Capture Sheet links are one menu button (a native `<details id="otherForms">`; closes on Escape, a click elsewhere and a chosen link); the keys-and-costs table stays. The mix of Paul's Option B (the table) and Option A (the dropdown). Built in this chat because Paul asked after the context was at 16%.
 
-#### 4.5: PR 76, `b74fb24`, 16 November (694 / 721)
+#### 4.5: PR 76, `9761dd0`, 16 November (694 / 721)
 **Meetings held on one line** (Paul: *"far too big ... ONE line ... not even collapsable"*): each meeting is one line of boxes: Date (Calendar), **Day** (new calculated column `meetings.day`, not an answer), Type, Others on the call, What was covered, with the ✕; the **Meetings held** heading folds the list (shut it reads "2 meetings: 14/10/2026, 28/10/2026"; it stays as left). The PDF prints the Day; `worked.l.meetings` lists the days. *Slips fixed before merging:* "What was covered" wrapped onto a second line; the one-line list lost its empty-list message. ***Left open: the boxes are narrow at the standard width, so "Teams Meeting" and long names may be cut off in the box until you click into it; seen only in a test screenshot, not on Paul's screen.***
 
 #### After 4.5
-The Fix Skills chat reported **4.1 to 4.5 all installed on Paul's computer** (section 5). `main` ends at PR 76 (`b74fb24`); this handover, a documentation-only pull request, is the next change.
+The Fix Skills chat reported **4.1 to 4.5 all installed on Paul's computer** (section 5). `main` ends at PR 76 (`9761dd0`); this handover, a documentation-only pull request, is the next change.
 
 ---
 
