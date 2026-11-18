@@ -208,9 +208,9 @@ test('amounts, dates, phone, ID and email are written correctly and flagged to v
 });
 
 test('names and companies lose the lead-in words and get capital letters', () => {
-  assert.deepStrictEqual(say('fname', 'my name is vicky'), { value: 'Vicky', status: 'verify' });
+  assert.deepStrictEqual(say('fname', 'my name is vera'), { value: 'Vera', status: 'verify' });
   assert.strictEqual(say('sname', "it's van der Merwe").value, 'Van der Merwe');
-  assert.strictEqual(say('sname', 'zachos').value, 'Zachos');
+  assert.strictEqual(say('sname', 'zeller').value, 'Zeller');
   assert.strictEqual(say('sname', "o'brien").value, "O'Brien");
   assert.deepStrictEqual(say('employer', 'I work for Discovery'), { value: 'Discovery', status: 'heard' });
   assert.strictEqual(say('employer', "um, it's discovery limited.").value, 'Discovery Limited');

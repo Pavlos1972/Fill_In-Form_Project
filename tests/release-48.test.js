@@ -40,7 +40,7 @@ const GO = schema.PRIORITY;
 
 /* a form with three green priorities, and the text the form itself writes for both boxes */
 function sample() {
-  const s = fresh(); set(s, 'fname', 'Edwin'); set(s, 'sname', 'Joubert'); set(s, 'has_risk', 'Yes');
+  const s = fresh(); set(s, 'fname', 'Elmer'); set(s, 'sname', 'Jonker'); set(s, 'has_risk', 'Yes');
   set(s, 'pr_life', GO); set(s, 'pr_rgar', GO); set(s, 'pr_st', GO);
   set(s, 'bf_fna_req', 'Request a quote'); set(s, 'bf_fna_type', 'New Business'); set(s, 'ref_sti', 'Cameron to contact client');
   store.setField(s, 'focus', A.focusLocal(s));
@@ -56,11 +56,11 @@ test('the version is 4.8 or later, and every page carries the same build', () =>
 test('which lines are headings: the numbered areas of the Priorities box, the opening line of the Action Points, the capitals of the Current Client notes', () => {
   const F = l => util.headingKind('focus', l), P = l => util.headingKind('pa', l), C = l => util.headingKind(1, l);
   ['1. Personal Risk Covers', '2. Retirement Planning', '3. RGAR', '4. Investment Planning', '5. EGAR', '6. Medical Aid', '7. Will', '8. Short Term', '  3. RGAR  '].forEach(l => assert.ok(F(l), l));
-  ['Recommend: Request a BrightRock Fractured FNA quote', 'Client: The client Edwin wants to retire at 60', 'Come back with:', '- Bring the FNA quote and the reduced quote for R 2 500 p.m.', '', '1. Request the quote: now',
+  ['Recommend: Request a BrightRock Fractured FNA quote', 'Client: The client Elmer wants to retire at 60', 'Come back with:', '- Bring the FNA quote and the reduced quote for R 2 500 p.m.', '', '1. Request the quote: now',
     '1. ' + 'A long sentence typed in the box that is plainly not an area title at all.', 'Personal Risk Covers', '1.Personal'].forEach(l => assert.ok(!F(l), 'not a heading: ' + l));
-  assert.ok(P('Sitamah, please action these for the client Edwin Joubert:'));
+  assert.ok(P('Sitamah, please action these for the client Elmer Jonker:'));
   assert.ok(P('Sitamah, please action these for the client:'));
-  ['- Send the client Edwin the LOA to sign, so the policy schedules can be drawn from Astute.', 'Please action these', 'Sitamah, please action these for the client Edwin Joubert', ''].forEach(l => assert.ok(!P(l), 'not a heading: ' + l));
+  ['- Send the client Elmer the LOA to sign, so the policy schedules can be drawn from Astute.', 'Please action these', 'Sitamah, please action these for the client Elmer Jonker', ''].forEach(l => assert.ok(!P(l), 'not a heading: ' + l));
   assert.ok(C('STILL OPEN') && C('2026 (REVIEW DONE: MAR 2026)') && !C('- Oct 2026 - COL: Discovery, +50% loading') && !C('Recommend: x'), 'the Current Client rule is as it was (3.3)');
   assert.ok(util.headingBig('focus') && util.headingBig('pa') && !util.headingBig(1), 'the two new kinds are larger as well as bold; the Current Client notes stay at the size of the text');
 });
@@ -79,7 +79,7 @@ test('in the text the form writes, the heading lines are exactly the area titles
   assert.deepStrictEqual(heads, ['1. Personal Risk Covers', '3. RGAR', '8. Short Term'], 'the three green areas, and no point or label taken for a heading');
   assert.ok(focus.some(l => /^Recommend: /.test(l)) && focus.some(l => /^Come back with:$/.test(l)) && focus.some(l => /^- /.test(l)), 'the points are there, and are not headings');
   const pa = s.f.pa_actions.v.split(/\r?\n/);
-  assert.strictEqual(pa[0], 'Sitamah, please action these for the client Edwin Joubert:');
+  assert.strictEqual(pa[0], 'Sitamah, please action these for the client Elmer Jonker:');
   assert.deepStrictEqual(pa.filter(l => util.headingKind('pa', l)), [pa[0]], 'only the opening line is a heading');
   assert.ok(pa.length > 2 && pa.slice(1).every(l => /^- /.test(l)), 'every other line is a point: ' + pa.slice(1, 3).join(' | '));
 });
@@ -95,7 +95,7 @@ test('the saved file keeps both boxes as plain text, exactly as written (nothing
 test('the PDF prints the headings of both boxes larger and bold, with room under them, and the points in the plain style', () => {
   const s = sample(); build(s);
   const base = 8.5;
-  [['1. Personal Risk Covers'], ['3. RGAR'], ['8. Short Term'], ['Sitamah, please action these for the client Edwin Joubert:']].forEach(([h]) => {
+  [['1. Personal Risk Covers'], ['3. RGAR'], ['8. Short Term'], ['Sitamah, please action these for the client Elmer Jonker:']].forEach(([h]) => {
     const c = cell(h);
     assert.ok(c, 'the PDF has the heading: ' + h);
     assert.strictEqual(c.styles.fontStyle, 'bold', h + ' is bold');

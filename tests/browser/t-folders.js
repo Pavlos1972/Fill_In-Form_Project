@@ -23,7 +23,7 @@ const TREE = {
   },
   CF: {
     'K - Files': { 'Kuiper, Annabel': { '1. Overview': {}, 'Kuiper, Annabel - (OM - Optimal RA - Recurring)': {} } },
-    'V - Files': { 'Van der Merwe, Mary': { 'Van der Merwe, Mary - (OM - Personal - R 1,200.00 p.m.)': { Applications: {} } }, 'Van der Merwe, Anton': { 'x': { Applications: {} } } },
+    'V - Files': { 'Van der Merwe, Marlene': { 'Van der Merwe, Marlene - (OM - Personal - R 1,200.00 p.m.)': { Applications: {} } }, 'Van der Merwe, Andries': { 'x': { Applications: {} } } },
     'Pienaar, Sarel': { 'Pienaar, Sarel - (BR - Personal)': { Applications: {} } }
   }
 };
@@ -143,9 +143,9 @@ srv.listen(0, async () => {
   ok(/^Saved to 1\. ON HOLD \\ Jansen, Piet \\ /.test(await toast()) && (await calls()).length === 0, 'a client under 1. ON HOLD is found, one folder, no question');
 
   /* ---- 4. a client in Client Files under V - Files (the letter as written), the right Van der Merwe ---- */
-  await fresh(); await set('SR', 'insurer', 'Old Mutual'); await set('SR', 'product', 'Personal Covers'); await set('SR', 'premium', '1200'); await client('SR', 'Mary', 'Van der Merwe');
+  await fresh(); await set('SR', 'insurer', 'Old Mutual'); await set('SR', 'product', 'Personal Covers'); await set('SR', 'premium', '1200'); await client('SR', 'Marlene', 'Van der Merwe');
   await act('#btnSave'); await finish();
-  ok(/^Saved to V - Files \\ Van der Merwe, Mary \\ /.test(await toast()) && (await calls()).length === 0, 'V - Files \\ Van der Merwe, Mary (not Anton)');
+  ok(/^Saved to V - Files \\ Van der Merwe, Marlene \\ /.test(await toast()) && (await calls()).length === 0, 'V - Files \\ Van der Merwe, Marlene (not Anton)');
 
   /* ---- 5. the same client in both places: only New Business has a deal folder with Applications that matches ---- */
   await fresh(); await set('SR', 'insurer', 'Brightrock'); await set('SR', 'product', 'Personal Covers'); await set('SR', 'premium', '2507.64'); await client('SR', 'Annabel', 'Kuiper');

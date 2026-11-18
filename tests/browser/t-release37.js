@@ -38,7 +38,7 @@ let bad = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if
   ok((await box('employer')).v === '', 'a later line about something else does not put it back: ' + JSON.stringify(await box('employer')));
   ok(await p.evaluate(() => (FF.app.state.unplaced || []).some(u => /emptied on purpose/.test(u.why || ''))), 'and it is shown in Heard but not placed');
   ok(await p.evaluate(() => window.__bodies.some(bd => (bd.emptied || []).indexOf('employer') >= 0)), 'Claude was told the box was emptied on purpose');
-  await say('Edwin works for Easitape', [{ do: 'fill', field: 'employer', value: 'Easitape', correction: true }], 'client');
+  await say('Elmer works for Easitape', [{ do: 'fill', field: 'employer', value: 'Easitape', correction: true }], 'client');
   ok((await box('employer')).v === 'Easitape', 'a correction fills it again: ' + JSON.stringify(await box('employer')));
 
   ok(errs.length === 0, 'no page errors ' + errs.join('|'));

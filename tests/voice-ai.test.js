@@ -8,9 +8,9 @@ const idx = V.buildIndex(schema);
 const reply = body => () => Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ content: [{ type: 'text', text: typeof body === 'string' ? body : JSON.stringify(body) }] }) });
 
 test('nothing private is sent: private boxes are named but never their values, and numbers and emails in the text become markers', () => {
-  const req = AI.buildRequest(idx, { sectionId: 'info', targetId: 'fname', targetValue: 'Vicky', filled: { fname: 'Vicky' }, filledPrivate: ['cell'], recent: [{ who: 'client', text: 'my cell is 082 555 0148 and my email is vicky@example.com' }] }, 'client', 'my ID is 8104120195088', 'claude-sonnet-5-5');
+  const req = AI.buildRequest(idx, { sectionId: 'info', targetId: 'fname', targetValue: 'Vera', filled: { fname: 'Vera' }, filledPrivate: ['cell'], recent: [{ who: 'client', text: 'my cell is 082 555 0148 and my email is vera@example.com' }] }, 'client', 'my ID is 8104120195088', 'claude-sonnet-5-5');
   const s = JSON.stringify(req), body = JSON.parse(req.messages[0].content);
-  assert.ok(!/0825550148|082 555|8104120195088|vicky@example/.test(s));
+  assert.ok(!/0825550148|082 555|8104120195088|vera@example/.test(s));
   assert.ok(s.includes('[number]') && s.includes('[email]'));                                      // earlier lines: just that a number / email was said
   assert.strictEqual(body.newest.text, 'my ID is [N1]');                                            // the newest line: a marker Claude can point at
   assert.deepStrictEqual(body.private_values, [{ id: 'N1', kind: '13 digits, the length of an ID number' }]);
@@ -445,15 +445,15 @@ test('facts Claude had no box for come back as "unplaced", with markers swapped 
 
 test('the catch-up request holds the conversation and the form, and nothing private', () => {
   const req = AI.sweepRequest({ idx, model: 'claude-sonnet-5-5', focus: 'info',
-    transcript: [{ who: 'adviser', text: 'what is your cell number?' }, { who: 'client', text: 'it is 082 555 0148 and my email is vicky@example.com' }, { who: 'unlabelled', text: 'I earn R85 000 a month' }],
-    filled: { fname: 'Vicky', cell: '0825550148', gross: 'R 85 000.00' }, listRows: () => [] });
+    transcript: [{ who: 'adviser', text: 'what is your cell number?' }, { who: 'client', text: 'it is 082 555 0148 and my email is vera@example.com' }, { who: 'unlabelled', text: 'I earn R85 000 a month' }],
+    filled: { fname: 'Vera', cell: '0825550148', gross: 'R 85 000.00' }, listRows: () => [] });
   const s = JSON.stringify(req), body = JSON.parse(req.messages[0].content);
-  assert.ok(!/0825550148|082 555|vicky@example/.test(s), 'private values left the computer');
+  assert.ok(!/0825550148|082 555|vera@example/.test(s), 'private values left the computer');
   assert.ok(s.includes('[number]') && s.includes('[email]'));
   assert.strictEqual(body.focus, 'info');
   assert.deepStrictEqual(body.transcript.map(l => l.who), ['adviser', 'client', 'unclear']);
   ['idno', 'cell', 'work', 'home', 'pemail', 'wemail', 'sp_tel', 'tax'].forEach(id => assert.ok(!body.fields.some(f => f.id === id), id + ' is private and not listed'));
-  assert.ok(!('cell' in body.filled) && body.filled.fname === 'Vicky');
+  assert.ok(!('cell' in body.filled) && body.filled.fname === 'Vera');
   assert.ok(body.fields.some(f => f.id === 'gross') && body.lists.some(l => l.id === 'kids'));
   assert.strictEqual(req.model, 'claude-sonnet-5-5');
   assert.ok(/EMPTY now/.test(req.system) && /Never fill a box that already has a value/.test(req.system));

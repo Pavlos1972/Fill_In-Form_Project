@@ -1,4 +1,4 @@
-/* Release 3.8: the faults of a recorded meeting (client Sasson, 12 November 2026), with invented names. A "heard but not placed" note that said only three of five children were on the form went on telling the
+/* Release 3.8: the faults of a recorded meeting (client Sibanda, 12 November 2026), with invented names. A "heard but not placed" note that said only three of five children were on the form went on telling the
    action points to ask for the other two after all five were added; a remark about what the client would do ("will reply by email when the quotes are sent") became a task for the assistant; small talk and a sentence
    that broke off were noted; life-cover words went into the Will notes; and a copy of the form that loaded old scripts from a backup folder ran for most of a day with nobody knowing. */
 const test = require('node:test');

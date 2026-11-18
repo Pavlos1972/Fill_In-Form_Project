@@ -182,7 +182,7 @@
     return s.length >= 4 && s === s.toUpperCase() && s.indexOf('- ') !== 0;
   }
   /* Which lines of a box with bold headings are headings (the field's `heads` in schema.js). 1: notes written by a skill (all capitals, isHeadingLine). 'focus': the numbered area titles of Priorities to be Focused on
-     ("1. Personal Risk Covers"). 'pa': the line the form puts at the top of the Action Points ("Sitamah, please action these for the client Edwin Joubert:"). The text in the file is always plain. */
+     ("1. Personal Risk Covers"). 'pa': the line the form puts at the top of the Action Points ("Sitamah, please action these for the client Elmer Jonker:"). The text in the file is always plain. */
   function headingKind(kind, line) {
     var s = String(line == null ? '' : line).trim();
     if (kind === 'focus') return /^\d{1,2}\.\s+[^\s:][^:]{0,56}$/.test(s);

@@ -40,7 +40,7 @@ test('the heading rule: no lower-case letters, four or more characters, not a po
 });
 
 test('the box asks for bold headings, and the form is at the version of its day (3.3 added this; 3.4 followed) with no id added or relabelled', () => {
-  assert.ok(schema.fieldsById.cc_notes.heads); assert.strictEqual(schema.version, '5.1');
+  assert.ok(schema.fieldsById.cc_notes.heads); assert.strictEqual(schema.version, '5.2');
   const withHeads = Object.keys(schema.fieldsById).filter(id => schema.fieldsById[id].heads).sort();
   assert.deepStrictEqual(withHeads, ['cc_notes', 'focus', 'pa_actions'], 'the boxes with bold headings: the Current Client notes (3.3), and since 4.8 the Priorities to be Focused on box and the Action Points');
   assert.strictEqual(schema.fieldsById.cc_notes.heads, 1, 'the Current Client notes keep their rule: a heading is a line of capitals');

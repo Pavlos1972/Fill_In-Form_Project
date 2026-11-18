@@ -1,4 +1,4 @@
-/* The round after the Roquelle meeting: other income, Smoker back on Client info, the Day box, Refresh in one tap, the schedule boxes (grey on No, the new choice), the Duties zeros, and a Debt 3 that is never left open. */
+/* The round after the Rosalind meeting: other income, Smoker back on Client info, the Day box, Refresh in one tap, the schedule boxes (grey on No, the new choice), the Duties zeros, and a Debt 3 that is never left open. */
 const { chromium } = require(process.argv[2] + '/playwright');
 let bad = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) bad++; };
 (async () => {

@@ -152,7 +152,7 @@
     'A "yes", "yeah" or "uh huh" that answers nothing read back (the client acknowledging what the adviser said, or while the adviser writes) confirms nothing: give {"actions": []}.',
     'The adviser repeating a value the client has just given ("950 000. Perfect.", "so R3000 a month") is an echo, not agreement and not a new fact: give {"actions": []}. Only the client\'s own yes confirms.',
     'Never confirm a box nobody talked about, and never confirm what the client said no to or changed: a different value is a fill with "correction":true, and a "no" without the new value is "wait".',
-    'A read-back is NOT agreement. When the adviser says a value back and asks whether it is right ("I just want to confirm you said R150 000, correct?", "her name is Vicky Zachos, right?", "so your cell is [N1], is that correct?"),',
+    'A read-back is NOT agreement. When the adviser says a value back and asks whether it is right ("I just want to confirm you said R150 000, correct?", "her name is Vera Zeller, right?", "so your cell is [N1], is that correct?"),',
     'even if no question mark was written, the line is only {"do":"ask","field":"<id>"} for that box: never confirm in the same line. The client agrees in a LATER line ("yes", "that\'s right"), and that line is the confirm.',
     'A mere acknowledgement ("okay", "mm hm", "I see", "great") is not agreement: it asks for nothing to be confirmed.',
     'The client saying in a statement that something on the form is correct, with no value in it ("my personal email address is also correct", "the cell number is right", "my surname is fine"), IS agreement: confirm the box it names, and for "that\'s all correct" the boxes the read-back covered.',

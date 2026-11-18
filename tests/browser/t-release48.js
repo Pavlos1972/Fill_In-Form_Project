@@ -11,7 +11,7 @@ let bad = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if
   await p.goto('file://' + dir + '/index.html');
   await p.evaluate(() => {
     const S = FF.app.state, st = FF.store, set = (id, v) => st.setField(S, id, v);
-    set('fname', 'Edwin'); set('sname', 'Joubert'); set('has_risk', 'Yes');
+    set('fname', 'Elmer'); set('sname', 'Jonker'); set('has_risk', 'Yes');
     set('pr_life', FF.schema.PRIORITY); set('pr_rgar', FF.schema.PRIORITY); set('pr_st', FF.schema.PRIORITY);
     set('bf_fna_req', 'Request a quote'); set('bf_fna_type', 'New Business'); set('ref_sti', 'Cameron to contact client');
     set('focus', FF.actions.focusLocal(S)); set('pa_actions', FF.actions.text(FF.actions.local(S), S));
@@ -55,7 +55,7 @@ let bad = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if
   await go('admin');
   let a = await look('pa_actions');
   ok(a.on && a.rvShown && !a.taShown, 'the Action Points show as a read view');
-  ok(JSON.stringify(a.heads) === JSON.stringify(['Sitamah, please action these for the client Edwin Joubert:']), 'its one heading is the opening line: ' + a.heads.join(' | '));
+  ok(JSON.stringify(a.heads) === JSON.stringify(['Sitamah, please action these for the client Elmer Jonker:']), 'its one heading is the opening line: ' + a.heads.join(' | '));
   ok(a.big[0] && a.hSize > a.pSize * 1.1 && a.hWeight >= 700 && a.hMarginBottom >= 4, 'it is larger and bold with room under it (' + a.hSize + ' px, ' + a.hWeight + ', ' + a.hMarginBottom + ' px)');
   ok(a.pWeight < 600, 'the points are not bold');
   await p.screenshot({ path: out + '/release48-actions.png' });
@@ -67,13 +67,13 @@ let bad = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if
   ok(a.on && a.heads.length === 0, 'text typed by hand has no heading');
   await p.click('#paRefresh'); await p.waitForTimeout(1500);
   a = await look('pa_actions');
-  ok(a.heads.length === 1 && /^Sitamah, please action these for the client Edwin Joubert:$/.test(a.heads[0]) && a.on, 'after Refresh the read view shows the opening line as a heading again');
+  ok(a.heads.length === 1 && /^Sitamah, please action these for the client Elmer Jonker:$/.test(a.heads[0]) && a.on, 'after Refresh the read view shows the opening line as a heading again');
 
   /* the PDF, read as text by the real tool */
   const b64 = await p.evaluate(() => FF.pdf.build(FF.app.state).output('datauristring').split(',')[1]);
   fs.writeFileSync(out + '/release48.pdf', Buffer.from(b64, 'base64'));
   const raw = cp.execFileSync('pdftotext', ['-raw', out + '/release48.pdf', '-']).toString();
-  ok(/1\. Personal Risk Covers/.test(raw) && /Sitamah, please action these for the client Edwin Joubert:/.test(raw), 'the PDF has both kinds of heading');
+  ok(/1\. Personal Risk Covers/.test(raw) && /Sitamah, please action these for the client Elmer Jonker:/.test(raw), 'the PDF has both kinds of heading');
   ok(/4\. Investment Planning/.test(raw), 'and the area that was typed in');
 
   /* the file keeps plain text */

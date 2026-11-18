@@ -71,11 +71,11 @@ let bad = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if
   await p.selectOption('[data-f="will_broker"]', 'Through company'); await p.selectOption('[data-f="ma"]', 'None'); await p.waitForTimeout(250);
   ok((await val(p, 'ma_broker')) === '' && (await val(p, 'will_broker')) === 'Through company', 'None takes the untouched default away; a chosen broker stays');
   await p.screenshot({ path: process.argv[4] + '/priorities-broker.png' });
-  // ---- a file saved before these rules existed (the Roquelle file) ----
+  // ---- a file saved before these rules existed (the Rosalind file) ----
   p = await fresh();
   const json = await p.evaluate(() => {
     const s = FF.store.blank(), set = (id, v, st) => { s.f[id] = { v, st: st || 'heard' }; };
-    set('fname', 'Roquelle'); set('d_desk', '90'); set('d_trav', '10'); set('pr_life', FF.schema.PRIORITY, 'confirmed'); set('pr_med', FF.schema.PRIORITY, 'confirmed'); set('has_risk', 'Yes'); set('has_inv', 'Yes'); set('ma', 'Medical aid'); set('pr_life_cm', 'First priority: relook at the risk covers');
+    set('fname', 'Rosalind'); set('d_desk', '90'); set('d_trav', '10'); set('pr_life', FF.schema.PRIORITY, 'confirmed'); set('pr_med', FF.schema.PRIORITY, 'confirmed'); set('has_risk', 'Yes'); set('has_inv', 'Yes'); set('ma', 'Medical aid'); set('pr_life_cm', 'First priority: relook at the risk covers');
     s.l.risk = [{ d: { prov: 'Liberty', spend: 'R 2 231.35', broker: '', notes: '' }, st: 'heard' }];
     s.l.inv = [{ d: { type: 'Other', prov: 'FNB', val: 'R 11 000.00', prem: 'R 200.00', broker: '' }, st: 'confirmed' }];
     const o = JSON.parse(FF.store.toJSON(s)); delete o.focus; return JSON.stringify(o);

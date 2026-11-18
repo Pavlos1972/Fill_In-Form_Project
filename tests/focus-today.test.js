@@ -111,7 +111,7 @@ test('Claude is told today\'s date in every request: the voice line, the catch-u
 });
 
 test('a schedule is sent with the notes of its own page, so "No need to send through" and "she already emailed it" are read against it', () => {
-  const s = fresh(); set(s, 'fname', 'Roquelle'); set(s, 'has_risk', 'Yes'); set(s, 'ps_risk', schema.psClient.risk); set(s, 'has_inv', 'Yes'); set(s, 'has_ra', 'Yes'); set(s, 'has_pp', 'No');
+  const s = fresh(); set(s, 'fname', 'Rosalind'); set(s, 'has_risk', 'Yes'); set(s, 'ps_risk', schema.psClient.risk); set(s, 'has_inv', 'Yes'); set(s, 'has_ra', 'Yes'); set(s, 'has_pp', 'No');
   store.addRow(s, 'risk', { prov: 'Liberty' }); store.addRow(s, 'inv', { prov: 'FNB' }); store.addRow(s, 'ret_ra', { prov: 'Allan Gray' });
   set(s, 'n_cover', '- Client already sent the Liberty policy schedule to us via email\n- Needs to check emails'); set(s, 'n_inv', 'No need to send through'); set(s, 'n_retire', '   ');
   const by = {}; A.facts(s).schedules.forEach(x => { by[x.what] = x; });
@@ -131,7 +131,7 @@ test('the action points prompt says the notes decide: no point for a schedule no
 });
 
 test('a green area is sent with the notes of its own pages', () => {
-  const s = fresh(); set(s, 'fname', 'Roquelle'); set(s, 'pr_life', GO); set(s, 'pr_will', GO); set(s, 'pr_st', GO);
+  const s = fresh(); set(s, 'fname', 'Rosalind'); set(s, 'pr_life', GO); set(s, 'pr_will', GO); set(s, 'pr_st', GO);
   set(s, 'n_cover', 'Liberty schedule: client says she emailed it'); set(s, 'n_will', 'Draft not signed'); set(s, 'n_sti', ''); set(s, 'n_inv', 'No need to send through');
   const a = A.focusFacts(s).areas;
   assert.deepStrictEqual(a.map(x => [x.number, x.notes]), [[1, ['Liberty schedule: client says she emailed it']], [7, ['Draft not signed']], [8, undefined]]);

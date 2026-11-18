@@ -307,7 +307,7 @@ function openaiRig(extra) {
   const said = [], notes = [], errors = [], calls = []; let chunk = null;
   const reply = (status, body, delay) => new Promise(r => setTimeout(() => r({ ok: status === 200, status, json: () => Promise.resolve(body) }), delay || 0));
   const lsn = L.create(Object.assign({
-    engine: 'openai', openaiKey: 'sk-test', openaiModel: 'gpt-4o-transcribe', openaiWarm: false, prompt: last => 'Names: Paul Kafentzis, Vicky Zachos.' + (last ? ' Before: ' + last : ''),
+    engine: 'openai', openaiKey: 'sk-test', openaiModel: 'gpt-4o-transcribe', openaiWarm: false, prompt: last => 'Names: Paul Kafentzis, Vera Zeller.' + (last ? ' Before: ' + last : ''),
     mic: onChunk => { chunk = onChunk; return Promise.resolve({ label: 'Test mic', close() {} }); },
     fetchImpl: (url, init) => { calls.push({ url, init }); return (extra && extra.reply ? extra.reply(calls.length, reply) : reply(200, { text: ' My surname is Kafentzis. ' })); },
     text: (t, m) => said.push([t, m]), note: n => notes.push(n), state: (s, d) => { if (s === 'error') errors.push(d.message); }
@@ -327,7 +327,7 @@ test('OpenAI transcription: a spoken line is sent as a WAV with the names to lis
   assert.strictEqual(init.headers.Authorization, 'Bearer sk-test');
   assert.strictEqual(form.get('model'), 'gpt-4o-transcribe');
   assert.strictEqual(form.get('language'), 'en');
-  assert.match(form.get('prompt'), /Paul Kafentzis, Vicky Zachos/);
+  assert.match(form.get('prompt'), /Paul Kafentzis, Vera Zeller/);
   const wav = Buffer.from(await form.get('file').arrayBuffer());
   assert.strictEqual(wav.toString('latin1', 0, 4), 'RIFF');
   assert.strictEqual(wav.toString('latin1', 8, 12), 'WAVE');

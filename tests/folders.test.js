@@ -35,7 +35,7 @@ test('names: case, accents, apostrophes and spaces do not matter; the first name
   assert.ok(F.clientMatches('Kuiper, Annabel', 'kuiper', 'ANNABEL'));
   assert.ok(F.clientMatches('Kuiper, Annabel', 'Kuiper', 'Annabel Maria'), 'the folder has one first name, the form has two');
   assert.ok(F.clientMatches('Kuiper, Annabel Maria', 'Kuiper', 'Annabel'), 'and the other way round');
-  assert.ok(F.clientMatches('van der Merwe, Mary', 'Van der Merwe', 'Mary'), 'Van / van');
+  assert.ok(F.clientMatches('van der Merwe, Marlene', 'Van der Merwe', 'Marlene'), 'Van / van');
   assert.ok(F.clientMatches('Du Plessis,  Zoë', 'du plessis', 'Zoe'), 'accents and repeated spaces');
   assert.ok(F.clientMatches('O’Brien, Sean', "O'Brien", 'Sean'), 'a curly and a straight apostrophe');
   assert.ok(!F.clientMatches('Kuiper, Anna', 'Kuiper', 'Annabel'), 'Anna is not Annabel');
@@ -133,8 +133,8 @@ test('a client under 1. ON HOLD or 2. Awaiting compliance in New Business, and u
   r = await F.resolveTarget(roots(A2), info()); assert.ok(r.pick, 'in the second folder');
   const B = new Dir('ClientFiles'); B.add('J - Files', 'Jansen, Elmer', 'Jansen, Elmer - (OM - Personal)', 'Applications'); B.add('K - Files', 'Kuiper, Annabel', 'Kuiper, Annabel - (BR - Personal)', 'Applications');
   r = await F.resolveTarget(roots(null, B), info()); assert.ok(r.pick); assert.deepStrictEqual(F.relOf(r.pick).slice(0, 2), ['K - Files', 'Kuiper, Annabel']);
-  const B3 = new Dir('ClientFiles'); B3.add('V - Files', 'Van der Merwe, Mary', 'Van der Merwe, Mary - (OM - Personal)', 'Applications'); B3.add('V - Files', 'Van der Merwe, Anton', 'x', 'Applications');
-  r = await F.resolveTarget(roots(null, B3), info({ sname: 'Van der Merwe', fname: 'Mary', insurers: F.insurerWords('Old Mutual', SRS.abbr), premium: 0 })); assert.ok(r.pick && r.pick.client.parts[1] === 'Van der Merwe, Mary', 'V - Files, and Mary not Anton');
+  const B3 = new Dir('ClientFiles'); B3.add('V - Files', 'Van der Merwe, Marlene', 'Van der Merwe, Marlene - (OM - Personal)', 'Applications'); B3.add('V - Files', 'Van der Merwe, Andries', 'x', 'Applications');
+  r = await F.resolveTarget(roots(null, B3), info({ sname: 'Van der Merwe', fname: 'Marlene', insurers: F.insurerWords('Old Mutual', SRS.abbr), premium: 0 })); assert.ok(r.pick && r.pick.client.parts[1] === 'Van der Merwe, Marlene', 'V - Files, and Mary not Anton');
   const B4 = new Dir('ClientFiles'); B4.add('M - Files', 'Kuiper, Annabel', 'Kuiper, Annabel - (BR - Personal)', 'Applications'); B4.add('K - Files', 'Someone, Else');
   r = await F.resolveTarget(roots(null, B4), info()); assert.ok(r.pick, 'last resort: the other letter folders');
   r = await F.resolveTarget(roots(A, B), info({ sname: 'Nobody', fname: 'Here' })); assert.strictEqual(r.reason, 'client', 'not found anywhere');
@@ -193,4 +193,93 @@ test('what is kept in the browser holds no real path: the code has no Windows pa
     assert.ok(!/liferisk/i.test(s), f + ' must not hold the adviser’s company domain');
   });
   assert.deepStrictEqual(F.getPaths(), {}, 'no localStorage in Node: nothing stored');
+});
+
+/* ---------------- Fact Find 5.2: the client's own "2. Fact Find" folder (no deal folder) ---------------- */
+const ffInfo = o => Object.assign({ kind: 'factfind', sname: 'Kuiper', fname: 'Annabel' }, o || {});
+const snapshot = d => { const out = []; (function walk(x, p) { for (const [n, h] of x.kids) { out.push(p + n + (h.kind === 'directory' ? '/' : '')); if (h.kind === 'directory') walk(h, p + n + '/'); } })(d, ''); return out.sort().join('|'); };
+
+test('Fact Find 5.2: the client\'s "2. Fact Find" folder is the target, directly inside the client\'s folder', async () => {
+  const A = new Dir('NewBusiness'), k = A.add('Kuiper, Annabel'); std(k); k.add('Kuiper, Annabel - (BR - Personal - R 2,507.64 p.m.)', 'Applications');
+  const r = await F.resolveFactFind(roots(A), ffInfo());
+  assert.ok(r.pick && r.reason === 'only', 'one folder, no question');
+  assert.deepStrictEqual(F.relOf(r.pick), ['Kuiper, Annabel', '2. Fact Find']);
+  assert.strictEqual(F.labelOf(r.pick), 'Kuiper, Annabel \\ 2. Fact Find', 'the words of the status line');
+  assert.strictEqual(r.pick.apps, k.kids.get('2. Fact Find'), 'the folder the file is written into');
+  assert.strictEqual(r.pick.client.rootKey, 'A');
+});
+
+test('Fact Find 5.2: the first meeting: the client\'s folder is missing, so the page falls back and starts in the connected root', async () => {
+  const A = new Dir('NewBusiness'); A.add('Zulu, Zandile'); const B = new Dir('ClientFiles'); B.add('K - Files', 'Someone, Else');
+  const before = snapshot(A) + '#' + snapshot(B);
+  let r = await F.resolveFactFind(roots(A, B), ffInfo()); assert.strictEqual(r.reason, 'client'); assert.strictEqual(r.deepest, A, 'New Business is the deepest folder found');
+  r = await F.resolveFactFind(roots(null, B), ffInfo()); assert.strictEqual(r.reason, 'client'); assert.strictEqual(r.deepest, B, 'only Client Files connected: that one');
+  r = await F.resolveFactFind(roots(A, B), ffInfo({ sname: '', fname: '' })); assert.strictEqual(r.reason, 'names'); assert.strictEqual(r.deepest, A);
+  assert.strictEqual(snapshot(A) + '#' + snapshot(B), before, 'nothing was created, renamed or removed');
+});
+
+test('Fact Find 5.2: the client\'s folder is there but has no "2. Fact Find" yet: the reason is "ff" and the client\'s folder is the deepest folder; nothing is created', async () => {
+  const A = new Dir('NewBusiness'), k = A.add('Kuiper, Annabel'); k.add('1. Overview'); k.add('3. Quotes');
+  const before = snapshot(A);
+  const r = await F.resolveFactFind(roots(A), ffInfo()); assert.strictEqual(r.reason, 'ff'); assert.strictEqual(r.deepest, k);
+  assert.strictEqual(snapshot(A), before, 'the missing folder is not made');
+  for (const bad of ['Fact Find', '2. Fact Find Old', '12. Fact Find', '2. Fact Finds', '2 Fact Find']) {
+    const A2 = new Dir('NewBusiness'); A2.add('Kuiper, Annabel', bad);
+    assert.strictEqual((await F.resolveFactFind(roots(A2), ffInfo())).reason, 'ff', '"' + bad + '" is not the Fact Find folder');
+  }
+  for (const good of ['2.Fact Find', '2. fact  find', '2.  FACT FIND']) {
+    const A3 = new Dir('NewBusiness'); A3.add('Kuiper, Annabel', good);
+    assert.ok((await F.resolveFactFind(roots(A3), ffInfo())).pick, '"' + good + '" is');
+  }
+});
+
+test('Fact Find 5.2: a client in Client Files (the letter folder, then the top level; the letter is the first letter of the surname as written)', async () => {
+  const B = new Dir('ClientFiles'); std(B.add('K - Files', 'Kuiper, Annabel'));
+  let r = await F.resolveFactFind(roots(null, B), ffInfo()); assert.ok(r.pick); assert.deepStrictEqual(F.relOf(r.pick), ['K - Files', 'Kuiper, Annabel', '2. Fact Find']); assert.strictEqual(r.pick.client.rootKey, 'B');
+  const B2 = new Dir('ClientFiles'); std(B2.add('V - Files', 'Van der Merwe, Marlene'));
+  r = await F.resolveFactFind(roots(null, B2), ffInfo({ sname: 'Van der Merwe', fname: 'Marlene' })); assert.ok(r.pick); assert.deepStrictEqual(F.relOf(r.pick).slice(0, 2), ['V - Files', 'Van der Merwe, Marlene']);
+  const B3 = new Dir('ClientFiles'); std(B3.add('Kuiper, Annabel'));
+  r = await F.resolveFactFind(roots(null, B3), ffInfo()); assert.ok(r.pick, 'the top level of Client Files too');
+  const A = new Dir('NewBusiness'); std(A.add('1. ON HOLD', 'Kuiper, Annabel'));
+  r = await F.resolveFactFind(roots(A), ffInfo()); assert.deepStrictEqual(F.relOf(r.pick), ['1. ON HOLD', 'Kuiper, Annabel', '2. Fact Find'], 'and under 1. ON HOLD in New Business');
+});
+
+test('Fact Find 5.2: the same client in both places: one "2. Fact Find" is taken, two are a list with New Business first', async () => {
+  const A = new Dir('NewBusiness'), B = new Dir('ClientFiles');
+  std(A.add('Kuiper, Annabel')); std(B.add('K - Files', 'Kuiper, Annabel'));
+  let r = await F.resolveFactFind(roots(A, B), ffInfo()); assert.ok(r.ask && r.ask.length === 2 && r.ask[0].client.rootKey === 'A' && r.ask[1].client.rootKey === 'B', 'the adviser picks');
+  const B2 = new Dir('ClientFiles'); B2.add('K - Files', 'Kuiper, Annabel', '1. Overview');
+  r = await F.resolveFactFind(roots(A, B2), ffInfo()); assert.ok(r.pick && r.pick.client.rootKey === 'A', 'the history folder has no "2. Fact Find": New Business');
+  const A2 = new Dir('NewBusiness'); A2.add('Kuiper, Annabel', '1. Overview'); const B3 = new Dir('ClientFiles'); std(B3.add('K - Files', 'Kuiper, Annabel'));
+  r = await F.resolveFactFind(roots(A2, B3), ffInfo()); assert.ok(r.pick && r.pick.client.rootKey === 'B', 'only Client Files has one');
+});
+
+test('Fact Find 5.2: a Fact Find that was opened from inside a connected folder gives the client\'s folder exactly, and its PDF goes beside it', async () => {
+  const A = new Dir('NewBusiness'), k = A.add('Kuiper, Annabel'); std(k); const dir = k.kids.get('2. Fact Find'); const ff = dir.addFile('Fact Find (Audio to Text) - 12.11.26 - (Annabel Kuiper).json', 100);
+  k.add('Kuiper, Annabel - (BR - Personal)', 'Applications').addFile('x.json', 5);
+  const r = await F.resolveFactFind(roots(A), ffInfo({ sname: 'Kuiper', fname: 'Annabel Maria' }), { hints: [ff] });
+  assert.ok(r.pick, 'the file\'s own place gives the folder'); assert.strictEqual(r.pick.apps, dir);
+  const sib = await F.dirOfFile(roots(A), ff, F.RULES.factFind); assert.ok(sib && sib.handle === dir && sib.parts.join('/') === 'Kuiper, Annabel/2. Fact Find', 'the PDF goes beside the Fact Find');
+  assert.strictEqual(await F.dirOfFile(roots(A), ff), null, 'by default only an Applications folder counts (the applications)');
+  const app = k.kids.get('Kuiper, Annabel - (BR - Personal)').kids.get('Applications').kids.get('x.json');
+  assert.strictEqual(await F.dirOfFile(roots(A), app, F.RULES.factFind), null, 'a file in Applications is not beside a Fact Find');
+  assert.ok(await F.dirOfFile(roots(A), app), 'but is for an application');
+});
+
+test('Fact Find 5.2: the Windows path check counts the client\'s folder, "2. Fact Find", the file name and Chrome\'s 7 extra characters', () => {
+  const name = 'Fact Find (Audio to Text) - 04.11.26 - (Annabel Maria Kuiper).json';
+  const ok = F.pathCheck('C:\\Users\\tester\\NewBusiness', ['Kuiper, Annabel', '2. Fact Find'], name);
+  assert.ok(ok.known && ok.ok && ok.length === 'C:\\Users\\tester\\NewBusiness\\Kuiper, Annabel\\2. Fact Find\\'.length + name.length && ok.swap === ok.length + 7);
+  const long = F.pathCheck('C:\\' + 'x'.repeat(190), ['Kuiper, Annabel', '2. Fact Find'], name);
+  assert.ok(long.known && !long.ok && long.over > 0 && long.longest.name === 'Kuiper, Annabel');
+  assert.match(F.tooLongText(long, name), /Nothing was written there/);
+});
+
+test('Fact Find 5.2: the Fact Find page is wired to the same folders (scripts, the Folders button, kind factfind, the same stored connection)', () => {
+  const html = fs.readFileSync(path.join(__dirname, '..', 'app', 'index.html'), 'utf8'), ui = fs.readFileSync(path.join(__dirname, '..', 'app', 'js', 'ui.js'), 'utf8');
+  assert.ok(html.includes('id="btnFolders"') && html.includes('css/folders.css') && html.indexOf('js/folders.js') > 0 && html.indexOf('js/folders-ui.js') > html.indexOf('js/folders.js') && html.indexOf('js/ui.js') > html.indexOf('js/folders-ui.js'));
+  assert.ok(/FU\.open\(\{ kind: 'factfind', info: folderInfo\(\)/.test(ui) && /\{ auto: !forceAs \}/.test(ui) && /\{ auto: true, sibling: fileHandle \}/.test(ui), 'a first Save and the PDF look for the folder; Save as does not');
+  assert.ok(/FF\.foldersUI\.connect\(\)/.test(ui) && /FF\.foldersUI\.init\(folderNote\)/.test(ui));
+  const fu = fs.readFileSync(path.join(__dirname, '..', 'app', 'js', 'folders-ui.js'), 'utf8');
+  assert.ok(fu.includes("loadHandle('A')") && fu.includes("loadHandle('B')") && fu.includes("'wr-folder-' + k.toLowerCase()"), 'the same two stored folders and picker ids as the Risk Application and the Investment Application');
 });

@@ -1,4 +1,4 @@
-/* Release 3.6: the faults of the 13 November meeting (Edwin Joubert) and of the audit that followed, each pinned by a test.
+/* Release 3.6: the faults of the 13 November meeting (Elmer Jonker) and of the audit that followed, each pinned by a test.
    Money and dates, the debt payer split, credit life, action points, the Priorities box, and the voice behaviour. */
 const test = require('node:test');
 const assert = require('node:assert');
@@ -12,7 +12,7 @@ const fresh = () => store.blank();
 const set = (s, id, v, st) => store.setField(s, id, v, st);
 const ctx = s => store.ctxFor(s);
 
-test('the version is 5.1 (3.6 added what this file tests)', () => { assert.strictEqual(schema.version, '5.1'); });
+test('the version is 5.2 (3.6 added what this file tests)', () => { assert.strictEqual(schema.version, '5.2'); });
 
 /* ---------- money and dates ---------- */
 test('number words with "and a half" and ranges: read right, or not read at all', () => {
@@ -116,7 +116,7 @@ const S = require('../app/js/summary.js');
 const sets = (s, o) => { Object.keys(o).forEach(k => set(s, k, o[k])); return s; };
 
 test('credit life is asked only for a home loan, vehicle finance or personal loan with a lender that the client pays; never for a cell phone, a person, a card or a paid-up debt', () => {
-  const s = fresh(); set(s, 'fname', 'Edwin');
+  const s = fresh(); set(s, 'fname', 'Elmer');
   store.addRow(s, 'debts', { type: 'Vehicle finance', prov: 'Wesbank', payer: 'Client', bal: 'R 550 000.00', cl: 'Not sure' });
   store.addRow(s, 'debts', { type: 'Other', desc: 'Cell phone', payer: 'Business', bal: 'R 20 000.00' });
   store.addRow(s, 'debts', { prov: 'Lily' });                                                       // the stray row of 13 November: a name in Loan provider, nothing else
@@ -124,7 +124,7 @@ test('credit life is asked only for a home loan, vehicle finance or personal loa
   store.addRow(s, 'debts', { type: 'Home loan', prov: 'ABSA', payer: 'Spouse', bal: 'R 900 000.00' });
   store.addRow(s, 'debts', { type: 'Personal loan', prov: 'Capitec', payer: 'Client', bal: 'R 0.00' });      // paid up
   assert.deepStrictEqual(A.facts(s).credit_life.map(c => [c.debt, c.lender, c.credit_life]), [['vehicle finance', 'Wesbank', 'not sure']]);
-  assert.match(A.local(s).join('\n'), /Ask the client Edwin whether there is credit life with Wesbank on the vehicle finance \(the client was not sure\)\./);
+  assert.match(A.local(s).join('\n'), /Ask the client Elmer whether there is credit life with Wesbank on the vehicle finance \(the client was not sure\)\./);
   store.addRow(s, 'debts', { type: 'Credit card', prov: 'Discovery Bank', payer: 'Client', bal: 'R 4 000.00', cl: 'Yes' });
   assert.ok(A.facts(s).credit_life.some(c => c.debt === 'credit card' && c.credit_life === 'Yes'), 'a card the client says has credit life is listed');
 });
@@ -154,15 +154,15 @@ test('hidden lists never feed points or totals', () => {
 });
 
 test('a last look drops a point about group risk, pension schedules or credit life that the form does not hold', () => {
-  const s = fresh(); set(s, 'fname', 'Edwin'); set(s, 'has_group', 'No'); set(s, 'has_pp', 'No');
-  const kept = A.checkPoints(s, ['Ask the client Edwin how the current policy schedules for the group risk benefits will be provided.', 'Ask the client Edwin how the current pension and provident fund schedules will be provided.',
-    'Ask the client Edwin whether there is credit life on the cell phone.', 'Request a BrightRock Fractured Shortfall quote: BR Shortfall Quote based on BR FNA Quote minus Group Risk.', 'Send the client Edwin the LOA to sign.']);
-  assert.deepStrictEqual(kept, ['Request a BrightRock Fractured Shortfall quote: BR Shortfall Quote based on BR FNA Quote minus Group Risk.', 'Send the client Edwin the LOA to sign.']);
-  assert.ok(!/group risk|provident|credit life/i.test(A.text(['Ask the client Edwin about the group risk benefits schedules.'], s)));
+  const s = fresh(); set(s, 'fname', 'Elmer'); set(s, 'has_group', 'No'); set(s, 'has_pp', 'No');
+  const kept = A.checkPoints(s, ['Ask the client Elmer how the current policy schedules for the group risk benefits will be provided.', 'Ask the client Elmer how the current pension and provident fund schedules will be provided.',
+    'Ask the client Elmer whether there is credit life on the cell phone.', 'Request a BrightRock Fractured Shortfall quote: BR Shortfall Quote based on BR FNA Quote minus Group Risk.', 'Send the client Elmer the LOA to sign.']);
+  assert.deepStrictEqual(kept, ['Request a BrightRock Fractured Shortfall quote: BR Shortfall Quote based on BR FNA Quote minus Group Risk.', 'Send the client Elmer the LOA to sign.']);
+  assert.ok(!/group risk|provident|credit life/i.test(A.text(['Ask the client Elmer about the group risk benefits schedules.'], s)));
 });
 
 test('the Priorities box: Recommend, Client, Come back with (at most three lines), and Claude\'s version has the same shape', () => {
-  const s = fresh(); sets(s, { fname: 'Edwin', pr_life: schema.PRIORITY, bf_fna_req: 'Request a quote', bf_fna_type: 'New Business', pref_spend: 'R 2 500.00' });
+  const s = fresh(); sets(s, { fname: 'Elmer', pr_life: schema.PRIORITY, bf_fna_req: 'Request a quote', bf_fna_type: 'New Business', pref_spend: 'R 2 500.00' });
   store.addRow(s, 'bfred', { req: 'Request a quote', type: 'New Business', amt: 'R 2 500.00' });
   store.addRow(s, 'debts', { type: 'Vehicle finance', prov: 'Wesbank', cl: 'Yes' });
   const t = A.focusLocal(s);
