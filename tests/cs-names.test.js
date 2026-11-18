@@ -111,8 +111,8 @@ test('an older saved file (1.0) opens as before, with every answer; the name fol
   assert.strictEqual(JSON.parse(store.toJSON(back)).schema, schema.version, 'saved again it carries the new version');
 });
 
-test('the version is 1.1 or later, and the page fetches the new scripts', () => {
+test('the version is 1.1 or later (1.2 now), and the page fetches the new scripts', () => {
   assert.ok(parseFloat(schema.version) >= 1.1);
   const html = fs.readFileSync(path.join(__dirname, '..', 'app', 'capture-sheet.html'), 'utf8');
-  assert.ok(/js\/cs-schema\.js\?v=20261117d/.test(html) && /js\/cs-store\.js\?v=20261117d/.test(html), 'the page fetches the new scripts');
+  assert.ok(/js\/cs-schema\.js\?v=20261118b/.test(html) && /js\/cs-store\.js\?v=20261118b/.test(html), 'the page fetches the new scripts');
 });

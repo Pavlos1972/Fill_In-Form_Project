@@ -59,7 +59,8 @@ test('every answer is in the PDF, as it is on the screen', () => {
 test('the title, the client, the insurer and the signature block are on it', () => {
   const s = filled(); store.setField(s, 'fname', 'Anna'); store.setField(s, 'sname', 'Kuiper');
   const out = pdf(s);
-  ['shortriskapplication', 'annakuiper', 'clientssignature', 'date'].forEach(x => assert.ok(out.includes(x), x));
+  ['riskapplication', 'annakuiper', 'clientssignature', 'date'].forEach(x => assert.ok(out.includes(x), x));
+  assert.ok(!out.includes('shortrisk'), 'the old name Short Risk Application is nowhere on the PDF (it is the Risk Application since 1.3)');
   assert.ok(out.includes(norm(s.f.insurer.v)) && out.includes(norm(s.f.product.v)));
 });
 

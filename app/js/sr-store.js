@@ -1,4 +1,4 @@
-/* The Short Risk Application's answers, and saving them. State is plain data so it can be saved as a file and reopened.
+/* The Risk Application's answers (called the Short Risk Application until 1.3), and saving them. State is plain data so it can be saved as a file and reopened.
    Each box holds { v, st }; st is empty, preset (set by the form itself), confirmed (typed, or agreed with the client) or verify (loaded from the Fact Find: to be checked with the client).
    Each row of a list holds { d: { column: text }, st }. */
 (function (root, factory) {
@@ -50,6 +50,27 @@
     return f.cond.eq !== undefined ? cur === f.cond.eq : cur !== f.cond.ne;
   }
 
+  /* ---------- the person paying the premium (1.3) ---------- */
+  /* When the policy owner is the one paying (Yes), the Account holder, the Contact number and the E-mail address in Banking start as the owner's: the client's own details when the owner is the client
+     (full names and surname, cell, e-mail), and the owner's own boxes (names and surname, cell; there is no owner e-mail) when it is someone else. They are "preset", a starting default the adviser can change:
+     a box the adviser typed in, or one still to verify, is never touched; a preset follows the boxes it comes from, and goes again when the owner is not paying (or the box it comes from is emptied).
+     A file that is opened keeps what it holds: this runs when one of these boxes changes, and after Load from Fact Find. */
+  var PAYER_SOURCES = ['ownerpays', 'owner', 'fname', 'sname', 'cell', 'email', 'ow_fn', 'ow_sn', 'ow_cell'];
+  function payerSource(state) {
+    var v = function (id) { return String(state.f[id].v == null ? '' : state.f[id].v).trim(); };
+    if (v('ownerpays') !== 'Yes') return null;
+    if (v('owner') === '' || v('owner') === schema.owners[0]) return { name: [v('fname'), v('sname')].filter(Boolean).join(' '), contact: v('cell'), email: v('email') };
+    return { name: [v('ow_fn'), v('ow_sn')].filter(Boolean).join(' '), contact: v('ow_cell'), email: '' };
+  }
+  function syncPayer(state) {
+    var src = payerSource(state);
+    [['acc_holder', 'name'], ['bank_contact', 'contact'], ['bank_email', 'email']].forEach(function (x) {
+      var b = state.f[x[0]], want = src ? tidy(x[0], src[x[1]]) : '';
+      if (b.v !== '' && b.st !== 'preset') return;
+      state.f[x[0]] = want === '' ? { v: '', st: 'empty' } : { v: want, st: 'preset' };
+    });
+  }
+
   /* ---------- changing a box ---------- */
   /* Day of call is worked out from the Date of call (it cannot be typed over). */
   function dayFrom(state) {
@@ -65,6 +86,7 @@
     }
     if (id === 'call_date') dayFrom(state);
     if (id === 'owner') { OWNER_BOXES.forEach(function (b) { state.f[b] = { v: '', st: 'empty' }; }); autoOwner(state); }
+    if (PAYER_SOURCES.indexOf(id) >= 0) syncPayer(state);
   }
   function setField(state, id, v, st) {
     if (!state.f[id]) return;
@@ -156,7 +178,7 @@
   function toJSON(state) { state.modified = new Date().toISOString(); return JSON.stringify(state, null, 2); }
   function fromJSON(text) {
     var j = JSON.parse(text);
-    if (!j || j.app !== APP_ID) throw new Error('This file is not a Wealth Revolution Short Risk Application.');
+    if (!j || j.app !== APP_ID) throw new Error('This file is not a Wealth Revolution Risk Application.');
     var s = blank();
     s.created = j.created || s.created; s.modified = j.modified || null;
     Object.keys(j.f || {}).forEach(function (id) {
@@ -200,6 +222,7 @@
     [['ow_fn', sp.first], ['ow_sn', sp.last], ['ow_id', c.id], ['ow_cell', c.cell]].forEach(function (x) {
       var v = tidy(x[0], x[1]); if (v !== '') state.f[x[0]] = { v: v, st: 'verify' };
     });
+    syncPayer(state);
     return true;
   }
   /* When there is exactly one person it could be and the owner's boxes are all empty, they are filled by themselves. */
@@ -208,7 +231,7 @@
   }
 
   /* ---------- Load from Fact Find ---------- */
-  /* Reads a saved Fact Find file (text) and fills what the Short Risk Application shares with it: the client's first names, surname, ID number, cell and work numbers, e-mail address and the children.
+  /* Reads a saved Fact Find file (text) and fills what the Risk Application shares with it: the client's first names, surname, ID number, cell and work numbers, e-mail address and the children.
      Only empty boxes are filled, and what is loaded is marked "verify" (amber) until it is agreed with the client; what has already been typed is never overwritten. A child already on the list is not added again.
      Returns { loaded: [labels], kept: [labels left alone because they already held something else], children: n, error } and changes the state. fileName is only recorded, to show where the details came from. */
   function loadFromFactFind(state, text, fileName) {
@@ -238,11 +261,12 @@
     });
     state.ff = cleanFF({ spouse: { name: ff('sp_name'), cell: ff('sp_tel') }, partners: ((j.l && j.l.shares) || []).map(function (r) { return r && r.d; }) });
     autoOwner(state);
+    syncPayer(state);
     state.from = { name: String(fileName || ''), at: new Date().toISOString() };
     return rep;
   }
 
   return { blank: blank, setField: setField, addRow: addRow, delRow: delRow, setCell: setCell, accept: accept, acceptAll: acceptAll, shown: shown, counts: counts, leftIn: leftIn,
     clientName: clientName, pdfFileName: pdfFileName, baseFileName: baseFileName, premiumLabel: premiumLabel, insurerShort: insurerShort, toJSON: toJSON, fromJSON: fromJSON, loadFromFactFind: loadFromFactFind,
-    pctNum: pctNum, tidy: tidy, productName: productName, ownerCandidates: ownerCandidates, fillOwnerFrom: fillOwnerFrom, autoOwner: autoOwner, APP_ID: APP_ID };
+    pctNum: pctNum, tidy: tidy, productName: productName, ownerCandidates: ownerCandidates, fillOwnerFrom: fillOwnerFrom, autoOwner: autoOwner, syncPayer: syncPayer, APP_ID: APP_ID };
 });

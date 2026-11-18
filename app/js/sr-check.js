@@ -1,4 +1,4 @@
-/* The Checks panel of the Short Risk Application: what is still to answer, and what looks wrong. Nothing here stops a save; it tells the adviser before the application goes to the insurer. */
+/* The Checks panel of the Risk Application: what is still to answer, and what looks wrong. Nothing here stops a save; it tells the adviser before the application goes to the insurer. */
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory(require('./util.js'), require('./sr-schema.js'), require('./sr-store.js'));
   else { root.SR = root.SR || {}; root.SR.check = factory(root.FF.util, root.SR.schema, root.SR.store); }
