@@ -1,4 +1,4 @@
-/* The Short Risk Application screen: draws the form from sr-schema.js, keeps the answers in sr-store.js, saves and reopens files, loads the client from a Fact Find, makes the PDF. */
+/* The Risk Application screen (called the Short Risk Application until 1.3): draws the form from sr-schema.js, keeps the answers in sr-store.js, saves and reopens files, loads the client from a Fact Find, makes the PDF. */
 (function () {
   var FF = window.FF, SR = window.SR, util = FF.util, schema = SR.schema, store = SR.store, check = SR.check;
   var $ = function (s) { return document.querySelector(s); };
@@ -68,7 +68,7 @@
   /* The draft in the browser is removed only once the file is on disk, read back and the same as what was written. */
   function saveJson(forceAs) {
     var text = store.toJSON(state), blob = new Blob([text], { type: 'application/json' });
-    writeFile(blob, currentBase() + '.json', 'Short Risk Application', '.json', forceAs ? null : fileHandle, 'short-risk-data', fileHandle).then(function (h) {
+    writeFile(blob, currentBase() + '.json', 'Risk Application', '.json', forceAs ? null : fileHandle, 'short-risk-data', fileHandle).then(function (h) {
       if (h) { fileHandle = h; fileBase = h.name.replace(/\.json$/i, ''); rememberHandle(h); }
       else if (!fileBase) fileBase = currentBase();
       return readBack(h, text).then(function (v) {
@@ -100,7 +100,7 @@
   }
   function chooseFile() {
     if (!window.showOpenFilePicker) { $('#fileIn').click(); return; }
-    window.showOpenFilePicker({ id: 'short-risk-data', types: [{ description: 'Short Risk Application', accept: { 'application/json': ['.json'] } }] })
+    window.showOpenFilePicker({ id: 'short-risk-data', types: [{ description: 'Risk Application', accept: { 'application/json': ['.json'] } }] })
       .then(function (hs) { return hs[0].getFile().then(function (f) { openFile(f, hs[0]); }); })
       .catch(function (e) { if (e && e.name !== 'AbortError') toast('Could not open: ' + e.message); });
   }
@@ -141,7 +141,34 @@
     var list = o.slice(); if (v && list.indexOf(v) < 0) list.push(v);
     return '<option value="">&nbsp;</option>' + list.map(function (x) { return '<option' + (x === v ? ' selected' : '') + '>' + esc(x) + '</option>'; }).join('');
   }
-  function inputHTML(attr, c, v, dl) {
+  /* A list that also lets you type your own (1.3): a real drop-down with the choices and, last, "Other (type it in)"; a text box beside it appears when that is chosen, or when the box holds something that is not in the
+     list (a typed answer, or an older file). The text box is the box (it carries data-f / data-l), so typing, saving and the PDF work as for any other box; the drop-down only fills it. */
+  var OTHER = '__other__';
+  function comboHTML(attr, c, v, label) {
+    var listed = c.o.indexOf(v) >= 0, other = v !== '' && !listed, dis = /(^|\s)disabled(\s|$)/.test(attr) ? ' disabled' : '';
+    return '<div class="combo' + (other ? ' typing' : '') + '"><select class="combosel"' + dis + ' aria-label="' + esc(label || '') + '"><option value="">&nbsp;</option>' +
+      c.o.map(function (x) { return '<option' + (x === v ? ' selected' : '') + '>' + esc(x) + '</option>'; }).join('') +
+      '<option value="' + OTHER + '"' + (other ? ' selected' : '') + '>Other (type it in)</option></select>' +
+      '<input type="text" class="combotxt" ' + attr + ' value="' + esc(v) + '" autocomplete="off"' + (other ? '' : ' hidden') + '></div>';
+  }
+  /* Bring the drop-down and the text box in step with what the box holds (after a change, or when the page repaints). */
+  function syncCombo(el) {
+    var box = el && el.closest ? el.closest('.combo') : null; if (!box) return;
+    var sel = box.querySelector('.combosel'), v = el.value, listed = v !== '' && [].some.call(sel.options, function (o) { return o.value === v && o.value !== OTHER; });
+    if (listed) { sel.value = v; box.classList.remove('typing'); el.hidden = true; }
+    else if (v !== '') { sel.value = OTHER; box.classList.add('typing'); el.hidden = false; }
+    else if (!box.classList.contains('typing')) { sel.value = ''; el.hidden = true; }
+    sel.disabled = el.disabled;
+  }
+  function comboPicked(sel) {
+    var box = sel.closest('.combo'), tx = box.querySelector('.combotxt');
+    if (sel.value === OTHER) { box.classList.add('typing'); tx.hidden = false; tx.value = ''; }
+    else { box.classList.remove('typing'); tx.hidden = true; tx.value = sel.value; }
+    tx.dispatchEvent(new Event('input', { bubbles: true })); tx.dispatchEvent(new Event('change', { bubbles: true }));
+    if (sel.value === OTHER) tx.focus();
+  }
+  function inputHTML(attr, c, v, dl, label) {
+    if (c.t === 'sel' && c.free && c.o) return comboHTML(attr, c, v, label);
     if (c.t === 'sel' && !c.free) return '<select ' + attr + '>' + optionsHTML(c.o, v) + '</select>';
     return '<input type="text" ' + attr + ' value="' + esc(v) + '"' + (c.o ? ' list="' + dl + '"' : '') + (c.hint ? ' placeholder="' + esc(c.hint) + '"' : (c.t === 'date' ? ' placeholder="dd/mm/yyyy"' : '')) + ' autocomplete="off">' +
       (c.o ? '<datalist id="' + dl + '">' + c.o.map(function (x) { return '<option value="' + esc(x) + '">'; }).join('') + '</datalist>' : '');
@@ -162,14 +189,14 @@
   function fieldHTML(f) {
     var b = state.f[f.id], opt = f.opt ? '<span class="opt">optional</span>' : '', cal = f.cal ? '<button type="button" class="calbtn" data-cal="' + f.id + '" tabindex="-1">calendar</button>' : '';
     return (f.id === 'ow_fn' ? helpHTML() : '') + '<label class="' + fieldClass(f) + '" data-field="' + f.id + '"><span class="l"><span>' + esc(f.l) + '</span>' + (f.cal ? '<span class="rt">' + cal + opt + '</span>' : opt) + '</span>' +
-      '<div class="box">' + inputHTML('data-f="' + f.id + '"' + (store.shown(state, f.id) ? '' : ' disabled') + (f.calc ? ' readonly tabindex="-1"' : ''), f, b.v, 'dl-' + f.id) + (f.cal ? '<input type="date" class="calpick" data-calpick="' + f.id + '" tabindex="-1" aria-hidden="true">' : '') + '<span class="st">' + badge(b.st, 'f:' + f.id, f.opt) + '</span></div>' + noteHTML(f.id) + '</label>';
+      '<div class="box">' + inputHTML('data-f="' + f.id + '"' + (store.shown(state, f.id) ? '' : ' disabled') + (f.calc ? ' readonly tabindex="-1"' : ''), f, b.v, 'dl-' + f.id, f.l) + (f.cal ? '<input type="date" class="calpick" data-calpick="' + f.id + '" tabindex="-1" aria-hidden="true">' : '') + '<span class="st">' + badge(b.st, 'f:' + f.id, f.opt) + '</span></div>' + noteHTML(f.id) + '</label>';
   }
   function rowHTML(key, r, i) {
     var L = schema.lists[key], bad = problemsOfRow(key, i).some(function (p) { return p.level === 'bad'; }) || problemsOfRow(key, i).length;
     return '<div class="rowcard s-' + r.st + (bad ? ' has-bad' : '') + '" data-row="' + key + '|' + i + '"><div class="rowhead"><b>' + esc(L.one) + ' ' + (i + 1) + '</b>' +
       (r.st === 'verify' ? badge('verify', 'l:' + key + ':' + i) : '') + '<span class="grow"></span><button type="button" class="x" data-del="' + key + '|' + i + '">Remove</button></div><div class="grid">' +
       L.cols.map(function (c) {
-        return '<label class="f"><span class="l"><span>' + esc(c.l) + '</span></span><div class="box">' + inputHTML('data-l="' + key + '|' + i + '|' + c.k + '"', { o: c.o }, r.d[c.k], 'dl-' + key + '-' + c.k) + '</div></label>';
+        return '<label class="f"><span class="l"><span>' + esc(c.l) + '</span></span><div class="box">' + inputHTML('data-l="' + key + '|' + i + '|' + c.k + '"', { t: c.o ? 'sel' : '', o: c.o, free: c.free }, r.d[c.k], 'dl-' + key + '-' + c.k, c.l) + '</div></label>';
       }).join('') + '</div></div>';
   }
   function sumHTML(key) {
@@ -211,7 +238,7 @@
     var f = schema.fieldsById[id], c = state.f[id], wrap = el.closest('.f'), on = store.shown(state, id);
     if (el.tagName === 'SELECT' && c.v && ![].some.call(el.options, function (o) { return o.value === c.v; })) el.insertAdjacentHTML('beforeend', '<option>' + esc(c.v) + '</option>');
     if (el.value !== c.v) el.value = c.v;
-    el.disabled = !on;
+    el.disabled = !on; syncCombo(el);
     wrap.className = fieldClass(f);
     var st = wrap.querySelector('.st'); if (st) st.innerHTML = badge(c.st, 'f:' + id, f.opt);
     var note = wrap.querySelector('.note-line'), p = problemsFor(id)[0];
@@ -240,7 +267,7 @@
     last = check.run(state);
     var name = store.clientName(state), c = store.counts(state);
     $('#clientName').textContent = name || 'New client';
-    document.title = 'Short Risk Application' + (name ? ' - ' + name : '');
+    document.title = 'Risk Application' + (name ? ' - ' + name : '');
     $('#saveState').textContent = (fileBase ? fileBase + ' · ' : '') + (dirty ? 'unsaved changes' : (lastSaved ? 'saved ' + lastSaved.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'no changes'));
     $('#sFilled').textContent = c.filled; $('#sVerify').textContent = c.verify; $('#sEmpty').textContent = c.left;
     $('#btnAgree').hidden = !c.verify;
@@ -286,9 +313,10 @@
   });
   $('#main').addEventListener('change', function (e) {
     var el = e.target, id = el.getAttribute('data-f'), lp = el.getAttribute('data-l'), cp = el.getAttribute('data-calpick');
+    if (el.classList && el.classList.contains('combosel')) { comboPicked(el); return; }
     if (cp) { store.setField(state, cp, el.value); touch(); paintAll(); return; }
     if (id) { store.setField(state, id, el.value); touch(); paintAll(); }
-    else if (lp) { var q = pathOf(lp); store.setCell(state, q[0], +q[1], q[2], el.value); touch(); el.value = state.l[q[0]][+q[1]].d[q[2]]; paintAll(); }
+    else if (lp) { var q = pathOf(lp); store.setCell(state, q[0], +q[1], q[2], el.value); touch(); el.value = state.l[q[0]][+q[1]].d[q[2]]; syncCombo(el); paintAll(); }
   });
   $('#main').addEventListener('click', function (e) {
     var t = e.target.closest('[data-accept],[data-add],[data-del],[data-go],[data-cal],[data-ffpick]'); if (!t) return;

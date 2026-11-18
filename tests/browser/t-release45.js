@@ -10,8 +10,8 @@ let bad = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if
   await p.evaluate(() => {
     const S = FF.app.state, st = FF.store; st.addRow(S, 'meetings', {});            // the first press makes the meeting so far meeting 1 and adds the next
     const a = S.l.meetings[0].d, c = S.l.meetings[1].d;
-    a.date = '14/10/2026'; a.type = 'Teams Meeting'; a.who = 'Ryno Jansen van Vuuren'; a.covered = 'Client info';
-    c.date = '28/10/2026'; c.type = 'Teams Meeting'; c.who = 'Ryno Jansen van Vuuren';
+    a.date = '14/10/2026'; a.type = 'Teams Meeting'; a.who = 'Annabel Kuiper van Wyk'; a.covered = 'Client info';
+    c.date = '28/10/2026'; c.type = 'Teams Meeting'; c.who = 'Annabel Kuiper van Wyk';
     FF.app.redraw();
   });
   await p.waitForTimeout(300);

@@ -1,4 +1,4 @@
-/* The Investment Capture Sheet screen: draws the form from cs-schema.js, keeps the answers in cs-store.js, saves and reopens files, loads the client from a Fact Find, makes the PDF. */
+/* The Investment Application screen: draws the form from cs-schema.js, keeps the answers in cs-store.js, saves and reopens files, loads the client from a Fact Find, makes the PDF. */
 (function () {
   var FF = window.FF, CS = window.CS, util = FF.util, schema = CS.schema, store = CS.store, check = CS.check;
   var $ = function (s) { return document.querySelector(s); };
@@ -68,7 +68,7 @@
   /* The draft in the browser is removed only once the file is on disk, read back and the same as what was written. */
   function saveJson(forceAs) {
     var text = store.toJSON(state), blob = new Blob([text], { type: 'application/json' });
-    writeFile(blob, currentBase() + '.json', 'Investment Capture Sheet', '.json', forceAs ? null : fileHandle, 'capture-sheet-data', fileHandle).then(function (h) {
+    writeFile(blob, currentBase() + '.json', 'Investment Application', '.json', forceAs ? null : fileHandle, 'capture-sheet-data', fileHandle).then(function (h) {
       if (h) { fileHandle = h; fileBase = h.name.replace(/\.json$/i, ''); rememberHandle(h); }
       else if (!fileBase) fileBase = currentBase();
       return readBack(h, text).then(function (v) {
@@ -100,7 +100,7 @@
   }
   function chooseFile() {
     if (!window.showOpenFilePicker) { $('#fileIn').click(); return; }
-    window.showOpenFilePicker({ id: 'capture-sheet-data', types: [{ description: 'Investment Capture Sheet', accept: { 'application/json': ['.json'] } }] })
+    window.showOpenFilePicker({ id: 'capture-sheet-data', types: [{ description: 'Investment Application', accept: { 'application/json': ['.json'] } }] })
       .then(function (hs) { return hs[0].getFile().then(function (f) { openFile(f, hs[0]); }); })
       .catch(function (e) { if (e && e.name !== 'AbortError') toast('Could not open: ' + e.message); });
   }
@@ -125,7 +125,7 @@
       .then(function (hs) { return hs[0].getFile().then(function (f) { ffHandle = hs[0]; loadFactFind(f); }); })
       .catch(function (e) { if (e && e.name !== 'AbortError') toast('Could not open: ' + e.message); });
   }
-  /* Load from Short Risk file: the contact details, home address, bank and beneficiaries the client already gave on a saved Short Risk Application. */
+  /* Load from Short Risk file: the contact details, home address, bank and beneficiaries the client already gave on a saved Risk Application. */
   function loadShortRisk(file) {
     var r = new FileReader();
     r.onload = function () {
@@ -135,14 +135,14 @@
         var bits = [];
         if (rep.loaded.length) bits.push(rep.loaded.length + (rep.loaded.length === 1 ? ' box' : ' boxes'));
         if (rep.rows) bits.push(rep.rows + (rep.rows === 1 ? ' beneficiary' : ' beneficiaries'));
-        toast((bits.length ? 'Loaded ' + bits.join(' and ') + ' from the Short Risk Application. Check them with the client.' : 'Nothing new to load from that Short Risk Application.') + (rep.kept.length ? ' Left as typed: ' + rep.kept.join(', ') + '.' : ''), 8000);
-      } catch (e) { toast(e.message || 'Could not read that Short Risk Application.', 6000); }
+        toast((bits.length ? 'Loaded ' + bits.join(' and ') + ' from the Risk Application. Check them with the client.' : 'Nothing new to load from that Risk Application.') + (rep.kept.length ? ' Left as typed: ' + rep.kept.join(', ') + '.' : ''), 8000);
+      } catch (e) { toast(e.message || 'Could not read that Risk Application.', 6000); }
     };
     r.readAsText(file);
   }
   function chooseShortRisk() {
     if (!window.showOpenFilePicker) { $('#srIn').click(); return; }
-    window.showOpenFilePicker({ id: 'short-risk-data', types: [{ description: 'Short Risk Application', accept: { 'application/json': ['.json'] } }] })
+    window.showOpenFilePicker({ id: 'short-risk-data', types: [{ description: 'Risk Application', accept: { 'application/json': ['.json'] } }] })
       .then(function (hs) { return hs[0].getFile().then(function (f) { loadShortRisk(f); }); })
       .catch(function (e) { if (e && e.name !== 'AbortError') toast('Could not open: ' + e.message); });
   }
@@ -300,7 +300,7 @@
     last = check.run(state);
     var name = store.clientName(state), c = store.counts(state);
     $('#clientName').textContent = name || 'New client';
-    document.title = 'Investment Capture Sheet' + (name ? ' - ' + name : '');
+    document.title = 'Investment Application' + (name ? ' - ' + name : '');
     $('#saveState').textContent = (fileBase ? fileBase + ' · ' : '') + (dirty ? 'unsaved changes' : (lastSaved ? 'saved ' + lastSaved.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'no changes'));
     $('#sFilled').textContent = c.filled; $('#sVerify').textContent = c.verify; $('#sEmpty').textContent = c.left;
     $('#btnAgree').hidden = !c.verify;

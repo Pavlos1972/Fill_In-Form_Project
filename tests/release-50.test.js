@@ -62,7 +62,7 @@ test('a read-back that finds 0 bytes is marked .zero (and is tried again, like a
 });
 
 test('point 1: for NotFoundError (and a 0-byte read-back) the message tells the truth: the path is too long for Windows, the work is kept, and OneDrive is NOT blamed', () => {
-  const name = 'BR - Personal Covers Application - 17.11.26 - R 2,507.64 p.m. - (Ryno Jansen van Vuuren).json';
+  const name = 'BR - Personal Covers Application - 17.11.26 - R 2,507.64 p.m. - (Annabel Kuiper van Wyk).json';
   const zero = Object.assign(named('VerifyError', 'The file in the folder is 0 bytes, not the 22 that were written.'), { zero: true });
   [nf(), zero].forEach(err => {
     assert.strictEqual(util.saveFailKind(err), 'path');
@@ -104,11 +104,11 @@ test('point 3 and 4: all three pages mark a failed Save as UNSAVED with the draf
 
 test('the path limit in numbers (so the next session need not ask): the three pages\' longest names and the characters left for the folders', () => {
   const SR = require('../app/js/sr-store.js'), CS = require('../app/js/cs-store.js'), FF = require('../app/js/store.js');
-  const s = SR.blank(); SR.setField(s, 'insurer', 'BrightRock'); SR.setField(s, 'product', 'Personal Covers'); SR.setField(s, 'premium', '2507.64'); SR.setField(s, 'fname', 'Ryno'); SR.setField(s, 'sname', 'Jansen van Vuuren'); SR.setField(s, 'date', '17/11/2026');
+  const s = SR.blank(); SR.setField(s, 'insurer', 'BrightRock'); SR.setField(s, 'product', 'Personal Covers'); SR.setField(s, 'premium', '2507.64'); SR.setField(s, 'fname', 'Annabel'); SR.setField(s, 'sname', 'Kuiper van Wyk'); SR.setField(s, 'date', '17/11/2026');
   const sr = SR.pdfFileName(s) + '.json';
-  const c = CS.blank(); [['fname', 'Ryno'], ['sname', 'Jansen van Vuuren'], ['date', '17/11/2026'], ['provider', 'Old Mutual'], ['product', 'Retirement Annuity'], ['product_name', 'OM RA - Xtra Max 8.5%'], ['contrib_type', 'Lump sum'], ['amount', '1250000']].forEach(([k, v]) => CS.setField(c, k, v));
+  const c = CS.blank(); [['fname', 'Annabel'], ['sname', 'Kuiper van Wyk'], ['date', '17/11/2026'], ['provider', 'Old Mutual'], ['product', 'Retirement Annuity'], ['product_name', 'OM RA - Xtra Max 8.5%'], ['contrib_type', 'Lump sum'], ['amount', '1250000']].forEach(([k, v]) => CS.setField(c, k, v));
   const cs = CS.pdfFileName(c) + '.json';
-  const f = FF.blank(); FF.setField(f, 'fname', 'Ryno'); FF.setField(f, 'sname', 'Jansen van Vuuren');
+  const f = FF.blank(); FF.setField(f, 'fname', 'Annabel'); FF.setField(f, 'sname', 'Kuiper van Wyk');
   const ff = FF.pdfFileName(f) + '.json';
   assert.ok(sr.length > ff.length + 20 && cs.length > ff.length + 15, 'the Short Risk and Capture Sheet names are much longer than the Fact Find\'s: ' + [sr.length, cs.length, ff.length]);
   const LIMIT = 259, SWAP = '.crswap'.length;

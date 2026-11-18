@@ -110,7 +110,7 @@ test('the pauses can be set (tests and the page use util.WRITE_PAUSES); the defa
 
 test('the plain words: size, and what the page says for any OTHER error (OneDrive is named only here; NotFoundError has its own words, see release-50)', () => {
   assert.strictEqual(util.formatSize(500), '500 bytes'); assert.strictEqual(util.formatSize(86300), '84.3 KB'); assert.strictEqual(util.formatSize(2 * 1048576), '2 MB');
-  const t = util.saveFailText('BR - Personal Covers Application - 17.11.26 - R 2,507.64 p.m. - (Ryno Jansen van Vuuren).pdf', busy(), true);
+  const t = util.saveFailText('BR - Personal Covers Application - 17.11.26 - R 2,507.64 p.m. - (Annabel Kuiper van Wyk).pdf', busy(), true);
   assert.match(t, /^Could not save BR - Personal Covers Application/); assert.match(t, /OneDrive was busy syncing/); assert.match(t, /downloaded to your Downloads folder/); assert.match(t, /may now be EMPTY: do not use it/);
   assert.match(t, /Chrome said: The object can not be modified in this way\./);
   assert.ok(!/Downloads/.test(util.saveFailText('x.pdf', busy(), false)), 'no claim of a download when there was none');

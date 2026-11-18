@@ -25,8 +25,8 @@ test('the day is the weekday of the meeting date, and empty for no date or a bad
 
 test('a meeting row keeps its date, who and covered in the saved file', () => {
   const s = store.blank(); store.addRow(s, 'meetings', {});
-  const r = s.l.meetings[0]; r.d.date = '14/10/2026'; r.d.who = 'Ryno';
+  const r = s.l.meetings[0]; r.d.date = '14/10/2026'; r.d.who = 'Annabel';
   const j = JSON.parse(store.toJSON(s));
   assert.strictEqual(j.l.meetings[0].d.date, '14/10/2026');
-  assert.strictEqual(j.l.meetings[0].d.who, 'Ryno');
+  assert.strictEqual(j.l.meetings[0].d.who, 'Annabel');
 });

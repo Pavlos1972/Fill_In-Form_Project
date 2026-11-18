@@ -41,7 +41,7 @@
           var w = page.getSize().width, size = 6.5;
           page.drawText(footer, { x: (w - font.widthOfTextAtSize(footer, size)) / 2, y: 14, size: size, font: font, color: lib.rgb(0.35, 0.38, 0.42) });
         });
-        pdf.setTitle('Risk Tolerance Assessment - ' + name); pdf.setAuthor(planner); pdf.setSubject('Ref ' + reference); pdf.setCreator('Wealth Revolution Investment Capture Sheet');
+        pdf.setTitle('Risk Tolerance Assessment - ' + name); pdf.setAuthor(planner); pdf.setSubject('Ref ' + reference); pdf.setCreator('Wealth Revolution Investment Application');
         return pdf.save();
       });
     }).then(function (bytes) {

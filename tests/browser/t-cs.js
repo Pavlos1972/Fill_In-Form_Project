@@ -41,12 +41,12 @@ srv.listen(0, async () => {
   const scale = ['Strongly disagree', 'Disagree', 'Neither', 'Agree', 'Strongly agree'];
 
   // 1. the page
-  ok(await p.title() === 'Investment Capture Sheet', 'the page is called Investment Capture Sheet: ' + await p.title());
+  ok(await p.title() === 'Investment Application', 'the page is called Investment Application: ' + await p.title());
   ok(await p.evaluate(() => [...document.querySelectorAll('#nav button')].map(x => x.querySelector('span').textContent).join('|')) === 'Product & client|Contact & work|Beneficiaries & bank|Source of funds|Risk tolerance', 'five pages in the list on the left');
   ok(await p.evaluate(() => !document.querySelector('#btnVoice, #btnListen, #btnTimer, #btnSettings')), 'no voice, listen, meeting or settings buttons: this page needs no voice and no keys');
-  ok(/Version 1\.1/.test(await p.evaluate(() => document.querySelector('#verLine').textContent)), 'the top says the version');
-  ok(await p.evaluate(() => [...document.querySelectorAll('.top a.btn')].map(a => a.getAttribute('href')).join('|')) === 'index.html|short-risk.html', 'links to the Fact Find and the Short Risk Application in the top bar');
-  ok(await p.evaluate(() => ['btnLoad', 'btnLoadSR'].map(i => document.getElementById(i).textContent.replace(/\s+/g, ' ').trim()).join('|')) === 'Load from Fact Find…|Load from Short Risk file…', 'two Load buttons');
+  ok(/Version 1\.2/.test(await p.evaluate(() => document.querySelector('#verLine').textContent)), 'the top says the version');
+  ok(await p.evaluate(() => [...document.querySelectorAll('.top a.btn')].map(a => a.getAttribute('href')).join('|')) === 'index.html|short-risk.html', 'links to the Fact Find and the Risk Application in the top bar');
+  ok(await p.evaluate(() => ['btnLoad', 'btnLoadSR'].map(i => document.getElementById(i).textContent.replace(/\s+/g, ' ').trim()).join('|')) === 'Load from Fact Find…|Load from Risk Application file…', 'two Load buttons');
   ok(await p.evaluate(() => document.querySelector('[data-f="date"]').value === FF.util.todayDMY()), 'the date of application starts as today');
 
   // 2. product, Old Mutual's names, the file name
@@ -84,9 +84,9 @@ srv.listen(0, async () => {
   s = await st();
   ok(s.f.residential.v === '12 Example Street, Fourways, Johannesburg' && s.f.residential_code.v === '2191' && s.f.bank.v === 'Nedbank' && s.f.acc_no.v === '1234567890' && s.f.acc_holder.st === 'verify', 'Load from Short Risk file fills the home address, bank details (amber)');
   ok(s.l.benef.length === 2 && s.l.benef[0].d.name === 'Piet' && s.l.benef[0].d.sname === 'van der Merwe' && s.l.benef[0].st === 'verify', 'and the beneficiaries, with van der Merwe kept whole: ' + JSON.stringify(s.l.benef.map(r => r.d.sname)));
-  ok(/Loaded \d+ boxes? and 2 beneficiaries from the Short Risk Application/.test(await toast()), 'the message: ' + await toast());
+  ok(/Loaded \d+ boxes? and 2 beneficiaries from the Risk Application/.test(await toast()), 'the message: ' + await toast());
   await p.setInputFiles('#srIn', { name: 'x.json', mimeType: 'application/json', buffer: Buffer.from(factFindText()) }); await p.waitForTimeout(200);
-  ok(/not a Wealth Revolution Short Risk Application/.test(await toast()), 'a Fact Find given to Load from Short Risk file is refused: ' + await toast());
+  ok(/not a Wealth Revolution Risk Application/.test(await toast()), 'a Fact Find given to Load from Short Risk file is refused: ' + await toast());
   ok(await p.evaluate(() => !document.querySelector('#btnAgree').hidden && +document.querySelector('#sVerify').textContent >= 10), 'the Progress card counts what is to verify: ' + await p.evaluate(() => document.querySelector('#sVerify').textContent));
   await p.click('#btnAgree'); await p.waitForTimeout(150);
   ok(await p.evaluate(() => +document.querySelector('#sVerify').textContent === 0), 'Agree all loaded details clears them');
