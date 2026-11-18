@@ -55,3 +55,13 @@
 .main .f.calc input { background: var(--calc-soft); color: var(--calc); border-style: solid; }
 /* the call section is one row of three on a wide screen: Day, Date, Time */
 @media (min-width: 1200px) { .main [data-sec="call"] .grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+
+/* 1.3: a list that also lets you type your own: a real drop-down, and a text box beside it once "Other (type it in)" is chosen (or the box holds something that is not in the list). */
+.combo { display: flex; gap: 6px; flex: 1; min-width: 0; }
+.combo .combosel, .combo .combotxt { flex: 1 1 0; }
+.combo .combotxt[hidden] { display: none; }
+.combo.typing { flex-direction: column; }
+.combo.typing .combosel, .combo.typing .combotxt { flex: none; }
+.combo.typing .combosel { padding-right: 9px; }
+.combo.typing + .st { right: 10px; top: auto; bottom: 10px; transform: none; }
+.main .rowcard .combo .combosel, .main .rowcard .combo .combotxt { min-height: 38px; }

@@ -233,9 +233,9 @@ test('save and reopen: every box, both lists, the statuses and the Fact Find sou
   assert.strictEqual(back.l.kids[0].st, 'verify');
 });
 
-test('a file that is not a Short Risk Application is refused, also a Fact Find', () => {
-  assert.throws(() => store.fromJSON('{"app":"other"}'), /Short Risk Application/);
-  assert.throws(() => store.fromJSON(ffStore.toJSON(ffStore.blank())), /Short Risk Application/);
+test('a file that is not a Risk Application is refused, also a Fact Find', () => {
+  assert.throws(() => store.fromJSON('{"app":"other"}'), /Risk Application/);
+  assert.throws(() => store.fromJSON(ffStore.toJSON(ffStore.blank())), /Risk Application/);
   assert.throws(() => store.fromJSON('not json'));
 });
 
@@ -379,5 +379,5 @@ test('a file saved by version 1.0 opens with the owner as the client (empty or t
   assert.ok(!('lines' in s.f) && !('best_time' in s.f), 'the boxes that no longer exist are dropped');
   const newer = store.fromJSON(JSON.stringify({ app: 'wr-short-risk', schema: '1.1', f: { owner: { v: '', st: 'empty' } }, l: {} }));
   assert.strictEqual(newer.f.owner.v, '', 'a file saved by 1.1 or later is not migrated');
-  assert.strictEqual(schema.version, '1.2');
+  assert.strictEqual(schema.version, '1.3');
 });

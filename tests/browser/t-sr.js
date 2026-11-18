@@ -26,10 +26,17 @@ srv.listen(0, async () => {
   await p.goto(url); await p.waitForTimeout(300);
   const st = () => p.evaluate(() => SR.app.state);
   const val = sel => p.evaluate(s => document.querySelector(s).value, sel);
-  const type = async (id, v) => { await p.fill('[data-f="' + id + '"]', v); await p.press('[data-f="' + id + '"]', 'Tab'); await p.waitForTimeout(80); };
+  /* A list that also lets you type (1.3) is a drop-down with a text box that shows only after "Other (type it in)": pick the choice if it is in the list, otherwise choose Other and type, as a person does. */
+  const fillAny = async (sel, v) => {
+    const opts = await p.evaluate(s => { const e = document.querySelector(s), b = e && e.closest('.combo'); return b ? [...b.querySelector('.combosel').options].map(o => o.value) : null; }, sel);
+    if (!opts) { await p.fill(sel, v); return; }
+    await p.selectOption('.combo:has(' + sel + ') select', opts.indexOf(v) >= 0 ? v : '__other__');
+    if (opts.indexOf(v) < 0) await p.fill(sel, v);
+  };
+  const type = async (id, v) => { await fillAny('[data-f="' + id + '"]', v); await p.press('[data-f="' + id + '"]', 'Tab'); await p.waitForTimeout(80); };
   const pick = async (id, v) => {                                                              // a list of choices is a drop-down, or a box with a list when another answer may be typed
     const sel = '[data-f="' + id + '"]';
-    if (await p.evaluate(s => document.querySelector(s).tagName === 'SELECT', sel)) await p.selectOption(sel, v); else { await p.fill(sel, v); await p.press(sel, 'Tab'); }
+    if (await p.evaluate(s => document.querySelector(s).tagName === 'SELECT', sel)) await p.selectOption(sel, v); else { await fillAny(sel, v); await p.press(sel, 'Tab'); }
     await p.waitForTimeout(80);
   };
   const page = n => p.click('.nav button[data-page="' + n + '"]').then(() => p.waitForTimeout(150));
@@ -39,8 +46,8 @@ srv.listen(0, async () => {
   const screenshotHome = async () => { await p.evaluate(() => document.activeElement && document.activeElement.blur()); await p.screenshot({ path: shots + '/sr-home.png' }); };
 
   // 1. the page
-  ok(await p.title() === 'Short Risk Application', 'the page is called Short Risk Application: ' + await p.title());
-  ok(await p.evaluate(() => [...document.querySelectorAll('#nav button')].map(x => x.querySelector('span').textContent).join('|')) === 'Cover & client|Home & doctor|Banking|Family|Declarations', 'five pages in the list on the left');
+  ok(await p.title() === 'Risk Application', 'the page is called Risk Application: ' + await p.title());
+  ok(await p.evaluate(() => [...document.querySelectorAll('#nav button')].map(x => x.querySelector('span').textContent).join('|')) === 'Cover & client|Home COC & doctor|Banking|Dependents & Beneficiaries|Declarations & Replacements', 'five pages in the list on the left');
   ok(await p.evaluate(() => !document.getElementById('restoreDraft')), 'a first visit has no question');
   ok(await p.evaluate(() => !document.querySelector('#btnVoice, #btnListen, #btnTimer, #btnSettings')), 'no voice, listen, meeting or settings buttons: this page needs no voice and no keys');
   ok(await p.evaluate(() => +document.querySelector('#sEmpty').textContent === SR.store.counts(SR.app.state).left && +document.querySelector('#sEmpty').textContent > 0), 'the Progress card counts the boxes still to answer');
@@ -106,8 +113,8 @@ srv.listen(0, async () => {
   ok(await p.evaluate(() => SR.app.state.l.kids.length) === 2, 'and out of the saved data');
   await p.click('[data-add="benef"]'); await p.click('[data-add="benef"]'); await p.waitForTimeout(100);
   const ben = (i, c) => '[data-l="benef|' + i + '|' + c + '"]';
-  await p.fill(ben(0, 'name'), 'Jan Kuiper'); await p.fill(ben(0, 'relation'), 'Spouse'); await p.fill(ben(0, 'pct'), '60'); await p.press(ben(0, 'pct'), 'Tab');
-  await p.fill(ben(1, 'name'), 'Mia Kuiper'); await p.fill(ben(1, 'relation'), 'Child'); await p.fill(ben(1, 'pct'), '30'); await p.press(ben(1, 'pct'), 'Tab');
+  await p.fill(ben(0, 'name'), 'Jan Kuiper'); await fillAny(ben(0, 'relation'), 'Spouse'); await p.fill(ben(0, 'pct'), '60'); await p.press(ben(0, 'pct'), 'Tab');
+  await p.fill(ben(1, 'name'), 'Mia Kuiper'); await fillAny(ben(1, 'relation'), 'Child'); await p.fill(ben(1, 'pct'), '30'); await p.press(ben(1, 'pct'), 'Tab');
   ok(await val(ben(0, 'pct')) === '60%', 'a share is shown as a percentage: ' + await val(ben(0, 'pct')));
   ok(await p.evaluate(() => /90%/.test(document.querySelector('[data-sum="benef"]').innerText) && document.querySelector('[data-sum="benef"]').classList.contains('bad')) && /add up to 90%/.test(await checks()), 'shares of 60% and 30% are flagged: they must add up to 100%');
   await p.fill(ben(1, 'pct'), '40'); await p.press(ben(1, 'pct'), 'Tab');
@@ -167,7 +174,7 @@ srv.listen(0, async () => {
 
   // 7. fill the rest, then save
   const rest = { quote: 'Q-1', street_no: '5', street: 'Main Road', suburb: 'Sandton', city: 'Johannesburg', postal: '2196', acc_holder: 'A Kuiper', acc_no: '62012345678', title: 'Mrs' };
-  for (const k of Object.keys(rest)) { await page(await p.evaluate(id => SR.schema.pageOf[SR.schema.sectionOf[id]], k)); if (k === 'title') await p.fill('[data-f="title"]', 'Mrs'), await p.press('[data-f="title"]', 'Tab'); else await type(k, rest[k]); }
+  for (const k of Object.keys(rest)) { await page(await p.evaluate(id => SR.schema.pageOf[SR.schema.sectionOf[id]], k)); await type(k, rest[k]); }
   await page('bank'); await pick('bank', 'FNB'); await pick('acc_type', 'Cheque');
   await page('client'); await pick('ownerpays', 'Yes');
   await page('decl'); await pick('insolvent', 'No'); await pick('debt_review', 'No'); await pick('debt_help', 'No'); await pick('replace', 'No');
@@ -219,7 +226,7 @@ srv.listen(0, async () => {
   s = await st();
   ok(s.f.fname.v === 'Anna' && s.f.acc_no.v === '62012345678' && s.l.kids.length === 3 && s.l.benef.length === 2 && s.f.idno.st === 'confirmed', 'Open brings the whole application back, statuses included');
   await p.setInputFiles('#fileIn', { name: 'ff.json', mimeType: 'application/json', buffer: Buffer.from(factFindText()) }); await p.waitForTimeout(300);
-  ok(/not a Wealth Revolution Short Risk Application/.test(await toast()) && (await st()).f.fname.v === 'Anna', 'a Fact Find file given to Open is refused and the application stays: ' + await toast());
+  ok(/not a Wealth Revolution Risk Application/.test(await toast()) && (await st()).f.fname.v === 'Anna', 'a Fact Find file given to Open is refused and the application stays: ' + await toast());
 
   // 10. unsaved work is offered back, never shown on a blank form until chosen
   await page('client'); await type('quote', 'Q-CHANGED');

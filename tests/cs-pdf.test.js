@@ -70,7 +70,8 @@ test('every answer is in the PDF, as it is on the screen', () => {
 test('the title, the client and the signature block are on it, and the file’s own name rule is on the page footer', () => {
   const s = filled(); store.setField(s, 'fname', 'Anna'); store.setField(s, 'sname', 'Kuiper');
   const out = pdf(s);
-  ['investmentcapturesheet', 'annakuiper', 'clientssignature', 'date', 'wrinvestmentcapturesheetv' + schema.version.replace('.', '')].forEach(x => assert.ok(out.includes(x), x));
+  ['investmentapplication', 'annakuiper', 'clientssignature', 'date', 'wrinvestmentapplicationv' + schema.version.replace('.', '')].forEach(x => assert.ok(out.includes(x), x));
+  assert.ok(!out.includes('capturesheet'), 'the old name Investment Capture Sheet is nowhere on the PDF (it is the Investment Application since 1.2)');
 });
 test('the questionnaire’s 24 boxes are not in the application’s PDF: it has its own PDF; only the worked-out result is', () => {
   const s = answered(filled()), out = pdf(s);
