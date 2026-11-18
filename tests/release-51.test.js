@@ -16,9 +16,9 @@ const app = f => fs.readFileSync(path.join(__dirname, '..', 'app', f), 'utf8');
 const set = (s, id, v) => store.setField(s, id, v);
 const holder = s => [s.f.acc_holder, s.f.bank_contact, s.f.bank_email].map(b => b.v + '/' + b.st);
 
-test('versions: Fact Find 5.1, Risk Application 1.3, Investment Application 1.2; every page carries the same build', () => {
+test('versions: Fact Find 5.1, Risk Application 1.3 or later, Investment Application 1.2 or later; every page carries the same build', () => {
   assert.ok(parseFloat(schema.version) >= 5.1, schema.version);
-  assert.strictEqual(SR.version, '1.3'); assert.strictEqual(CS.version, '1.2');
+  assert.ok(parseFloat(SR.version) >= 1.3 && parseFloat(CS.version) >= 1.2, SR.version + ' ' + CS.version);
   ['index.html', 'short-risk.html', 'capture-sheet.html'].forEach(f => assert.ok(app(f).includes('<meta name="wr-build" content="' + schema.version + '">'), f));
 });
 

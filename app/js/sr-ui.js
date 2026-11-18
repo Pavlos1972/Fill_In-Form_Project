@@ -5,7 +5,7 @@
   var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
   var DRAFT_KEY = 'wr-short-risk-draft';
 
-  var state, cur = schema.pages[0].id, fileHandle = null, fileBase = '', dirty = false, onDisk = true, lastSaved = null, toastTimer = null, draftHold = false, last = { missing: [], problems: [] };
+  var state, cur = schema.pages[0].id, fileHandle = null, ffHandle = null, forceNormal = false, lastFolder = null, fileBase = '', dirty = false, onDisk = true, lastSaved = null, toastTimer = null, draftHold = false, last = { missing: [], problems: [] };
 
   /* ---------- drafts and saving (the Fact Find's way: a safety copy in the browser while work is unsaved, removed once a file is saved and read back) ---------- */
   function saveDraft() {
@@ -43,16 +43,29 @@
     if (startIn) o.startIn = startIn; else o.id = id;
     return o;
   }
-  /* Chrome's "Save as" window where there is one, otherwise a plain download. With a remembered file it writes straight back to it. */
   var lastWritten = null;                                                                  // what the last write was proved to be: { size, tries, checked }
-  function writeFile(blob, name, type, ext, handle, id, startIn) {
-    lastWritten = null;
+  /* Chrome's "Save as" window where there is one, otherwise a plain download. With a remembered file it writes straight back to it. For a first Save (o.auto) the client's folder is looked for first
+     (Folders…, folders.js and folders-ui.js): the file goes into the deal folder's Applications folder, or the normal Save window opens with the reason. */
+  function writeFile(blob, name, type, ext, handle, id, startIn, o) {
+    o = o || {}; lastWritten = null; if (!handle) lastFolder = null;                          // a straight rewrite of the same file keeps where it lives
     if (!window.showSaveFilePicker) { download(blob, name); return Promise.resolve(null); }
     var accept = {}; accept[blob.type] = [ext];
-    var open = handle
-      ? Promise.resolve(handle.requestPermission ? handle.requestPermission({ mode: 'readwrite' }) : 'granted').then(function (p) { if (p !== 'granted') throw new Error('Chrome did not allow changes to that file.'); return handle; })
-      : window.showSaveFilePicker(pickerOptions(name, type, accept, id, startIn));
-    return open.then(function (h) { return util.writeVerified(h, blob, { pdf: ext === '.pdf' }).then(function (r) { lastWritten = r; return h; }); });          // written, read back and, unless Chrome says NotFoundError (a path too long for Windows: it never works), tried again (util.writeVerified)
+    var FU = window.FF && FF.foldersUI;
+    var picker = function (start) { return window.showSaveFilePicker(pickerOptions(name, type, accept, id, start || startIn)); };
+    var open;
+    if (handle) {
+      open = Promise.resolve(handle.requestPermission ? handle.requestPermission({ mode: 'readwrite' }) : 'granted').then(function (p) { if (p !== 'granted') throw new Error('Chrome did not allow changes to that file.'); return { handle: handle }; });
+    } else if (o.auto && FU && !forceNormal) {
+      open = FU.open({ info: folderInfo(), name: name, hints: [ffHandle].filter(Boolean), sibling: o.sibling || null, openedHandle: fileHandle, picker: picker, toast: toast, startedAt: Date.now(),
+        retry: function () { forceNormal = true; $(ext === '.pdf' ? '#btnPdf' : '#btnSave').click(); } });          // the Save window needs a fresh click after a slow search: the toast's button comes back here
+    } else {
+      forceNormal = false;
+      open = picker().then(function (h) { return { handle: h }; });
+    }
+    return open.then(function (x) {
+      return util.writeVerified(x.handle, blob, { pdf: ext === '.pdf' }).then(function (r) { lastWritten = r; lastFolder = x.folder ? x.folder.label : (handle ? lastFolder : null); return x.handle; },          // written, read back and, unless Chrome says NotFoundError (a path too long for Windows: it never works), tried again (util.writeVerified)
+        function (e) { if (x.folder) FU.failed(x.folder); throw e; });                                                  // an empty file this save created in the client's folder is removed
+    });
   }
   /* A write that failed even after util.writeVerified's tries. Cancel is silent. Anything else keeps the work (a copy is downloaded), and says plainly, for 20 seconds, what happened and what to do. */
   function saveFailed(e, blob, name) {
@@ -68,20 +81,20 @@
   /* The draft in the browser is removed only once the file is on disk, read back and the same as what was written. */
   function saveJson(forceAs) {
     var text = store.toJSON(state), blob = new Blob([text], { type: 'application/json' });
-    writeFile(blob, currentBase() + '.json', 'Risk Application', '.json', forceAs ? null : fileHandle, 'short-risk-data', fileHandle).then(function (h) {
+    writeFile(blob, currentBase() + '.json', 'Risk Application', '.json', forceAs ? null : fileHandle, 'short-risk-data', fileHandle, { auto: !forceAs }).then(function (h) {
       if (h) { fileHandle = h; fileBase = h.name.replace(/\.json$/i, ''); rememberHandle(h); }
       else if (!fileBase) fileBase = currentBase();
       return readBack(h, text).then(function (v) {
         if (v === 'different') { refreshChrome(); toast('The saved file does not match the form, so your work is still kept here. Try Save again.', 7000); return; }
-        dirty = false; onDisk = v === 'ok'; lastSaved = new Date(); saveDraft(); refreshChrome(); toast('Saved.');
+        dirty = false; onDisk = v === 'ok'; lastSaved = new Date(); saveDraft(); refreshChrome(); toast(lastFolder ? 'Saved to ' + lastFolder + '. Wrong folder? Use Save as…' : 'Saved.', lastFolder ? 9000 : 0);
       });
-    }).catch(function (e) { if (saveFailed(e, blob, currentBase() + '.json')) { if (!forceAs && fileHandle) { fileHandle = null; rememberHandle(null); } dirty = true; onDisk = false; saveDraft(); } refreshChrome(); });          // a file reference that failed is let go (the next Save asks where to save), and the work counts as UNSAVED with its draft kept: the folder copy may now be empty, even if nothing had changed since it was opened
+    }).catch(function (e) { if (saveFailed(e, blob, currentBase() + '.json')) { if (!forceAs && fileHandle) { fileHandle = null; lastFolder = null; rememberHandle(null); } dirty = true; onDisk = false; saveDraft(); } refreshChrome(); });          // a file reference that failed is let go (the next Save asks where to save), and the work counts as UNSAVED with its draft kept: the folder copy may now be empty, even if nothing had changed since it was opened
   }
   function makePdf() { return SR.pdf.build(state); }
   function savePdf() {
     var blob = makePdf().output('blob');
-    writeFile(blob, store.pdfFileName(state) + '.pdf', 'PDF document', '.pdf', null, 'short-risk-pdf', fileHandle)
-      .then(function () { toast(lastWritten && lastWritten.checked ? 'PDF saved and checked (' + util.formatSize(lastWritten.size) + ').' : 'PDF saved.'); })
+    writeFile(blob, store.pdfFileName(state) + '.pdf', 'PDF document', '.pdf', null, 'short-risk-pdf', fileHandle, { auto: true, sibling: fileHandle })
+      .then(function () { toast((lastWritten && lastWritten.checked ? 'PDF saved and checked (' + util.formatSize(lastWritten.size) + ').' : 'PDF saved.') + (lastFolder ? ' Saved in ' + lastFolder + '.' : ''), lastFolder ? 9000 : 0); drawMeta(); })
       .catch(function (e) { saveFailed(e, blob, store.pdfFileName(state) + '.pdf'); });
   }
   function previewPdf() {
@@ -92,7 +105,7 @@
     var r = new FileReader();
     r.onload = function () {
       try {
-        state = store.fromJSON(r.result); fileHandle = handle || null; fileBase = file.name.replace(/\.json$/i, '');
+        state = store.fromJSON(r.result); fileHandle = handle || null; lastFolder = null; fileBase = file.name.replace(/\.json$/i, '');
         dirty = false; onDisk = true; cur = schema.pages[0].id; rememberHandle(handle || null); saveDraft(); redraw(); toast('Opened ' + file.name);
       } catch (e) { toast(e.message || 'Could not open that file.', 6000); }
     };
@@ -122,12 +135,12 @@
   function chooseFactFind() {
     if (!window.showOpenFilePicker) { $('#ffIn').click(); return; }
     window.showOpenFilePicker({ id: 'fact-find-data', types: [{ description: 'Fact Find', accept: { 'application/json': ['.json'] } }] })
-      .then(function (hs) { return hs[0].getFile().then(function (f) { loadFactFind(f); }); })
+      .then(function (hs) { return hs[0].getFile().then(function (f) { ffHandle = hs[0]; loadFactFind(f); }); })
       .catch(function (e) { if (e && e.name !== 'AbortError') toast('Could not open: ' + e.message); });
   }
   function newApp() {
     if (dirty && !window.confirm('Start a new application? Changes you have not saved will be lost.')) return;
-    state = store.blank(); fileHandle = null; fileBase = ''; rememberHandle(null); dirty = false; onDisk = true; lastSaved = null; cur = schema.pages[0].id; saveDraft(); redraw();
+    state = store.blank(); fileHandle = null; ffHandle = null; lastFolder = null; fileBase = ''; rememberHandle(null); dirty = false; onDisk = true; lastSaved = null; cur = schema.pages[0].id; saveDraft(); redraw();
   }
 
   /* ---------- drawing ---------- */
@@ -299,9 +312,14 @@
     if (!h) h = '<div class="ok">&#10003; Complete. Nothing is missing or looks wrong.</div>';
     $('#checks').innerHTML = h;
   }
+  /* What the folder search needs to know about this application (folders.js): the client, the insurer as the folders spell it, the product word, the premium. */
+  function folderInfo() {
+    var f = state.f, F = FF.folders;
+    return { sname: f.sname.v, fname: f.fname.v, insurers: F.insurerWords(f.insurer.v, schema.abbr), products: F.productWords(store.productName(state)), kinds: [], premium: util.num(f.premium.v) };
+  }
   function drawMeta() {
     var from = state.from && state.from.name ? '<div>Details loaded from <b>' + esc(state.from.name) + '</b></div>' : '';
-    $('#meta').innerHTML = '<div>It saves as</div><div class="fn">' + esc(currentBase()) + '</div>' + from;
+    $('#meta').innerHTML = '<div>It saves as</div><div class="fn">' + esc(currentBase()) + '</div>' + from + (window.FF && FF.foldersUI ? FF.foldersUI.metaHTML(lastFolder) : '');
   }
 
   /* ---------- events ---------- */
@@ -353,6 +371,8 @@
   $('#btnNew').addEventListener('click', newApp);
   $('#btnOpen').addEventListener('click', chooseFile);
   $('#btnLoad').addEventListener('click', chooseFactFind);
+  $('#btnFolders').addEventListener('click', function () { FF.foldersUI.connect().then(drawMeta); });
+  if (window.FF && FF.foldersUI) FF.foldersUI.init(drawMeta);
   $('#fileIn').addEventListener('change', function (e) { var f = e.target.files[0]; e.target.value = ''; if (f) openFile(f, null); });
   $('#ffIn').addEventListener('change', function (e) { var f = e.target.files[0]; e.target.value = ''; if (f) loadFactFind(f); });
   window.addEventListener('beforeunload', function (e) { if (dirty) { e.preventDefault(); e.returnValue = ''; } });
