@@ -1,4 +1,5 @@
-/* Release 4.9 on the real pages (Fact Find, Short Risk Application, Investment Capture Sheet): a file written into the adviser's folder is proved to have been written, tried again when OneDrive is in the way,
+/* (5.0 corrected 4.9's diagnosis: NotFoundError is the Windows path limit and is not retried: t-release50.js. This file pins the rest of 4.9 with an error that IS retried.)
+   Release 4.9 on the real pages (Fact Find, Short Risk Application, Investment Capture Sheet): a file written into the adviser's folder is proved to have been written, tried again when OneDrive is in the way,
    and when it still fails the work is kept (a copy is downloaded) and the page says so in plain words, for long enough to read. The Save window and the folder are pretend ("a flaky OneDrive folder"):
    a handle whose close() fails with NotFoundError and leaves the file EMPTY, or "succeeds" and leaves it empty, exactly as in Paul's screenshots. */
 const { chromium } = require((process.argv[2]) + '/playwright');
@@ -21,16 +22,16 @@ const PAGES = [
     const errs = []; p.on('pageerror', e => errs.push(e.message)); p.on('dialog', d => d.accept());
     const downloads = []; p.on('download', d => downloads.push(d.suggestedFilename()));
     await p.goto('file://' + dir + '/' + pg.file); await p.waitForTimeout(500);
-    /* the pretend folder: plan = what each write does ('ok', 'fail' = close() fails with NotFoundError and the file is left empty, 'empty' = close() "succeeds" and the file is left empty) */
+    /* the pretend folder: plan = what each write does ('ok', 'busy' = close() fails with a retryable error and the file is left empty, 'empty' = close() "succeeds" and the file is left empty) */
     await p.evaluate(() => {
       FF.util.WRITE_PAUSES = [20, 20];
       window.__picks = []; window.__abort = false; window.__plan = [];
-      const nf = () => { const e = new Error('A requested file or directory could not be found at the time an operation was processed.'); e.name = 'NotFoundError'; return e; };
+      const nf = () => { const e = new Error('The object can not be modified in this way.'); e.name = 'InvalidModificationError'; return e; };
       const h = window.__h = { name: 'folder-file.x', bytes: new Uint8Array(0), attempts: 0 };
       h.requestPermission = () => Promise.resolve('granted');
       h.createWritable = () => {
         h.attempts++; const step = window.__plan.shift() || 'ok'; let pend = null;
-        return Promise.resolve({ write: bl => bl.arrayBuffer().then(ab => { pend = new Uint8Array(ab); }), close: () => { if (step === 'fail') { h.bytes = new Uint8Array(0); return Promise.reject(nf()); } if (step === 'empty') { h.bytes = new Uint8Array(0); return Promise.resolve(); } h.bytes = pend; return Promise.resolve(); } });
+        return Promise.resolve({ write: bl => bl.arrayBuffer().then(ab => { pend = new Uint8Array(ab); }), close: () => { if (step === 'busy') { h.bytes = new Uint8Array(0); return Promise.reject(nf()); } if (step === 'empty') { h.bytes = new Uint8Array(0); return Promise.resolve(); } h.bytes = pend; return Promise.resolve(); } });
       };
       h.getFile = () => Promise.resolve(new File([h.bytes], h.name));
       window.showSaveFilePicker = o => { window.__picks.push(o && o.suggestedName); if (window.__abort) { const e = new Error('The user aborted a request.'); e.name = 'AbortError'; return Promise.reject(e); } if (/\.json$/i.test(o.suggestedName)) h.name = o.suggestedName; return Promise.resolve(h); };
@@ -42,7 +43,7 @@ const PAGES = [
     const click = async id => { await p.click(id); await p.waitForTimeout(450); };
 
     /* 1. Save, OneDrive in the way on the first try: it is tried again and the file is whole */
-    await plan('fail', 'ok');
+    await plan('busy', 'ok');
     await click('#btnSave');
     let s = await state();
     ok(s.attempts === 2 && s.len > 50, 'Save: the first write failed, the second wrote the whole file (' + s.attempts + ' tries, ' + s.len + ' bytes)');
@@ -61,14 +62,14 @@ const PAGES = [
     ok(downloads.length === 0, 'Save PDF: no download copy was needed');
 
     /* 3. Save PDF: it never works: the work is kept (a copy is downloaded) and the page says plainly what happened, and keeps saying it */
-    await plan('fail', 'fail', 'fail', 'ok');
+    await plan('busy', 'busy', 'busy', 'ok');
     await click('#btnPdf'); await p.waitForTimeout(1100);
     s = await state();
     ok(s.attempts === 3, 'Save PDF: it tried three times and stopped (' + s.attempts + ')');
     ok(downloads.length === 1 && /\.pdf$/.test(downloads[0]), 'Save PDF: a copy was downloaded instead: ' + downloads.join(' | '));
     const t3 = await toast();
-    ok(/^Could not save /.test(t3) && /OneDrive was busy syncing/.test(t3) && /downloaded to your Downloads folder/.test(t3) && /delete it/.test(t3), 'Save PDF: the message says what happened and what to do');
-    ok(/could not be found/.test(t3), 'Save PDF: and shows what Chrome said, for whoever has to look into it');
+    ok(/^Could not save /.test(t3) && /OneDrive was busy syncing/.test(t3) && /downloaded to your Downloads folder/.test(t3) && /may now be EMPTY/.test(t3), 'Save PDF: the message says what happened and what to do');
+    ok(/Chrome said: The object can not be modified/.test(t3), 'Save PDF: and shows what Chrome said, for whoever has to look into it');
     await p.screenshot({ path: out + '/r49-' + pg.file.replace('.html', '') + '-failtoast.png' });
     await p.waitForTimeout(4000);
     ok((await toast()) === t3, 'Save PDF: the message is still there after 5 seconds (it used to vanish after 3.5)');
@@ -80,7 +81,7 @@ const PAGES = [
     s = await state(); const picksAfterOk = s.picks;
     ok(picksAfterOk === 3, 'Save: the first Save asked where to save, each PDF asked, and this second Save used the remembered file without a window (' + picksAfterOk + ' windows so far: 1 Save + 2 PDFs)');
     const before = (await state()).picks;
-    await plan('fail', 'fail', 'fail', 'ok');
+    await plan('busy', 'busy', 'busy', 'ok');
     await p.evaluate(() => { document.querySelector('#toast').hidden = true; });
     await click('#btnSave'); await p.waitForTimeout(600);
     ok(downloads.length === 2 && /\.json$/.test(downloads[1]) && !/\.pdf\.json$/.test(downloads[1]), 'Save: the failed Save downloaded a copy of the file, named like the saved file: ' + downloads[1]);
