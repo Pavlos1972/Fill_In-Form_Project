@@ -131,7 +131,7 @@ test('a client under 1. ON HOLD or 2. Awaiting compliance in New Business, and u
   let r = await F.resolveTarget(roots(A), info()); assert.ok(r.pick); assert.deepStrictEqual(F.relOf(r.pick).slice(0, 2), ['1. ON HOLD', 'Kuiper, Annabel']);
   const A2 = new Dir('NewBusiness'); A2.add('2. Awaiting compliance from client', 'Kuiper, Annabel', 'Kuiper, Annabel - (BR - Personal)', 'Applications');
   r = await F.resolveTarget(roots(A2), info()); assert.ok(r.pick, 'in the second folder');
-  const B = new Dir('ClientFiles'); B.add('J - Files', 'Jansen, Edwin', 'Jansen, Edwin - (OM - Personal)', 'Applications'); B.add('K - Files', 'Kuiper, Annabel', 'Kuiper, Annabel - (BR - Personal)', 'Applications');
+  const B = new Dir('ClientFiles'); B.add('J - Files', 'Jansen, Elmer', 'Jansen, Elmer - (OM - Personal)', 'Applications'); B.add('K - Files', 'Kuiper, Annabel', 'Kuiper, Annabel - (BR - Personal)', 'Applications');
   r = await F.resolveTarget(roots(null, B), info()); assert.ok(r.pick); assert.deepStrictEqual(F.relOf(r.pick).slice(0, 2), ['K - Files', 'Kuiper, Annabel']);
   const B3 = new Dir('ClientFiles'); B3.add('V - Files', 'Van der Merwe, Mary', 'Van der Merwe, Mary - (OM - Personal)', 'Applications'); B3.add('V - Files', 'Van der Merwe, Anton', 'x', 'Applications');
   r = await F.resolveTarget(roots(null, B3), info({ sname: 'Van der Merwe', fname: 'Mary', insurers: F.insurerWords('Old Mutual', SRS.abbr), premium: 0 })); assert.ok(r.pick && r.pick.client.parts[1] === 'Van der Merwe, Mary', 'V - Files, and Mary not Anton');
