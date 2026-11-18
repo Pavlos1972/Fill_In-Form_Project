@@ -196,21 +196,28 @@
     var t = String(v == null ? '' : v).trim(), m = /^(\d{1,3}(?:[.,]\d{1,2})?)\s*%?$/.exec(t);
     return m ? m[1].replace(',', '.') + '%' : t;
   }
-  /* ---- Writing a file into the folder the adviser picked, and PROVING it was written (4.9) ----
-     Chrome writes to a temporary file beside the real one and swaps it in when the write is closed. In a OneDrive folder, OneDrive can grab that temporary file at that moment: close() then fails with
-     "A requested file or directory could not be found at the time an operation was processed", and the file that the Save window had already created stays EMPTY: it looks saved and will not open.
-     So every write is read back (its size, and "%PDF-" at the start of a PDF); a failed or unproven write is tried again after a pause (a lock is usually short); after the last try it rejects with
-     .failed = true, and the page then keeps the work (a copy is downloaded) and says so plainly. The adviser saying Cancel, or Chrome refusing permission, is not a lock and is never retried. */
+  /* ---- Writing a file into the folder the adviser picked, and PROVING it was written (4.9, corrected in 5.0) ----
+     Chrome writes to a temporary file beside the real one ("<file>.crswap", 7 characters longer than the file) and swaps it in when the write is closed. THE CAUSE OF THE FAILED SAVES (measured on the adviser's
+     computer, 18 November 2026): Windows allows 259 characters for a whole path, and when the folders plus the file name plus ".crswap" come to more, Chrome's close() fails with "A requested file or directory
+     could not be found at the time an operation was processed" (NotFoundError), every time, and the file that the Save window had already created, or the good file that was there, stays EMPTY: it looks saved and
+     will not open. (4.9 first blamed OneDrive: that was wrong, and so were its retries for this error.) So: every write is read back (its size, and "%PDF-" at the start of a PDF); NotFoundError is NEVER retried (it fails
+     the same way every time, the pauses would only delay the message); any other failed or unproven write is tried again after a pause; after the last try, or at once for NotFoundError, it rejects with .failed = true,
+     and the page keeps the work (a copy is downloaded) and says so plainly (saveFailText). The adviser saying Cancel, or Chrome refusing permission, is never retried and never reported as a failure. */
   var WRITE_PAUSES = [800, 2000];
   function writeVerified(handle, blob, opts) {
     opts = opts || {};
     var pauses = opts.pauses || api.WRITE_PAUSES, tries = pauses.length + 1, attempt = 0,
       sleep = opts.sleep || function (ms) { return new Promise(function (r) { setTimeout(r, ms); }); };
-    function bad(msg) { var e = new Error(msg); e.name = 'VerifyError'; return e; }
+    function bad(msg, zero) { var e = new Error(msg); e.name = 'VerifyError'; if (zero) e.zero = true; return e; }
+    function fail(e) {
+      var f = new Error(e && e.message ? e.message : 'The file could not be written.'); f.name = (e && e.name) || 'Error'; f.failed = true; f.tries = attempt;
+      if (e && e.zero) f.zero = true;
+      return f;
+    }
     function check() {
       if (!handle.getFile) return { size: blob.size, tries: attempt, checked: false };
       return handle.getFile().then(function (f) {
-        if (typeof f.size === 'number' && f.size !== blob.size) throw bad('The file in the folder is ' + f.size + ' bytes, not the ' + blob.size + ' that were written.');
+        if (typeof f.size === 'number' && f.size !== blob.size) throw bad('The file in the folder is ' + f.size + ' bytes, not the ' + blob.size + ' that were written.', f.size === 0);
         if (!opts.pdf || typeof f.slice !== 'function') return { size: typeof f.size === 'number' ? f.size : blob.size, tries: attempt, checked: typeof f.size === 'number' };
         return f.slice(0, 5).text().then(function (head) {
           if (head !== '%PDF-') throw bad('The file in the folder does not start like a PDF.');
@@ -225,7 +232,7 @@
     function go() {
       return one().catch(function (e) {
         if (e && (e.name === 'AbortError' || e.name === 'NotAllowedError' || e.name === 'SecurityError')) throw e;
-        if (attempt >= tries) { var f = new Error(e && e.message ? e.message : 'The file could not be written.'); f.name = (e && e.name) || 'Error'; f.failed = true; f.tries = attempt; throw f; }
+        if ((e && e.name === 'NotFoundError') || attempt >= tries) throw fail(e);
         return sleep(pauses[attempt - 1]).then(go);
       });
     }
@@ -233,13 +240,20 @@
   }
   /* "84.3 KB" */
   function formatSize(n) { n = +n || 0; return n < 1024 ? n + ' bytes' : n < 1048576 ? (Math.round(n / 102.4) / 10) + ' KB' : (Math.round(n / 104857.6) / 10) + ' MB'; }
-  /* What the page says when a file could not be written into the folder: plain, and where the safety copy went. */
+  /* Which kind of failure: 'path' for NotFoundError (the folder path and file name too long for Windows, or the folder moved or renamed) and for a read-back that found 0 bytes; 'other' for everything else. */
+  function saveFailKind(err) { return err && (err.name === 'NotFoundError' || err.zero === true) ? 'path' : 'other'; }
+  /* What the page says when a file could not be written into the folder: the truth about the cause, that the work is kept (where), and that the file in the folder may now be EMPTY. OneDrive is named only for other errors. */
   function saveFailText(name, err, downloaded) {
-    var why = err && err.message ? ' (Chrome said: ' + String(err.message).replace(/\.\s*$/, '') + '.)' : '';
-    return 'Could not save ' + name + ' into that folder. This usually means OneDrive was busy syncing it.' +
-      (downloaded ? ' A copy was downloaded to your Downloads folder instead: move it into the client’s folder.' : '') +
-      ' An empty file with the same name may be left in the folder: delete it.' + why;
+    var n = String(name || 'this file'), len = n.length, said = err && err.message ? String(err.message).replace(/\.\s*$/, '') : '',
+      detail = ' (File name: ' + len + ' characters.' + (said ? ' Chrome said: ' + said + '.' : '') + ')',
+      kept = downloaded ? ' Your work is kept: a copy is in your Downloads folder. Ask Claude to put it in the client’s folder, or save it in a folder with a shorter name.' : ' Your work is kept in this page: do not close it. Save it in a folder with a shorter name.',
+      empty = ' The file in the folder may now be EMPTY: do not use it.';
+    if (saveFailKind(err) === 'path') {
+      return 'Windows could not save ' + n + ': the folder path and file name together are too long (Windows allows 260 characters), or the folder was moved or renamed.' + kept + empty + detail;
+    }
+    return 'Could not save ' + n + ' into that folder. This can mean OneDrive was busy syncing it.' +
+      (downloaded ? ' A copy was downloaded to your Downloads folder instead: move it into the client’s folder.' : ' Your work is kept in this page: do not close it.') + empty + detail;
   }
-  var api = { WRITE_PAUSES: WRITE_PAUSES, writeVerified: writeVerified, formatSize: formatSize, saveFailText: saveFailText, formatPct: formatPct, isHeadingLine: isHeadingLine, headingKind: headingKind, headingBig: headingBig, sexFromSaId: sexFromSaId, splitFullName: splitFullName, num: num, money: money, money2: money2, formatMoney: formatMoney, isAmount: isAmount, parseDate: parseDate, weekdayName: weekdayName, parseTime: parseTime, formatTime: formatTime, ageAt: ageAt, isoToday: isoToday, termMonths: termMonths, formatDate: formatDate, todayDMY: todayDMY, longDate: longDate, dobFromSaId: dobFromSaId, saIdValid: saIdValid };
+  var api = { WRITE_PAUSES: WRITE_PAUSES, writeVerified: writeVerified, formatSize: formatSize, saveFailKind: saveFailKind, saveFailText: saveFailText, formatPct: formatPct, isHeadingLine: isHeadingLine, headingKind: headingKind, headingBig: headingBig, sexFromSaId: sexFromSaId, splitFullName: splitFullName, num: num, money: money, money2: money2, formatMoney: formatMoney, isAmount: isAmount, parseDate: parseDate, weekdayName: weekdayName, parseTime: parseTime, formatTime: formatTime, ageAt: ageAt, isoToday: isoToday, termMonths: termMonths, formatDate: formatDate, todayDMY: todayDMY, longDate: longDate, dobFromSaId: dobFromSaId, saIdValid: saIdValid };
   return api;
 });
