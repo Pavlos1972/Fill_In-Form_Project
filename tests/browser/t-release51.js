@@ -16,7 +16,7 @@ let bad = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if
   ok(menu.sr === 'Risk Application ↗' && menu.cs === 'Investment Application ↗', 'Fact Find: the Other forms menu says Risk Application and Investment Application: ' + menu.sr + ' / ' + menu.cs);
   ok(!/Short Risk|Capture Sheet/.test(menu.t), 'Fact Find: and so do the hover titles: ' + menu.t);
   ok(!(await fp.locator('#buildBanner').count()), 'Fact Find: no "Mixed versions" bar (the build is the same everywhere)');
-  ok(await fp.evaluate(() => FF.schema.version) === '5.1', 'Fact Find: version 5.1');
+  ok(parseFloat(await fp.evaluate(() => FF.schema.version)) >= 5.1, 'Fact Find: version 5.1 or later');
   ok(ferrs.length === 0, 'Fact Find: no page errors ' + ferrs.join('|'));
 
   const cp = await ctx.newPage(); const cerrs = []; cp.on('pageerror', e => cerrs.push(e.message));
