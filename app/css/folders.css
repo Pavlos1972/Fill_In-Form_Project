@@ -1,0 +1,21 @@
+/* Saving into the client's folder (Risk Application 1.4, Investment Application 1.3): the Folders… dialog, the "which folder?" and yes / no dialogs, the toast button and the note under the card. */
+dialog.fdlg { border: 1px solid var(--line); border-radius: 12px; padding: 18px 20px; max-width: min(680px, calc(100vw - 32px)); width: 100%; background: var(--surface); color: var(--ink); box-shadow: 0 12px 40px rgba(0, 0, 0, .28); font: inherit; }
+dialog.fdlg::backdrop { background: var(--backdrop); }
+.fdlg h3 { margin: 0 0 8px; font-size: 17px; }
+.fdlg p { margin: 0 0 12px; color: var(--muted); font-size: 13.5px; line-height: 1.5; }
+.fdlg p.fline { color: var(--ink); overflow-wrap: anywhere; margin-bottom: 8px; }
+.fdlg .frow { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; margin-bottom: 10px; }
+.fdlg .fhead { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.fdlg .fhead b { min-width: 100px; }
+.fdlg .fstat { flex: 1 1 160px; font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }
+.fdlg .fstat.ok { color: var(--ok); }
+.fdlg .fstat.no { color: var(--warn); }
+.fdlg .fpath { display: block; margin-top: 8px; font-size: 12px; color: var(--muted); }
+.fdlg .fpath input { display: block; width: 100%; margin-top: 4px; padding: 7px 9px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--ink); font: 13px var(--mono); }
+.fdlg .fpath small { display: block; margin-top: 3px; }
+.fdlg .fpath small.warn { color: var(--warn); }
+.fdlg .flist { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; max-height: 40vh; overflow: auto; }
+.fdlg .flist label { display: flex; gap: 8px; align-items: flex-start; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; font-size: 13.5px; overflow-wrap: anywhere; cursor: pointer; }
+.fdlg .fbtns { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; margin-top: 4px; }
+.fnote { margin-top: 4px; font-size: 12px; color: var(--muted); }
+#toast .toastbtn { margin-left: 8px; padding: 3px 10px; border-radius: 6px; border: 1px solid currentColor; background: transparent; color: inherit; font: inherit; font-weight: 600; cursor: pointer; }

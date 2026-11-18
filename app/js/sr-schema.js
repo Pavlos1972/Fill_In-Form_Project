@@ -120,6 +120,6 @@
   var fieldsById = {}, fieldIds = [], sectionOf = {};
   sections.forEach(function (s) { (s.fields || []).forEach(function (f) { fieldsById[f.id] = f; fieldIds.push(f.id); sectionOf[f.id] = s.id; }); });
 
-  return { version: '1.3', released: 'November 2026', title: 'Risk Application', sections: sections, sectionsById: sectionsById, pages: pages, pageOf: pageOf, lists: lists, fieldsById: fieldsById, fieldIds: fieldIds, sectionOf: sectionOf,
+  return { version: '1.4', released: 'November 2026', title: 'Risk Application', sections: sections, sectionsById: sectionsById, pages: pages, pageOf: pageOf, lists: lists, fieldsById: fieldsById, fieldIds: fieldIds, sectionOf: sectionOf,
     insurers: INSURERS, products: PRODUCTS, owners: OWNERS, abbr: ABBR, banks: BANKS, lifeInsurers: LIFE_INSURERS, provinces: PROVINCES };
 });

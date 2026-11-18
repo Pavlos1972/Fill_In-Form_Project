@@ -1,0 +1,175 @@
+/* The screens and the flow of saving into the client's folder (Risk Application 1.4, Investment Application 1.3). The logic is in folders.js; this file connects it to the page:
+   Folders… (connect New Business and Client Files once, and type each one's Windows path once), the list the adviser picks from when more than one folder fits, and FF.foldersUI.open(), which a page's Save calls
+   for a first save: it finds the folder and hands back a file handle to write to, or falls back to the normal Save window with the reason. It never creates, renames, moves or deletes a folder. */
+(function () {
+  var F = FF.folders;
+  var LABEL = { A: 'New Business', B: 'Client Files' };
+  var roots = {}, loaded = null, cache = {};
+
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function abort() { var e = new Error('The adviser has to click again.'); e.name = 'AbortError'; return e; }
+  function load() {
+    if (loaded) return loaded;
+    loaded = Promise.all([F.loadHandle('A'), F.loadHandle('B')]).then(function (hs) {
+      ['A', 'B'].forEach(function (k, i) { if (hs[i]) roots[k] = { handle: hs[i] }; });
+      return roots;
+    });
+    return loaded;
+  }
+  function withPaths() { var p = F.getPaths(), out = {}; Object.keys(roots).forEach(function (k) { out[k] = { handle: roots[k].handle, path: p[k] || '' }; }); return out; }
+  function init(cb) { load().then(function () { if (cb) cb(); }); }
+
+  /* ---------- Folders…: connect the two folders, once ---------- */
+  function connect() {
+    return load().then(function () {
+      return new Promise(function (resolve) {
+        var dlg = document.createElement('dialog'); dlg.className = 'fdlg';
+        function row(k) {
+          return '<div class="frow" data-key="' + k + '"><div class="fhead"><b>' + LABEL[k] + '</b><span class="fstat" data-stat></span><button type="button" class="btn small" data-pick>Choose folder&hellip;</button></div>' +
+            '<label class="fpath"><span>Windows path of this folder (typed once, so the page can warn before a path is too long)</span><input type="text" data-path value="' + esc(F.getPaths()[k] || '') + '" placeholder="e.g. C:\\Users\\&lt;you&gt;\\&hellip;\\' + LABEL[k] + '" autocomplete="off"><small data-pathnote></small></label></div>';
+        }
+        dlg.innerHTML = '<h3>Connect your client folders</h3><p>Pick the two folders once. After that, Save goes straight into the client&rsquo;s <i>Applications</i> folder. The page only looks, and writes the file: it never creates, renames, moves or deletes a folder. ' +
+          'Chrome may ask you to Allow again now and then, and each place this page is opened from (the website, the copy on this computer) needs its own one-time connection.</p>' + row('A') + row('B') +
+          '<div class="fbtns"><button type="button" class="btn small" data-done>Done</button></div>';
+        document.body.appendChild(dlg);
+        function paint() {
+          ['A', 'B'].forEach(function (k) {
+            var r = dlg.querySelector('[data-key="' + k + '"]'), st = r.querySelector('[data-stat]'), inp = r.querySelector('[data-path]'), note = r.querySelector('[data-pathnote]'), v = inp.value.trim();
+            st.textContent = roots[k] ? 'Connected: ' + roots[k].handle.name : 'Not connected';
+            st.className = 'fstat ' + (roots[k] ? 'ok' : 'no');
+            note.textContent = v === '' ? 'Not typed yet: the path length is not checked.' : /^[A-Za-z]:\\/.test(v) ? v.replace(/[\\\/]+$/, '').length + ' characters.' : 'A Windows path starts like C:\\ …';
+            note.className = v === '' || !/^[A-Za-z]:\\/.test(v) ? 'warn' : '';
+          });
+        }
+        dlg.addEventListener('click', function (e) {
+          var pick = e.target.closest('[data-pick]');
+          if (pick) {
+            var k = pick.closest('[data-key]').getAttribute('data-key');
+            window.showDirectoryPicker({ id: 'wr-folder-' + k.toLowerCase(), mode: 'readwrite' }).then(function (h) {
+              roots[k] = { handle: h }; F.saveHandle(k, h); paint();
+            }).catch(function (err) { if (err && err.name !== 'AbortError') { var st = dlg.querySelector('[data-key="' + k + '"] [data-stat]'); st.textContent = 'Chrome would not open that folder: ' + err.message; st.className = 'fstat no'; } });
+          }
+          if (e.target.closest('[data-done]')) dlg.close();
+        });
+        dlg.addEventListener('input', function (e) { var inp = e.target.closest('[data-path]'); if (inp) { F.setPath(inp.closest('[data-key]').getAttribute('data-key'), inp.value); paint(); } });
+        dlg.addEventListener('close', function () { dlg.remove(); resolve(); });
+        paint(); dlg.showModal();
+      });
+    });
+  }
+
+  /* ---------- which folder? ---------- */
+  function ask(intro, cands) {
+    return new Promise(function (resolve) {
+      var dlg = document.createElement('dialog'), done = false; dlg.className = 'fdlg';
+      dlg.innerHTML = '<h3>Which folder?</h3><p>' + esc(intro) + '</p><div class="flist">' + cands.map(function (c, i) {
+        return '<label><input type="radio" name="fpick" value="' + i + '"' + (i === 0 ? ' checked' : '') + '><span>' + esc(F.labelOf(c)) + '</span></label>';
+      }).join('') + '</div><div class="fbtns"><button type="button" class="btn ghost small" data-no>Choose where to save instead</button><button type="button" class="btn small" data-yes>Save here</button></div>';
+      document.body.appendChild(dlg);
+      function end(v) { if (done) return; done = true; dlg.close(); dlg.remove(); resolve(v); }
+      dlg.addEventListener('click', function (e) {
+        if (e.target.closest('[data-yes]')) end(cands[+dlg.querySelector('input[name="fpick"]:checked').value]);
+        if (e.target.closest('[data-no]')) end(null);
+      });
+      dlg.addEventListener('cancel', function (e) { e.preventDefault(); end(null); });
+      dlg.showModal();
+    });
+  }
+  /* A yes / no question as a dialog (not window.confirm, which leaves the page without a fresh click for the Save window that may follow a No). */
+  function yesNo(title, lines, yes, no) {
+    return new Promise(function (resolve) {
+      var dlg = document.createElement('dialog'), done = false; dlg.className = 'fdlg';
+      dlg.innerHTML = '<h3>' + esc(title) + '</h3>' + lines.map(function (l) { return '<p class="fline">' + esc(l) + '</p>'; }).join('') +
+        '<div class="fbtns"><button type="button" class="btn ghost small" data-no>' + esc(no) + '</button><button type="button" class="btn small" data-yes>' + esc(yes) + '</button></div>';
+      document.body.appendChild(dlg);
+      function end(v) { if (done) return; done = true; dlg.close(); dlg.remove(); resolve(v); }
+      dlg.addEventListener('click', function (e) { if (e.target.closest('[data-yes]')) end(true); if (e.target.closest('[data-no]')) end(false); });
+      dlg.addEventListener('cancel', function (e) { e.preventDefault(); end(false); });
+      dlg.showModal();
+    });
+  }
+  function toastButton(text, label, fn) {
+    var t = document.getElementById('toast'); if (!t) return;
+    t.textContent = text + ' ';
+    var b = document.createElement('button'); b.type = 'button'; b.className = 'toastbtn'; b.textContent = label; b.onclick = function () { t.hidden = true; fn(); };
+    t.appendChild(b); t.hidden = false;
+    clearTimeout(t._fx); t._fx = setTimeout(function () { t.hidden = true; }, 30000);
+  }
+  function withTimeout(p, ms) {
+    return new Promise(function (resolve, reject) { var t = setTimeout(function () { reject(new Error('looking through the folders took too long')); }, ms); p.then(function (v) { clearTimeout(t); resolve(v); }, function (e) { clearTimeout(t); reject(e); }); });
+  }
+  function keyOf(info) { return JSON.stringify([F.norm(info.sname), F.norm(info.fname), (info.insurers || [])[0] || '', (info.products || []).join(' '), (info.kinds || []).join(' '), info.premium || 0]); }
+
+  /* ---------- the flow of a first Save ----------
+     ctx: { info, name, hints: [file handles], sibling: the saved file (a PDF goes beside it), openedHandle, picker(startIn), toast(text, ms), retry(), startedAt }
+     Resolves { handle, folder: { label, apps, name, created, key } | null }; rejects AbortError when the adviser has been told to click again. */
+  async function open(ctx) {
+    var started = ctx.startedAt || Date.now(), activation = started, key = keyOf(ctx.info);
+    async function fallback(reason, deepest, needsClick) {
+      if (reason) ctx.toast(reason, 20000);
+      if (reason && (needsClick || Date.now() - activation > 3000)) {                       // the browser's Save window needs a fresh click: a slow search or a prompt has used this one up
+        toastButton(reason, 'Choose where to save', function () { ctx.retry(); });
+        throw abort();
+      }
+      return { handle: await ctx.picker(deepest || null), folder: null };
+    }
+    await load();
+    var all = withPaths(), keys = Object.keys(all);
+    if (!F.enabled() || !keys.length) return { handle: await ctx.picker(null), folder: null };            // not connected: the normal Save window
+    var liveRoots = {};
+    for (var i = 0; i < keys.length; i++) {
+      var st = await F.permission(all[keys[i]].handle, true);
+      if (st === 'granted') liveRoots[keys[i]] = all[keys[i]];
+    }
+    if (!Object.keys(liveRoots).length) return fallback('Chrome has not given this page access to your client folders. Click Folders… and choose them again, and Allow when Chrome asks.', null, true);
+    var cand = null, rootKey = null, rel = null, apps = null, label = '', cached = cache[key];
+    try {
+      if (ctx.sibling) {                                                                         // a PDF beside the saved file
+        var sib = await F.dirOfFile(liveRoots, ctx.sibling);
+        if (sib) { apps = sib.handle; rootKey = sib.rootKey; rel = sib.parts; label = sib.parts.join(' \\ '); }
+      }
+      if (!apps) {
+        var res = cached ? { pick: cached, reason: 'cached' } : await withTimeout(F.resolveTarget(liveRoots, ctx.info, { hints: ctx.hints || [] }), 25000);
+        if (res.reason === 'names') return fallback('Fill in the client\u2019s names first, so the page can find the client\u2019s folder. Choose where to save instead.', null);
+        if (res.reason === 'client') return fallback('No folder named \u201c' + F.clientFolderName(ctx.info.sname, ctx.info.fname) + '\u201d was found in your connected folders. Choose where to save instead.', null);
+        if (res.reason === 'deal') return fallback('The client\u2019s folder has no deal folder with an Applications folder in it. Choose where to save instead.', res.deepest);
+        if (res.ask) {
+          var chosen = await ask('More than one folder could be this application\u2019s. Pick the right one (nothing is saved until you do).', res.ask);
+          activation = Date.now();
+          if (!chosen) return fallback('', res.deepest);
+          cand = chosen;
+        } else {
+          cand = res.pick;
+          if (res.reason === 'best' && !cache[key + '|ok']) {
+            var yes = await yesNo('Save to this folder?', [F.labelOf(cand)], 'Save here', 'Choose where to save instead'); activation = Date.now();
+            if (!yes) return fallback('', cand.apps);
+          }
+        }
+        cache[key] = cand; cache[key + '|ok'] = true;
+        apps = cand.apps; rootKey = cand.client.rootKey; rel = F.relOf(cand); label = F.labelOf(cand);
+      }
+      var chk = F.pathCheck((all[rootKey] || {}).path, rel, ctx.name);
+      if (chk.known && !chk.ok) return fallback(F.tooLongText(chk, ctx.name), apps);
+      var probe = await F.probeFile(apps, ctx.name, ctx.openedHandle), handle, created = false;
+      if (probe.exists && !probe.same) {
+        var rep = await yesNo('Replace the existing file?', ['A file with this name is already in ' + label + ':', ctx.name], 'Replace it', 'Keep it and choose where to save'); activation = Date.now();
+        if (!rep) return fallback('The existing file was kept. Choose another folder or name.', apps);
+      }
+      if (probe.exists) handle = probe.handle; else { handle = await F.makeFile(apps, ctx.name); created = true; }
+      return { handle: handle, folder: { label: label, apps: apps, name: ctx.name, created: created, key: key, unchecked: !chk.known } };
+    } catch (e) {
+      if (e && e.name === 'AbortError') throw e;
+      delete cache[key]; delete cache[key + '|ok'];
+      return fallback('Could not look through your client folders (' + (e && e.message ? e.message : 'unknown') + '). Choose where to save instead.', null);
+    }
+  }
+  /* A write into the folder failed: an empty file this save created is removed, and the folder is looked for again next time. */
+  function failed(folder) { if (!folder) return Promise.resolve(false); delete cache[folder.key]; delete cache[folder.key + '|ok']; return folder.created ? F.discardEmpty(folder.apps, folder.name) : Promise.resolve(false); }
+  function forget() { cache = {}; }
+  function metaHTML(lastFolder) {
+    var k = Object.keys(roots), line = !F.enabled() ? '' : k.length ? 'Folders connected: ' + k.map(function (x) { return LABEL[x]; }).join(', ') + '.' : 'Folders not connected: Save asks where to save. Click <b>Folders&hellip;</b> to connect them.';
+    return (lastFolder ? '<div>Saved in <b>' + esc(lastFolder) + '</b></div>' : '') + (line ? '<div class="fnote">' + line + '</div>' : '');
+  }
+
+  FF.foldersUI = { init: init, connect: connect, open: open, failed: failed, forget: forget, metaHTML: metaHTML, ask: ask, connected: function () { return Object.keys(roots); } };
+})();

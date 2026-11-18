@@ -22,7 +22,7 @@ let bad = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if
   const cp = await ctx.newPage(); const cerrs = []; cp.on('pageerror', e => cerrs.push(e.message));
   await cp.goto('file://' + dir + '/capture-sheet.html'); await cp.waitForTimeout(500);
   ok(await cp.title() === 'Investment Application' && await cp.evaluate(() => document.querySelector('h1').textContent) === 'Investment Application', 'Investment Application: the tab and the heading');
-  ok(/Version 1\.2/.test(await cp.evaluate(() => document.querySelector('#verLine').textContent)), 'Investment Application: version 1.2');
+  ok(/Version 1\.[2-9]/.test(await cp.evaluate(() => document.querySelector('#verLine').textContent)), 'Investment Application: version 1.2 or later');
   ok(await cp.evaluate(() => [...document.querySelectorAll('.top a.btn')].map(a => a.textContent.trim()).join('|')) === 'Fact Find ↗|Risk Application ↗', 'Investment Application: the links in the top bar');
   ok(await cp.evaluate(() => document.getElementById('btnLoadSR').textContent.replace(/\s+/g, ' ').trim()) === 'Load from Risk Application file…', 'Investment Application: the Load button');
   ok(!(await cp.locator('#buildBanner').count()), 'Investment Application: no "Mixed versions" bar');
@@ -38,7 +38,7 @@ let bad = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if
   const info = id => p.evaluate(i => { const e = document.querySelector('[data-f="' + i + '"]'), bx = e.closest('.combo'), s = bx.querySelector('.combosel'); return { shown: !e.hidden, val: e.value, sel: s.value, n: s.options.length, opts: [...s.options].map(o => o.value), disabled: s.disabled && e.disabled, typing: bx.classList.contains('typing') }; }, id);
 
   ok(await p.title() === 'Risk Application' && await p.evaluate(() => document.querySelector('h1').textContent) === 'Risk Application', 'Risk Application: the tab and the heading');
-  ok(/Version 1\.3/.test(await p.evaluate(() => document.querySelector('#verLine').textContent)), 'Risk Application: version 1.3');
+  ok(/Version 1\.[3-9]/.test(await p.evaluate(() => document.querySelector('#verLine').textContent)), 'Risk Application: version 1.3 or later');
   ok(await p.evaluate(() => [...document.querySelectorAll('.top a.btn')].map(a => a.textContent.trim()).join('|')) === 'Fact Find ↗|Investment Application ↗', 'Risk Application: the links in the top bar');
   ok(await p.evaluate(() => [...document.querySelectorAll('#nav button')].map(x => x.querySelector('span').textContent).join('|')) === 'Cover & client|Home COC & doctor|Banking|Dependents & Beneficiaries|Declarations & Replacements', 'Risk Application: the five pages are named as asked');
   await page('family'); ok(/Dependents & Beneficiaries/.test(await p.evaluate(() => document.querySelector('#nav .on, #nav [aria-current], #nav button.on') ? document.querySelector('#nav .on, #nav [aria-current], #nav button.on').textContent : 'Dependents & Beneficiaries')), 'Dependents & Beneficiaries opens');
