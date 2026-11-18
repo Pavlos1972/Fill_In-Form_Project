@@ -1,4 +1,4 @@
-/* Saving straight into the client's Applications folder (Risk Application 1.4, Investment Application 1.3).
+/* Saving straight into the client's folder (Risk Application 1.4, Investment Application 1.3: the deal folder's Applications folder; Fact Find 5.2: the client's "2. Fact Find" folder).
    The adviser connects two folders once (New Business and Client Files, each picked with showDirectoryPicker, the handles kept in this browser). On a first Save the page walks them READ-ONLY, never creating,
    renaming, moving or deleting a folder (the folder names belong to the complete-applications-skill):
      1. the client's folder "<Surname>, <First names>" (ignoring case, accents, punctuation and repeated spaces; the first names match by prefix, "Anna" is in "Anna Maria") in New Business (its top level, "1. ON HOLD",
@@ -7,6 +7,7 @@
      2. inside it, the deal folder: any subfolder that holds an "Applications" folder, except the numbered standard folders ("1. Overview" ... "7. All in one Compliance") and the older unnamed folder with the client's
         own name. The old name with the client's name in it, the shorter one without it and "- (Fact Find)" all work. When there are several, they are scored on the insurer (the page's own abbr plus the aliases below),
         the product word, the kind (recurring / lump sum) and the premium; one clear winner is taken, otherwise the adviser picks;
+     2b. the Fact Find (5.2) has no deal folder: it goes into the client's own "2. Fact Find" folder, which must already be there (a first meeting may not have one yet: then the Save window opens in the deepest folder found);
      3. before writing, the Windows path limit: root path (typed once by the adviser) + the folders + the file name + 7 (Chrome's ".crswap") must not pass 259 characters, or nothing is written.
    Everything here is plain logic that can be tested without a browser; the screens are in folders-ui.js. */
 (function (root, factory) {
@@ -18,7 +19,8 @@
     applications: 'Applications',
     standard: /^\d+\.\s/,                                                      // the numbered standard folders in a client's folder
     holdA: [/^1\.\s*on hold/, /^2\.\s*awaiting compliance/],                   // the two folders in New Business that also hold clients (names as normalised)
-    letterSuffix: ' - Files'
+    letterSuffix: ' - Files',
+    factFind: /^2\.\s*fact find$/                                                // the client's Fact Find folder (names as normalised); the Fact Find page saves into it (5.2)
   };
   /* How an insurer is written in a folder name: the page's own abbr first (OM, BR), then these older or longer spellings. Tell the skill's owner when a spelling is missing: this is the only table to change. */
   var ALIASES = {
@@ -53,6 +55,7 @@
   function letterFolder(sname) { var l = letterOf(sname); return l ? l + RULES.letterSuffix : ''; }
   function isLetterFolder(name) { return /^[a-z] - files$/.test(norm(name)); }
   function isStandard(name) { return RULES.standard.test(String(name)); }
+  function nameIs(name, want) { return want instanceof RegExp ? want.test(norm(name)) : norm(name) === norm(want); }
 
   /* ---------- scoring the deal folders ---------- */
   function esc(s) { return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
@@ -157,14 +160,15 @@
     }
     return out;
   }
-  /* The folder a saved file lies in, when that is an Applications folder inside a connected folder: a PDF goes beside the saved file. */
-  async function dirOfFile(roots, fileHandle) {
+  /* The folder a saved file lies in, when that folder is the wanted one (default: an Applications folder; the Fact Find passes RULES.factFind) inside a connected folder: a PDF goes beside the saved file. */
+  async function dirOfFile(roots, fileHandle, want) {
+    want = want || RULES.applications;
     for (var key of ['A', 'B']) {
       if (!roots[key] || !roots[key].handle.resolve) continue;
       var parts = null; try { parts = await roots[key].handle.resolve(fileHandle); } catch (e) { parts = null; }
       if (!parts || parts.length < 2) continue;
       var dirs = parts.slice(0, -1), h = roots[key].handle;
-      if (norm(dirs[dirs.length - 1]) !== norm(RULES.applications)) return null;
+      if (!nameIs(dirs[dirs.length - 1], want)) return null;
       for (var j = 0; j < dirs.length; j++) h = await h.getDirectoryHandle(dirs[j]);
       return { rootKey: key, parts: dirs, handle: h };
     }
@@ -180,7 +184,7 @@
     }
     return out;
   }
-  function relOf(cand) { return cand.client.parts.concat([cand.name, cand.appsName]); }
+  function relOf(cand) { return cand.rel || cand.client.parts.concat([cand.name, cand.appsName]); }
   function labelOf(cand) { return relOf(cand).join(' \\ '); }
   /* The whole search. opts.hints: file handles (the loaded Fact Find, a loaded application) that may lie inside a connected folder.
      Returns { pick: candidate, reason } | { ask: [candidates] } | { reason: 'client' | 'deal' | 'names', deepest }. */
@@ -200,6 +204,29 @@
     var choice = chooseDeal(cands, info);
     choice.deepest = clients[0].handle;
     return choice;
+  }
+
+  /* The Fact Find (5.2): the client's own "2. Fact Find" folder, directly inside the client's folder (no deal folder). A candidate looks like a deal candidate (apps is the folder to write into) so the screens are shared. */
+  async function factFindCandidates(client) {
+    var kids = await listDirs(client.handle), ff = kids.filter(function (k) { return RULES.factFind.test(norm(k.name)); })[0];
+    return ff ? [{ name: ff.name, handle: ff.handle, apps: ff.handle, appsName: ff.name, client: client, rel: client.parts.concat([ff.name]) }] : [];
+  }
+  /* Returns { pick, reason: 'only' } | { ask: [candidates] } | { reason: 'names' | 'client' | 'ff', deepest } (deepest: where the Save window should open: the client's folder, or else the first connected root). */
+  async function resolveFactFind(roots, info, opts) {
+    opts = opts || {};
+    var rootDeep = (roots.A && roots.A.handle) || (roots.B && roots.B.handle) || null;
+    if (norm(info.sname) === '') return { reason: 'names', deepest: rootDeep };
+    var clients = [];
+    for (var i = 0; i < (opts.hints || []).length; i++) {
+      var got = await clientFromFile(roots, opts.hints[i], info.sname, info.fname);
+      got.forEach(function (c) { if (!clients.some(function (x) { return x.rootKey === c.rootKey && x.parts.join('/') === c.parts.join('/'); })) clients.push(c); });
+    }
+    if (!clients.length) clients = await findClients(roots, info.sname, info.fname);
+    if (!clients.length) return { reason: 'client', deepest: rootDeep };
+    var cands = [];
+    for (var c = 0; c < clients.length; c++) cands = cands.concat(await factFindCandidates(clients[c]));
+    if (!cands.length) return { reason: 'ff', deepest: clients[0].handle };
+    return cands.length === 1 ? { pick: cands[0], reason: 'only', deepest: clients[0].handle } : { ask: cands, deepest: clients[0].handle };
   }
 
   /* ---------- the file ---------- */
@@ -247,8 +274,8 @@
 
   return {
     MAX_PATH: MAX_PATH, SWAP: SWAP, RULES: RULES, ALIASES: ALIASES, norm: norm, tokens: tokens, clientFolderName: clientFolderName, parseClient: parseClient, clientMatches: clientMatches, letterOf: letterOf, letterFolder: letterFolder,
-    isLetterFolder: isLetterFolder, isStandard: isStandard, insurerWords: insurerWords, productWords: productWords, numbersIn: numbersIn, hasWord: hasWord, scoreDeal: scoreDeal, chooseDeal: chooseDeal, pathCheck: pathCheck, tooLongText: tooLongText,
-    listDirs: listDirs, findClients: findClients, clientFromFile: clientFromFile, dirOfFile: dirOfFile, dealCandidates: dealCandidates, resolveTarget: resolveTarget, relOf: relOf, labelOf: labelOf, probeFile: probeFile, makeFile: makeFile, discardEmpty: discardEmpty,
+    isLetterFolder: isLetterFolder, isStandard: isStandard, nameIs: nameIs, insurerWords: insurerWords, productWords: productWords, numbersIn: numbersIn, hasWord: hasWord, scoreDeal: scoreDeal, chooseDeal: chooseDeal, pathCheck: pathCheck, tooLongText: tooLongText,
+    listDirs: listDirs, findClients: findClients, clientFromFile: clientFromFile, dirOfFile: dirOfFile, dealCandidates: dealCandidates, resolveTarget: resolveTarget, factFindCandidates: factFindCandidates, resolveFactFind: resolveFactFind, relOf: relOf, labelOf: labelOf, probeFile: probeFile, makeFile: makeFile, discardEmpty: discardEmpty,
     saveHandle: saveHandle, loadHandle: loadHandle, getPaths: getPaths, setPath: setPath, permission: permission, enabled: enabled
   };
 });

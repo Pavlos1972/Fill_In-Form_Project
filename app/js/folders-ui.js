@@ -1,4 +1,4 @@
-/* The screens and the flow of saving into the client's folder (Risk Application 1.4, Investment Application 1.3). The logic is in folders.js; this file connects it to the page:
+/* The screens and the flow of saving into the client's folder (Risk Application 1.4, Investment Application 1.3, Fact Find 5.2). The logic is in folders.js; this file connects it to the page:
    Folders… (connect New Business and Client Files once, and type each one's Windows path once), the list the adviser picks from when more than one folder fits, and FF.foldersUI.open(), which a page's Save calls
    for a first save: it finds the folder and hands back a file handle to write to, or falls back to the normal Save window with the reason. It never creates, renames, moves or deletes a folder. */
 (function () {
@@ -28,7 +28,7 @@
           return '<div class="frow" data-key="' + k + '"><div class="fhead"><b>' + LABEL[k] + '</b><span class="fstat" data-stat></span><button type="button" class="btn small" data-pick>Choose folder&hellip;</button></div>' +
             '<label class="fpath"><span>Windows path of this folder (typed once, so the page can warn before a path is too long)</span><input type="text" data-path value="' + esc(F.getPaths()[k] || '') + '" placeholder="e.g. C:\\Users\\&lt;you&gt;\\&hellip;\\' + LABEL[k] + '" autocomplete="off"><small data-pathnote></small></label></div>';
         }
-        dlg.innerHTML = '<h3>Connect your client folders</h3><p>Pick the two folders once. After that, Save goes straight into the client&rsquo;s <i>Applications</i> folder. The page only looks, and writes the file: it never creates, renames, moves or deletes a folder. ' +
+        dlg.innerHTML = '<h3>Connect your client folders</h3><p>Pick the two folders once. After that, Save goes straight into the client&rsquo;s folder: an application into its deal folder&rsquo;s <i>Applications</i> folder, a Fact Find into the client&rsquo;s <i>2. Fact Find</i> folder. The page only looks, and writes the file: it never creates, renames, moves or deletes a folder. ' +
           'Chrome may ask you to Allow again now and then, and each place this page is opened from (the website, the copy on this computer) needs its own one-time connection.</p>' + row('A') + row('B') +
           '<div class="fbtns"><button type="button" class="btn small" data-done>Done</button></div>';
         document.body.appendChild(dlg);
@@ -98,13 +98,13 @@
   function withTimeout(p, ms) {
     return new Promise(function (resolve, reject) { var t = setTimeout(function () { reject(new Error('looking through the folders took too long')); }, ms); p.then(function (v) { clearTimeout(t); resolve(v); }, function (e) { clearTimeout(t); reject(e); }); });
   }
-  function keyOf(info) { return JSON.stringify([F.norm(info.sname), F.norm(info.fname), (info.insurers || [])[0] || '', (info.products || []).join(' '), (info.kinds || []).join(' '), info.premium || 0]); }
+  function keyOf(info) { return JSON.stringify([info.kind || '', F.norm(info.sname), F.norm(info.fname), (info.insurers || [])[0] || '', (info.products || []).join(' '), (info.kinds || []).join(' '), info.premium || 0]); }
 
   /* ---------- the flow of a first Save ----------
-     ctx: { info, name, hints: [file handles], sibling: the saved file (a PDF goes beside it), openedHandle, picker(startIn), toast(text, ms), retry(), startedAt }
+     ctx: { kind: 'factfind' for the Fact Find (its "2. Fact Find" folder, no deal folder), info, name, hints: [file handles], sibling: the saved file (a PDF goes beside it), openedHandle, picker(startIn), toast(text, ms), retry(), startedAt }
      Resolves { handle, folder: { label, apps, name, created, key } | null }; rejects AbortError when the adviser has been told to click again. */
   async function open(ctx) {
-    var started = ctx.startedAt || Date.now(), activation = started, key = keyOf(ctx.info);
+    var started = ctx.startedAt || Date.now(), activation = started, key = keyOf(ctx.info), ff = ctx.kind === 'factfind';
     async function fallback(reason, deepest, needsClick) {
       if (reason) ctx.toast(reason, 20000);
       if (reason && (needsClick || Date.now() - activation > 3000)) {                       // the browser's Save window needs a fresh click: a slow search or a prompt has used this one up
@@ -125,16 +125,17 @@
     var cand = null, rootKey = null, rel = null, apps = null, label = '', cached = cache[key];
     try {
       if (ctx.sibling) {                                                                         // a PDF beside the saved file
-        var sib = await F.dirOfFile(liveRoots, ctx.sibling);
+        var sib = await F.dirOfFile(liveRoots, ctx.sibling, ff ? F.RULES.factFind : undefined);
         if (sib) { apps = sib.handle; rootKey = sib.rootKey; rel = sib.parts; label = sib.parts.join(' \\ '); }
       }
       if (!apps) {
-        var res = cached ? { pick: cached, reason: 'cached' } : await withTimeout(F.resolveTarget(liveRoots, ctx.info, { hints: ctx.hints || [] }), 25000);
-        if (res.reason === 'names') return fallback('Fill in the client\u2019s names first, so the page can find the client\u2019s folder. Choose where to save instead.', null);
-        if (res.reason === 'client') return fallback('No folder named \u201c' + F.clientFolderName(ctx.info.sname, ctx.info.fname) + '\u201d was found in your connected folders. Choose where to save instead.', null);
+        var res = cached ? { pick: cached, reason: 'cached' } : await withTimeout(ff ? F.resolveFactFind(liveRoots, ctx.info, { hints: ctx.hints || [] }) : F.resolveTarget(liveRoots, ctx.info, { hints: ctx.hints || [] }), 25000);
+        if (res.reason === 'names') return fallback('Fill in the client\u2019s names first, so the page can find the client\u2019s folder. Choose where to save instead.', res.deepest || null);
+        if (res.reason === 'client') return fallback('No folder named \u201c' + F.clientFolderName(ctx.info.sname, ctx.info.fname) + '\u201d was found in your connected folders. Choose where to save instead.', res.deepest || null);
+        if (res.reason === 'ff') return fallback('The client\u2019s folder has no \u201c2. Fact Find\u201d folder yet, and this page never creates a folder. Choose where to save instead.', res.deepest);
         if (res.reason === 'deal') return fallback('The client\u2019s folder has no deal folder with an Applications folder in it. Choose where to save instead.', res.deepest);
         if (res.ask) {
-          var chosen = await ask('More than one folder could be this application\u2019s. Pick the right one (nothing is saved until you do).', res.ask);
+          var chosen = await ask(ff ? 'More than one \u201c2. Fact Find\u201d folder could be this client\u2019s. Pick the right one (nothing is saved until you do).' : 'More than one folder could be this application\u2019s. Pick the right one (nothing is saved until you do).', res.ask);
           activation = Date.now();
           if (!chosen) return fallback('', res.deepest);
           cand = chosen;
