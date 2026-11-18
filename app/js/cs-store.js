@@ -1,4 +1,4 @@
-/* The Investment Capture Sheet's answers, and saving them. State is plain data so it can be saved as a file and reopened.
+/* The Investment Application's answers, and saving them. State is plain data so it can be saved as a file and reopened.
    Each box holds { v, st }; st is empty, preset (set by the form itself), confirmed (typed, or agreed with the client) or verify (loaded from the Fact Find: to be checked with the client).
    Each row of a list holds { d: { column: text }, st }. */
 (function (root, factory) {
@@ -129,7 +129,7 @@
     var n = util.num(state.f.amount.v), p = n > 0 ? n.toFixed(2).split('.') : null;
     return (p ? 'R ' + p[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',') + '.' + p[1] : 'R amount') + (schema.fileName.kinds[state.f.contrib_type.v] || ' - p.m. or Lump Sum');
   }
-  /* "OM - Optimal RA Application - 20.11.26 - R 2,800.00 p.m. - (First Last)": the application file name rule, the same as the Short Risk Application's (from version 1.1; before, "OM Capture Sheet - 12.11.26 - (First Last)").
+  /* "OM - Optimal RA Application - 20.11.26 - R 2,800.00 p.m. - (First Last)": the application file name rule, the same as the Risk Application's (from version 1.1; before, "OM Capture Sheet - 12.11.26 - (First Last)").
      The PDF and the saved file (.json) have the same name; only the ending differs. Until the boxes it is made from are filled, the missing parts read as what they are. */
   function pdfFileName(state) {
     var d = util.parseDate(state.f.date.v) || util.parseDate(util.isoToday());
@@ -170,7 +170,7 @@
   function toJSON(state) { state.modified = new Date().toISOString(); return JSON.stringify(state, null, 2); }
   function fromJSON(text) {
     var j = JSON.parse(text);
-    if (!j || j.app !== APP_ID) throw new Error('This file is not a Wealth Revolution Investment Capture Sheet.');
+    if (!j || j.app !== APP_ID) throw new Error('This file is not a Wealth Revolution Investment Application.');
     var s = blank();
     s.created = j.created || s.created; s.modified = j.modified || null;
     Object.keys(j.f || {}).forEach(function (id) {
@@ -236,9 +236,9 @@
     return { name: w.slice(0, i).join(' '), sname: w.slice(i).join(' ') };
   }
   var SR_ACC_TYPE = { Cheque: 'Cheque', Savings: 'Savings', Transmission: 'Other' };
-  /* Load from Short Risk file: what the client already gave on a saved Short Risk Application (contact details, home address, bank and beneficiaries), read and never changed. The beneficiaries come only when this application has none yet. */
+  /* Load from Short Risk file: what the client already gave on a saved Risk Application (contact details, home address, bank and beneficiaries), read and never changed. The beneficiaries come only when this application has none yet. */
   function loadFromShortRisk(state, text, fileName) {
-    var j = readSaved(text, SR_APP_ID, 'a Wealth Revolution Short Risk Application');
+    var j = readSaved(text, SR_APP_ID, 'a Wealth Revolution Risk Application');
     var sr = function (id) { var c = j.f && j.f[id]; return c && c.v != null ? String(c.v).trim() : ''; };
     var rep = { loaded: [], kept: [], children: 0, rows: 0 }, put = putter(state, rep);
     put('title', sr('title')); put('fname', sr('fname')); put('sname', sr('sname')); put('idno', sr('idno'));

@@ -19,7 +19,7 @@ test('the form: five pages in the order of the work, the Declaration with the ap
   assert.deepStrictEqual(schema.pages[4].sections, ['risk', 'risk_result']);
   const order = schema.sections.map(s => s.id);
   assert.ok(order.indexOf('funds') < order.indexOf('declare') && order.indexOf('declare') < order.indexOf('risk') && order.indexOf('risk') < order.indexOf('risk_result'));
-  assert.strictEqual(schema.version, '1.1');
+  assert.strictEqual(schema.version, '1.2');
   assert.strictEqual(new Set(schema.fieldIds).size, schema.fieldIds.length, 'no box id is used twice');
   schema.sections.forEach(s => assert.ok(schema.pageOf[s.id], s.id + ' is on a page'));
 });
@@ -188,7 +188,7 @@ test('Load from Short Risk file keeps what was typed, leaves a beneficiary list 
   const rep = store.loadFromShortRisk(s, shortRiskText(), 'x.json');
   assert.strictEqual(s.f.fname.v, 'Typed'); assert.strictEqual(s.f.bank.v, 'FNB'); assert.ok(rep.kept.includes('Full names (as per ID document)') && rep.kept.includes('Name of bank'));
   assert.strictEqual(s.l.benef.length, 1); assert.strictEqual(rep.rows, 0);
-  assert.throws(() => store.loadFromShortRisk(s, '{"app":"wr-fact-find"}', 'x'), /not a Wealth Revolution Short Risk Application/);
+  assert.throws(() => store.loadFromShortRisk(s, '{"app":"wr-fact-find"}', 'x'), /not a Wealth Revolution Risk Application/);
 });
 test('a surname with van, de or du in it stays whole', () => {
   [['Piet van der Merwe', 'Piet', 'van der Merwe'], ['Anna Maria Kuiper', 'Anna Maria', 'Kuiper'], ['Jan de Villiers', 'Jan', 'de Villiers'], ['Madonna', 'Madonna', '']].forEach(([full, n, sn]) => assert.deepStrictEqual(store.splitName(full), { name: n, sname: sn }, full));

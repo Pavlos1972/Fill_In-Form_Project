@@ -27,7 +27,7 @@ srv.listen(0, async () => {
   const setEx1 = async () => { await pick('provider', 'Old Mutual'); await pick('product', 'Retirement Annuity'); await type('product_name', 'OM Optimal RA - Recurring'); await pick('contrib_type', 'Recurring (monthly)'); await type('amount', '2800'); };
 
   /* the version, and a new sheet before anything is filled in: the missing parts read as what they are */
-  ok(/Version 1\.1/.test(await p.evaluate(() => document.querySelector('#verLine').textContent)), 'the top says Version 1.1');
+  ok(/Version 1\.2/.test(await p.evaluate(() => document.querySelector('#verLine').textContent)), 'the top says Version 1.2');
   ok(/^Provider - Product Application - \d\d\.\d\d\.\d\d - R amount - p\.m\. or Lump Sum - \(New client\)$/.test(await card()), 'a new sheet: the card says what is still missing: ' + await card());
 
   /* Paul's first example, built up box by box: the card follows each one */

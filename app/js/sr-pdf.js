@@ -1,4 +1,4 @@
-/* Builds the Short Risk Application PDF from the answers, in the Wealth Revolution look of the Fact Find PDF.
+/* Builds the Risk Application PDF from the answers, in the Wealth Revolution look of the Fact Find PDF.
    It is drawn from the form's own definition (sr-schema.js): a box added there appears here by itself. It is one A4 page when the client has up to two children and two beneficiaries, and grows to a second page after that. */
 (function () {
   var FF = window.FF, SR = window.SR, util = FF.util, schema = SR.schema, store = SR.store;
@@ -53,7 +53,7 @@
     /* ----- header ----- */
     var logo = FF.logo, lw = 32, lh = lw * logo.h / logo.w;
     doc.addImage(logo.data, 'PNG', M, 7, lw, lh);
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(16); doc.setTextColor.apply(doc, INK); doc.text('SHORT RISK APPLICATION', W - M, 12, { align: 'right' });
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(16); doc.setTextColor.apply(doc, INK); doc.text('RISK APPLICATION', W - M, 12, { align: 'right' });
     doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor.apply(doc, MUTED);
     doc.text('General short application for all insurers', W - M, 16.5, { align: 'right' });
     doc.text(t(name) + '  |  ' + t(state.f.insurer.v || 'Insurer') + '  |  ' + t(store.productName(state) || 'Product type'), W - M, 21, { align: 'right' });
@@ -104,11 +104,11 @@
       doc.setPage(p);
       if (p > 1) {
         doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor.apply(doc, DEEP); doc.text('WEALTH REVOLUTION', M, 10);
-        doc.setFont('helvetica', 'normal'); doc.setTextColor.apply(doc, MUTED); doc.text('Short Risk Application - ' + t(name), W - M, 10, { align: 'right' });
+        doc.setFont('helvetica', 'normal'); doc.setTextColor.apply(doc, MUTED); doc.text('Risk Application - ' + t(name), W - M, 10, { align: 'right' });
         doc.setDrawColor.apply(doc, LINE); doc.setLineWidth(0.2); doc.line(M, 12, W - M, 12);
       }
       doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor.apply(doc, MUTED);
-      doc.text('WR Short Risk Application v' + schema.version + ' - ' + schema.released, M, PAGE_H - 8);
+      doc.text('WR Risk Application v' + schema.version + ' - ' + schema.released, M, PAGE_H - 8);
       doc.text('Page ' + p + ' of ' + pages, W - M, PAGE_H - 8, { align: 'right' });
     }
     return doc;

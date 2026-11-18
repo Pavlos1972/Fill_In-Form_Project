@@ -1,4 +1,4 @@
-/* The Checks panel of the Investment Capture Sheet: what is still to answer, and what looks wrong. Nothing here stops a save; it tells the adviser before the application goes to the insurer. */
+/* The Checks panel of the Investment Application: what is still to answer, and what looks wrong. Nothing here stops a save; it tells the adviser before the application goes to the insurer. */
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory(require('./util.js'), require('./cs-schema.js'), require('./cs-store.js'));
   else { root.CS = root.CS || {}; root.CS.check = factory(root.FF.util, root.CS.schema, root.CS.store); }
