@@ -242,7 +242,7 @@ A third page of the same site, `app/capture-sheet.html` (version 1.2, November 2
 | `.github/workflows/pages.yml` | Publishes the app folder to the website when `main` changes, after running the tests |
 | `.github/workflows/tests.yml` | Runs the tests on every pull request |
 | `tests/` | Automated tests. Run `npm test` (needs Node 20 or later). `tests/browser/` holds the checks that open the real page in Chrome (every page, voice, the PDF, the layout at three widths, the Risk Application page: `t-sr.js`, and the Investment Application page: `t-cs.js`): run `npm run test:browser` (needs Playwright and Chrome, see the top of `tests/browser/run.sh`). |
-| `docs/` | `docs/FORM-CHANGES.md` (the dated change log of the form's boxes), `docs/HANDOVER-TO-CHAT-3.md` (the start-here handover for a new session, with `docs/HANDOVER-CHAT-1.md` and `docs/PAUL-MESSAGES-CHAT-1.md` behind it), the revision analysis, the approved mock-up, the TaxTim examples, the SARS tax tables (`docs/tax_tables.json`), and a sample PDF (`docs/sample/`) |
+| `docs/` | `docs/FORM-CHANGES.md` (the dated change log of the form's boxes), `docs/HANDOVER-TO-CHAT-4.md` (the start-here handover for a new session, written on 20 November 2026), `docs/HANDOVER-TO-CHAT-3.md` (the detailed reference behind it), and `docs/HANDOVER-CHAT-1.md` with `docs/PAUL-MESSAGES-CHAT-1.md` behind those, the revision analysis, the approved mock-up, the TaxTim examples, the SARS tax tables (`docs/tax_tables.json`), and a sample PDF (`docs/sample/`) |
 
 ## Look and colours
 

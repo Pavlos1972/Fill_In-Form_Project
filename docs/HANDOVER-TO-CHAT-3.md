@@ -2,6 +2,8 @@
 
 Written on 20 November 2026 by Chat 2 ("Fact Find Audio to Text Form - Chat 2"), on Paul's word (relayed by the Fix Skills chat: *"Paul agrees, we move to Chat 3 now"*). **Chat 2 takes no new work and stays open only for reference.** A fresh session can follow this file alone. Read it right after `CLAUDE.md`.
 
+**Update, 20 November (Chat 3): this file is no longer the start-here file. A new session starts with `CLAUDE.md` and then `docs/HANDOVER-TO-CHAT-4.md` (state after Release 5.3, the open items, Chat 3's lessons). This file stays as the detailed reference: its sections 3 (saving into the client's folder), 4 (the release routine with the tool names), 6 (the changes page), 8 (open items) and 9 (the names clean-up record) are still true; where a statement here about versions or "what is next" differs from `CLAUDE.md` or the Chat 4 file, those two are newer.**
+
 **This repository is public.** Nothing in this file is private: no client name, no e-mail address, no key, no folder path of Paul's computer, and not the private name list used for the history clean-up (that list is deliberately kept out of the repository: see section 9).
 
 ## 0. Read these first, in this order
