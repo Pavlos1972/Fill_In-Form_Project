@@ -28,7 +28,7 @@ Written on 20 November 2026 by Chat 2 ("Fact Find Audio to Text Form - Chat 2"),
 | **The chats so far** | Chat 1 (14 October to 16 November, branch `claude/create-something-stjk8a`), Chat 2 (16 to 20 November, branch `claude/gallant-turing-hoe5mi`), Chat 3 (now; the session gives you your own branch). |
 | **Where it runs** | **The website** https://pavlos1972.github.io/Fill_In-Form_Project/ (GitHub Pages, published from `main`'s `app/` folder), and **an offline copy** in the Fact Find Documents folder of Paul's OneDrive, installed by the Fix Skills chat. The copy and the website keep their own saved keys and folder connections. |
 | **Repository** | `pavlos1972/fill_in-form_project` (in the tools use that spelling, lower case). Branches: `main`, `claude/create-something-stjk8a` (Chat 1, kept), `claude/gallant-turing-hoe5mi` (Chat 2). |
-| **The changes page** | https://claude.ai/artifact/TG8Jqe8ndzoZKUuuZhUwpP (an Artifact private to Paul: his list of what changed, per release; version 57 on 19 November). Updated **only when Paul says "Update the changes page"** (section 6). |
+| **The changes page** | https://claude.ai/artifact/TG8Jqe8ndzoZKUuuZhUwpP (an Artifact private to Paul: his list of what changed, per release; version 58 on 20 November). Updated **only when Paul says "Update the changes page"** (section 6). |
 
 ### Current versions (20 November 2026)
 
@@ -154,8 +154,8 @@ The page is an Artifact (https://claude.ai/artifact/TG8Jqe8ndzoZKUuuZhUwpP), pri
 |---|---|
 | The lede at the top | the first `<p class="lede">What changed in the form after the audit...`: it lists the pull requests and releases in order; extend it. |
 | The status line | `<div class="status live" role="status">`: "Everything is on the website through PR NN (list of PRs...)", which pull requests changed only documentation, the deploy time, and `<span class="mono">main · commit XXXXXXX</span>`. Update the PR number, the list and the commit. |
-| The summary tiles | in the script near the end: `var T = [['ok', 29, 'Findings fixed and merged'], ['ok', 792, 'Tests pass'], ['acc', 1097, 'Browser checks pass'], ...]`. Update the two counts after a release. |
-| One section per release | `<section aria-labelledby="h-relNN">` with `<h2 id="h-relNN">Title (PR NN, version X.Y)</h2>`, a `<p class="lede">` in Paul's voice ("You asked for ..."), and `<div class="scroll"><table>` with the columns **What / What the page does now / Status**; also a row for **Slips I made and fixed** and one for **What is not certain**. New sections go after the newest one and before `h-hist`. The newest at 20 November are `h-rel52` (5.2) and `h-names` (the names clean-up). |
+| The summary tiles | in the script near the end: `var T = [['ok', 29, 'Findings fixed and merged'], ['ok', 815, 'Tests pass'], ['acc', 1142, 'Browser checks pass'], ...]`. Update the two counts after a release. |
+| One section per release | `<section aria-labelledby="h-relNN">` with `<h2 id="h-relNN">Title (PR NN, version X.Y)</h2>`, a `<p class="lede">` in Paul's voice ("You asked for ..."), and `<div class="scroll"><table>` with the columns **What / What the page does now / Status**; also a row for **Slips I made and fixed** and one for **What is not certain**. New sections go after the newest one and before `h-hist`. The newest at 20 November are `h-rel53` (5.3), `h-rel52` (5.2) and `h-names` (the names clean-up). |
 | The history list | `<section aria-labelledby="h-hist">`: one `<div><span class="pr">PR NN</span><span>what it was</span></div>` per merged pull request. |
 | What is left | `<section aria-labelledby="h-next">` (some items are old; keep them honest). |
 
