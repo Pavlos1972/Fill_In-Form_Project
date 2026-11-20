@@ -34,9 +34,9 @@ Written on 20 November 2026 by Chat 2 ("Fact Find Audio to Text Form - Chat 2"),
 
 | Page | File | Version | Merged as |
 |---|---|---|---|
-| **Fact Find** | `app/index.html` | **5.3** | PR 90 (20 November; 5.2 was PR 88, `d22c4dc`) |
-| **Risk Application** (called Short Risk Application until 1.3; still "Short Risk" in file names, ids and the `app` key `wr-short-risk`) | `app/short-risk.html` | **1.5** | PR 90 (20 November; 1.4 was PR 87, `8ce70c1`) |
-| **Investment Application** (called Investment Capture Sheet until 1.2; `app` key `wr-capture-sheet`) | `app/capture-sheet.html` | **1.4** | PR 90 (20 November; 1.3 was PR 87, `8ce70c1`) |
+| **Fact Find** | `app/index.html` | **5.3** | PR 90, `97c44ee` (20 November; 5.2 was PR 88, `d22c4dc`) |
+| **Risk Application** (called Short Risk Application until 1.3; still "Short Risk" in file names, ids and the `app` key `wr-short-risk`) | `app/short-risk.html` | **1.5** | PR 90, `97c44ee` (20 November; 1.4 was PR 87, `8ce70c1`) |
+| **Investment Application** (called Investment Capture Sheet until 1.2; `app` key `wr-capture-sheet`) | `app/capture-sheet.html` | **1.4** | PR 90, `97c44ee` (20 November; 1.3 was PR 87, `8ce70c1`) |
 
 **Update, 20 November (Chat 3): Fact Find 5.3, Risk Application 1.5 and Investment Application 1.4 were built and tested on the work branch `claude/elegant-bell-5whxdn` and merged as PR 90 on Paul's "merge" (what they hold: `CLAUDE.md` section 0, first row; the detail: README "Release 5.3" and `docs/FORM-CHANGES.md`).** The table above is as merged; the install on Paul's computer is the Fix Skills chat's (it reports it). All three are published and **installed on Paul's computer** by the Fix Skills chat. Versions are compared as decimals (`parseFloat`): the number after 4.9 was **5.0**, never 4.10. The shared build number is `BUILD` in `app/js/build.js` (**5.3**).
 
