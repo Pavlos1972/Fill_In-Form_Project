@@ -385,18 +385,39 @@
   if (restored) draftHold = true; else rememberHandle(null);
   window.SR.app = { get state() { return state; }, redraw: redraw, setState: function (s) { state = s; redraw(); }, makePdf: makePdf, loadFactFindText: function (t, n) { var rep = store.loadFromFactFind(state, t, n); touch(); redraw(); return rep; } };
   redraw();
+  /* The Fact Find the adviser came from (5.3): clicking this page's link in the Fact Find's "Other forms" menu left the client in this browser (handover.js). It fills this application the way "Load from Fact Find" does
+     (amber "verify", typed boxes never overwritten). Unsaved work for another client is not replaced without asking; for the same client the restored work just gets its empty boxes filled. */
+  var HO = null, HF = window.FF && FF.handover;
+  if (HF) { HF.bindMenu(document); HO = HF.wants(window) ? HF.peek() : null; HF.stripFlag(window); }
+  var linkOther = HF && $('#linkCS');                                                                      // the other application: it opens filled from the Fact Find too, when that Fact Find is for this client
+  if (linkOther) linkOther.addEventListener('click', function () { var h = HF.peek(); linkOther.href = linkOther.getAttribute('data-base') + (h && HF.sameClient(h.who, state.f.fname.v, state.f.sname.v) ? '?from=factfind' : ''); });
+  function hoWho(ho) { return [ho.who && ho.who.fname, ho.who && ho.who.sname].filter(Boolean).join(' ') || 'the client'; }
+  function fromFactFind(ho) {
+    try {
+      var rep = store.loadFromFactFind(state, ho.text, ho.name || 'the Fact Find on screen'); touch(); redraw();
+      var bits = [];
+      if (rep.loaded.length) bits.push(rep.loaded.length + (rep.loaded.length === 1 ? ' box' : ' boxes'));
+      if (rep.children) bits.push(rep.children + (rep.children === 1 ? ' child' : ' children'));
+      toast((bits.length ? 'Filled ' + bits.join(' and ') + ' from the Fact Find for ' + hoWho(ho) + '. Check them with the client.' : 'Nothing new to fill from the Fact Find for ' + hoWho(ho) + '.') + (rep.kept.length ? ' Left as typed: ' + rep.kept.join(', ') + '.' : ''), 9000);
+    } catch (e) { toast(e.message || 'Could not read that Fact Find.', 6000); }
+  }
+  if (HO && !restored) fromFactFind(HO);
   if (restored) {
-    var who = store.clientName(restored) || 'the last client', rd = document.createElement('dialog'); rd.id = 'restoreDraft';
-    rd.innerHTML = '<h2>Unsaved changes found</h2><p class="help">The last application, for ' + esc(who) + ', had changes that were not saved. Restore them, or start a new application? Starting a new one throws those changes away.</p>' +
-      '<div class="dlg-actions"><button class="btn ghost small" id="restoreNew" type="button">Start a new application</button><span class="grow"></span><button class="btn small" id="restoreYes" type="button">Restore ' + esc(who) + '</button></div>';
+    var who = store.clientName(restored) || 'the last client', rd = document.createElement('dialog'), ffWho = HO ? hoWho(HO) : '', other = !!HO && !HF.sameClient(HO.who, restored.f.fname.v, restored.f.sname.v);
+    rd.id = 'restoreDraft';
+    rd.innerHTML = '<h2>Unsaved changes found</h2><p class="help">' + (other
+      ? 'You came here from the Fact Find for ' + esc(ffWho) + ', but the last application, for ' + esc(who) + ', had changes that were not saved. Which do you want? Starting a new application for ' + esc(ffWho) + ' throws those changes away.'
+      : 'The last application, for ' + esc(who) + ', had changes that were not saved. Restore them, or start a new application? Starting a new one throws those changes away.') + '</p>' +
+      '<div class="dlg-actions"><button class="btn ghost small" id="restoreNew" type="button">' + (other ? 'Start a new application for ' + esc(ffWho) : 'Start a new application') + '</button><span class="grow"></span><button class="btn small" id="restoreYes" type="button">Restore ' + esc(who) + '</button></div>';
     document.body.appendChild(rd);
     rd.addEventListener('cancel', function (e) { e.preventDefault(); });                            // a choice is needed: Escape does not close it
     rd.querySelector('#restoreYes').addEventListener('click', function () {
       state = restored; fileBase = restoredBase; dirty = true; onDisk = false; draftHold = false; rd.close(); rd.remove();
       recallHandle().then(function (h) { if (h && fileBase) fileHandle = h; });
       redraw(); toast('Restored your unsaved changes for ' + who + '.');
+      if (HO && !other) fromFactFind(HO);
     });
-    rd.querySelector('#restoreNew').addEventListener('click', function () { draftHold = false; rd.close(); rd.remove(); rememberHandle(null); saveDraft(); redraw(); });
+    rd.querySelector('#restoreNew').addEventListener('click', function () { draftHold = false; rd.close(); rd.remove(); rememberHandle(null); saveDraft(); redraw(); if (HO) fromFactFind(HO); });
     rd.showModal(); rd.querySelector('#restoreYes').focus();
   }
 })();

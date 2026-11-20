@@ -13,7 +13,7 @@ let bad = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if
   ok(!(await open()) && !(await vis('linkSR')) && !(await vis('linkCS')), 'closed: the two links are hidden');
   await p.click('#otherForms summary'); await p.waitForTimeout(150);
   ok((await open()) && (await vis('linkSR')) && (await vis('linkCS')), 'opened: both links show');
-  ok((await p.getAttribute('#linkSR', 'href')) === 'short-risk.html' && (await p.getAttribute('#linkCS', 'href')) === 'capture-sheet.html', 'they go to the Short Risk Application and the Capture Sheet');
+  ok(/^short-risk\.html(\?from=factfind)?$/.test(await p.getAttribute('#linkSR', 'href')) && /^capture-sheet\.html(\?from=factfind)?$/.test(await p.getAttribute('#linkCS', 'href')), 'they go to the Short Risk Application and the Capture Sheet');
   ok((await p.getAttribute('#linkSR', 'target')) === '_blank' && (await p.getAttribute('#linkCS', 'target')) === '_blank', 'each opens in another tab');
   const box = await p.evaluate(() => { const r = document.querySelector('.ofmenu').getBoundingClientRect(); return [r.left >= 0, r.right <= innerWidth, r.top >= 0]; });
   ok(box.every(Boolean), 'the menu is fully on the screen');
@@ -27,7 +27,7 @@ let bad = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if
   const [pop] = await Promise.all([ctx.waitForEvent('page', { timeout: 5000 }).catch(() => null), p.click('#linkSR')]);
   await p.waitForTimeout(150);
   ok(!(await open()), 'choosing a link closes it');
-  ok(!!pop && /short-risk\.html$/.test(pop.url()), 'and the Short Risk Application opened in another tab: ' + (pop && pop.url()));
+  ok(!!pop && /short-risk\.html(\?from=factfind)?$/.test(pop.url()), 'and the Short Risk Application opened in another tab: ' + (pop && pop.url()));
   ok(await p.evaluate(() => !!document.getElementById('svcTable')), 'the keys-and-costs table is still in the top bar');
   for (const w of [1100, 800, 390]) { await p.setViewportSize({ width: w, height: 900 }); await p.click('#otherForms summary'); await p.waitForTimeout(100);
     const r = await p.evaluate(() => { const r = document.querySelector('.ofmenu').getBoundingClientRect(); return r.left >= 0 && r.right <= innerWidth + 1; });

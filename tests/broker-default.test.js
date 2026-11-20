@@ -8,12 +8,12 @@ const V = require('../app/js/voice.js');
 
 const fresh = () => store.blank();
 const set = (s, id, v, st) => store.setField(s, id, v, st);
-const CH = ['Paul K', 'Other broker', 'Through company', 'None'];
+const CH = ['Paul K', 'Other broker', 'Through company', 'None'], STI = ['Cameron Maritz', 'Other broker', 'Through company', 'None'];       // 5.3: Short-term insurance offers Cameron Maritz instead of Paul K
 const LISTS = ['risk', 'grp', 'ret_ra', 'ret_pp', 'inv', 'bizpol'], BOXES = { ma: 'ma_broker', gap: 'gap_broker', will: 'will_broker', sti: 'sti_broker' };
 
 test('every Broker on record is called that and has the same four choices', () => {
   LISTS.forEach(k => { const c = schema.lists[k].cols.find(x => x.k === 'broker'); assert.strictEqual(c.l, 'Broker on record', k); assert.deepStrictEqual(c.o, CH, k); assert.strictEqual(c.def, 'Other broker', k); });
-  Object.values(BOXES).forEach(id => { const f = schema.fieldsById[id]; assert.strictEqual(f.l, 'Broker on record', id); assert.deepStrictEqual(f.o, CH, id); assert.ok(f.vl && /broker on record$/.test(f.vl), id + ' keeps its own name for voice'); });
+  Object.values(BOXES).forEach(id => { const f = schema.fieldsById[id]; assert.strictEqual(f.l, 'Broker on record', id); assert.deepStrictEqual(f.o, id === 'sti_broker' ? STI : CH, id); assert.ok(f.vl && /broker on record$/.test(f.vl), id + ' keeps its own name for voice'); });
   assert.strictEqual(schema.defaultBroker, 'Other broker');
 });
 
@@ -67,7 +67,7 @@ test('files saved with the older medical aid, gap and short-term choices keep th
   j.f.sti = { v: 'Yes', st: 'confirmed' }; j.f.sti_broker = { v: 'Cameron Maritz', st: 'confirmed' };
   j.f.will = { v: 'Yes', st: 'confirmed' }; j.f.will_broker = { v: 'Paul K', st: 'confirmed' };
   const s = store.fromJSON(JSON.stringify(j));
-  assert.deepStrictEqual(['ma_broker', 'gap_broker', 'sti_broker', 'will_broker'].map(id => s.f[id].v), ['None', 'Other broker', 'Other broker', 'Paul K']);
+  assert.deepStrictEqual(['ma_broker', 'gap_broker', 'sti_broker', 'will_broker'].map(id => s.f[id].v), ['None', 'Other broker', 'Cameron Maritz', 'Paul K']);       // 5.3: Cameron Maritz is a choice of the short-term box again
   const empty = JSON.parse(store.toJSON(fresh())); empty.f.ma = { v: 'Medical aid', st: 'confirmed' };
   const opened = store.fromJSON(JSON.stringify(empty));
   assert.deepStrictEqual([opened.f.ma_broker.v, opened.f.ma_broker.st], ['Other broker', 'preset'], 'an older file whose answer opens the box and whose broker is empty gets the default when it is opened');
@@ -77,10 +77,11 @@ test('files saved with the older medical aid, gap and short-term choices keep th
 test('voice: "Paul", "through the company", "no broker" and "Cameron" are read for the four boxes, and the default is not an answer Claude has to respect', () => {
   const idx = V.buildIndex(schema), r = (id, t) => { const x = V.interpret(idx.byId[id], t); return x && (x.error ? 'ERR:' + x.error : x.value); };
   ['ma_broker', 'gap_broker', 'will_broker', 'sti_broker'].forEach(id => {
-    assert.strictEqual(r(id, 'Paul is the broker'), 'Paul K', id); assert.strictEqual(r(id, 'it goes through the company'), 'Through company', id); assert.strictEqual(r(id, 'no broker'), 'None', id);
+    if (id !== 'sti_broker') assert.strictEqual(r(id, 'Paul is the broker'), 'Paul K', id); assert.strictEqual(r(id, 'it goes through the company'), 'Through company', id); assert.strictEqual(r(id, 'no broker'), 'None', id);
     assert.strictEqual(r(id, 'another broker'), 'Other broker', id);
   });
-  assert.strictEqual(r('sti_broker', 'Cameron looks after it'), 'Other broker');
+  assert.notStrictEqual(r('sti_broker', 'Paul is the broker'), 'Paul K', 'Paul is not a short-term broker (5.3)');
+  assert.strictEqual(r('sti_broker', 'Cameron looks after it'), 'Cameron Maritz');
   LISTS.forEach(k => { assert.strictEqual(r(k + '.broker', 'Paul K'), 'Paul K', k); assert.strictEqual(r(k + '.broker', 'another broker'), 'Other broker', k); });
   assert.ok(idx.byId.ma_broker.label === 'Medical aid broker on record' && idx.byId.sti_broker.label === 'Short-term broker on record', 'voice and Claude can tell the four apart');
 });

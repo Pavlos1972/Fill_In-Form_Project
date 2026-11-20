@@ -36,7 +36,7 @@ test('the names (1): Risk Application and Investment Application on the screen, 
 
 test('the names (3): the three pages are renamed, their ids are not (an id never changes with its label)', () => {
   assert.deepStrictEqual(SR.pages.map(p => p.id), ['client', 'home', 'bank', 'family', 'decl']);
-  assert.deepStrictEqual(SR.pages.map(p => p.title), ['Cover & client', 'Home COC & doctor', 'Banking', 'Dependents & Beneficiaries', 'Declarations & Replacements']);
+  assert.deepStrictEqual(SR.pages.map(p => p.title), ['Cover & client', 'Address, COC & doctor', 'Banking', 'Dependents & Beneficiaries', 'Declarations & Replacements']);       // 1.5: the second page is Address, COC & doctor (it was Home COC & doctor in 1.3 and 1.4); the id home never changed
 });
 
 test('the lists (5, 4, 7): banks (the old ten kept, Go Tyme Bank added), life insurers and the nine provinces, each alphabetical and without a repeat', () => {

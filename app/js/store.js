@@ -424,11 +424,12 @@
     s.f.ref_sti = { v: 'Not required', st: ref.st };
     if (cm && cm.v.indexOf(NO_CONTACT_NOTE) < 0) s.f.pr_st_cm = { v: cm.v.trim() === '' ? NO_CONTACT_NOTE : cm.v.replace(/\s+$/, '') + '\n' + NO_CONTACT_NOTE, st: cm.v.trim() === '' || cm.st === 'preset' ? 'confirmed' : cm.st };
   }
-  /* "Broker on record" is the same four choices everywhere. A file saved with the older medical aid, gap cover and short-term choices keeps the fact: "Privately paid, no broker" is None, "Privately paid, other
-     broker" and "Cameron Maritz" are Other broker. */
+  /* "Broker on record" has the same four choices in every box but one. A file saved with the older medical aid, gap cover and short-term choices keeps the fact: "Privately paid, no broker" is None, "Privately paid,
+     other broker" is Other broker, and, for the medical aid, gap cover and will boxes, "Cameron Maritz" is Other broker. Since 5.3 the short-term insurance box offers Cameron Maritz (and no longer Paul K), so its
+     "Cameron Maritz" stays as it is; a "Paul K" an older file holds there is kept and shown (the box's `keepOld`), never cleared. */
   function brokerChoices(s) {
     var old = { 'Privately paid, no broker': 'None', 'Privately paid, other broker': 'Other broker', 'Cameron Maritz': 'Other broker' };
-    ['ma_broker', 'gap_broker', 'will_broker', 'sti_broker'].forEach(function (id) { var c = s.f[id]; if (c && old.hasOwnProperty(c.v)) c.v = old[c.v]; });
+    ['ma_broker', 'gap_broker', 'will_broker', 'sti_broker'].forEach(function (id) { var c = s.f[id]; if (c && old.hasOwnProperty(c.v) && !(id === 'sti_broker' && c.v === 'Cameron Maritz')) c.v = old[c.v]; });
   }
   /* The rules that start a box off by itself (the Duties zeros, Broker on record: Other broker) also apply to a file that is opened, because it may have been saved before they existed: a Duties split that adds up to
      100% gets 0 in the empty boxes; every policy row that has something in it and no broker gets Other broker; and the broker box of Medical aid, Gap cover, Will and Short-term insurance gets it unless its answer closes it.

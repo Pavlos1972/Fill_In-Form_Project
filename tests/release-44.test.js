@@ -13,7 +13,7 @@ test('the top bar has one "Other forms" menu holding both links, and the keys-an
   const m = h.match(/<details class="otherforms" id="otherForms">([\s\S]*?)<\/details>/);
   assert.ok(m, 'the menu is there');
   assert.ok(/<summary[^>]*>Other forms/.test(m[1]), 'its button says Other forms');
-  assert.ok(/id="linkSR" href="short-risk.html"/.test(m[1]) && /id="linkCS" href="capture-sheet.html"/.test(m[1]), 'both links are inside it');
+  assert.ok(/id="linkSR" href="short-risk.html(?:\?from=factfind)?"/.test(m[1]) && /id="linkCS" href="capture-sheet.html(?:\?from=factfind)?"/.test(m[1]), 'both links are inside it');
   assert.ok(/target="_blank"/.test(m[1]), 'each opens in another tab');
   const before = h.slice(0, h.indexOf('<details class="otherforms"'));
   assert.ok(!/id="linkSR"|id="linkCS"/.test(before) && !/id="linkSR"|id="linkCS"/.test(h.slice(h.indexOf('</details>', h.indexOf('otherforms')) + 10)), 'the links are nowhere else');
