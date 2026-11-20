@@ -521,6 +521,12 @@ table.sqt .dash { color: var(--muted); display: inline-block; padding-top: 7px; 
 /* Listen is off while the meeting timer runs: nothing is being heard */
 #nolisten { background: var(--bad-soft); border-color: var(--bad); color: var(--bad); font-weight: 600; }
 #nolisten button { margin-left: auto; }
+/* 5.3: a conversation log that has not been saved (kept in this browser): the bar under the top bar and the list in its dialog */
+#logbar { background: var(--warn-soft); border-color: var(--warn); color: var(--ink); font-weight: 600; flex-wrap: wrap; }
+#logbar #logbarReview { margin-left: auto; }
+dialog#logDlg { width: min(640px, 94vw); }
+.log-row { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 13px; flex-wrap: wrap; }
+.log-row .grow { flex: 1 1 auto; }
 
 /* a block of the Admin page that takes the whole width under the two columns (Current Client) */
 .admcol.full { grid-column: 1 / -1; }

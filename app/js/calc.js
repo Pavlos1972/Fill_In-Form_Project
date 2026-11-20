@@ -45,9 +45,15 @@
   }
 
   var OTHER_INCOME = ['rent', 'spmaint', 'spinc', 'maint'];                                          // spinc is the earlier Spousal Income box, still added up when an old file holds an answer
+  /* 5.3: Spousal Maintenance is for a divorced client and Child Maintenance for a divorced or single one; under any other marital status the two boxes are greyed out (the same rule as the boxes' `cond` in
+     schema.js: tests/release-53.test.js keeps the two equal). A greyed box keeps what was typed but is left out of the sums, as a switched-off list is. An unanswered marital status leaves them open. */
+  var NOT_DIVORCED = ['Single', 'Married in community of property', 'Married out of community (with accrual)', 'Married out of community (no accrual)', 'Customary marriage', 'Civil union', 'Life partner', 'Widowed'];
+  var NO_CHILD_MAINT = ['Married in community of property', 'Married out of community (with accrual)', 'Married out of community (no accrual)', 'Customary marriage', 'Civil union', 'Life partner', 'Widowed'];
+  var INCOME_COND = { spmaint: { f: 'marital', nin: NOT_DIVORCED }, maint: { f: 'marital', nin: NO_CHILD_MAINT } };
+  function incomeIds(ctx) { return OTHER_INCOME.filter(function (k) { return !INCOME_COND[k] || showIf(INCOME_COND[k], ctx); }); }
   function totalIncome(ctx) {
     var any = !!ctx.v('net'), t = ctx.v('net') ? ctx.n('net') : 0;
-    OTHER_INCOME.forEach(function (k) { if (ctx.v(k)) { any = true; t += ctx.n(k); } });
+    incomeIds(ctx).forEach(function (k) { if (ctx.v(k)) { any = true; t += ctx.n(k); } });
     return any ? t : null;
   }
 
@@ -67,9 +73,9 @@
       return util.money2(r.net);
     },
     /* Total Income: the take-home net income plus the rental income, spousal maintenance and child maintenance (and the earlier Spousal Income box, when an old file holds an answer) (a box left empty counts as nothing). Blank until there is something to add up. */
-    tinc: function (ctx) { return totalIncome(ctx) == null || !amountsOk(ctx, ['net'].concat(OTHER_INCOME)) ? '' : util.money(totalIncome(ctx)); },
+    tinc: function (ctx) { return totalIncome(ctx) == null || !amountsOk(ctx, ['net'].concat(incomeIds(ctx))) ? '' : util.money(totalIncome(ctx)); },
     /* Disposable income: Total Income less the monthly expenses. The BrightRock Insured amount is not touched by this: it stays the take-home net income alone. */
-    disp: function (ctx) { var t = totalIncome(ctx); return t != null && ctx.v('exp') && amountsOk(ctx, ['net', 'exp'].concat(OTHER_INCOME)) ? util.money(t - ctx.n('exp')) : ''; },
+    disp: function (ctx) { var t = totalIncome(ctx); return t != null && ctx.v('exp') && amountsOk(ctx, ['net', 'exp'].concat(incomeIds(ctx))) ? util.money(t - ctx.n('exp')) : ''; },
     d_tot: function (ctx) {
       var any = false, t = 0;
       DUTY_IDS.forEach(function (k) { if (ctx.v(k) !== '') { any = true; t += ctx.n(k); } });

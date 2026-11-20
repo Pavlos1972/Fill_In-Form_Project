@@ -114,5 +114,5 @@ test('an older saved file (1.0) opens as before, with every answer; the name fol
 test('the version is 1.1 or later (1.2 now), and the page fetches the new scripts', () => {
   assert.ok(parseFloat(schema.version) >= 1.1);
   const html = fs.readFileSync(path.join(__dirname, '..', 'app', 'capture-sheet.html'), 'utf8');
-  assert.ok(/js\/cs-schema\.js\?v=20261118c/.test(html) && /js\/cs-store\.js\?v=20261118b/.test(html), 'the page fetches the new scripts');
+  assert.ok(/js\/cs-schema\.js\?v=(?:20261118c|20261120a)/.test(html) && /js\/cs-store\.js\?v=20261118b/.test(html), 'the page fetches the new scripts');
 });

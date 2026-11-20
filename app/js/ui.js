@@ -214,7 +214,7 @@
       else if (!fileBase) fileBase = currentBase();
       return readBack(h, text).then(function (v) {
         if (v === 'different') { refreshChrome(); toast('The saved file does not match the form, so your work is still kept here. Try Save again.', 7000); return; }
-        dirty = false; onDisk = v === 'ok'; lastSaved = new Date(); saveDraft(); refreshChrome(); folderNote(); toast(lastFolder ? 'Saved to ' + lastFolder + '. Wrong folder? Use Save as\u2026' : 'Saved.', lastFolder ? 9000 : 0);
+        dirty = false; onDisk = v === 'ok'; lastSaved = new Date(); saveDraft(); refreshChrome(); folderNote(); toast(lastFolder ? 'Saved to ' + lastFolder + '. Wrong folder? Use Save as\u2026' : 'Saved.', lastFolder ? 9000 : 0); logRemind();
       });
     }).catch(function (e) { if (saveFailed(e, blob, currentBase() + '.json')) { if (!forceAs && fileHandle) { fileHandle = null; lastFolder = null; rememberHandle(null); } dirty = true; onDisk = false; saveDraft(); } refreshChrome(); });          // a file reference that failed is let go (the next Save asks where to save), and the work counts as UNSAVED with its draft kept: the folder copy may now be empty, even if nothing had changed since it was opened
   }
@@ -235,7 +235,8 @@
     var r = new FileReader();
     r.onload = function () {
       try {
-        state = store.fromJSON(r.result); vmFreshForm(); fileHandle = handle || null; lastFolder = null; fileBase = file.name.replace(/\.json$/i, '');
+        var opened = store.fromJSON(r.result); logBoundary();
+        state = opened; vmFreshForm(); fileHandle = handle || null; lastFolder = null; fileBase = file.name.replace(/\.json$/i, '');
         dirty = false; onDisk = true; cur = 'info'; rememberHandle(handle || null); saveDraft(); redraw(); toast('Opened ' + file.name);
       } catch (e) { toast(e.message || 'Could not open that file.'); }
     };
@@ -250,7 +251,7 @@
   function newClient() {
     var timed = meeting.ms() >= 60000;                                                              // a meeting that has run for a minute is not thrown away by a stray click
     if ((dirty || timed) && !window.confirm('Start a new Fact Find?' + (dirty ? ' Changes you have not saved will be lost.' : '') + (timed ? ' The meeting timer goes back to zero.' : ''))) return;
-    meeting.reset(); meetingRender();
+    meeting.reset(); meetingRender(); logBoundary(); if (window.FF && FF.handover) FF.handover.clear();
     state = store.blank(); vmFreshForm(); fileHandle = null; lastFolder = null; fileBase = ''; rememberHandle(null); dirty = false; onDisk = true; lastSaved = null; cur = 'info'; saveDraft(); redraw();
   }
 
@@ -260,8 +261,10 @@
     var act = (st === 'heard' || st === 'verify' || st === 'suggest') ? ' data-accept="' + esc(target) + '" title="Click to confirm"' : '';
     return '<button type="button" class="badge ' + st + '"' + act + ' tabindex="-1">' + t + '</button>';
   }
-  function optionsHTML(o, v) {
-    return '<option value="">&nbsp;</option>' + o.map(function (x) { return '<option' + (x === v ? ' selected' : '') + '>' + esc(x) + '</option>'; }).join('');
+  /* keepOld: a value the file holds that is no longer one of the choices (Paul K under Short-term insurance since 5.3) is still shown, so what the file says is never hidden; the adviser can change it. */
+  function optionsHTML(o, v, def) {
+    var extra = def && def.keepOld && v && o.indexOf(v) < 0 ? '<option selected>' + esc(v) + '</option>' : '';
+    return '<option value="">&nbsp;</option>' + extra + o.map(function (x) { return '<option' + (x === v ? ' selected' : '') + '>' + esc(x) + '</option>'; }).join('');
   }
   /* A tick-box dropdown (the policy schedule lists): the choices ticked are kept as one text joined with "; ", and an empty box is "(not asked yet)". "(not asked yet)" is ticked and the choices are greyed out
      until it is unticked; ticking a choice unticks it; unticking every choice goes back to it (once the list is closed). */
@@ -282,7 +285,7 @@
       var lid = 'dl-' + (attrs.replace(/[^a-z0-9]+/gi, '-'));
       return '<input ' + attrs + ' list="' + lid + '" value="' + esc(v) + '" autocomplete="off"><datalist id="' + lid + '">' + def.o.map(function (x) { return '<option value="' + esc(x) + '">'; }).join('') + '</datalist>';
     }
-    if (def.t === 'sel' || def.o) return '<select ' + attrs + (disabled ? ' disabled' : '') + '>' + optionsHTML(def.o, v) + '</select>';
+    if (def.t === 'sel' || def.o) return '<select ' + attrs + (disabled ? ' disabled' : '') + '>' + optionsHTML(def.o, v, def) + '</select>';
     if (def.t === 'area') return '<textarea ' + attrs + (def.rows ? ' rows="' + def.rows + '" style="height:' + (def.rows * 21 + 14) + 'px"' : '') + '>' + esc(v) + '</textarea>';
     return '<input ' + attrs + ' value="' + esc(v) + '"' + (disabled ? ' readonly' : '') + ' autocomplete="off">';
   }
@@ -835,6 +838,11 @@
     var t = e.target; if (!d.contains(t) || (t.closest && t.closest('.ofmenu a'))) ofClose();
   });
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape') ofClose(); });
+  /* 5.3: the Risk Application and the Investment Application open filled from this Fact Find: the client on the screen (saved or not) is left in this browser for them (handover.js) when their link is clicked. */
+  ['#linkSR', '#linkCS'].forEach(function (sel) {
+    var a = $(sel); if (!a) return;
+    a.addEventListener('click', function () { if (window.FF && FF.handover) FF.handover.send(store.toJSON(state), fileBase || currentBase()); });
+  });
   document.addEventListener('toggle', function (e) { if (e.target.classList && e.target.classList.contains('sqd')) sqdOpen = e.target.open; if (e.target.classList && e.target.classList.contains('fold')) foldOpen[e.target.dataset.fold] = e.target.open; }, true);
   document.addEventListener('input', function (e) {                                                       // the first key typed in the action points makes them the adviser's own
     var t = e.target; if (!t.dataset) return;
@@ -1204,7 +1212,7 @@
   var vm = { removed: [], on: false, done: {}, target: null, answered: false, secGlow: false, noteMode: null, rowCur: {}, undo: [], recent: [], flashes: {}, queue: Promise.resolve(), slow: 0, epoch: 0, busy: 0, seq: 0, moveSeq: 0, calls: 0, laneTarget: null, unplacedSeen: {}, noSweep: {}, sweeping: false, sweepNext: [], sweepSecs: {}, sweepT: 0, secAt: {}, sweptAll: 0, lastFail: 0, wipe: null, digits: null, run: null, erun: null, eann: null, paused: false, pointed: null, lastNum: null };
   /* ---------- "Live Client Conversation": a text box in the right-hand pane under Checks, kept in view while the page scrolls. The lines heard, oldest at the top and the latest at the bottom, each with what was done on the form because of it. ---------- */
   var vmCur = null;                                              // the line being dealt with now, so what is done on the form is listed under it
-  var cv = { rows: [], all: [], live: '' }, convoT = 0;
+  var cv = { rows: [], all: [], live: '', from: 0, kid: 0, sid: null, startedAt: 0, unsaved: false, nagged: 0 }, convoT = 0;       // from: the first line of the form's conversation in `all`; sid: its record in this browser (logkeep.js); unsaved: lines heard since the log was last saved
   function vmLog(s) { if (vmCur) { vmCur.did.push(s); convoSoon(); } }
   /* Lines are put on the form in the order they were said, but the highlight follows the talk as it happens: when a question is heard, the box it is about is marked at once (vmPointNow), before the answers
      to the lines before it have come back from Claude. Such an earlier line then fills its box in the background and leaves the highlight alone (it is "late"). */
@@ -1213,12 +1221,14 @@
   function vmMoved() { if (vmCur && vmCur.seq != null && vmCur.seq > vm.moveSeq) vm.moveSeq = vmCur.seq; }
   function cvAdd(entry) {  // the box shows the latest 200 lines; the saved log keeps the whole session
     cv.rows.push(entry); if (cv.rows.length > 200) cv.rows.shift();
-    cv.all.push(entry); if (cv.all.length > 5000) cv.all.shift();
+    cv.all.push(entry); if (cv.all.length > 5000) { cv.all.shift(); if (cv.from > 0) cv.from--; }
+    cvKeepAdd(entry);
   }
   /* What the microphone side did (listening on, speech heard, recognition ended or restarted, an error): always in the saved log, and in the box too when it matters, so a gap in the conversation can be explained. */
   function vmEngineLog(name, detail, show) {
     var t = '(listening) ' + name + (detail ? ': ' + detail : ''), entry = { who: 'engine', text: t, shown: t, at: Date.now(), did: [], done: true, m: null, engine: true };
-    cv.all.push(entry); if (cv.all.length > 5000) cv.all.shift();
+    cv.all.push(entry); if (cv.all.length > 5000) { cv.all.shift(); if (cv.from > 0) cv.from--; }
+    cvKeepAdd(entry);
     if (show) { cv.rows.push(entry); if (cv.rows.length > 200) cv.rows.shift(); convoSoon(); }
   }
   function convoSoon() { if (!convoT) convoT = setTimeout(function () { convoT = 0; convoRender(); }, 30); }
@@ -1290,23 +1300,143 @@
       }, function (err) { rec.error = String(err && err.message || err); throw err; });
     };
   }
-  function convoLog() {
-    var set = FF.lookup.getSettings(), hide = function (t) { return vmShareOn() || !VAI ? t : VAI.scrub(t); };
+  /* The log's lines and the rest of what it holds, built one at a time so the same shape is kept in this browser as lines are heard (logkeep.js) and written to the saved file. Numbers and e-mail addresses are hidden
+     unless the adviser let Claude see them. */
+  function convoHide() { return function (t) { return vmShareOn() || !VAI ? t : VAI.scrub(t); }; }
+  function convoLineObj(e, hide) {
+    return { at: new Date(e.at).toISOString(), who: e.who, heard: hide(e.shown || e.text), read_as: e.text !== e.shown ? hide(e.text) : undefined, page_did: e.did.map(hide), filled_at_once: e.quick ? true : undefined, taken_back: e.changed || undefined, claude_ms: e.claudeMs, read_at_once: e.early || undefined, read_again: e.reread || undefined, pointed_when_heard: e.prov || undefined, on_form_ms: e.doneAt ? e.doneAt - e.at : undefined, speech: e.m || undefined, claude: e.ai };
+  }
+  function convoHeader(hide) {
+    var set = FF.lookup.getSettings();
     return {
-      saved: new Date().toISOString(), app: { version: schema.version, released: schema.released },
+      app: { version: schema.version, released: schema.released },
       meeting: meeting.snapshot(),
       not_placed_open: (state.unplaced || []).map(function (u) { return { text: hide(u.text), why: u.why, section: u.sec }; }),
-      settings: { claude_model: set.voiceModel, fill_at_once: vmQuickOn(), claude_sees_numbers: vmShareOn(), speech: speechPrefs() },
-      lines: cv.all.map(function (e) {
-        return { at: new Date(e.at).toISOString(), who: e.who, heard: hide(e.shown || e.text), read_as: e.text !== e.shown ? hide(e.text) : undefined, page_did: e.did.map(hide), filled_at_once: e.quick ? true : undefined, taken_back: e.changed || undefined, claude_ms: e.claudeMs, read_at_once: e.early || undefined, read_again: e.reread || undefined, pointed_when_heard: e.prov || undefined, on_form_ms: e.doneAt ? e.doneAt - e.at : undefined, speech: e.m || undefined, claude: e.ai };
-      })
+      settings: { claude_model: set.voiceModel, fill_at_once: vmQuickOn(), claude_sees_numbers: vmShareOn(), speech: speechPrefs() }
     };
   }
+  function convoLog() {
+    var hide = convoHide(), m = convoHeader(hide);
+    return Object.assign({ saved: new Date().toISOString() }, m, { lines: cv.all.slice(cv.from).map(function (e) { return convoLineObj(e, hide); }) });
+  }
+  function convoStamp(ms) { var d = new Date(ms || Date.now()), pad = function (n) { return (n < 10 ? '0' : '') + n; }; return d.getFullYear() + pad(d.getMonth() + 1) + pad(d.getDate()) + '-' + pad(d.getHours()) + pad(d.getMinutes()); }
+  /* ---------- the conversation log is kept in this browser as it is heard (5.3) ----------
+     The lines used to live only in the open page, so a reload, a new tab or a busy day lost them and "Save log" saved an empty file. Now each line is also written to the browser's own database a few seconds after it is
+     done (and again once Claude's reply is in), under one session for the form's conversation. It stays there until the log is saved (or thrown away, or 14 days pass); the next time the page opens, or when a new
+     client is started or opened, or when the Fact Find is saved, the page reminds the adviser that a log has not been saved. Nothing leaves the computer. */
+  var keeper = (window.FF && FF.logkeep && FF.logkeep.available()) ? FF.logkeep.create(FF.logkeep.idbBackend()) : null, keepT = 0;
+  function cvKeepAdd(entry) { entry.kid = ++cv.kid; entry.kept = 0; cv.unsaved = true; if (!cv.startedAt) cv.startedAt = Date.now(); keepSoon(); }
+  function keepSoon() { if (!keeper || keepT) return; keepT = setTimeout(function () { keepT = 0; keepFlush(false); }, 4000); }
+  /* Writes the lines that are due: a line when it is done (or 20 s old), and once more 15 s after it was done, to take in Claude's reply. all: the page is closing, so everything goes now. */
+  function keepFlush(all) {
+    if (!keeper || !cv.unsaved) return Promise.resolve();
+    var now = Date.now(), hide = convoHide(), items = [], more = false;
+    cv.all.slice(cv.from).forEach(function (e) {
+      if (e.kid == null || e.kept === 2) return;
+      var first = e.kept === 0 && (all || e.done || now - e.at > 20000), second = e.kept === 1 && (all || (e.done && now - (e.doneAt || e.at) > 15000));
+      if (first || second) { items.push({ kid: e.kid, line: convoLineObj(e, hide) }); e.kept = first ? 1 : 2; if (first && e.done === true && all) e.kept = 2; }
+      else more = true;
+    });
+    if (more) keepSoon();
+    if (!items.length) return Promise.resolve();
+    if (!cv.sid) cv.sid = keeper.newSid();
+    return keeper.save({ sid: cv.sid, client: store.clientName(state) || '', startedAt: cv.startedAt || Date.now(), meta: convoHeader(hide) }, items);
+  }
+  window.addEventListener('pagehide', function () { keepFlush(true); });
+  document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'hidden') keepFlush(true); });
+  /* A new client is started or another file opened: the conversation so far belongs to the form that is being left. It is kept (and the reminder shows if it was not saved), and the next lines start a new one. */
+  function logBoundary() {
+    var had = cv.unsaved && cv.all.length > cv.from;
+    if (!keeper) return;
+    var flushed = keepFlush(true);
+    cv.from = cv.all.length; cv.sid = null; cv.startedAt = 0; cv.unsaved = false; cv.nagged = 0;
+    if (had) flushed.then(function () { logBarShow(); });
+  }
+  function logRows() {
+    if (keeper) return keeper.list();
+    return Promise.resolve(cv.unsaved && cv.all.length > cv.from ? [{ sid: 'current', client: store.clientName(state) || '', startedAt: cv.startedAt, updatedAt: Date.now(), count: cv.all.length - cv.from }] : []);
+  }
+  function logWhen(ms) { var d = new Date(ms || Date.now()), pad = function (n) { return (n < 10 ? '0' : '') + n; }; return d.getDate() + '/' + (d.getMonth() + 1) + '/' + d.getFullYear() + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes()); }
+  function logBar() {
+    var bar = document.getElementById('logbar');
+    if (bar) return bar;
+    bar = document.createElement('div'); bar.className = 'heard'; bar.id = 'logbar'; bar.setAttribute('role', 'status'); bar.hidden = true;
+    bar.innerHTML = '<span id="logbarText"></span><button class="btn small" id="logbarReview" type="button">Review…</button><button class="btn ghost small" id="logbarLater" type="button">Not now</button>';
+    var after = document.getElementById('nolisten') || document.getElementById('heard');
+    if (after) after.insertAdjacentElement('afterend', bar); else document.body.insertBefore(bar, document.body.firstChild);
+    bar.querySelector('#logbarLater').addEventListener('click', function () { bar.hidden = true; });
+    bar.querySelector('#logbarReview').addEventListener('click', function () { logDialog(); });
+    return bar;
+  }
+  function logBarShow() {
+    return logRows().then(function (rows) {
+      var bar = logBar();
+      if (!rows.length) { bar.hidden = true; return; }
+      var one = rows.length === 1 ? rows[0] : null;
+      bar.querySelector('#logbarText').textContent = one
+        ? 'The conversation log' + (one.client ? ' of ' + one.client : '') + ' (' + one.count + ' lines, ' + logWhen(one.updatedAt) + ') has not been saved.'
+        : rows.length + ' conversation logs have not been saved.';
+      bar.hidden = false;
+    });
+  }
+  function logDialog(why) {
+    return logRows().then(function (rows) {
+      var dlg = document.getElementById('logDlg');
+      if (!dlg) {
+        dlg = document.createElement('dialog'); dlg.id = 'logDlg'; document.body.appendChild(dlg);
+        dlg.addEventListener('click', function (e) {
+          var b = e.target.closest('[data-logsave],[data-logdrop],[data-logclose]'); if (!b) return;
+          if (b.dataset.logclose !== undefined) { dlg.close(); return; }
+          if (b.dataset.logsave) logSaveOne(b.dataset.logsave, dlg); else if (b.dataset.logdrop) logDrop(b.dataset.logdrop, dlg);
+        });
+      }
+      dlg.innerHTML = '<h2>Conversation logs not saved yet</h2>' + (why ? '<p class="help">' + esc(why) + '</p>' : '') +
+        (rows.length ? '<p class="help">Each log is kept in this browser, on this computer only, until you save it or throw it away. Saving writes a file; keep it with the client’s records.</p>' : '<p class="help">There is nothing waiting: every log has been saved.</p>') +
+        rows.map(function (r) {
+          return '<div class="log-row"><span><b>' + esc(r.client || 'A meeting') + '</b> · ' + esc(logWhen(r.updatedAt)) + ' · ' + r.count + ' lines</span><span class="grow"></span>' +
+            '<button class="btn small" type="button" data-logsave="' + esc(r.sid) + '">Save log</button><button class="btn ghost small" type="button" data-logdrop="' + esc(r.sid) + '">Throw away</button></div>';
+        }).join('') + '<div class="dlg-actions"><span class="grow"></span><button class="btn ghost small" type="button" data-logclose>Close</button></div>';
+      if (!dlg.open) dlg.showModal();
+      return dlg;
+    });
+  }
+  function logSaved(sid, dlg) {
+    if (sid === 'current' || sid === cv.sid) { cv.unsaved = false; cv.nagged = 0; cv.all.slice(cv.from).forEach(function (e) { e.kept = 0; }); var old = cv.sid; cv.sid = null; if (keeper && old) keeper.remove(old); }   // saved: the stored copy goes; a line heard later stores the whole conversation again
+    else if (keeper) keeper.remove(sid);
+    return logRows().then(function (rows) { if (dlg && dlg.open) { if (rows.length) logDialog(); else dlg.close(); } logBarShow(); });
+  }
+  function logSaveOne(sid, dlg) {
+    if (sid === 'current' || sid === cv.sid) { convoSave(); return; }
+    keeper.read(sid).then(function (r) {
+      if (!r) { toast('That log is no longer kept in this browser.'); return logSaved(sid, dlg); }
+      var m = r.meta || {}, log = { saved: new Date().toISOString(), app: m.app, meeting: m.meeting, not_placed_open: m.not_placed_open, settings: m.settings, lines: r.lines },
+        name = 'fact-find-voice-log-' + convoStamp(r.updatedAt) + '.json', blob = new Blob([JSON.stringify(log, null, 2)], { type: 'application/json' });
+      return writeFile(blob, name, 'Voice log', '.json', null, 'fact-find-voice-log', null).then(function () { toast('Voice log saved.'); return logSaved(sid, dlg); }, function (e) { saveFailed(e, blob, name); });
+    });
+  }
+  function logDrop(sid, dlg) {
+    if (!window.confirm('Throw this conversation log away? It cannot be brought back.')) return;
+    if (sid === 'current' || sid === cv.sid) { cv.unsaved = false; cv.nagged = 0; var old = cv.sid; cv.sid = null; cv.all.slice(cv.from).forEach(function (e) { e.kept = 2; }); if (keeper && old) keeper.remove(old); logRows().then(function () { if (dlg && dlg.open) logDialog(); logBarShow(); }); }
+    else if (keeper) keeper.remove(sid).then(function () { return logSaved(sid, dlg); });
+  }
+  /* After the Fact Find is saved: if the meeting's conversation has lines that were never saved, say so once. */
+  function logRemind() {
+    if (!cv.unsaved || cv.all.length <= cv.from || cv.nagged === cv.kid) return;
+    cv.nagged = cv.kid;
+    (keeper ? keepFlush(true) : Promise.resolve()).then(function () { return logBarShow(); });
+  }
+  /* Save log: nothing to save is said plainly, and a log kept in this browser from an earlier page is offered. */
+  function logEmpty() {
+    logRows().then(function (rows) {
+      if (rows.length) { logDialog('Nothing has been heard on this page since it was opened, but an earlier conversation is kept in this browser.'); return; }
+      toast('Nothing to save: no conversation has been heard on this page since it was opened, and no earlier log is kept in this browser. A meeting held on another page or copy of the Fact Find has its log there.', 11000);
+    });
+  }
   function convoSave() {
-    var d = new Date(), pad = function (n) { return (n < 10 ? '0' : '') + n; }, stamp = d.getFullYear() + pad(d.getMonth() + 1) + pad(d.getDate()) + '-' + pad(d.getHours()) + pad(d.getMinutes()),
-      blob = new Blob([JSON.stringify(convoLog(), null, 2)], { type: 'application/json' });
+    if (cv.all.length <= cv.from) { logEmpty(); return; }
+    var stamp = convoStamp(), blob = new Blob([JSON.stringify(convoLog(), null, 2)], { type: 'application/json' }), sid = cv.sid || 'current';
     writeFile(blob, 'fact-find-voice-log-' + stamp + '.json', 'Voice log', '.json', null, 'fact-find-voice-log', null)
-      .then(function () { toast('Voice log saved.'); }).catch(function (e) { saveFailed(e, blob, 'fact-find-voice-log-' + stamp + '.json'); });
+      .then(function () { toast('Voice log saved.'); var dlg = document.getElementById('logDlg'); return logSaved(sid, dlg); }).catch(function (e) { saveFailed(e, blob, 'fact-find-voice-log-' + stamp + '.json'); });
   }
   document.addEventListener('click', function (e) { if (e.target.closest('#cvSave')) { e.preventDefault(); convoSave(); } });
   document.addEventListener('click', function (e) { if (e.target.closest('#cvSweep')) { e.preventDefault(); vmSweep({ sec: null, from: 0, why: 'button' }); } });
@@ -2248,6 +2378,39 @@
     var id = vmAgreedBox(text);
     return id ? actions.filter(function (a) { return !(a.field === id && (a.do === 'ask' || a.do === 'confirm')); }).concat([{ do: 'confirm', field: id }]) : actions;
   }
+  /* ---------- the client agrees to what the adviser read back (5.3) ----------
+     The adviser says a value back ("13th of March 2010, is that right?") and the client answers ("yes", "that's right", or the same date again). Claude is asked to confirm the boxes that wait for the client,
+     but it is only told about the boxes on the page the screen is on, and a "yes" that Claude passes over (or a date said again) left the box amber: the Date of marriage stayed "verify" in a real meeting (20 November).
+     So the page does it too, by itself, on whichever page the box is: when a line that is not the adviser's agrees, or says the same value again, a box that waits (heard or verify) and whose value the adviser said in
+     one of the last three lines (the last two minutes) is confirmed. A line whose speaker is not known (one microphone) needs the line before it to read as a question or read-back, so that an adviser's own "yes"
+     after the client's answer does not turn a box green; a line the call says is the client's needs only that the adviser said the value. The adviser's own line never confirms anything (3.7). */
+  var RB_WINDOW = 120000;
+  function vmSaysValue(f, value, text) {
+    var v = String(value == null ? '' : value).trim(), n = V.norm;
+    if (!v || !text) return false;
+    if (V.PRIVATE_IDS.indexOf(f.id) >= 0) { var dv = v.replace(/\D/g, ''), ds = V.spokenDigits(text); return dv.length >= 6 && ds.length >= dv.length && ds.indexOf(dv) >= 0; }     // a number: compared on this computer, never sent anywhere
+    var sf = schema.fieldsById[f.id];                                                                                     // the voice index does not carry the date flag of a plain box: the schema does
+    if (f.date || f.money || (sf && sf.date)) { var r = V.interpret(f, text); return !!r && !r.error && !!r.value && n(r.value) === n(v); }
+    if (/^(?:yes|no|not sure|none|n\/a)$/i.test(v)) return false;                                                       // a bare answer is not told apart in a line
+    var nv = n(v); return nv.length >= 4 && (' ' + n(text) + ' ').indexOf(' ' + nv + ' ') >= 0;
+  }
+  function vmReadBackAgree(entry) {
+    if (!entry || entry.who === 'adviser' || vm.noteMode || vm.wipe) return Promise.resolve();
+    var ri = vm.recent.indexOf(entry); if (ri < 1) return Promise.resolve();
+    var text = entry.text, words = text.split(/\s+/).filter(Boolean).length, said = text;
+    var prevs = vm.recent.slice(Math.max(0, ri - 3), ri).filter(function (e) { return e.who !== 'client' && entry.at - e.at <= RB_WINDOW && (entry.who !== 'unclear' || e.who === 'adviser' || vmReadBack(e.text) || /\?\s*$/.test(String(e.shown || e.text))); });
+    if (!prevs.length) return Promise.resolve();
+    var agrees = words <= 8 && V.isConfirm(text, true), ids = [];
+    vidx.fields.forEach(function (f) {
+      if (f.list || !vmVisible(f)) return;
+      var c = state.f[f.id]; if (!c || c.v === '' || (c.st !== 'heard' && c.st !== 'verify')) return;
+      if (!prevs.some(function (e) { return vmSaysValue(f, c.v, e.text); })) return;                             // the adviser did not say this box's value just now
+      if (agrees || (entry.who === 'client' && vmSaysValue(f, c.v, said))) ids.push(f.id);                        // the client agreed, or said the same value again
+    });
+    if (!ids.length) return Promise.resolve();
+    entry.readBackAgreed = ids.slice();
+    return vmRun(ids.map(function (id) { return { do: 'confirm', field: id }; }));
+  }
   /* What the page itself makes of a line, in the state the form is in now. */
   function vmPlanFor(text, entry) {
     var ri = entry ? vm.recent.indexOf(entry) : -1, prev = ri > 0 ? vm.recent[ri - 1].text : (!entry && vm.recent.length > 1 ? vm.recent[vm.recent.length - 2].text : '');       // the line before this one: "no" answers it
@@ -2881,7 +3044,7 @@
       if (pl0 && !quick) vmPointNow(entry, pl0);                                  // and the box a question is about is marked now
     } catch (e) { entry.call = null; }
     convoSoon();
-    vm.queue = vm.queue.then(function () { entry.waited = Date.now() - t0; vmCur = entry; vmLaneSync(entry, true); return vmProcessAuto(text, entry); }).catch(function () { /* one bad line never stops the next */ }).then(function () { vmLaneSync(entry, false); vmCur = null; entry.done = true; entry.doneAt = Date.now(); convoSoon(); if (!quick && epoch === vm.epoch) vm.slow--; });
+    vm.queue = vm.queue.then(function () { entry.waited = Date.now() - t0; vmCur = entry; vmLaneSync(entry, true); return vmProcessAuto(text, entry).then(function () { return vmReadBackAgree(entry); }); }).catch(function () { /* one bad line never stops the next */ }).then(function () { vmLaneSync(entry, false); vmCur = null; entry.done = true; entry.doneAt = Date.now(); convoSoon(); if (!quick && epoch === vm.epoch) vm.slow--; });
     p = vm.queue.then(function () { return entry; }); p.entry = entry;
     return p;
   }
@@ -3040,6 +3203,7 @@
   state = store.blank(); fileBase = ''; dirty = false;
   if (restored) draftHold = true; else rememberHandle(null);
   layoutSetup(); convoRender();
+  if (keeper) keeper.purge().then(function () { return logBarShow(); });                              // a log kept from an earlier page that was never saved: say so at once
   window.FF.app = { get state() { return state; }, redraw: redraw, setState: function (s) { state = s; redraw(); }, makePdf: makePdf, voiceHear: vmHear, voice: vm, voiceLog: convoLog, spendSpeech: spendSpeech };
   redraw();
   if (restored) {

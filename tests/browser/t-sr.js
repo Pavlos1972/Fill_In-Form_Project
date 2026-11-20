@@ -47,7 +47,7 @@ srv.listen(0, async () => {
 
   // 1. the page
   ok(await p.title() === 'Risk Application', 'the page is called Risk Application: ' + await p.title());
-  ok(await p.evaluate(() => [...document.querySelectorAll('#nav button')].map(x => x.querySelector('span').textContent).join('|')) === 'Cover & client|Home COC & doctor|Banking|Dependents & Beneficiaries|Declarations & Replacements', 'five pages in the list on the left');
+  ok(await p.evaluate(() => [...document.querySelectorAll('#nav button')].map(x => x.querySelector('span').textContent).join('|')) === 'Cover & client|Address, COC & doctor|Banking|Dependents & Beneficiaries|Declarations & Replacements', 'five pages in the list on the left');
   ok(await p.evaluate(() => !document.getElementById('restoreDraft')), 'a first visit has no question');
   ok(await p.evaluate(() => !document.querySelector('#btnVoice, #btnListen, #btnTimer, #btnSettings')), 'no voice, listen, meeting or settings buttons: this page needs no voice and no keys');
   ok(await p.evaluate(() => +document.querySelector('#sEmpty').textContent === SR.store.counts(SR.app.state).left && +document.querySelector('#sEmpty').textContent > 0), 'the Progress card counts the boxes still to answer');

@@ -108,7 +108,7 @@
 
   var pages = [
     { id: 'client', title: 'Cover & client', sections: ['cover', 'client', 'contact'] },
-    { id: 'home', title: 'Home COC & doctor', sections: ['address', 'call', 'doctor'] },
+    { id: 'home', title: 'Address, COC & doctor', sections: ['address', 'call', 'doctor'] },
     { id: 'bank', cols: 3, title: 'Banking', sections: ['bank'] },
     { id: 'family', title: 'Dependents & Beneficiaries', sections: ['kids', 'benef'] },
     { id: 'decl', title: 'Declarations & Replacements', sections: ['decl', 'existing'] }
@@ -120,6 +120,6 @@
   var fieldsById = {}, fieldIds = [], sectionOf = {};
   sections.forEach(function (s) { (s.fields || []).forEach(function (f) { fieldsById[f.id] = f; fieldIds.push(f.id); sectionOf[f.id] = s.id; }); });
 
-  return { version: '1.4', released: 'November 2026', title: 'Risk Application', sections: sections, sectionsById: sectionsById, pages: pages, pageOf: pageOf, lists: lists, fieldsById: fieldsById, fieldIds: fieldIds, sectionOf: sectionOf,
+  return { version: '1.5', released: 'November 2026', title: 'Risk Application', sections: sections, sectionsById: sectionsById, pages: pages, pageOf: pageOf, lists: lists, fieldsById: fieldsById, fieldIds: fieldIds, sectionOf: sectionOf,
     insurers: INSURERS, products: PRODUCTS, owners: OWNERS, abbr: ABBR, banks: BANKS, lifeInsurers: LIFE_INSURERS, provinces: PROVINCES };
 });

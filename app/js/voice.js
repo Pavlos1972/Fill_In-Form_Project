@@ -1014,15 +1014,16 @@
       return null;
     }
   };
-  /* Broker on record (Medical aid, Gap cover, Will, Short-term and the policy lists): the same four choices everywhere. "No broker" is None; "Cameron" (the short-term broker) is not Paul, so Other broker. */
+  /* Broker on record (Medical aid, Gap cover, Will, Short-term and the policy lists): the same four choices everywhere, except Short-term insurance, which offers Cameron Maritz instead of Paul K (5.3: Paul is not
+     a short-term broker). "No broker" is None; "Cameron" or "Maritz" said for the short-term broker is Cameron Maritz. */
   ['ma_broker', 'gap_broker', 'will_broker', 'sti_broker', 'risk.broker', 'grp.broker', 'ret_ra.broker', 'ret_pp.broker', 'inv.broker', 'bizpol.broker'].forEach(function (id) {
     SPECIAL[id] = function (t) {
       var s = ' ' + t + ' ';
       if (/ (another|other|different|someone else|somebody else|someone else's) broker /.test(s) || / other broker /.test(s)) return 'Other broker';
       if (/ (through|via) (my |the )?(company|employer|work) /.test(s) || / through company /.test(s)) return 'Through company';
       if (/ (no broker|none|nobody|no one) /.test(s)) return 'None';
+      if (id === 'sti_broker') return / (cameron|maritz|cameron maritz) /.test(s) ? 'Cameron Maritz' : null;                  // Paul K is not a choice for short-term insurance
       if (/ (paul|paul k) /.test(s)) return 'Paul K';
-      if (id === 'sti_broker' && / (cameron|maritz) /.test(s)) return 'Other broker';
       return null;
     };
   });

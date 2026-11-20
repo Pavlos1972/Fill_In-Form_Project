@@ -18,7 +18,7 @@
   if (typeof module === 'object' && module.exports) module.exports = factory();
   else { root.FF = root.FF || {}; root.FF.schema = factory(); }
 })(typeof self !== 'undefined' ? self : this, function () {
-  var YN = ['Yes', 'No'], YNS = ['Yes', 'No', 'Not sure'], BROKER = ['Paul K', 'Other broker', 'Through company', 'None'], DEFAULT_BROKER = 'Other broker';        // every "Broker on record" starts as Other broker (a new row, or one of the four boxes in Medical, will & short-term from the start); the adviser changes it when it is different
+  var YN = ['Yes', 'No'], YNS = ['Yes', 'No', 'Not sure'], BROKER = ['Paul K', 'Other broker', 'Through company', 'None'], DEFAULT_BROKER = 'Other broker', STI_BROKER = ['Cameron Maritz', 'Other broker', 'Through company', 'None'];        // every "Broker on record" starts as Other broker (a new row, or one of the four boxes in Medical, will & short-term from the start); the adviser changes it when it is different
   var QTYPE = ['New Business', 'Servicing', 'N/A'];                         // what kind of quote it is
   var INS = ['Old Mutual', 'Momentum', 'Liberty', 'Sanlam', 'Discovery', 'BrightRock', 'Hollard', 'Assupol', 'Clientele', 'Other'];
   var INS_INV = ['Old Mutual', 'Momentum', 'Sanlam', 'Liberty', 'Discovery', 'Allan Gray', 'Stanlib', 'Other'];      // the providers an RA quote and an investment quote can be asked of (the list of the Investment Capture Sheet; BrightRock sells risk cover only)
@@ -31,6 +31,8 @@
   var MED_SCHEMES = ['Discovery Health', 'Momentum Medical Scheme', 'Bonitas Medical Fund', 'Bestmed Medical Scheme', 'Fedhealth Medical Scheme', 'Medihelp Medical Scheme', 'KeyHealth Medical Scheme', 'Medshield Medical Scheme', 'CompCare Medical Scheme', 'GEMS (Government Employees Medical Scheme)', 'POLMED (SA Police Service)', 'SAMWUMED (Municipal Workers)', 'Transmed (Transport industry)', 'LA Health (Local Authorities)', 'Bankmed (Banking sector)', 'Sizwe Hosmed Medical Scheme', 'Profmed (Professionals only)', 'Anglovaal Group Medical Scheme (AGMS)', 'Sasolmed', 'Cape Medical Plan (Cape Medical Scheme)', 'Hosmed Medical Scheme', 'Genesis Medical Scheme', 'Suremed Health', 'Resolution Health Medical Scheme', 'Makoti Medical Scheme', 'BMW Medical Aid Scheme', 'Anglo Medical Scheme', 'Other'];
   var GAP_PROVIDERS = ['TRA (Total Risk Administrators)', 'Turnberry', 'Ambledown Financial Services', 'Stratum Benefits', 'Kaelo', 'Zestlife', 'GapCover', 'Oneplan', 'Discovery', 'Momentum', 'Sanlam', 'Old Mutual', 'Dis-Chem Health', 'NetcarePlus', 'Other'];
   var INV_PROVIDERS = ['Old Mutual', 'Momentum', 'Sanlam', 'Liberty', 'Discovery Invest', 'Allan Gray', 'Coronation', 'Ninety One', 'PSG', 'Sygnia', 'Satrix', '10X Investments', 'Glacier by Sanlam', 'Investec', 'Nedgroup Investments', 'STANLIB', 'Absa', 'FNB', 'Nedbank', 'Standard Bank', 'Capitec', 'EasyEquities', 'Other'];
+  var NOT_DIVORCED = ['Single', 'Married in community of property', 'Married out of community (with accrual)', 'Married out of community (no accrual)', 'Customary marriage', 'Civil union', 'Life partner', 'Widowed'];       // 5.3: Spousal Maintenance is for a divorced client only: greyed under every other marital status (open while the marital status is not answered)
+  var NO_CHILD_MAINT = ['Married in community of property', 'Married out of community (with accrual)', 'Married out of community (no accrual)', 'Customary marriage', 'Civil union', 'Life partner', 'Widowed'];       // 5.3: Child Maintenance is for a divorced or single client (the other parent pays): greyed under the rest
   var MARRIED = ['Married in community of property', 'Married out of community (with accrual)', 'Married out of community (no accrual)', 'Customary marriage', 'Civil union'];     // the marital statuses that have a date of marriage
   var STAGES = ['Not Yet in School', 'Pre-school', 'Primary', 'High School', 'Tertiary'];
   var ADVISOR = 'Paul Kafentzis';                                                                // printed in the PDF header; there is no Advisor box on the form
@@ -101,7 +103,7 @@
     { id: 'info', title: 'Client info', roomy: 1, fit: 1, blocks: [
       { title: 'Meeting', layout: 'g12', fields: [
         { id: 'consent', l: 'Consent to record and transcribe', t: 'sel', o: YN, s: 3 },
-        { id: 'date', l: 'Date completed', t: 'txt', date: 1, preset: '@today', s: 3 },
+        { id: 'date', l: 'Date completed', t: 'txt', date: 1, cal: 1, preset: '@today', s: 3 },
         { id: 'meet', l: 'Type of meeting', t: 'sel', o: MEETING_TYPES, preset: 'Teams Meeting', s: 3 },
         { id: 'ref', l: 'Referral from', t: 'sel', o: ['D&R Marketing', 'Current client', 'Referral prospect', 'Spouse', 'Other'], s: 3 },
         { id: 'on_call', l: 'Others on the call', t: 'txt', opt: 1, voice: 1, hint: 'e.g. Mariette (the client\u2019s spouse)', s: 12 }
@@ -181,8 +183,8 @@
         { id: 'dnet', l: 'Direct Net Income (R p.m.)', t: 'txt', calc: 'dnet', link: ['Check on TaxTim', 'https://www.taxtim.com/za/calculators/income-tax'] },
         { id: 'net', money: 1, l: 'Take-home net income (R p.m.)', t: 'txt', risky: 1 },
         { id: 'rent', money: 1, l: 'Rental Income', t: 'txt', opt: 1, voice: 1 },
-        { id: 'spmaint', money: 1, l: 'Spousal Maintenance', t: 'txt', opt: 1, voice: 1 },
-        { id: 'maint', money: 1, l: 'Child Maintenance', t: 'txt', opt: 1, voice: 1 },
+        { id: 'spmaint', money: 1, l: 'Spousal Maintenance', t: 'txt', opt: 1, voice: 1, cond: { f: 'marital', nin: NOT_DIVORCED }, grey: 1 },
+        { id: 'maint', money: 1, l: 'Child Maintenance', t: 'txt', opt: 1, voice: 1, cond: { f: 'marital', nin: NO_CHILD_MAINT }, grey: 1 },
         { id: 'spinc', money: 1, l: 'Spouse\u2019s income (earlier form)', t: 'txt', opt: 1, legacy: 1, cond: { f: 'spinc', nin: [''] } },      // the old Spousal Income box (what a current spouse earns): kept so an old file is never misread, shown only while it holds an answer, never filled by voice
         { id: 'tinc', l: 'Total Income', t: 'txt', calc: 'tinc' },
         { id: 'exp', money: 1, l: 'Monthly expenses / budget (R)', t: 'txt', risky: 1 },
@@ -260,7 +262,7 @@
       ] },
       { title: 'Short-term insurance', layout: 'g12', fields: [
         { id: 'sti', l: 'Has short-term insurance', t: 'sel', o: ['Yes', 'No', 'Handled by spouse'], s: 3 },
-        { id: 'sti_broker', l: 'Broker on record', vl: 'Short-term broker on record', t: 'sel', o: BROKER, preset: DEFAULT_BROKER, voice: 1, cond: STI_ON, grey: 1, s: 3 },
+        { id: 'sti_broker', l: 'Broker on record', vl: 'Short-term broker on record', t: 'sel', o: STI_BROKER, keepOld: 1, preset: DEFAULT_BROKER, voice: 1, cond: STI_ON, grey: 1, s: 3 },
         { id: 'sti_car', l: 'Car', t: 'sel', o: YN, cond: STI_ON, grey: 1, s: 3 },
         { id: 'sti_house', l: 'Household contents', t: 'sel', o: YN, cond: STI_ON, grey: 1, s: 3 },
         { id: 'sti_struct', l: 'Structural', t: 'sel', o: YN, cond: STI_ON, grey: 1, s: 3 },
@@ -564,5 +566,5 @@
   var byId = {};
   sections.forEach(function (s) { s.blocks.forEach(function (b) { (b.fields || []).forEach(function (f) { byId[f.id] = f; }); }); });
 
-  return { version: '5.2', released: 'November 2026', sections: sections, lists: lists, panels: panels, panelsById: panelsById, advisor: ADVISOR, brBasis: BR_BASIS, areaTitle: areaTitle, psClient: PS_CLIENT, defaultBroker: DEFAULT_BROKER, psNoSend: PS_NOSEND, psSaved: PS_SAVED, psNone: PS_NONE, psClientOld: PS_CLIENT_OLD, PRIORITY: PRIORITY, NOT_PRIORITY: NOT_PRIORITY, NOT_PRIORITY_OLD: NOT_PRIORITY_OLD, UNSURE: UNSURE, BUDGET: BUDGET, fieldsById: byId };
+  return { version: '5.3', released: 'November 2026', sections: sections, lists: lists, panels: panels, panelsById: panelsById, advisor: ADVISOR, brBasis: BR_BASIS, areaTitle: areaTitle, psClient: PS_CLIENT, defaultBroker: DEFAULT_BROKER, psNoSend: PS_NOSEND, psSaved: PS_SAVED, psNone: PS_NONE, psClientOld: PS_CLIENT_OLD, PRIORITY: PRIORITY, NOT_PRIORITY: NOT_PRIORITY, NOT_PRIORITY_OLD: NOT_PRIORITY_OLD, UNSURE: UNSURE, BUDGET: BUDGET, fieldsById: byId };
 });

@@ -30,7 +30,7 @@ srv.listen(0, async () => {
       const add = (kind, t) => { t = String(t || '').replace(/\s+/g, ' ').trim(); if (t && !seen.has(kind + t)) { seen.add(kind + t); out.push([kind, t]); } };
       const main = document.getElementById('main');
       main.querySelectorAll('h2').forEach(e => add('page title', e.textContent));
-      main.querySelectorAll('.f > span.l > span:first-child').forEach(e => { if (vis(e)) add('label', e.textContent); });
+      main.querySelectorAll('.f > span.l > span:first-child').forEach(e => { if (vis(e) && !e.closest('.f.off')) add('label', e.textContent); });      // a greyed-out box (Spousal Maintenance for a married client, 5.3) is on the screen but not asked, so it is left out of the PDF by design
       main.querySelectorAll('.block-title').forEach(e => add('block title', e.textContent));
       main.querySelectorAll('.help').forEach(e => add('help note', e.textContent));
       main.querySelectorAll('.note').forEach(e => add('note', e.textContent));
