@@ -1,4 +1,4 @@
-# Client Overview: the data contract (version 0.1, draft for the Fix Skills chat)
+# Client Overview: the data contract (version 0.1, revision b of 21 November: all seven points confirmed by the Fix Skills chat)
 
 Written 21 November 2026 by Chat 3 (stage 1 of the Client Overview build). **This is what the Overview page (`app/overview.html`), the PDF, the Presentation and the filling skill all agree on: the saved file's layout, the fixed lists, who writes what, and what is computed.** The skill is built against this file; the page is built from it. A change to it is a change to `schema` and is announced in the release block.
 
@@ -28,7 +28,8 @@ Written 21 November 2026 by Chat 3 (stage 1 of the Client Overview build). **Thi
 | **Row** | `{ "id", "d": {...fields...}, "st", "src", "removed" }`; `id` is a stable unique text, never reused; lines and policies carry their fields directly as listed below. |
 | **`st` (status)** | `empty` (nothing yet) · `ff` (from the Fact Find, waiting for a document: amber) · `verify` (read from a document, to be checked: amber) · `confirmed` (checked by Sitamah or Paul: green). **A skill writes `verify` only; it never writes `confirmed`.** The page sets `ff` and `confirmed`. |
 | **`src`** | Where the row came from: `{ "kind": "factfind" \| "schedule" \| "quote" \| "group" \| "astute" \| "cmp" \| "typed", "file": "<file name only, no path>", "page": 3, "date": "dd/mm/yyyy" }`. Required on every row a skill writes. |
-| **`removed`** | `true` hides the row everywhere and excludes it from every total, but keeps it so **Undo** works. Remove = set it; Undo = clear it. A skill removes a row this way, never by deleting it. |
+| **`removed`** | `true` hides the row everywhere and excludes it from every total, but keeps it so **Undo** works. Remove = set it; Undo = clear it. A skill removes a row this way, never by deleting it. **Only quotes, proposed investments and goal reports can be removed**: current policies (block 1), group benefits (block 3) and current investments (block 8) are added and removed **only in the Fact Find**, and the overview follows it. |
+| **`ffKey`** | On every item of blocks 1, 3 and 8: the text that ties it to its Fact Find row: `<list>:<provider, lower case, no accents, single spaces>:<n>` (`n` counts rows of the same provider in that list, from 1), for example `risk:test insurer:1`, `ret_ra:test insurer:1`, `inv:test provider:2`. The lists are `risk`, `grp`, `ret_pp`, `ret_ra`, `inv`. A skill fills details onto the item that has the `ffKey`; it never invents one. |
 | **Written by** | Every row and quote also carries `by: "page" \| "skill" \| "person"`. |
 
 ## 3. Top-level layout
@@ -38,7 +39,7 @@ Written 21 November 2026 by Chat 3 (stage 1 of the Client Overview build). **Thi
   "app": "wr-overview", "schema": "0.1",
   "created": "<ISO>", "modified": "<ISO>",
   "header":  { ... },                 // section 4
-  "factFind": { "file": "<name>", "schema": "5.3", "readAt": "<ISO>", "changed": 0 },   // a link, not a copy
+  "factFind": { "file": "<name>", "schema": "5.3", "readAt": "<ISO>", "changed": 0, "facts": { ... } },   // a link; "facts" is the snapshot the page took of what it uses (section 11), so a later change can be told
   "settings": { "standards": { ... }, "tolerance": 1.00 },     // section 10
   "blocks": {
     "policies":   { "items": [ ... ] },                         // 1
@@ -90,7 +91,7 @@ Every risk table has the columns **description, term, life, severe illness, lump
 |---|---|
 | `household` | Household needs. Standalone. |
 | `child` | One line per child, **name and surname**, term to age 24. Unused lines are not written. |
-| `debt` | One line per debt, named as the quote names it (and the bank when the document gives it). `accelerated: true` for BrightRock. `term` in months or `"Maximum"`. An `ip.monthly` amount on a debt line is the **Instalment Protector**; the page prints "Instalment Protector" and a red "To be ceded" under it. |
+| `debt` | One line per debt, named as the quote names it (and the bank when the document gives it). `accelerated: true` for BrightRock. `term` in months or `"Maximum"`. An `ip.monthly` amount on a debt line is the **Instalment Protector**; the page prints "Instalment Protector" (grey) and a red **"To be ceded to the bank"** under it, and one explanation line under the quote table. |
 | `death` | Death-related needs. `lsd`, `ip` and `waiting` are `"N/A"`. |
 | `dread` | Additional expense needs (dread). `lsd`, `ip` and `waiting` are `"N/A"`. |
 | `other` | Free line (other insurers, the current policies' benefit lines): `label` says what it is; it still sits under the four fixed pillars. |
@@ -123,18 +124,19 @@ A whole pillar cell may be the string `"N/A"` instead of an object (as the `deat
 
 ### Block 1, current policies
 
-`items[]` = `{ "id", "wr": true|false, "insurer", "product", "policyNo", "doc" (date of commencement), "broker", "premium", "aci", "abi", "ipAge", "benefits": {"life":"WOL","lsd":"…","ip":"…"} (the product / benefit description under the amounts, text), "cession": null|true|false, "lines": [ ... ], "cmp": {...}|null, "st", "src", "by", "removed" }`. `wr: true` = WR is the broker on record (green tick); `false` = another broker (cross). **A WR policy shows every line item exactly as the insurer lists it and is replaced by the latest schedule each year.** Totals per group (`wr`, other) and a **grand total per pillar across all policies** are computed.
+`items[]` = `{ "id", "wr": true|false, "insurer", "product", "policyNo", "doc" (date of commencement), "broker", "premium", "aci", "abi", "ipAge", "benefits": {"life":"WOL","lsd":"…","ip":"…"} (the product / benefit description under the amounts, text), "cession": null|true|false, "lines": [ ... ], "cmp": {...}|null, "st", "src", "by", "removed" }`. `wr: true` = WR is the broker on record (green tick); `false` = another broker (cross). **A WR policy shows every line item exactly as the insurer lists it and is replaced by the latest schedule each year.** **Block 1 follows the Fact Find:** the page adds a skeleton item (`st: ff`) for every `risk` row and never removes one; a skill fills the details onto the item with the matching `ffKey` (policy number, DOC, product, premium from the schedule, lines); a policy the client forgot is **added to the Fact Find first** (the skill corrects the Fact Find's list) and then appears here. Totals per group (`wr`, other) and a **grand total per pillar across all policies** are computed.
 
 ### Block 3, group benefits and personal investments
 
 `items[]`, each `kind: "risk" | "pension" | "provident"`:
 - `risk` (a group risk statement): `provider`, `statementDate`, `life`, `sev`, `lsd`, `ip` each `{ "amount": n|null, "endAge": 65|"Whole of life"|null }`, `ipWaiting`, `aci`, `abi`, `monthlyCost`, `paidBy: "employer"|"employee"|"both"`, `basis` (text such as "1.5 × insurance salary"). **Always read each benefit's ending age; if the statement does not have the benefit, write `"Not found"`.**
 - `pension` / `provident`: `provider`, `value`, `employer`, `employee` (R p.m., from the payslip), `aci`; waiting and ABI are `"N/A"`; `"POI needed"` is written in `note` when there is no payslip on file.
+- **Block 3 follows the Fact Find** the same way: `risk` items from the `grp` list, `pension` / `provident` items from `ret_pp` (each with its `ffKey`); added and removed only there.
 - **Personal investments is a computed row**: the sum of block 8's gross values (every investment, retirement annuities included), with their total monthly contributions.
 
 ### Block 8, current investments
 
-`items[]` = `{ "id", "wr": bool, "provider", "product", "policyNo", "valueDate", "valueSource": {"kind":"schedule"|"astute","date","file"}, "gross", "penalty" (Section 14 transfer penalty, number|null|"N/A"), "returnRate" (since inception), "aci" (number|"Not found"), "monthly", "st", "src", "by", "removed" }`. **Look for the investment schedule first and use Astute only where none is on file; every value shows its date and source.** Net value (gross − penalty) and the total are computed.
+`items[]` = `{ "id", "wr": bool, "provider", "product", "policyNo", "valueDate", "valueSource": {"kind":"schedule"|"astute","date","file"}, "gross", "penalty" (Section 14 transfer penalty, number|null|"N/A"), "returnRate" (since inception), "aci" (number|"Not found"), "monthly", "st", "src", "by", "removed" }`. **Look for the investment schedule first and use Astute only where none is on file; every value shows its date and source.** **Block 8 follows the Fact Find:** one item for every `ret_ra` and `inv` row (each with its `ffKey`), added and removed only there. Net value (gross − penalty) and the total are computed.
 
 ### Block 9, proposed investments
 
@@ -202,9 +204,11 @@ Automatic on first open (and a **Fill from Fact Find** button), using the hand-o
 | block 10 | `rgar_req`, `egar_req` |
 | block 11 | `ma`, `gap`, `will`, `sti` with their notes and broker boxes |
 
+**`factFind.facts`** (written by the page when it reads the Fact Find; a skill may leave it alone) holds exactly what the page used, so that "Fact Find changed: n items" can be told later: `header` (`fname`, `sname`, `dob`, `gross`, `net`, `ipAge`, `date`, `sevRequest`, `premiumBudget`), `children[]` (`name`, `sname`, `dob`, `cost`), `debts[]` (`type`, `prov`, `desc`, `bal`, `inst`, `term`), `risk[]`, `grp[]`, `ret_pp[]`, `ret_ra[]`, `inv[]` (each row with its `ffKey` and the list's columns), `raq[]`, `invq[]`, `rgar`, `egar` (true when requested), `other` (`ma`, `gap`, `will`, `shortterm`: provider, broker and notes as the Fact Find has them).
+
 ## 12. What the filling skill writes, and how
 
-- **It writes:** the header (names, dates), and rows in the blocks above with `st: "verify"`, `by: "skill"` and a `src` on every row. It may write the whole file ("full fill" from the client's folder) **or only changed items** (add one policy or quote, remove one by setting `removed: true`, replace one with `replaces`), leaving every other row untouched.
+- **It writes:** the header (names, dates), and rows in the blocks above with `st: "verify"`, `by: "skill"` and a `src` on every row. It may write the whole file ("full fill" from the client's folder) **or only changed items** (add or replace one quote with `replaces`, remove a quote, a proposed investment or a goal report by setting `removed: true`, fill the details of one policy, group item or investment), leaving every other row untouched. **It never adds or removes an item of blocks 1, 3 or 8 on its own: those follow the Fact Find** (it corrects the Fact Find first, then the item appears and it fills it).
 - **It never writes:** `computed`, totals, the shortfall, the checks, `confirmed`, the `ff` status, or any other row's content. It never deletes a row.
 - **Before it writes:** it corrects the Fact Find's own lists (policies, premiums, forgotten policies; Paul's documents-are-the-truth rule), then fills the overview from the corrected Fact Find and the schedules, quotes, group statements and Astute. **The documents are the truth, not the meeting.** The overview figures win over a file name's figures (a premium in a file name may differ by cents).
 - **It stops** on a `schema` it does not know; on a file that is not `app: "wr-overview"`.
@@ -214,7 +218,7 @@ Automatic on first open (and a **Fill from Fact Find** button), using the hand-o
 
 A JSON file kept in Paul's OneDrive and loaded by the Presentation (`Open key points…`, remembered like the folder connection). `{ "app": "wr-keypoints", "schema": "0.1", "points": [ { "id", "insurer", "product", "benefit": "life|sev|lsd|ip|instalmentProtector|childCover|conversion|…", "text": "<one short sentence>", "approved": { "by": "Paul", "date": "dd/mm/yyyy" } | null } ] }`. **A point with `approved: null` never shows.** The panel shows at most four per benefit being discussed. Drafts are built from the insurers' own documents by the skill and approved by Paul once.
 
-## 14. Points the Fix Skills chat is asked to confirm
+## 14. The seven points: CONFIRMED by the Fix Skills chat on 21 November (revision b)
 
 1. `computed.shortfall`: personal investments reduce **life only** (as in the worked example), not disability.
 2. Tolerance of R1.00 on the net-income check (a quote showed R1 above the Fact Find).
@@ -238,3 +242,15 @@ A JSON file kept in Paul's OneDrive and loaded by the Presentation (`Open key po
    {"id":"l5","type":"dread","label":"Additional expense needs (dread)","term":"Whole of life","sev":{"lump":500000},"lsd":"N/A","ip":"N/A","waiting":"N/A","abi":3} ] }
 ```
 With `header.netIncome = 30000` the page works out: life monthly 10,000 + 4,000 + 9,000 + 7,000 = 30,000; lump sum disability monthly 17,000 + 4,000 + 9,000 = 30,000; income protector 21,000 + 0 + 9,000 = 30,000 (the three income-linked pillars add up, so `fna.income` stays quiet); total lump sum life 3,100,000; severe illness 500,000.
+
+## 16. Revision b (21 November, from Paul's build brief and the confirmations): what changed since the first draft
+
+All additive to `schema: "0.1"`; nothing a skill already wrote breaks.
+
+| Change | Where |
+|---|---|
+| Blocks 1, 3 and 8 follow the Fact Find (no add or remove in the overview); every item has an `ffKey` | sections 2 and 7 |
+| `factFind.facts`: the snapshot of the Fact Find's facts the page uses | sections 3 and 11 |
+| Only quotes, proposed investments and goal reports can be removed (`removed: true`); quotes keep Replace, Remove (with Undo), Add new, Add another | sections 2, 7, 12 |
+| The debt label is **"To be ceded to the bank"**; the first column of a quote is headed **Need** | section 6 |
+| `computed` also holds the shortfall and the comparison tables; the Presentation and the PDF read the same view | section 9 |
