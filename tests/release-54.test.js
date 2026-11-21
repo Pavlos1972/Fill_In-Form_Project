@@ -118,7 +118,7 @@ test('typing: a figure, N/A and Not found are kept as they are; typing checks th
   store.accept(s, 'blocks.fna.quotes.0.lines.0'); assert.strictEqual(q.lines[0].st, 'confirmed');
 });
 
-test('a new FNA, shortfall or reduced quote starts with the lines the Fact Find knows; a comparative quote starts empty', () => {
+test('a new FNA, shortfall or reduced quote starts with the lines the Fact Find knows; a comparative quote starts with one whole-of-life line (stage 6: it is tailored to what that insurer prints)', () => {
   const s = filled();
   const q = store.addQuote(s, 'fna');
   assert.deepStrictEqual(q.lines.map(l => l.type), ['household', 'child', 'child', 'debt', 'debt', 'debt', 'death', 'dread']);
@@ -128,7 +128,7 @@ test('a new FNA, shortfall or reduced quote starts with the lines the Fact Find 
   const dead = q.lines.filter(l => l.type === 'death' || l.type === 'dread');
   assert.ok(dead.every(l => l.lsd === 'N/A' && l.ip === 'N/A' && l.waiting === 'N/A'), 'death-related and dread: N/A in lump sum disability, income protector and waiting period');
   assert.strictEqual(q.lines.filter(l => l.type === 'child')[0].term, 'Age 24'); assert.strictEqual(q.lines.filter(l => l.type === 'dread')[0].term, 'Whole of life');
-  assert.deepStrictEqual(store.addQuote(s, 'comparative').lines, []); assert.strictEqual(store.addQuote(s, 'comparative').insurer, '');
+  const cq = store.addQuote(s, 'comparative'); assert.deepStrictEqual(cq.lines.map(l => [l.type, l.label, l.term]), [['other', 'Cover', 'Whole of life']]); assert.strictEqual(cq.insurer, '');
   assert.strictEqual(store.addQuote(s, 'reduced').lines.length, 8); assert.strictEqual(s.blocks.reduced.quotes.length, 1);
   const blank = store.addQuote(store.blank(), 'fna'); assert.deepStrictEqual(blank.lines.map(l => l.type), ['household', 'death', 'dread'], 'with no Fact Find read, only the lines every client has');
 });

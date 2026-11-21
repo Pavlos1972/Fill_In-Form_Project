@@ -15,7 +15,7 @@
   /* ---------- a blank overview ---------- */
   function blank() {
     var s = { app: APP_ID, schema: schema.version, created: new Date().toISOString(), modified: null,
-      header: { fname: '', sname: '', dob: null, broker: 'Paul Kafentzis', overviewDate: schema.todayDMY(), meetingDate: null, astuteDate: null, netIncome: null, grossIncome: null, disabilityAge: null, sevRequest: null, premiumBudget: null },
+      header: { fname: '', sname: '', dob: null, broker: 'Paul Kafentzis', overviewDate: schema.todayDMY(), meetingDate: null, astuteDate: null, netIncome: null, grossIncome: null, disabilityAge: null, sevRequest: null, premiumBudget: null, previous: null },
       factFind: null, documents: [], settings: { standards: clone(schema.STANDARDS), tolerance: 1.00 },
       blocks: { policies: { items: [] }, fna: { quotes: [] }, group: { items: [] }, shortfallQuote: { quotes: [] }, reduced: { quotes: [] }, comparative: { quotes: [] }, investments: { items: [] }, proposed: { items: [] }, goals: { items: [] }, other: { items: [] } },
       computed: null };
@@ -89,7 +89,7 @@
       ((facts && facts.debts) || []).forEach(function (d) { q.lines.push(ffLine(newLine('debt', { debt: d.desc || d.type || '', bank: d.prov || '', label: 'Debt' }))); });
       q.lines.push(ffLine(newLine('death'))); q.lines.push(ffLine(newLine('dread')));
       if (facts && facts.children && facts.children.length + (facts.debts || []).length) q.st = 'ff';
-    }
+    } else q.lines.push(newLine('other', { label: 'Cover', term: 'Whole of life' }));          // another insurer's quote is tailored to what it prints: often one whole-of-life amount for each benefit
     return Object.assign(q, o || {});
   }
   function addQuote(state, kind, o) { var q = newQuote(state, kind, o); state.blocks[schema.blockOfQuote[kind]].quotes.push(q); return q; }
@@ -102,6 +102,47 @@
   function addLine(state, path, type, o) { var c = pathGet(state, path); if (!c || !Array.isArray(c.lines)) return null; var l = newLine(type, o); c.lines.push(l); return l; }
   function addItem(state, blockId, item) { state.blocks[blockId].items.push(item); return item; }
   function newProposed() { return { id: uid('pi'), type: schema.PROPOSED_TYPES[0], provider: '', quote: '', contribution: 'monthly', lump: null, monthly: null, boostPct: null, netInvested: null, aci: null, st: 'empty', src: null, by: 'person', removed: false }; }
+
+
+  /* ---------- the change moment pay-out (typed: stage 6) ---------- */
+  /* The rows of a pay-out table as the guide prints them: the total, the retirement part, the childcare part and one row for each child (named from the quote's child lines, else from the Fact Find). */
+  function newCmp(state, owner) {
+    var rows = [{ key: 'total' }, { key: 'retirement' }, { key: 'childcare' }].map(function (r) { return Object.assign({ today: null, projected: null, payoutDate: null }, r); });
+    var kids = calc.activeLines(owner).filter(function (l) { return l.type === 'child' && (l.name || l.sname); }).map(function (l) { return { name: l.name, sname: l.sname }; });
+    if (!kids.length) kids = ((state.factFind && state.factFind.facts && state.factFind.facts.children) || []).map(function (c) { return { name: c.name, sname: c.sname }; });
+    kids.forEach(function (c) { rows.push({ key: 'child', name: c.name || '', sname: c.sname || '', today: null, projected: null, payoutDate: null }); });
+    return { number: owner.number || '', activationDate: null, reason: null, rows: rows, st: 'empty', by: 'person', src: { kind: 'typed' } };
+  }
+  function addCmp(state, path) { var o = pathGet(state, path); if (!o || typeof o !== 'object' || o.cmp) return null; o.cmp = newCmp(state, o); return o.cmp; }
+  function removeCmp(state, path) { var o = pathGet(state, path); if (!o || !o.cmp) return false; o.cmp = null; return true; }
+  function addCmpChild(state, path) { var o = pathGet(state, path); if (!o || !o.cmp) return null; var r = { key: 'child', name: '', sname: '', today: null, projected: null, payoutDate: null }; o.cmp.rows.push(r); return r; }
+  function removeCmpRow(state, path, i) { var o = pathGet(state, path); if (!o || !o.cmp || !o.cmp.rows[i]) return false; o.cmp.rows.splice(i, 1); return true; }
+
+  /* ---------- a review year (stage 6) ---------- */
+  /* The next year's overview, started from this one. The client, the policies (an issued quote of ours becomes a policy), the group benefits, the investments, the goal reports asked for and the other cover are carried over,
+     every one "to check" and marked as coming from last year's overview, so the checks say what still waits for the latest schedule or statement; the quotes (the new FNA replaces last year's), the proposals, the documents
+     log, the Astute date and the meeting date start empty. The old overview is not changed (it is a file of its own, kept: a new date is a new file name). */
+  function startReview(old, today) {
+    var s = blank(), prev = { date: old.header.overviewDate || '', file: schema.fileName(old) }, src = { kind: 'previous', file: prev.file, date: prev.date };
+    Object.keys(s.header).forEach(function (k) { if (old.header[k] !== undefined) s.header[k] = clone(old.header[k]); });
+    s.header.overviewDate = today || schema.todayDMY(); s.header.meetingDate = null; s.header.astuteDate = null; s.header.previous = prev;
+    s.factFind = clone(old.factFind); if (old.settings) s.settings = clone(old.settings);
+    var n = { policies: 0, group: 0, investments: 0, other: 0, goals: 0 };
+    function carry(r, kind) {
+      var c = clone(r); delete c.derived; delete c.fromQuote; delete c.replaces; delete c.replacedBy; c.removed = false;
+      c.cmp = null;                                                                                   // last year's pay-out guide is out of date
+      if (c.st !== 'empty') { c.st = 'verify'; c.by = 'page'; c.src = src; n[kind]++; }
+      c.lines = (c.lines || []).filter(function (l) { return !l.removed; }).map(function (l) { l = clone(l); if (l.st !== 'empty') { l.st = 'verify'; l.by = 'page'; l.src = src; } return l; });
+      return c;
+    }
+    s.blocks.policies.items = calc.policies(old).map(function (e) { return carry(e.item, 'policies'); });
+    s.blocks.group.items = calc.groupItems(old).map(function (g) { return carry(g, 'group'); });
+    s.blocks.investments.items = calc.investments(old).map(function (i) { return carry(i, 'investments'); });
+    s.blocks.goals.items = calc.active(old.blocks.goals.items).map(function (g) { var c = carry(g, 'goals'); c.currentValuePm = null; c.futureValuePm = null; c.aci = null; c.premium = null; return c; });
+    var order = {}; old.blocks.other.items.forEach(function (it) { order[it.key] = it; });
+    s.blocks.other.items = schema.OTHER_KEYS.map(function (k) { return order[k.key] && !order[k.key].removed ? carry(order[k.key], 'other') : otherItem(k.key); });
+    return { state: s, carried: n };
+  }
 
   /* ---------- the Fact Find's facts ---------- */
   function ffKeyFor(list, row, counts) {
@@ -310,6 +351,6 @@
   }
 
   return { blank: blank, uid: uid, parseCell: parseCell, setPath: setPath, pathGet: pathGet, accept: accept, acceptAll: acceptAll, walkRows: walkRows, newLine: newLine, newQuote: newQuote, addQuote: addQuote, findQuote: findQuote,
-    setRemoved: setRemoved, addLine: addLine, addItem: addItem, newProposed: newProposed, factsFrom: factsFrom, diffFacts: diffFacts, syncBlocks: syncBlocks, fillFromFactFind: fillFromFactFind, fileName: fileName,
+    setRemoved: setRemoved, newCmp: newCmp, addCmp: addCmp, removeCmp: removeCmp, addCmpChild: addCmpChild, removeCmpRow: removeCmpRow, startReview: startReview, addLine: addLine, addItem: addItem, newProposed: newProposed, factsFrom: factsFrom, diffFacts: diffFacts, syncBlocks: syncBlocks, fillFromFactFind: fillFromFactFind, fileName: fileName,
     clientName: clientName, computed: computed, toJSON: toJSON, fromJSON: fromJSON, rows: rows, counts: counts, ffKeyFor: ffKeyFor, APP_ID: APP_ID };
 });

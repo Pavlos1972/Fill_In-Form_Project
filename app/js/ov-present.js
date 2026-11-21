@@ -111,7 +111,7 @@
     var one = ps.pol != null ? ps0[ps.pol] : null;
     if (one) {
       var it = one.item;
-      return out + '<div class="pctl"><button type="button" class="pchip" data-act="polall">&larr; All policies</button><span class="sp"></span>' + pillBtns() + '</div><div class="qhead"><span>' + esc([it.insurer || 'Policy', it.policyNo, it.product, it.doc ? 'DOC ' + it.doc : ''].filter(Boolean).join('   |   ')) + '</span></div>' + linesTable(it, true, it.ipAge || age);
+      return out + '<div class="pctl"><button type="button" class="pchip" data-act="polall">&larr; All policies</button><span class="sp"></span>' + pillBtns() + '</div><div class="qhead"><span>' + esc([it.insurer || 'Policy', it.policyNo, it.product, it.doc ? 'DOC ' + it.doc : ''].filter(Boolean).join('   |   ')) + '</span></div>' + linesTable(it, true, it.ipAge || age) + (it.cmp ? '<div class="qhead"><span>Your change moment pay-out</span></div>' + cmpView(it) : '');
     }
     var ageH = ageText(age), rows = ps0.map(function (e, i) {
       var it = e.item, tt = calc.totals(it), lines = calc.activeLines(it), has = lines.length, bn = it.benefits || {}, notes = [bn.life, bn.lsd, bn.ip].filter(Boolean).join(' / ');

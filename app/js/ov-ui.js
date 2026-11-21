@@ -127,6 +127,16 @@
     state = store.blank(); fileHandle = null; ffHandle = null; fileBase = ''; rememberHandle(null); lastFolder = null; dirty = false; onDisk = true; lastSaved = null; cur = CLIENT; saveDraft(); redraw();
   }
 
+  /* The next review: this overview's client, policies, group benefits, investments and other cover carry over (each to be checked); the quotes start empty. Last year's file is not touched, so it must be saved first. */
+  function newReview() {
+    if (state.newer) { toast('This overview was made by a newer version of the page: a review cannot be started from it here.', 6000); return; }
+    if (dirty) { toast('Save this overview first, so that last year\'s file is kept as it is.', 6000); return; }
+    if (!window.confirm('Start the next review from this overview?\n\nThis overview stays as it is. The new one carries over the client, the policies, group benefits, investments and other cover (each marked to be checked against the latest schedule or statement); the quotes (the new FNA replaces last year\'s), the proposals and the documents start empty. Its date is today.')) return;
+    var r = store.startReview(state, schema.todayDMY()), c = r.carried;
+    state = r.state; fileHandle = null; ffHandle = null; fileBase = ''; rememberHandle(null); lastFolder = null; dirty = true; onDisk = false; lastSaved = null; cur = CLIENT; saveDraft(); redraw();
+    toast('A new review is started: ' + (c.policies + c.group + c.investments + c.other + c.goals) + ' items carried over from the overview of ' + (state.header.previous.date || 'last year') + ', waiting for the latest documents. Save it to make its own file.', 8000);
+  }
+
   /* ---------- small drawing helpers ---------- */
   function fmtIn(v) {
     if (v === 'N/A' || v === 'Not found') return v;
@@ -201,7 +211,7 @@
     var ages = (c.disabilityAge || c.ipAge || (state.header.disabilityAge)) || '', age = ages ? 'Age ' + ages : '';
     var head = '<thead><tr><th class="need">Need</th><th>Term</th><th>Life cover</th><th>Severe illness</th><th>Lump sum disability<small>' + esc(age) + '</small></th><th>Income protector / sickness benefit<small>' + esc(age) + '</small></th><th>Waiting period</th><th>ACI</th><th>ABI</th><th></th></tr></thead>';
     var body = (c.lines || []).map(function (l, i) { return lineHTML(cpath, c, l, i, isPolicy); }).join('') || '<tr><td colspan="10" class="empty">No lines yet.</td></tr>';
-    var types = (isPolicy ? ['other', 'household', 'child', 'debt', 'death', 'dread'] : ['household', 'child', 'debt', 'death', 'dread', 'other']).map(function (t) { return '<button type="button" class="addrow" data-addl="' + cpath + '|' + t + '">+ ' + esc(schema.lineTypesById[t].l) + '</button>'; }).join('');
+    var types = (isPolicy || c.kind === 'comparative' ? ['other', 'household', 'child', 'debt', 'death', 'dread'] : ['household', 'child', 'debt', 'death', 'dread', 'other']).map(function (t) { return '<button type="button" class="addrow" data-addl="' + cpath + '|' + t + '">+ ' + esc(schema.lineTypesById[t].l) + '</button>'; }).join('');
     var ced = (c.lines || []).some(function (l) { return !l.removed && l.type === 'debt' && calc.isNum(l.ip && l.ip.monthly) && l.ip.monthly > 0; });
     return '<table class="ovt lines"><colgroup><col class="c-need"><col class="c-term"><col class="c-life"><col class="c-sev"><col class="c-lsd"><col class="c-ip"><col class="c-wait"><col class="c-aci"><col class="c-abi"><col class="c-x"></colgroup>' + head + '<tbody>' + body + '</tbody>' +
       (isPolicy ? '' : '<tbody data-comp="qtot|' + c.id + '">' + compHTML('qtot', c.id) + '</tbody>') + '</table>' +
@@ -232,12 +242,19 @@
         return '<tr class="' + (r[2] ? 'diff' : '') + '"><td>' + r[0] + '</td><td class="c">' + f(r[1].life) + '</td><td class="c">' + f(r[1].sev) + '</td><td class="c">' + f(r[1].lsd) + '</td><td class="c">' + f(r[1].ip) + '</td><td class="c">' + f(r[1].premium) + '</td></tr>';
       }).join('') + '</tbody></table>' + (c.nowCount ? '' : '<p class="foot">There are no current policies in block 1 yet, so "what you have now" is nothing.</p>');
   }
-  function cmpHTML(q) {
-    var m = q.cmp; if (!m) return '';
+  function cmpHTML(o, p) {
+    var m = o.cmp, bright = /bright/i.test(o.insurer || '');
+    if (!m) return bright && !state.newer ? '<div class="cmpadd"><button type="button" class="addrow" data-addcmp="' + p + '">+ Add the change moment pay-out</button> <small class="foot">typed from the &ldquo;BR CMPO&rdquo; guide of this ' + (o.kind ? 'quote' : 'policy') + '</small></div>' : '';
     var lbl = { total: 'Total for all your needs', retirement: 'Your retirement needs', childcare: 'Your childcare needs' };
-    return '<h4>Your change moment pay-out</h4>' + (m.rows && m.rows.length ? '<table class="ovt cmp"><thead><tr><th></th><th>Today</th><th>Projected value at your change moment date</th><th>Pay-out date</th></tr></thead><tbody>' +
-      m.rows.map(function (r) { return '<tr><td>' + esc(r.key === 'child' ? ((r.name || '') + ' ' + (r.sname || '')).trim() : (lbl[r.key] || r.key)) + '</td><td class="c">' + amt(r.today) + '</td><td class="c">' + amt(r.projected) + '</td><td class="c">' + esc(r.payoutDate || '') + '</td></tr>'; }).join('') + '</tbody></table>' :
-      '<p class="foot">' + esc(m.reason || 'The insurer gave no change moment pay-out for this quote.') + '</p>');
+    var rows = (m.rows || []).map(function (r, i) {
+      var rp = p + '.cmp.rows.' + i, nm = r.key === 'child' ? '<div class="two">' + inp(rp + '.name', 'text', '', 'Name') + inp(rp + '.sname', 'text', '', 'Surname') + '</div>' : '<b>' + esc(lbl[r.key] || r.key) + '</b>';
+      return '<tr data-row="' + rp + '"><td>' + nm + '</td><td class="c">' + inp(rp + '.today', 'money') + '</td><td class="c">' + inp(rp + '.projected', 'money') + '</td><td class="c">' + inp(rp + '.payoutDate', 'date') + '</td><td class="x"><button type="button" class="xbtn" data-delcmprow="' + p + '|' + i + '" title="Remove this row">&times;</button></td></tr>';
+    }).join('');
+    return '<h4>Your change moment pay-out <button type="button" class="lnk" data-delcmp="' + p + '">Remove</button></h4>' +
+      '<table class="ovt cmp payout"><thead><tr><th></th><th>Today</th><th>Projected value at your change moment date</th><th>Pay-out date</th><th></th></tr></thead><tbody>' + (rows || '<tr><td colspan="5" class="empty">No rows: the insurer gave no pay-out.</td></tr>') + '</tbody></table>' +
+      '<div class="adders"><button type="button" class="addrow" data-addcmpchild="' + p + '">+ A child row</button></div>' +
+      '<div class="grid qh">' + lab('CP number of the guide', inp(p + '.cmp.number', 'text')) + lab('Change moment date', inp(p + '.cmp.activationDate', 'date')) + lab('If the insurer gave no pay-out, why', inp(p + '.cmp.reason', 'text'), 'wide') + '</div>' +
+      (m.st === 'verify' ? '<p class="foot">Read from ' + esc((m.src && m.src.file) || 'a document') + ': check the figures.</p>' : '');
   }
 
   /* ---------- quotes ---------- */
@@ -251,7 +268,7 @@
       (q.status === 'accepted' ? lab('Policy number', inp(p + '.policyNo', 'text')) + lab('Start date', inp(p + '.startDate', 'date')) : '') + '</div>' +
       (q.status === 'accepted' && q.policyNo && q.startDate ? '<p class="blue">This quote has been issued as a policy, so it is also shown in block 1 as a current policy of ours.</p>' : '') +
       (q.status === 'accepted' && !(q.policyNo && q.startDate) ? '<p class="blue">Accepted. When the insurer has issued the policy, type its policy number and start date above: the quote then moves to block 1 as a current policy of ours.</p>' : '') +
-      linesTable(p, q, false) + '<div class="under">' + cmpHTML(q) + '<h4>Compared with what you have now</h4><div data-comp="cmp|' + q.id + '">' + compareHTML(q) + '</div></div></article>';
+      (q.kind === 'comparative' ? '<p class="blue">Type what this insurer\'s quote prints: often one whole-of-life amount for each benefit. Use <b>+ Other line</b> for each row the quote shows and describe it; the four benefit columns, the totals and the comparison stay as they are.</p>' : '') + linesTable(p, q, false) + '<div class="under">' + cmpHTML(q, p) + '<h4>Compared with what you have now</h4><div data-comp="cmp|' + q.id + '">' + compareHTML(q) + '</div></div></article>';
   }
   function quotesBlock(b) {
     var list = (state.blocks[b.id].quotes || []), live = list.filter(function (q) { return !q.removed; }), gone = list.filter(function (q) { return q.removed; });
@@ -285,7 +302,7 @@
       lab('Insurer', inp(p + '.insurer', 'text')) + lab('Product', inp(p + '.product', 'text')) + lab('Policy number', inp(p + '.policyNo', 'text')) + lab('Date of commencement', inp(p + '.doc', 'date')) + lab('Monthly premium (R)', inp(p + '.premium', 'money')) +
       lab('ACI (%)', inp(p + '.aci', 'pct')) + lab('ABI (%)', inp(p + '.abi', 'pct')) + lab('Disability to age', sel(p + '.ipAge', [{ id: 65, l: '65' }, { id: 70, l: '70' }], 'num')) +
       lab('Life cover note', inp(p + '.benefits.life', 'text', '', 'e.g. Whole of life')) + lab('Disability note', inp(p + '.benefits.lsd', 'text')) + lab('Income protector note', inp(p + '.benefits.ip', 'text')) +
-      lab('Cession', sel(p + '.cession', [{ id: 'true', l: 'Ceded' }, { id: 'false', l: 'Not ceded' }], 'tri')) + '</div>' + linesTable(p, it, true) + '</article>';
+      lab('Cession', sel(p + '.cession', [{ id: 'true', l: 'Ceded' }, { id: 'false', l: 'Not ceded' }], 'tri')) + '</div>' + linesTable(p, it, true) + (it.cmp || (it.wr && /bright/i.test(it.insurer || '')) ? '<div class="under">' + cmpHTML(it, p) + '</div>' : '') + '</article>';
   }
   function policiesBlock() {
     var items = state.blocks.policies.items;
@@ -450,6 +467,7 @@
   }
   function drawMeta() {
     var ff = state.factFind, from = ff && ff.file ? '<div>Filled from the Fact Find <b>' + esc(ff.file) + '</b>' + (ff.changed ? ' <span class="chg">(' + ff.changed + ' changed since)</span>' : '') + '</div>' : '<div>Not filled from a Fact Find yet.</div>';
+    if (state.header.previous) from += '<div>A review of the overview of <b>' + esc(state.header.previous.date || '') + '</b> <span class="fn">' + esc(state.header.previous.file || '') + '</span> (last year\'s file is kept as it is).</div>';
     $('#meta').innerHTML = '<div>It saves as</div><div class="fn">' + esc(currentBase()) + '</div><div>in the folder <span class="fn">1. Overview\\' + esc(schema.yearOf(state)) + '</span></div>' + from + (window.FF && FF.foldersUI ? FF.foldersUI.metaHTML(lastFolder) : '');
   }
 
@@ -592,13 +610,17 @@
     touch(); paintComputed(); paintStatuses();
   });
   $('#main').addEventListener('click', function (e) {
-    var t = e.target.closest('[data-accept],[data-addq],[data-addl],[data-addp],[data-del],[data-undo],[data-block],[data-upq],[data-replace],[data-upi]'); if (!t) return;
+    var t = e.target.closest('[data-accept],[data-addq],[data-addl],[data-addp],[data-del],[data-undo],[data-block],[data-upq],[data-replace],[data-upi],[data-addcmp],[data-delcmp],[data-addcmpchild],[data-delcmprow]'); if (!t) return;
     if (t.hasAttribute('data-block')) { cur = t.getAttribute('data-block'); drawNav(); drawMain(); refreshChrome(); window.scrollTo({ top: 0 }); return; }
     if (state.newer) return;
     if (t.hasAttribute('data-accept')) { store.accept(state, t.getAttribute('data-accept')); touch(); paintStatuses(); return; }
     if (t.hasAttribute('data-upq')) { pending = { block: t.getAttribute('data-upq') }; $('#docOne').click(); return; }
     if (t.hasAttribute('data-replace')) { var rp = pathOf(t.getAttribute('data-replace')); pending = { block: rp[0], replaces: rp[1] }; $('#docOne').click(); return; }
     if (t.hasAttribute('data-upi')) { var ui = pathOf(t.getAttribute('data-upi')); pending = { block: ui[1], target: store.pathGet(state, ui[0]) }; $('#docOne').click(); return; }
+    if (t.hasAttribute('data-addcmp')) { store.addCmp(state, t.getAttribute('data-addcmp')); touch(); drawMain(); return; }
+    if (t.hasAttribute('data-delcmp')) { if (!window.confirm('Remove this change moment pay-out table?')) return; store.removeCmp(state, t.getAttribute('data-delcmp')); touch(); drawMain(); return; }
+    if (t.hasAttribute('data-addcmpchild')) { store.addCmpChild(state, t.getAttribute('data-addcmpchild')); touch(); drawMain(); return; }
+    if (t.hasAttribute('data-delcmprow')) { var dr = pathOf(t.getAttribute('data-delcmprow')); store.removeCmpRow(state, dr[0], +dr[1]); touch(); drawMain(); return; }
     if (t.hasAttribute('data-addq')) { store.addQuote(state, t.getAttribute('data-addq')); touch(); drawMain(); var cards = document.querySelectorAll('.qcard'); if (cards.length) cards[cards.length - 1].scrollIntoView({ block: 'start' }); return; }
     if (t.hasAttribute('data-addp')) { state.blocks.proposed.items.push(store.newProposed()); touch(); drawMain(); return; }
     if (t.hasAttribute('data-addl')) { var q = pathOf(t.getAttribute('data-addl')); store.addLine(state, q[0], q[1]); touch(); drawMain(); return; }
@@ -619,6 +641,7 @@
   $('#btnFolders').addEventListener('click', function () { FF.foldersUI.connect().then(drawMeta); });
   if (window.FF && FF.foldersUI) FF.foldersUI.init(drawMeta);
   $('#btnNew').addEventListener('click', newOverview);
+  $('#btnReview').addEventListener('click', newReview);
   $('#btnOpen').addEventListener('click', chooseFile);
   $('#btnLoad').addEventListener('click', chooseFactFind);
   $('#btnUpload').addEventListener('click', function () { if (!state.newer) $('#docIn').click(); });

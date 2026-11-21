@@ -172,6 +172,7 @@
       var lines = calc.activeLines(e.item); if (!lines.length || (lines.length === 1 && lines[0].type === 'other' && !e.item.wr)) return;
       setText(doc, DEEP, FS.sub, true); doc.text(t((e.item.insurer || 'Policy') + (e.item.policyNo ? '   ' + e.item.policyNo : '') + (e.item.product ? '   ' + e.item.product : '')), M, y + 10);
       y = linesTable(doc, y + 12, e.item, true, e.item.ipAge || state.header.disabilityAge);
+      if (e.item.cmp) y = cmpTable(doc, y + 4, e.item);                                                // a BrightRock policy whose pay-out guide is on file shows it under its lines
     });
     return y;
   }

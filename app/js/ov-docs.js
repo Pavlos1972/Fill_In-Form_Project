@@ -190,7 +190,7 @@
   function applyCmp(state, data, file) {
     var q = findQuoteByNumber(state, data.number); if (!q) return null;
     var rows = (data.rows || []).map(function (r) { return { key: ['total', 'retirement', 'childcare', 'child'].indexOf(r.key) >= 0 ? r.key : 'total', name: s(r.name) || undefined, sname: s(r.sname) || undefined, today: n(r.today), projected: n(r.projected), payoutDate: dmy(r.payoutDate) }; });
-    q.cmp = { number: s(data.number) || q.number, activationDate: dmy(data.activationDate), reason: s(data.reason), rows: rows, src: srcOf('cmp', file) };
+    q.cmp = { number: s(data.number) || q.number, activationDate: dmy(data.activationDate), reason: s(data.reason), rows: rows, st: 'verify', by: 'page', src: srcOf('cmp', file) };
     return q;
   }
 

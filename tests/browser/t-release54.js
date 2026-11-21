@@ -19,7 +19,7 @@ const FFJ = { app: 'wr-fact-find', schema: '5.4', f: { fname: { v: 'Test' }, sna
   const ov = watch(await ctx.newPage());
   await ov.goto('file://' + dir + '/overview.html'); await ov.waitForTimeout(400);
   ok(!(await ov.$('#buildBanner')), '1. no "Mixed versions" bar');
-  ok(await ov.evaluate(() => document.title) === 'Client Overview' && /Version 0\.4/.test(await ov.evaluate(() => document.querySelector('#verLine').textContent)), '1. the page says it is the Client Overview, version 0.4');
+  ok(await ov.evaluate(() => document.title) === 'Client Overview' && /Version 0\.5/.test(await ov.evaluate(() => document.querySelector('#verLine').textContent)), '1. the page says it is the Client Overview, version 0.5');
   const nav = await ov.evaluate(() => [...document.querySelectorAll('#nav button')].map(x => x.textContent.replace(/\s+/g, ' ').trim()));
   ok(nav.length === 12 && nav[0] === 'Client details' && nav[6] === '6 Reduced quotes' && nav[11] === '11 Medical aid, will & short-term', '1. the menu: Client details and the eleven blocks in order: ' + nav.join(' | '));
   ok(await ov.evaluate(() => document.querySelectorAll('.dot').length) === 11, '1. a dot beside each block');
