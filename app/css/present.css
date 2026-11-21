@@ -1,0 +1,109 @@
+/* The Client Overview's Presentation (stage 5): a dark, full-screen view for the meeting, with subtle orange accents. It never scrolls: the page is drawn at one fixed width and scaled to fit (js/ov-present.js).
+   Read-only: nothing here is an input. */
+.pres { position: fixed; inset: 0; z-index: 3000; background: #0f1318; color: #e8ecf0; font: 16px/1.4 system-ui, "Segoe UI", sans-serif; display: grid; grid-template-rows: auto auto auto minmax(0, 1fr); overflow: hidden; }
+.pres[hidden] { display: none; }
+.pres button { font: inherit; cursor: pointer; }
+.pres .pbar { display: flex; align-items: center; gap: 14px; padding: 8px 16px; border-bottom: 1px solid #202731; }
+.pres .pwho { font-weight: 700; letter-spacing: .04em; color: #f0a050; white-space: nowrap; }
+.pres .pvoice { flex: 1; display: flex; align-items: center; gap: 8px; color: #9aa6b3; font-size: 14px; min-width: 0; }
+.pres .pvoice span#pVoiceText { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pres .pdot { width: 10px; height: 10px; border-radius: 50%; background: #4a5461; flex: none; }
+.pres .pdot.locked { background: #3fb27f; }
+.pres .pdot.cooling { background: #f0a050; }
+.pres .pdot.paused { background: #6c7a89; }
+.pres .pdot.choose { background: #e8c24a; }
+.pres .pbtns { display: flex; gap: 8px; }
+.pres .pb { background: #19202a; color: #dfe5eb; border: 1px solid #2a3340; border-radius: 8px; padding: 6px 12px; font-size: 14px; }
+.pres .pb:hover { border-color: #f0a050; }
+.pres .pb.on { background: #3a2a14; border-color: #f0a050; color: #ffd9ad; }
+.pres .ptabs { display: flex; gap: 6px; padding: 8px 16px; border-bottom: 1px solid #202731; }
+.pres .ptab { flex: 1 1 0; min-width: 0; background: #151b23; color: #aeb9c5; border: 1px solid #232b36; border-radius: 8px 8px 0 0; padding: 7px 4px; font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pres .ptab:hover { color: #fff; border-color: #f0a050; }
+.pres .ptab.on { background: #f0a050; color: #1b1206; border-color: #f0a050; font-weight: 700; }
+.pres .pchoose { display: flex; align-items: center; gap: 10px; padding: 8px 16px; background: #231d0c; border-bottom: 1px solid #5a4812; color: #ffe29a; }
+.pres .pchoose[hidden] { display: none; }
+.pres .pchoose .pb { background: #3a2f10; border-color: #8a6f1f; color: #ffe9b8; }
+.pres .pbar { grid-row: 1; }
+.pres .ptabs { grid-row: 2; }
+.pres .pchoose { grid-row: 3; }
+.pres .pmain { grid-row: 4; display: grid; grid-template-columns: minmax(0, 1fr) auto; min-height: 0; }
+.pres .pstage { position: relative; overflow: hidden; min-width: 0; min-height: 0; }
+.pres .pslide { position: absolute; left: 0; top: 0; width: 1240px; transform-origin: 0 0; padding: 0 6px 6px; box-sizing: border-box; }
+.pres .pslide.pmap { height: 620px; padding: 0; }
+.pres .ppanel { width: clamp(190px, 16vw, 260px); border-left: 1px solid #202731; background: #121820; padding: 14px 14px; box-sizing: border-box; overflow: hidden; font-size: 14px; }
+.pres .ppanel[hidden] { display: none; }
+.pres .ppanel h3 { margin: 0 0 4px; font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: #f0a050; }
+.pres .ppanel .pk-for { color: #9aa6b3; font-size: 12.5px; margin-bottom: 10px; }
+.pres .ppanel ul { margin: 0; padding: 0; list-style: none; }
+.pres .ppanel li { padding: 8px 0 8px 12px; border-left: 3px solid #f0a050; margin-bottom: 8px; color: #e8ecf0; background: #171e27; border-radius: 0 6px 6px 0; }
+.pres .ppanel .muted, .pres .ppanel .pk-foot { color: #7f8b98; font-size: 12.5px; }
+.pres .ppanel .pk-foot { margin-top: 14px; }
+.pres .ppanel .pk-foot button { background: none; border: none; color: #c98a45; padding: 0; margin-right: 10px; text-decoration: underline; font-size: 12.5px; }
+.pres h2.ptitle { margin: 6px 0 8px; font-size: 24px; color: #f6f8fa; }
+.pres h2.ptitle small { font-size: 14px; color: #8c98a6; font-weight: 400; margin-left: 10px; }
+
+/* the map */
+.pres .pmap svg { position: absolute; left: 0; top: 0; width: 1240px; height: 620px; pointer-events: none; }
+.pres .pmap svg line { stroke: #27303b; stroke-width: 1.5; }
+.pres .pcentre { position: absolute; left: 480px; top: 170px; width: 280px; height: 280px; border-radius: 50%; border: 2px solid #f0a050; background: radial-gradient(circle at 50% 35%, #1e2631, #12171e); display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 20px; box-sizing: border-box; box-shadow: 0 0 40px rgba(240, 160, 80, .12); }
+.pres .pcentre .nm { font-size: 27px; font-weight: 700; line-height: 1.15; color: #fff; }
+.pres .pcentre .ov { margin-top: 10px; letter-spacing: .22em; font-size: 12.5px; color: #f0a050; font-weight: 700; }
+.pres .pcentre .dt { margin-top: 6px; color: #9aa6b3; font-size: 14px; }
+.pres .pnode { position: absolute; width: 224px; height: 80px; box-sizing: border-box; text-align: left; background: #161d26; border: 1px solid #28313d; border-left: 4px solid #f0a050; border-radius: 10px; padding: 8px 10px; color: #e8ecf0; display: flex; flex-direction: column; justify-content: center; }
+.pres .pnode:hover { background: #1c2530; border-color: #f0a050; }
+.pres .pnode.empty { border-left-color: #3a4552; }
+.pres .pnode b { font-size: 14.5px; line-height: 1.2; display: block; }
+.pres .pnode b i { font-style: normal; color: #f0a050; margin-right: 6px; }
+.pres .pnode span { color: #aeb9c5; font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* controls above a block */
+.pres .pctl { display: flex; align-items: center; gap: 8px; margin: 0 0 6px; flex-wrap: wrap; }
+.pres .pctl .sp { flex: 1; }
+.pres .pctl .lbl { color: #8c98a6; font-size: 13px; margin-right: 2px; }
+.pres .pchip { background: #161d26; color: #cfd8e1; border: 1px solid #2a3340; border-radius: 999px; padding: 5px 14px; font-size: 14px; }
+.pres .pchip.on { background: #f0a050; color: #1b1206; border-color: #f0a050; font-weight: 700; }
+.pres .pchip:hover { border-color: #f0a050; }
+.pres .psub { background: none; color: #aeb9c5; border: none; border-bottom: 3px solid transparent; padding: 5px 10px; font-size: 14.5px; }
+.pres .psub.on { color: #fff; border-bottom-color: #f0a050; font-weight: 700; }
+.pres .pbtn { background: #161d26; color: #dfe5eb; border: 1px solid #2a3340; border-radius: 8px; padding: 4px 10px; font-size: 13px; }
+.pres .pbtn.on { background: #3a2a14; border-color: #f0a050; color: #ffd9ad; }
+.pres .qhead { display: flex; align-items: center; gap: 12px; margin: 0 0 6px; font-weight: 700; font-size: 16px; }
+.pres .badge { border-radius: 999px; padding: 4px 14px; font-size: 14px; border: 1px solid; white-space: nowrap; }
+.pres .badge.pending { background: #3a2c0c; border-color: #8a6a14; color: #ffd98a; }
+.pres .badge.accepted { background: #12301f; border-color: #2d6a3e; color: #7fdba0; }
+.pres .badge.notaccepted, .pres .badge.declined, .pres .badge.medical { background: #35150f; border-color: #8a2c20; color: #ff9a8c; }
+.pres .badge.underwriting { background: #10293a; border-color: #1f5f86; color: #8fd0f4; }
+
+/* tables */
+.pres .ptbl { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 15.5px; }
+.pres .ptbl th { background: #19212b; color: #f3b87d; font-weight: 700; font-size: 13.5px; font-family: inherit; text-transform: none; letter-spacing: 0; line-height: 1.25; padding: 6px 8px; text-align: center; border: 1px solid #28313d; vertical-align: bottom; white-space: normal; }
+.pres .ptbl td { border: 1px solid #28313d; padding: 5px 8px; text-align: right; vertical-align: middle; background: #121820; }
+.pres .ptbl td.l, .pres .ptbl th.l { text-align: left; }
+.pres .ptbl td.c { text-align: center; }
+.pres .ptbl .a { display: block; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.pres .ptbl .a.red { color: #ff8a80; }
+.pres .ptbl .a.pmv { display: inline; }
+.pres .ptbl .na, .pres .ptbl .none { color: #6c7886; }
+.pres .ptbl small { display: block; color: #8b97a5; font-size: 12px; line-height: 1.3; }
+.pres .ptbl small.red { color: #ff8a80; font-weight: 700; }
+.pres .ptbl small.pm { display: inline; margin-left: 4px; }
+.pres .ptbl td b { color: #f2f5f8; }
+.pres .ptbl tr.tot td { background: rgba(240, 160, 80, .13); font-weight: 700; }
+.pres .ptbl tr.prem td { background: rgba(70, 150, 210, .16); font-weight: 700; }
+.pres .ptbl tr.diff td { background: #19212b; font-weight: 700; }
+.pres .ptbl tr[data-keys], .pres .ptbl tr[data-act] { cursor: pointer; }
+.pres .ptbl tr[data-act]:hover td { background: #18212c; }
+.pres .ptbl td.tick { padding-left: 34px; position: relative; text-align: left; }
+.pres .ptbl td.tick i { position: absolute; left: 10px; top: 50%; margin-top: -9px; font-style: normal; font-weight: 700; font-size: 17px; line-height: 18px; }
+.pres .ptbl td.tick i.yes { color: #4fcf86; }
+.pres .ptbl td.tick i.no { color: #ff6b5e; }
+.pres .pnote { color: #8f9aa7; font-size: 13.5px; margin: 8px 2px 0; }
+.pres .pempty { color: #8f9aa7; font-size: 17px; margin: 14px 2px; }
+
+/* highlights: a benefit column (or row) and a line */
+.pres .hlp [data-pil] { opacity: .3; }
+.pres .hlp [data-pil].hl { opacity: 1; box-shadow: inset 0 0 0 2px rgba(240, 160, 80, .85); }
+.pres .hlp td[data-pil].hl { background: rgba(240, 160, 80, .14); }
+.pres .hlr tr[data-keys]:not(.on) { opacity: .32; }
+.pres .hlr tr[data-keys].on td { background: rgba(240, 160, 80, .2); box-shadow: inset 0 0 0 1px rgba(240, 160, 80, .6); }
+@media (prefers-reduced-motion: no-preference) { .pres .pslide { transition: opacity .12s; } }
