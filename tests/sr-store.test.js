@@ -379,5 +379,5 @@ test('a file saved by version 1.0 opens with the owner as the client (empty or t
   assert.ok(!('lines' in s.f) && !('best_time' in s.f), 'the boxes that no longer exist are dropped');
   const newer = store.fromJSON(JSON.stringify({ app: 'wr-short-risk', schema: '1.1', f: { owner: { v: '', st: 'empty' } }, l: {} }));
   assert.strictEqual(newer.f.owner.v, '', 'a file saved by 1.1 or later is not migrated');
-  assert.strictEqual(schema.version, '1.5');
+  assert.strictEqual(schema.version, '1.6');
 });

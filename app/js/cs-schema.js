@@ -131,6 +131,6 @@
   var fieldsById = {}, fieldIds = [], sectionOf = {};
   sections.forEach(function (s) { (s.fields || []).forEach(function (f) { fieldsById[f.id] = f; fieldIds.push(f.id); sectionOf[f.id] = s.id; }); });
 
-  return { version: '1.4', released: 'November 2026', title: 'Investment Application', sections: sections, sectionsById: sectionsById, pages: pages, pageOf: pageOf, lists: lists, fieldsById: fieldsById, fieldIds: fieldIds, sectionOf: sectionOf,
+  return { version: '1.5', released: 'November 2026', title: 'Investment Application', sections: sections, sectionsById: sectionsById, pages: pages, pageOf: pageOf, lists: lists, fieldsById: fieldsById, fieldIds: fieldIds, sectionOf: sectionOf,
     planner: PLANNER, rt: RT, insurers: PROVIDERS, products: PRODUCTS, abbr: ABBR, fileName: FILE_NAME, banks: BANKS, suggestions: { 'Old Mutual': OM_PRODUCTS } };
 });

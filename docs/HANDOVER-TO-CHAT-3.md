@@ -2,6 +2,8 @@
 
 Written on 20 November 2026 by Chat 2 ("Fact Find Audio to Text Form - Chat 2"), on Paul's word (relayed by the Fix Skills chat: *"Paul agrees, we move to Chat 3 now"*). **Chat 2 takes no new work and stays open only for reference.** A fresh session can follow this file alone. Read it right after `CLAUDE.md`.
 
+**Update, 20 November (Chat 3): this file is no longer the start-here file. A new session starts with `CLAUDE.md` and then `docs/HANDOVER-TO-CHAT-4.md` (state after Release 5.3, the open items, Chat 3's lessons). This file stays as the detailed reference: its sections 3 (saving into the client's folder), 4 (the release routine with the tool names), 6 (the changes page), 8 (open items) and 9 (the names clean-up record) are still true; where a statement here about versions or "what is next" differs from `CLAUDE.md` or the Chat 4 file, those two are newer.**
+
 **This repository is public.** Nothing in this file is private: no client name, no e-mail address, no key, no folder path of Paul's computer, and not the private name list used for the history clean-up (that list is deliberately kept out of the repository: see section 9).
 
 ## 0. Read these first, in this order
@@ -28,19 +30,19 @@ Written on 20 November 2026 by Chat 2 ("Fact Find Audio to Text Form - Chat 2"),
 | **The chats so far** | Chat 1 (14 October to 16 November, branch `claude/create-something-stjk8a`), Chat 2 (16 to 20 November, branch `claude/gallant-turing-hoe5mi`), Chat 3 (now; the session gives you your own branch). |
 | **Where it runs** | **The website** https://pavlos1972.github.io/Fill_In-Form_Project/ (GitHub Pages, published from `main`'s `app/` folder), and **an offline copy** in the Fact Find Documents folder of Paul's OneDrive, installed by the Fix Skills chat. The copy and the website keep their own saved keys and folder connections. |
 | **Repository** | `pavlos1972/fill_in-form_project` (in the tools use that spelling, lower case). Branches: `main`, `claude/create-something-stjk8a` (Chat 1, kept), `claude/gallant-turing-hoe5mi` (Chat 2). |
-| **The changes page** | https://claude.ai/artifact/TG8Jqe8ndzoZKUuuZhUwpP (an Artifact private to Paul: his list of what changed, per release; version 57 on 19 November). Updated **only when Paul says "Update the changes page"** (section 6). |
+| **The changes page** | https://claude.ai/artifact/TG8Jqe8ndzoZKUuuZhUwpP (an Artifact private to Paul: his list of what changed, per release; version 58 on 20 November). Updated **only when Paul says "Update the changes page"** (section 6). |
 
 ### Current versions (20 November 2026)
 
 | Page | File | Version | Merged as |
 |---|---|---|---|
-| **Fact Find** | `app/index.html` | **5.3** | PR 90 (20 November; 5.2 was PR 88, `d22c4dc`) |
-| **Risk Application** (called Short Risk Application until 1.3; still "Short Risk" in file names, ids and the `app` key `wr-short-risk`) | `app/short-risk.html` | **1.5** | PR 90 (20 November; 1.4 was PR 87, `8ce70c1`) |
-| **Investment Application** (called Investment Capture Sheet until 1.2; `app` key `wr-capture-sheet`) | `app/capture-sheet.html` | **1.4** | PR 90 (20 November; 1.3 was PR 87, `8ce70c1`) |
+| **Fact Find** | `app/index.html` | **5.3** | PR 90, `97c44ee` (20 November; 5.2 was PR 88, `d22c4dc`) |
+| **Risk Application** (called Short Risk Application until 1.3; still "Short Risk" in file names, ids and the `app` key `wr-short-risk`) | `app/short-risk.html` | **1.5** | PR 90, `97c44ee` (20 November; 1.4 was PR 87, `8ce70c1`) |
+| **Investment Application** (called Investment Capture Sheet until 1.2; `app` key `wr-capture-sheet`) | `app/capture-sheet.html` | **1.4** | PR 90, `97c44ee` (20 November; 1.3 was PR 87, `8ce70c1`) |
 
-**Update, 20 November (Chat 3): Fact Find 5.3, Risk Application 1.5 and Investment Application 1.4 were built and tested on the work branch `claude/elegant-bell-5whxdn` and merged as PR 90 on Paul's "merge" (what they hold: `CLAUDE.md` section 0, first row; the detail: README "Release 5.3" and `docs/FORM-CHANGES.md`).** The table above is as merged; the install on Paul's computer is the Fix Skills chat's (it reports it). All three are published and **installed on Paul's computer** by the Fix Skills chat. Versions are compared as decimals (`parseFloat`): the number after 4.9 was **5.0**, never 4.10. The shared build number is `BUILD` in `app/js/build.js` (**5.3**).
+**Update, 20 November (Chat 3): Fact Find 5.3, Risk Application 1.5 and Investment Application 1.4 were built and tested on the work branch `claude/elegant-bell-5whxdn` and merged as PR 90 on Paul's "merge" (what they hold: `CLAUDE.md` section 0, first row; the detail: README "Release 5.3" and `docs/FORM-CHANGES.md`).** The table above is as merged. **The Fix Skills chat installed 5.3 / 1.5 / 1.4 on Paul's computer on 20 November** (all 49 files read back identical to `97c44ee`; dated backup zip saved) and renewed the four form-linked skills for 5.3; all three pages are published. Versions are compared as decimals (`parseFloat`): the number after 4.9 was **5.0**, never 4.10. The shared build number is `BUILD` in `app/js/build.js` (**5.3**).
 
-**Skills (Fix Skills chat's report, 20 November):** all four are built for Fact Find 5.2 / Risk Application 1.4 / Investment Application 1.3 and uploaded, waiting for Paul to confirm them live: `review-fact-find-fill-skill` v23, `complete-applications-skill` v19, `ff-population-transcript` v55, `fact-find-summary` v32. They are renewed for 5.3 from the release block.
+**Skills (Fix Skills chat's report, 20 November):** all four are built for Fact Find 5.2 / Risk Application 1.4 / Investment Application 1.3 and uploaded, waiting for Paul to confirm them live: `review-fact-find-fill-skill` v23, `complete-applications-skill` v19, `ff-population-transcript` v55, `fact-find-summary` v32. **They were then renewed for 5.3 (Fix Skills chat, 20 November, uploaded and tested on Paul's account; **live 20/11 19:02**, made live by Paul): `review-fact-find-fill-skill` **v25** (20261120-1757), `complete-applications-skill` **v20** (20261120-1754), `ff-population-transcript` **v56** (20261120-1759), `fact-find-summary` **v33** (20261120-1800).**
 
 ## 2. The repository: what is where
 
@@ -154,8 +156,8 @@ The page is an Artifact (https://claude.ai/artifact/TG8Jqe8ndzoZKUuuZhUwpP), pri
 |---|---|
 | The lede at the top | the first `<p class="lede">What changed in the form after the audit...`: it lists the pull requests and releases in order; extend it. |
 | The status line | `<div class="status live" role="status">`: "Everything is on the website through PR NN (list of PRs...)", which pull requests changed only documentation, the deploy time, and `<span class="mono">main · commit XXXXXXX</span>`. Update the PR number, the list and the commit. |
-| The summary tiles | in the script near the end: `var T = [['ok', 29, 'Findings fixed and merged'], ['ok', 792, 'Tests pass'], ['acc', 1097, 'Browser checks pass'], ...]`. Update the two counts after a release. |
-| One section per release | `<section aria-labelledby="h-relNN">` with `<h2 id="h-relNN">Title (PR NN, version X.Y)</h2>`, a `<p class="lede">` in Paul's voice ("You asked for ..."), and `<div class="scroll"><table>` with the columns **What / What the page does now / Status**; also a row for **Slips I made and fixed** and one for **What is not certain**. New sections go after the newest one and before `h-hist`. The newest at 20 November are `h-rel52` (5.2) and `h-names` (the names clean-up). |
+| The summary tiles | in the script near the end: `var T = [['ok', 29, 'Findings fixed and merged'], ['ok', 815, 'Tests pass'], ['acc', 1142, 'Browser checks pass'], ...]`. Update the two counts after a release. |
+| One section per release | `<section aria-labelledby="h-relNN">` with `<h2 id="h-relNN">Title (PR NN, version X.Y)</h2>`, a `<p class="lede">` in Paul's voice ("You asked for ..."), and `<div class="scroll"><table>` with the columns **What / What the page does now / Status**; also a row for **Slips I made and fixed** and one for **What is not certain**. New sections go after the newest one and before `h-hist`. The newest at 20 November are `h-rel53` (5.3), `h-rel52` (5.2) and `h-names` (the names clean-up). |
 | The history list | `<section aria-labelledby="h-hist">`: one `<div><span class="pr">PR NN</span><span>what it was</span></div>` per merged pull request. |
 | What is left | `<section aria-labelledby="h-next">` (some items are old; keep them honest). |
 

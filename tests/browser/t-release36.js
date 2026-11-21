@@ -70,8 +70,8 @@ let bad = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if
   await nav('prio');
   await say('Give me a call again on the 21st', [{ do: 'fill', field: 'next_appt', value: '2026-11-21' }], 'client');
   ok((await f('next_appt')) === '', 'the next appointment is not filled by "give me a call again on the 21st": ' + await f('next_appt'));
-  await say('Can we set up the next appointment, please? Maybe the same time next week?', [{ do: 'fill', field: 'next_appt', value: '2026-11-20' }, { do: 'fill', field: 'next_time', value: '10:00' }], 'me');
-  ok((await f('next_appt')) === '20/11/2026' && (await f('next_time')) === '10:00', 'said about the next appointment it is filled: ' + await f('next_appt') + ' ' + await f('next_time'));
+  await say('Can we set up the next appointment, please? Maybe the same time next week?', [{ do: 'fill', field: 'next_appt', value: '2031-11-20' }, { do: 'fill', field: 'next_time', value: '10:00' }], 'me');
+  ok((await f('next_appt')) === '20/11/2031' && (await f('next_time')) === '10:00', 'said about the next appointment it is filled: ' + await f('next_appt') + ' ' + await f('next_time'));
 
   /* 5. credit life has Not sure; a joint debt is split; the spouse who pays is not the client's monthly */
   await nav('debts');

@@ -148,7 +148,7 @@ let bad = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if
     await sr.screenshot({ path: out + '/release53-sr.png' });
     const navTitles = await sr.evaluate(() => [...document.querySelectorAll('#nav button')].map(x => x.querySelector('span').textContent));
     ok(navTitles[1] === 'Address, COC & doctor' && !navTitles.some(t => /Home COC/.test(t)), '6. the second page is Address, COC & doctor: ' + JSON.stringify(navTitles));
-    ok(await sr.evaluate(() => [...document.querySelectorAll('#otherForms .ofmenu a')].map(a => a.textContent.replace(/\s+/g, ' ').trim()).join('|')) === 'Fact Find ↗|Investment Application ↗', '6. Risk Application: Other forms lists Fact Find and Investment Application');
+    ok(await sr.evaluate(() => [...document.querySelectorAll('#otherForms .ofmenu a')].map(a => a.textContent.replace(/\s+/g, ' ').trim()).join('|')) === 'Fact Find ↗|Investment Application ↗|Client Overview ↗', '6. Risk Application: Other forms lists Fact Find, Investment Application and Client Overview');
     await sr.click('#otherForms summary'); ok(await sr.evaluate(() => document.getElementById('otherForms').open), '6. the menu opens');
     await sr.keyboard.press('Escape'); ok(!(await sr.evaluate(() => document.getElementById('otherForms').open)), '6. Escape closes it');
     await sr.click('#otherForms summary');
@@ -156,7 +156,7 @@ let bad = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if
     watch(cs); await cs.waitForLoadState(); await cs.waitForTimeout(600);
     const c = await cs.evaluate(() => { const s = CS.app.state; return { fname: s.f.fname, sname: s.f.sname, idno: s.f.idno.v, occ: s.f.occupation.v, tax: s.f.tax_no.v }; });
     ok(c.fname.v === 'Anna Maria' && c.sname.v === 'Kuiper' && c.idno === '9001015800088' && c.occ === 'Teacher' && c.tax === '1234567890' && c.fname.st === 'verify', '6. the Investment Application opens filled too (also from the Risk Application\'s menu)');
-    ok(await cs.evaluate(() => [...document.querySelectorAll('#otherForms .ofmenu a')].map(a => a.textContent.replace(/\s+/g, ' ').trim()).join('|')) === 'Fact Find ↗|Risk Application ↗', '6. Investment Application: Other forms lists Fact Find and Risk Application');
+    ok(await cs.evaluate(() => [...document.querySelectorAll('#otherForms .ofmenu a')].map(a => a.textContent.replace(/\s+/g, ' ').trim()).join('|')) === 'Fact Find ↗|Risk Application ↗|Client Overview ↗', '6. Investment Application: Other forms lists Fact Find, Risk Application and Client Overview');
     await cs.screenshot({ path: out + '/release53-cs.png' });
     const direct = watch(await ctx.newPage()); await direct.goto('file://' + dir + '/short-risk.html'); await direct.waitForTimeout(500);
     ok((await direct.evaluate(() => SR.app.state.f.fname.v)) === '', '6. a page opened on its own stays blank');
