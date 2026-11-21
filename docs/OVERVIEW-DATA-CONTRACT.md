@@ -39,6 +39,7 @@ Written 21 November 2026 by Chat 3 (stage 1 of the Client Overview build). **Thi
   "app": "wr-overview", "schema": "0.1",
   "created": "<ISO>", "modified": "<ISO>",
   "header":  { ... },                 // section 4
+  "documents": [ { "id": "...", "file": "<file name only>", "block": "fna", "how": "read" | "name", "at": "<ISO>" } ],   // the documents loaded (by the page or by the skill), file names only, newest last
   "factFind": { "file": "<name>", "schema": "5.3", "readAt": "<ISO>", "changed": 0, "facts": { ... } },   // a link; "facts" is the snapshot the page took of what it uses (section 11), so a later change can be told
   "settings": { "standards": { ... }, "tolerance": 1.00 },     // section 10
   "blocks": {
@@ -254,3 +255,4 @@ All additive to `schema: "0.1"`; nothing a skill already wrote breaks.
 | Only quotes, proposed investments and goal reports can be removed (`removed: true`); quotes keep Replace, Remove (with Undo), Add new, Add another | sections 2, 7, 12 |
 | The debt label is **"To be ceded to the bank"**; the first column of a quote is headed **Need** | section 6 |
 | `computed` also holds the shortfall and the comparison tables; the Presentation and the PDF read the same view | section 9 |
+| **Revision c (stage 4):** the top-level `documents` log (file names only; `how` is `read` when the page had Claude read it, `name` when it was only recorded); a quote may carry `productName` and `benefits` (shown when it is issued as a policy in block 1); the page's reading of documents is a switch that is OFF until the adviser turns it on, and what it reads is `st: "verify"`, `by: "page"` with the `src` of the file, exactly as a skill's rows | sections 3 and 7 |

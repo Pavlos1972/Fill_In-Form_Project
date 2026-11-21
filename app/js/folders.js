@@ -276,6 +276,27 @@
     return ov.getDirectoryHandle(cand.appsName, { create: true });
   }
 
+  /* The documents the Client Overview can use, found in a client's folder (stage 4): the files of `6. Policy Schedules`, of `5. Astute` (and of its latest year folder) and of any `Comparative Quotes` folder one level down
+     (the quote folders). Only reads. Returns [{ name, rel: [folder names], handle }]. */
+  async function clientDocuments(client) {
+    var out = [], isDoc = function (n) { return /\.(pdf|png|jpe?g)$/i.test(n); };
+    async function files(dir, rel) { for await (var e of dir.entries()) if (e[1].kind === 'file' && isDoc(e[0])) out.push({ name: e[0], rel: rel, handle: e[1] }); }
+    var kids = await listDirs(client.handle);
+    for (var i = 0; i < kids.length; i++) {
+      var k = kids[i], nk = norm(k.name);
+      if (/^\d+\.\s*policy schedules/.test(nk)) await files(k.handle, [k.name]);
+      else if (/^\d+\.\s*astute/.test(nk)) {
+        await files(k.handle, [k.name]);
+        var years = (await listDirs(k.handle)).filter(function (y) { return RULES.year.test(norm(y.name)); }).sort(function (a, b) { return b.name < a.name ? -1 : 1; });
+        if (years.length) await files(years[0].handle, [k.name, years[0].name]);
+      } else if (!isStandard(k.name)) {
+        var inner = await listDirs(k.handle);
+        for (var j = 0; j < inner.length; j++) if (/comparative quotes/.test(norm(inner[j].name))) await files(inner[j].handle, [k.name, inner[j].name]);
+      }
+    }
+    return out;
+  }
+
   /* ---------- what the browser keeps: the two handles (IndexedDB) and the two paths the adviser typed (localStorage) ---------- */
   var DB = 'wr-folders', STORE = 'roots', PATHS = 'wr-folders-paths';
   function idb(fn) {
@@ -307,7 +328,7 @@
   return {
     MAX_PATH: MAX_PATH, SWAP: SWAP, RULES: RULES, ALIASES: ALIASES, norm: norm, tokens: tokens, clientFolderName: clientFolderName, parseClient: parseClient, clientMatches: clientMatches, letterOf: letterOf, letterFolder: letterFolder,
     isLetterFolder: isLetterFolder, isStandard: isStandard, nameIs: nameIs, insurerWords: insurerWords, productWords: productWords, numbersIn: numbersIn, hasWord: hasWord, scoreDeal: scoreDeal, chooseDeal: chooseDeal, pathCheck: pathCheck, tooLongText: tooLongText,
-    listDirs: listDirs, findClients: findClients, clientFromFile: clientFromFile, dirOfFile: dirOfFile, dealCandidates: dealCandidates, resolveTarget: resolveTarget, factFindCandidates: factFindCandidates, resolveFactFind: resolveFactFind, overviewCandidate: overviewCandidate, resolveOverview: resolveOverview, ensureOverview: ensureOverview, relOf: relOf, labelOf: labelOf, probeFile: probeFile, makeFile: makeFile, discardEmpty: discardEmpty,
+    listDirs: listDirs, findClients: findClients, clientFromFile: clientFromFile, dirOfFile: dirOfFile, dealCandidates: dealCandidates, resolveTarget: resolveTarget, factFindCandidates: factFindCandidates, resolveFactFind: resolveFactFind, overviewCandidate: overviewCandidate, clientDocuments: clientDocuments, resolveOverview: resolveOverview, ensureOverview: ensureOverview, relOf: relOf, labelOf: labelOf, probeFile: probeFile, makeFile: makeFile, discardEmpty: discardEmpty,
     saveHandle: saveHandle, loadHandle: loadHandle, getPaths: getPaths, setPath: setPath, permission: permission, enabled: enabled
   };
 });

@@ -16,7 +16,7 @@
   function blank() {
     var s = { app: APP_ID, schema: schema.version, created: new Date().toISOString(), modified: null,
       header: { fname: '', sname: '', dob: null, broker: 'Paul Kafentzis', overviewDate: schema.todayDMY(), meetingDate: null, astuteDate: null, netIncome: null, grossIncome: null, disabilityAge: null, sevRequest: null, premiumBudget: null },
-      factFind: null, settings: { standards: clone(schema.STANDARDS), tolerance: 1.00 },
+      factFind: null, documents: [], settings: { standards: clone(schema.STANDARDS), tolerance: 1.00 },
       blocks: { policies: { items: [] }, fna: { quotes: [] }, group: { items: [] }, shortfallQuote: { quotes: [] }, reduced: { quotes: [] }, comparative: { quotes: [] }, investments: { items: [] }, proposed: { items: [] }, goals: { items: [] }, other: { items: [] } },
       computed: null };
     s.blocks.other.items = schema.OTHER_KEYS.map(function (k) { return otherItem(k.key); });
@@ -265,7 +265,7 @@
     var out = Object.assign({}, state._extra || {}, state); delete out._extra; delete out.newer;
     return JSON.stringify(out, null, 2);
   }
-  var KNOWN = { app: 1, schema: 1, created: 1, modified: 1, header: 1, factFind: 1, settings: 1, blocks: 1, computed: 1 };
+  var KNOWN = { app: 1, schema: 1, created: 1, modified: 1, header: 1, factFind: 1, documents: 1, settings: 1, blocks: 1, computed: 1 };
   function normLine(l) {
     l = l && typeof l === 'object' ? l : {};
     var t = schema.lineTypesById[l.type] ? l.type : 'other';
@@ -281,6 +281,7 @@
     s.created = j.created || s.created; s.modified = j.modified || null;
     Object.keys(s.header).forEach(function (k) { if (j.header && j.header[k] !== undefined) s.header[k] = j.header[k]; });
     s.factFind = j.factFind && typeof j.factFind === 'object' ? j.factFind : null;
+    s.documents = (Array.isArray(j.documents) ? j.documents : []).filter(function (d) { return d && typeof d === 'object'; }).map(function (d) { return { id: d.id || uid('d'), file: String(d.file || ''), block: String(d.block || ''), how: d.how === 'read' ? 'read' : 'name', at: String(d.at || '') }; });
     if (j.settings) { if (j.settings.standards) s.settings.standards = Object.assign(clone(schema.STANDARDS), j.settings.standards); if (typeof j.settings.tolerance === 'number') s.settings.tolerance = j.settings.tolerance; }
     var other = {};
     Object.keys(s.blocks).forEach(function (b) {

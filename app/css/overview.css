@@ -121,3 +121,14 @@
 dialog#restoreDraft { max-width: 460px; border: 1px solid var(--line); border-radius: 10px; padding: 18px; background: var(--surface); color: var(--ink); }
 dialog#restoreDraft .dlg-actions { display: flex; gap: 8px; margin-top: 14px; }
 dialog#restoreDraft .grow { flex: 1; }
+
+/* documents (stage 4): the reading switch, what was loaded */
+.aiswitch { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; cursor: pointer; }
+.aiswitch input { margin-top: 3px; }
+.side .help { font-size: 12px; color: var(--muted); margin: 6px 0 8px; }
+.doclist div { padding: 4px 0; font-size: 12.5px; word-break: break-word; border-top: 1px solid var(--line); }
+.doclist small { color: var(--muted); display: block; }
+.docsess div { padding: 5px 8px; margin-bottom: 4px; border-radius: 6px; background: var(--surface-2); font-size: 12.5px; }
+.docsess div.amber { background: var(--warn-soft); color: var(--warn); }
+.side .none { color: var(--muted); font-size: 12.5px; }
+.fdlg .flist label select { margin-left: 8px; }

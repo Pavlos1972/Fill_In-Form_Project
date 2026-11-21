@@ -15,6 +15,9 @@ const TREE = {
     'Fresh, Frank': { '2. Fact Find': {} },                                                      // has no 1. Overview at all
     'Done, Dora': { '1. Overview': { '2027': { 'WR Overview - 01.01.27 - (Done, Dora).json': '{"app":"wr-overview","old":true}' } } },   // has 1. Overview and its year, with an older file in it
     'Both, Betty': { '1. Overview': {} },
+    'Docs, Dina': { '1. Overview': {}, '3. Quotes': { 'ignored.pdf': 'x' }, '6. Policy Schedules': { 'Test Insurer PS - 123456789.pdf': '%PDF-1.4 a', 'Test Group FundsAtWork Schedule - 28.09.26.pdf': '%PDF-1.4 b', 'readme.txt': 'x' },
+      '5. Astute': { '2025': { 'Astute - 20.11.25.pdf': '%PDF-1.4 old' }, '2026': { 'Astute - 20.11.26.pdf': '%PDF-1.4 c' } },
+      'Docs, Dina - (Risk Covers)': { 'Comparative Quotes': { 'BR FNA - 100000011 - R2900.00 - 19.11.26.pdf': '%PDF-1.4 d', 'BR CMPO - 100000011.pdf': '%PDF-1.4 e', 'scan0001.pdf': '%PDF-1.4 f' } } },
     '1. ON HOLD': {}, '2. Awaiting compliance from client': {}
   },
   CF: { 'B - Files': { 'Both, Betty': { '1. Overview': { '2027': {} } } } }
@@ -153,6 +156,21 @@ srv.listen(0, async () => {
   const c7 = await calls(); ok(c7.length === 1 && /too long for Windows/.test(c7[0].toast), '7. a path too long for Windows: the normal Save window opens, with the reason: ' + (c7[0] && c7[0].toast || '').slice(0, 90));
   ok(diff(t7, await tree()).length === 0, '7. nothing was made (not even the year folder)');
   await p.evaluate(() => FF.folders.setPath('A', 'C:\\Users\\tester\\Company\\New Business'));
+
+  /* ---- 8. Read client folder: the documents of the client's folder are listed (the ones the page can sort are ticked) and loaded; the folders are only read ---- */
+  await fresh(); await client('Dina', 'Docs', '05/01/2027');
+  const t8 = await tree();
+  await p.evaluate(() => document.querySelector('#btnReadFolder').click()); await p.waitForSelector('dialog.fdlg[open] input[type=checkbox]', { timeout: 9000 });
+  const list = await p.evaluate(() => [...document.querySelectorAll('dialog.fdlg[open] label')].map(l => ({ text: l.innerText.replace(/\s+/g, ' ').trim(), on: l.querySelector('input').checked })));
+  ok(list.length === 6, '8. six documents were found: the schedules, the latest Astute, the Comparative Quotes files (not readme.txt, not the 2025 Astute, not the numbered 3. Quotes folder): ' + list.map(x => x.text).join(' | ').slice(0, 300));
+  ok(list.filter(x => x.on).length === 5 && !list.filter(x => /scan0001/.test(x.text))[0].on && /Comparative Quotes \\ BR FNA - 100000011/.test(list.map(x => x.text).join('|')), '8. the five the page can sort by name are ticked, the scan is not');
+  await p.click('dialog.fdlg[open] [data-yes]'); await p.waitForTimeout(800);
+  const st8 = await p.evaluate(() => ({ fna: OV.app.state.blocks.fna.quotes.map(q => q.number + '|' + q.src.file), docs: OV.app.state.documents.map(d => d.block).sort().join(',') }));
+  ok(st8.fna.join() === '100000011|BR FNA - 100000011 - R2900.00 - 19.11.26.pdf' && st8.docs === 'astute,cmp,fna,group,policies', '8. the ticked documents were loaded: the FNA quote started from its file name, the others recorded: ' + JSON.stringify(st8));
+  ok(diff(t8, await tree()).length === 0, '8. the client\'s folders were only read: nothing was written or made');
+  await fresh(); await client('Nina', 'Nobody', '05/01/2027');
+  await p.evaluate(() => document.querySelector('#btnReadFolder').click()); await p.waitForTimeout(600);
+  ok(/No folder for this client was found/.test(await toast()), '8. a client with no folder: said in plain words');
 
   ok(!errs.length, 'no page errors ' + errs.join(' | '));
   await b.close(); srv.close();

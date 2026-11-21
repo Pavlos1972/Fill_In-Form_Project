@@ -41,6 +41,8 @@
       <button class="btn ghost small" id="btnNew" type="button">New</button>
       <button class="btn ghost small" id="btnOpen" type="button">Open&hellip;</button>
       <button class="btn small" id="btnLoad" type="button" title="Fill the overview from the client&#39;s saved Fact Find file">Fill from Fact Find&hellip;</button>
+      <button class="btn small" id="btnUpload" type="button" title="Load documents: each is sorted into its block">Upload documents&hellip;</button>
+      <button class="btn ghost small" id="btnReadFolder" type="button" title="Find the documents in the client&#39;s folder (6. Policy Schedules, 5. Astute, Comparative Quotes) and load the ones you choose">Read client folder&hellip;</button>
       <button class="btn ghost small" id="btnFolders" type="button" title="Connect your New Business and Client Files folders, so Save goes straight into the client&#39;s 1. Overview folder">Folders&hellip;</button>
     </div>
     <div class="grp mid"></div>
@@ -53,6 +55,8 @@
   </div>
   <input type="file" id="fileIn" accept=".json,application/json" hidden>
   <input type="file" id="ffIn" accept=".json,application/json" hidden>
+  <input type="file" id="docIn" accept=".pdf,.png,.jpg,.jpeg,application/pdf,image/*" multiple hidden>
+  <input type="file" id="docOne" accept=".pdf,.png,.jpg,.jpeg,application/pdf,image/*" hidden>
 </div>
 
 <div class="app">
@@ -68,6 +72,7 @@
       <button class="btn ghost small" id="btnAgree" type="button" hidden>Mark everything as checked</button>
     </div>
     <div class="card"><h3>Checks</h3><div class="checks" id="checks"></div></div>
+    <div class="card"><h3>Documents</h3><label class="aiswitch"><input type="checkbox" id="aiSwitch"> Let Anthropic read the documents I upload</label><p class="help" id="aiNote"></p><div id="docs"></div></div>
     <div class="card"><h3>This overview</h3><div class="meta" id="meta"></div></div>
   </aside>
 </div>
@@ -81,6 +86,8 @@
 <script src="js/ov-calc.js?v=20261121a"></script>
 <script src="js/ov-store.js?v=20261121a"></script>
 <script src="js/ov-check.js?v=20261121a"></script>
+<script src="js/lookup.js?v=20261029c"></script>
+<script src="js/ov-docs.js?v=20261121b"></script>
 <script src="assets/logo.js?v=20261018p"></script>
 <script src="js/ov-pdf.js?v=20261121b"></script>
 <script src="js/folders.js?v=20261118d"></script>

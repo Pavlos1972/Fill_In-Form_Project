@@ -1,4 +1,4 @@
-/* The Client Overview screen (stages 2 and 3: the entry page, the PDF and saving into the client's folder). A left menu of the eleven blocks with a dot each (green complete, amber needs a look, grey waiting for a document), one block at a time, the figures the page
+/* The Client Overview screen (stages 2 to 4: the entry page, the PDF and saving into the client's folder, the documents). A left menu of the eleven blocks with a dot each (green complete, amber needs a look, grey waiting for a document), one block at a time, the figures the page
    works out (totals, the shortfall, "compared with what you have now") drawn from ov-calc.js, the checks from ov-check.js, saving and opening the overview's own file, and the pre-fill from the Fact Find.
    Amounts never wrap and there is no sideways scroll bar: the tables use fixed columns. Typing is kept at once; the figures and the dots follow without redrawing the boxes (so the cursor stays where it is). */
 (function () {
@@ -244,12 +244,13 @@
   function quoteCard(q, i, bid) {
     var p = 'blocks.' + bid + '.quotes.' + i, title = check.qLabel(q) + (q.date ? ' · ' + q.date : '') + (q.rates ? ' · ' + q.rates : '');
     return '<article class="qcard" data-row="' + p + '"><header><span class="statusbadge s-' + esc(q.status) + '" data-statusfor="' + p + '">' + esc(schema.statusLabel[q.status]) + '</span><h3 data-titlefor="' + p + '">' + esc(title) + '</h3>' + stb(p) +
-      '<span class="grow"></span><button type="button" class="x" data-del="' + p + '">Remove quote</button></header>' +
+      '<span class="grow"></span><button type="button" class="x" data-replace="' + bid + '|' + q.id + '">Replace quote&hellip;</button><button type="button" class="x" data-del="' + p + '">Remove quote</button></header>' +
       '<div class="grid qh">' + lab('Insurer', inp(p + '.insurer', 'text', '', 'e.g. BrightRock')) + lab(/bright/i.test(q.insurer) ? 'CP number' : 'Quote number', inp(p + '.number', 'text')) + lab('Quote date', inp(p + '.date', 'date')) +
       lab('Rates', inp(p + '.rates', 'text')) + lab('Kind of quote', boolSel(p + '.servicing', 'Servicing', 'New business')) + lab('Status', sel(p + '.status', schema.STATUS, 'text', false)) +
       lab('Disability to age', sel(p + '.disabilityAge', [{ id: 65, l: '65' }, { id: 70, l: '70' }], 'num')) + lab('ACI (%)', inp(p + '.aci', 'pct')) + lab('Monthly premium (R)', inp(p + '.premium', 'money')) +
       (q.status === 'accepted' ? lab('Policy number', inp(p + '.policyNo', 'text')) + lab('Start date', inp(p + '.startDate', 'date')) : '') + '</div>' +
       (q.status === 'accepted' && q.policyNo && q.startDate ? '<p class="blue">This quote has been issued as a policy, so it is also shown in block 1 as a current policy of ours.</p>' : '') +
+      (q.status === 'accepted' && !(q.policyNo && q.startDate) ? '<p class="blue">Accepted. When the insurer has issued the policy, type its policy number and start date above: the quote then moves to block 1 as a current policy of ours.</p>' : '') +
       linesTable(p, q, false) + '<div class="under">' + cmpHTML(q) + '<h4>Compared with what you have now</h4><div data-comp="cmp|' + q.id + '">' + compareHTML(q) + '</div></div></article>';
   }
   function quotesBlock(b) {
@@ -257,7 +258,7 @@
     var note = b.id === 'shortfallQuote' && !calc.hasGroupRisk(state) ? '<p class="blue">A shortfall quote is only needed when the client has group risk (block 3). There is none yet.</p>' : '';
     var cards = live.map(function (q) { var i = list.indexOf(q); return quoteCard(q, i, b.id); }).join('');
     var removed = gone.map(function (q) { var i = list.indexOf(q); return '<p class="gone">' + esc(check.qLabel(q)) + ' removed. <button type="button" class="lnk" data-undo="blocks.' + b.id + '.quotes.' + i + '">Undo</button></p>'; }).join('');
-    return note + (cards || '<p class="empty-list">No ' + esc(b.one) + ' yet.</p>') + removed + '<button type="button" class="addrow big" data-addq="' + b.qkind + '">+ ' + (live.length ? 'Add another ' : 'Add new ') + esc(b.one) + '</button>';
+    return note + (cards || '<p class="empty-list">No ' + esc(b.one) + ' yet.</p>') + removed + '<button type="button" class="addrow big" data-addq="' + b.qkind + '">+ ' + (live.length ? 'Add another ' : 'Add new ') + esc(b.one) + '</button> <button type="button" class="addrow big" data-upq="' + b.id + '">Upload a ' + esc(b.one) + '&hellip;</button>';
   }
 
   /* ---------- block 1: current policies ---------- */
@@ -280,7 +281,7 @@
   function policyCard(it, i) {
     var p = 'blocks.policies.items.' + i;
     return '<article class="qcard" data-row="' + p + '"><header><span class="' + (it.wr ? 'tick' : 'cross') + '">' + (it.wr ? '&#10003;' : '&#10007;') + '</span><h3>' + esc(it.insurer || 'Policy') + (it.policyNo ? ' · ' + esc(it.policyNo) : '') + '</h3>' + stb(p) +
-      '<span class="grow"></span><span class="src">' + (it.wr ? 'We are the broker' : 'Another broker: ' + esc(it.broker || '')) + '</span></header><div class="grid qh">' +
+      '<span class="grow"></span><span class="src">' + (it.wr ? 'We are the broker' : 'Another broker: ' + esc(it.broker || '')) + '</span><button type="button" class="x" data-upi="' + p + '|policies">Upload policy schedule&hellip;</button></header><div class="grid qh">' +
       lab('Insurer', inp(p + '.insurer', 'text')) + lab('Product', inp(p + '.product', 'text')) + lab('Policy number', inp(p + '.policyNo', 'text')) + lab('Date of commencement', inp(p + '.doc', 'date')) + lab('Monthly premium (R)', inp(p + '.premium', 'money')) +
       lab('ACI (%)', inp(p + '.aci', 'pct')) + lab('ABI (%)', inp(p + '.abi', 'pct')) + lab('Disability to age', sel(p + '.ipAge', [{ id: 65, l: '65' }, { id: 70, l: '70' }], 'num')) +
       lab('Life cover note', inp(p + '.benefits.life', 'text', '', 'e.g. Whole of life')) + lab('Disability note', inp(p + '.benefits.lsd', 'text')) + lab('Income protector note', inp(p + '.benefits.ip', 'text')) +
@@ -320,7 +321,7 @@
       body = '<div class="grid qh">' + lab('Provider', inp(p + '.provider', 'text')) + lab('Fund value (R)', inp(p + '.value', 'money')) + lab('Employer contribution (R p.m.)', inp(p + '.employer', 'money')) + lab('Employee contribution (R p.m.)', inp(p + '.employee', 'money')) +
         lab('Annual contribution increase (%)', inp(p + '.aci', 'pct')) + lab('Note', inp(p + '.note', 'text', '', 'e.g. POI needed')) + '</div>';
     }
-    return '<article class="qcard" data-row="' + p + '"><header><h3>' + esc(schema.GROUP_KINDS[it.kind] || it.kind) + ' · ' + esc(it.provider || '') + '</h3>' + stb(p) + '</header>' + body + '</article>';
+    return '<article class="qcard" data-row="' + p + '"><header><h3>' + esc(schema.GROUP_KINDS[it.kind] || it.kind) + ' · ' + esc(it.provider || '') + '</h3>' + stb(p) + '<span class="grow"></span><button type="button" class="x" data-upi="' + p + '|group">Upload statement&hellip;</button></header>' + body + '</article>';
   }
   function groupBlock() {
     var items = state.blocks.group.items;
@@ -353,7 +354,7 @@
   }
   function invCard(it, i) {
     var p = 'blocks.investments.items.' + i; if (!it.valueSource) it.valueSource = { kind: null, date: null, file: null };
-    return '<article class="qcard" data-row="' + p + '"><header><span class="' + (it.wr ? 'tick' : 'cross') + '">' + (it.wr ? '&#10003;' : '&#10007;') + '</span><h3>' + esc(it.provider || 'Investment') + ' · ' + esc(it.product || '') + '</h3>' + stb(p) + '</header><div class="grid qh">' +
+    return '<article class="qcard" data-row="' + p + '"><header><span class="' + (it.wr ? 'tick' : 'cross') + '">' + (it.wr ? '&#10003;' : '&#10007;') + '</span><h3>' + esc(it.provider || 'Investment') + ' · ' + esc(it.product || '') + '</h3>' + stb(p) + '<span class="grow"></span><button type="button" class="x" data-upi="' + p + '|investments">Upload statement&hellip;</button></header><div class="grid qh">' +
       lab('Provider', inp(p + '.provider', 'text')) + lab('Product', inp(p + '.product', 'text')) + lab('Policy number', inp(p + '.policyNo', 'text')) + lab('Values at (date)', inp(p + '.valueDate', 'date')) +
       lab('Source', sel(p + '.valueSource.kind', [{ id: 'schedule', l: 'Investment schedule' }, { id: 'astute', l: 'Astute report' }], 'text')) + lab('Source date', inp(p + '.valueSource.date', 'date')) + lab('Source file', inp(p + '.valueSource.file', 'text')) +
       lab('Gross fund value (R)', inp(p + '.gross', 'money')) + lab('Section 14 transfer penalty (R)', inp(p + '.penalty', 'money')) + lab('Rate of return (%)', inp(p + '.returnRate', 'pct')) +
@@ -445,11 +446,128 @@
     $('#btnAgree').hidden = !c.check;
     $('#verLine').textContent = 'Version ' + schema.pageVersion + ', ' + schema.released;
     schema.BLOCKS.forEach(function (b) { var d = document.querySelector('[data-dot="' + b.id + '"]'); if (d) d.className = 'dot ' + (last.dots[b.id] || 'grey'); });
-    drawChecks(); drawMeta();
+    drawChecks(); drawMeta(); drawDocs();
   }
   function drawMeta() {
     var ff = state.factFind, from = ff && ff.file ? '<div>Filled from the Fact Find <b>' + esc(ff.file) + '</b>' + (ff.changed ? ' <span class="chg">(' + ff.changed + ' changed since)</span>' : '') + '</div>' : '<div>Not filled from a Fact Find yet.</div>';
     $('#meta').innerHTML = '<div>It saves as</div><div class="fn">' + esc(currentBase()) + '</div><div>in the folder <span class="fn">1. Overview\\' + esc(schema.yearOf(state)) + '</span></div>' + from + (window.FF && FF.foldersUI ? FF.foldersUI.metaHTML(lastFolder) : '');
+  }
+
+
+  /* ---------- documents (stage 4) ---------- */
+  var D = OV.docs, AI_KEY = 'wr-overview-read', pending = null, session = [];
+  function aiOn() { try { return localStorage.getItem(AI_KEY) === '1'; } catch (e) { return false; } }
+  function aiSet(v) { try { localStorage.setItem(AI_KEY, v ? '1' : '0'); } catch (e) { /* kept for this visit only */ } }
+  function aiKey() { var s = window.FF && FF.lookup && FF.lookup.getSettings ? FF.lookup.getSettings() : {}; return { apiKey: s.apiKey || '', model: s.model || (FF.lookup && FF.lookup.DEFAULT_MODEL) || '' }; }
+  function toBase64(file) { return new Promise(function (res, rej) { var r = new FileReader(); r.onload = function () { res(String(r.result).split(',')[1] || ''); }; r.onerror = function () { rej(new Error('Could not read that file.')); }; r.readAsDataURL(file); }); }
+  function listOf(block) { return state.blocks[block].items; }
+  function nameOf(block) { return function (x) { return block === 'policies' ? x.insurer : x.provider; }; }
+  /* What a document becomes in the overview. data: what was read (null: only recorded). */
+  function put(file, block, cls, data, o) {
+    var name = file.name, res = { msg: '' }, lower = (D.BLOCK_LABEL[block] || block).toLowerCase();
+    if (D.QUOTE_OF[block]) {
+      var r = D.applyQuote(state, block, data || { number: cls.number, date: cls.date }, name, { replaces: o.replaces, nameOnly: !data });
+      res.msg = name + ': ' + (data ? 'read into a new ' + lower + '; every figure is amber until it is checked.' : 'a new ' + lower + ' was started from the number and date in the file name; type the figures from the document.');
+      if (r.duplicate) { res.msg += ' A quote with this number is already there.'; res.warn = true; }
+    } else if (block === 'cmp') {
+      if (data) { var q = D.applyCmp(state, data, name); res.msg = q ? name + ': the change moment pay-out is filled in under ' + check.qLabel(q) + '.' : name + ': no quote with this number is here yet. Load the quote first.'; if (!q) res.warn = true; }
+      else res.msg = name + ': recorded. Its table is filled in when reading is switched on.';
+    } else if (!data) {
+      res.msg = name + ': recorded. Use the Upload button on the item it is for, and type its details (or switch reading on).';
+    } else if (block === 'astute') {
+      var a = D.applyAstute(state, data, name);
+      res.msg = name + ': Astute values filled in for ' + a.filled + (a.filled === 1 ? ' investment' : ' investments') + (a.unmatched.length ? '; not in the Fact Find: ' + a.unmatched.join(', ') + '.' : '.'); if (a.unmatched.length) res.warn = true;
+    } else {
+      var item = o.target || D.matchItem(listOf(block), data, nameOf(block));
+      if (item && item.ambiguous) { res.msg = name + ': more than one item could be this one. Use the Upload button on the right item.'; res.warn = true; }
+      else if (!item) { res.msg = name + ': this document is for ' + (data.insurer || data.provider || 'an item') + ', which is not in the Fact Find. Add it in the Fact Find first (this page follows the Fact Find).'; res.warn = true; }
+      else {
+        if (block === 'policies') D.applyPolicy(state, item, data, name); else if (block === 'group') D.applyGroup(state, item, data, name); else D.applyInvestment(state, item, data, name);
+        res.msg = name + ': the details of ' + (item.insurer || item.provider || 'the item') + ' are filled in; amber until they are checked.';
+      }
+    }
+    D.logDoc(state, name, block, data ? 'read' : 'name');
+    return res;
+  }
+  /* One document into the overview. o: { block (forced), target (an item), replaces (a quote id) }. Resolves { msg, warn } or { unknown: true, file }. */
+  function intakeOne(file, o) {
+    o = o || {};
+    var cls = D.classify(file.name), block = o.block || (cls && cls.block);
+    if (!block) return Promise.resolve({ unknown: true, file: file });
+    cls = cls || { number: '', date: '' };
+    var want = aiOn(), key = aiKey(), read = want && !!key.apiKey, failure = '', note = want && !key.apiKey ? ' Reading is on but there is no Anthropic key in the Fact Find’s Settings, so it was only recorded.' : '';
+    var get = read ? toBase64(file).then(function (b64) { toast('Reading ' + file.name + '…', 90000); return D.readWithClaude({ apiKey: key.apiKey, model: key.model, mediaType: file.type || 'application/pdf', base64: b64, block: block }); }).then(function (r) { return r.data; })
+      .catch(function (e) { failure = e && e.message ? e.message : 'It could not be read.'; return null; }) : Promise.resolve(null);
+    return get.then(function (data) {
+      var r = put(file, block, cls, data, o);
+      if (failure) { r.msg = file.name + ': ' + failure + ' It was recorded; type the figures from it.'; r.warn = true; } else if (note) { r.msg += note; r.warn = true; }
+      return r;
+    });
+  }
+  function blockChoices() { return [['fna', 'FNA quote'], ['shortfallQuote', 'Shortfall quote'], ['reduced', 'Reduced quote'], ['comparative', 'Comparative quote'], ['policies', 'Current policy schedule'], ['group', 'Group or fund statement'], ['investments', 'Investment statement'], ['astute', 'Astute report'], ['cmp', 'Change moment pay-out guide'], ['', 'Skip it']]; }
+  /* Documents whose name does not say what they are: the adviser says, one by one. Resolves [{ file, block }] for the ones chosen. */
+  function askBlocks(files) {
+    return new Promise(function (resolve) {
+      var dlg = document.createElement('dialog'), done = false; dlg.className = 'fdlg';
+      dlg.innerHTML = '<h3>What are these documents?</h3><p>Their names do not say which block they belong in. Choose for each one (or skip it).</p><div class="flist">' + files.map(function (f, i) {
+        return '<label><span>' + esc(f.name) + '</span><select data-i="' + i + '">' + blockChoices().map(function (c) { return '<option value="' + c[0] + '">' + c[1] + '</option>'; }).join('') + '</select></label>';
+      }).join('') + '</div><div class="fbtns"><button type="button" class="btn ghost small" data-no>Skip all</button><button type="button" class="btn small" data-yes>Load</button></div>';
+      document.body.appendChild(dlg);
+      function end(v) { if (done) return; done = true; dlg.close(); dlg.remove(); resolve(v); }
+      dlg.addEventListener('click', function (e) {
+        if (e.target.closest('[data-yes]')) end([].map.call(dlg.querySelectorAll('select'), function (s) { return { file: files[+s.getAttribute('data-i')], block: s.value }; }).filter(function (x) { return x.block; }));
+        if (e.target.closest('[data-no]')) end([]);
+      });
+      dlg.addEventListener('cancel', function (e) { e.preventDefault(); end([]); });
+      dlg.showModal();
+    });
+  }
+  /* Documents, one after the other (each may be read by Claude, which takes a moment). */
+  function ingest(files, o) {
+    files = [].slice.call(files); var unknown = [], count = 0, warns = 0; session = [];
+    function one(f, oo) { return intakeOne(f, oo).then(function (r) { if (r.unknown) { unknown.push(f); return; } count++; if (r.warn) warns++; session.push({ msg: r.msg, warn: !!r.warn }); }); }
+    return files.reduce(function (p, f) { return p.then(function () { return one(f, o); }); }, Promise.resolve()).then(function () {
+      if (!unknown.length) return null;
+      return askBlocks(unknown).then(function (picked) { return picked.reduce(function (p, x) { return p.then(function () { return one(x.file, { block: x.block }); }); }, Promise.resolve()); });
+    }).then(function () {
+      touch(); redraw();
+      toast(count ? count + (count === 1 ? ' document' : ' documents') + ' loaded' + (warns ? ', ' + warns + ' to look at (see Documents on the right)' : '') + '. Everything read is amber until it is checked.' : 'Nothing was loaded.', 9000);
+    });
+  }
+  function pickList(res) {
+    return new Promise(function (resolve) {
+      var dlg = document.createElement('dialog'), done = false; dlg.className = 'fdlg';
+      dlg.innerHTML = '<h3>Documents in ' + esc(res.label) + '</h3><p>Choose what to load into the overview. Ones the page can sort by their name are ticked; the others will ask you what they are.</p><div class="flist">' + res.files.map(function (f, i) {
+        var c = D.classify(f.name);
+        return '<label><input type="checkbox" data-i="' + i + '"' + (c ? ' checked' : '') + '><span>' + esc(f.rel.concat([f.name]).join(' \\ ')) + (c ? ' <i>(' + esc(c.label) + ')</i>' : '') + '</span></label>';
+      }).join('') + '</div><div class="fbtns"><button type="button" class="btn ghost small" data-no>Cancel</button><button type="button" class="btn small" data-yes>Load the ticked ones</button></div>';
+      document.body.appendChild(dlg);
+      function end(v) { if (done) return; done = true; dlg.close(); dlg.remove(); resolve(v); }
+      dlg.addEventListener('click', function (e) {
+        if (e.target.closest('[data-yes]')) end([].filter.call(dlg.querySelectorAll('input[type=checkbox]'), function (c) { return c.checked; }).map(function (c) { return res.files[+c.getAttribute('data-i')]; }));
+        if (e.target.closest('[data-no]')) end([]);
+      });
+      dlg.addEventListener('cancel', function (e) { e.preventDefault(); end([]); });
+      dlg.showModal();
+    });
+  }
+  function readFolder() {
+    var FU = window.FF && FF.foldersUI; if (!FU || !FU.clientFiles) return;
+    FU.clientFiles({ sname: state.header.sname, fname: state.header.fname }).then(function (res) {
+      if (res.reason) { toast({ connect: 'Connect your client folders first (click Folders…).', access: 'Chrome has not given this page access to your client folders. Click Folders…, choose them again and Allow.', names: 'Fill in the client’s names first, so the folder can be found.', client: 'No folder for this client was found in your connected folders.' }[res.reason] || 'Could not read the folder.', 10000); return; }
+      if (!res.files.length) { toast('No documents were found in ' + res.label + ' (6. Policy Schedules, 5. Astute and the Comparative Quotes folders).', 10000); return; }
+      pickList(res).then(function (picked) {
+        if (!picked.length) return;
+        Promise.all(picked.map(function (f) { return f.handle.getFile(); })).then(function (fs) { ingest(fs, {}); }, function (e) { toast('Could not open a file: ' + (e && e.message), 8000); });
+      });
+    }, function (e) { toast('Could not look through the folders: ' + (e && e.message), 8000); });
+  }
+  function drawDocs() {
+    var docs = (state.documents || []).slice(-10).reverse(), on = aiOn(), hasKey = !!aiKey().apiKey;
+    $('#aiSwitch').checked = on;
+    $('#aiNote').textContent = on ? (hasKey ? 'On: an uploaded document is sent to Anthropic to be read, and what it gives is amber until you check it.' : 'On, but there is no Anthropic key in the Fact Find’s Settings yet, so documents are only recorded.') : 'Off: an uploaded document is only recorded (a quote is started from the number and date in its file name) and you type the figures from it.';
+    $('#docs').innerHTML = (session.length ? '<div class="docsess">' + session.map(function (s) { return '<div class="' + (s.warn ? 'amber' : '') + '">' + esc(s.msg) + '</div>'; }).join('') + '</div>' : '') +
+      (docs.length ? '<div class="doclist">' + docs.map(function (d) { return '<div><b>' + esc(d.file) + '</b> <small>' + esc((D.BLOCK_LABEL[d.block] || d.block) + ', ' + (d.how === 'read' ? 'read' : 'recorded')) + '</small></div>'; }).join('') + '</div>' : '<div class="none">No documents loaded yet.</div>');
   }
 
   /* ---------- events ---------- */
@@ -474,10 +592,13 @@
     touch(); paintComputed(); paintStatuses();
   });
   $('#main').addEventListener('click', function (e) {
-    var t = e.target.closest('[data-accept],[data-addq],[data-addl],[data-addp],[data-del],[data-undo],[data-block]'); if (!t) return;
+    var t = e.target.closest('[data-accept],[data-addq],[data-addl],[data-addp],[data-del],[data-undo],[data-block],[data-upq],[data-replace],[data-upi]'); if (!t) return;
     if (t.hasAttribute('data-block')) { cur = t.getAttribute('data-block'); drawNav(); drawMain(); refreshChrome(); window.scrollTo({ top: 0 }); return; }
     if (state.newer) return;
     if (t.hasAttribute('data-accept')) { store.accept(state, t.getAttribute('data-accept')); touch(); paintStatuses(); return; }
+    if (t.hasAttribute('data-upq')) { pending = { block: t.getAttribute('data-upq') }; $('#docOne').click(); return; }
+    if (t.hasAttribute('data-replace')) { var rp = pathOf(t.getAttribute('data-replace')); pending = { block: rp[0], replaces: rp[1] }; $('#docOne').click(); return; }
+    if (t.hasAttribute('data-upi')) { var ui = pathOf(t.getAttribute('data-upi')); pending = { block: ui[1], target: store.pathGet(state, ui[0]) }; $('#docOne').click(); return; }
     if (t.hasAttribute('data-addq')) { store.addQuote(state, t.getAttribute('data-addq')); touch(); drawMain(); var cards = document.querySelectorAll('.qcard'); if (cards.length) cards[cards.length - 1].scrollIntoView({ block: 'start' }); return; }
     if (t.hasAttribute('data-addp')) { state.blocks.proposed.items.push(store.newProposed()); touch(); drawMain(); return; }
     if (t.hasAttribute('data-addl')) { var q = pathOf(t.getAttribute('data-addl')); store.addLine(state, q[0], q[1]); touch(); drawMain(); return; }
@@ -500,6 +621,14 @@
   $('#btnNew').addEventListener('click', newOverview);
   $('#btnOpen').addEventListener('click', chooseFile);
   $('#btnLoad').addEventListener('click', chooseFactFind);
+  $('#btnUpload').addEventListener('click', function () { if (!state.newer) $('#docIn').click(); });
+  $('#btnReadFolder').addEventListener('click', readFolder);
+  $('#docIn').addEventListener('change', function (e) { var fs = [].slice.call(e.target.files); e.target.value = ''; if (fs.length) ingest(fs, {}); });
+  $('#docOne').addEventListener('change', function (e) { var f = e.target.files[0], o = pending || {}; e.target.value = ''; pending = null; if (f) ingest([f], o); });
+  $('#aiSwitch').addEventListener('change', function (e) {
+    if (e.target.checked && !window.confirm('Switch reading on? A document you upload is then sent to Anthropic to be read. Nothing is sent while this is off.')) { e.target.checked = false; return; }
+    aiSet(e.target.checked); drawDocs();
+  });
   $('#fileIn').addEventListener('change', function (e) { var f = e.target.files[0]; e.target.value = ''; if (f) openFile(f, null); });
   $('#ffIn').addEventListener('change', function (e) { var f = e.target.files[0]; e.target.value = ''; if (f) { var r = new FileReader(); r.onload = function () { fillFactFind(r.result, f.name); }; r.readAsText(f); } });
   window.addEventListener('beforeunload', function (e) { if (dirty) { e.preventDefault(); e.returnValue = ''; } });
@@ -510,7 +639,7 @@
   try { restoredBase = restored ? (localStorage.getItem(DRAFT_KEY + '-file') || '') : ''; } catch (e) { restoredBase = ''; }
   state = store.blank();
   if (restored) draftHold = true; else rememberHandle(null);
-  window.OV.app = { get state() { return state; }, makePdf: makePdf, redraw: redraw, setState: function (s) { state = s; redraw(); }, fillFactFindText: function (t, n) { var rep = store.fillFromFactFind(state, t, n); touch(); redraw(); return rep; }, go: function (b) { cur = b; drawNav(); drawMain(); refreshChrome(); } };
+  window.OV.app = { get state() { return state; }, makePdf: makePdf, ingest: ingest, redraw: redraw, setState: function (s) { state = s; redraw(); }, fillFactFindText: function (t, n) { var rep = store.fillFromFactFind(state, t, n); touch(); redraw(); return rep; }, go: function (b) { cur = b; drawNav(); drawMain(); refreshChrome(); } };
   redraw();
   var HO = null, HF = window.FF && FF.handover;
   if (HF) { HF.bindMenu(document); HO = HF.wants(window) ? HF.peek() : null; HF.stripFlag(window); }
