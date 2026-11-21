@@ -4,7 +4,8 @@
   if (typeof module === 'object' && module.exports) module.exports = factory();
   else { root.OV = root.OV || {}; root.OV.schema = factory(); }
 })(typeof self !== 'undefined' ? self : this, function () {
-  var VERSION = '0.1', APP_ID = 'wr-overview';
+  /* VERSION is the layout of the saved file (docs/OVERVIEW-DATA-CONTRACT.md): the filling skill stops on one it does not know. PAGE_VERSION is the page's own version, which changes with every stage. */
+  var VERSION = '0.1', PAGE_VERSION = '0.2', APP_ID = 'wr-overview';
 
   /* The four pillars, in the order of the columns. life and lsd have a lump sum and a monthly figure; sev only a lump sum; ip only a monthly figure. */
   var PILLARS = [
@@ -89,7 +90,7 @@
   /* The year folder the overview goes in (the year of its date). */
   function yearOf(state) { var d = parseDMY(state && state.header && state.header.overviewDate) || parseDMY(todayDMY()); return String(d.y); }
 
-  return { version: VERSION, released: 'November 2026', APP_ID: APP_ID, PILLARS: PILLARS, BLOCKS: BLOCKS, blocksById: blocksById, blockOfQuote: blockOfQuote, QUOTE_KINDS: QUOTE_KINDS, INSURERS: INSURERS,
+  return { version: VERSION, pageVersion: PAGE_VERSION, released: 'November 2026', APP_ID: APP_ID, PILLARS: PILLARS, BLOCKS: BLOCKS, blocksById: blocksById, blockOfQuote: blockOfQuote, QUOTE_KINDS: QUOTE_KINDS, INSURERS: INSURERS,
     STATUS: STATUS, statusLabel: statusLabel, LINE_TYPES: LINE_TYPES, lineTypesById: lineTypesById, STANDARDS: STANDARDS, PROPOSED_TYPES: PROPOSED_TYPES, CONTRIBUTIONS: CONTRIBUTIONS,
     contributionLabel: contributionLabel, OTHER_KEYS: OTHER_KEYS, GROUP_KINDS: GROUP_KINDS, PAID_BY: PAID_BY, ST_LABEL: ST_LABEL, fileName: fileName, yearOf: yearOf, clientName: clientName,
     clientFull: clientFull, parseDMY: parseDMY, todayDMY: todayDMY, safeName: safeName };

@@ -20,7 +20,9 @@
     standard: /^\d+\.\s/,                                                      // the numbered standard folders in a client's folder
     holdA: [/^1\.\s*on hold/, /^2\.\s*awaiting compliance/],                   // the two folders in New Business that also hold clients (names as normalised)
     letterSuffix: ' - Files',
-    factFind: /^2\.\s*fact find$/                                                // the client's Fact Find folder (names as normalised); the Fact Find page saves into it (5.2)
+    factFind: /^2\.\s*fact find$/,                                              // the client's Fact Find folder (names as normalised); the Fact Find page saves into it (5.2)
+    overview: /^1\.\s*overview$/,                                               // the client's Overview folder, with a folder for each year inside it (the Client Overview page, 5.4)
+    year: /^\d{4}$/
   };
   /* How an insurer is written in a folder name: the page's own abbr first (OM, BR), then these older or longer spellings. Tell the skill's owner when a spelling is missing: this is the only table to change. */
   var ALIASES = {
@@ -244,6 +246,36 @@
     return false;
   }
 
+  /* The Client Overview (5.4): `1. Overview\<year>` inside the client's folder. This is the ONE place a page creates folders (Paul, 21 November): when `1. Overview` or the year folder is missing it is made, but only
+     inside a client folder that already exists, and nothing else is ever created, renamed, moved or deleted. A candidate looks like the others (apps is the folder to write into, null while it still has to be made). */
+  async function overviewCandidate(client, year) {
+    var kids = await listDirs(client.handle), ov = kids.filter(function (k) { return RULES.overview.test(norm(k.name)); })[0], ovName = ov ? ov.name : '1. Overview', yName = String(year), yh = null;
+    if (ov) { var inner = await listDirs(ov.handle), y = inner.filter(function (k) { return norm(k.name) === norm(yName); })[0]; if (y) { yh = y.handle; yName = y.name; } }
+    return { name: yName, handle: yh, apps: yh, appsName: yName, client: client, ovName: ovName, ovHandle: ov ? ov.handle : null, rel: client.parts.concat([ovName, yName]), make: !yh };
+  }
+  /* Returns { pick, reason: 'only' } | { ask: [candidates] } | { reason: 'names' | 'client', deepest }. Nothing is created here. */
+  async function resolveOverview(roots, info, opts) {
+    opts = opts || {};
+    var rootDeep = (roots.A && roots.A.handle) || (roots.B && roots.B.handle) || null;
+    if (norm(info.sname) === '') return { reason: 'names', deepest: rootDeep };
+    var clients = [];
+    for (var i = 0; i < (opts.hints || []).length; i++) {
+      var got = await clientFromFile(roots, opts.hints[i], info.sname, info.fname);
+      got.forEach(function (c) { if (!clients.some(function (x) { return x.rootKey === c.rootKey && x.parts.join('/') === c.parts.join('/'); })) clients.push(c); });
+    }
+    if (!clients.length) clients = await findClients(roots, info.sname, info.fname);
+    if (!clients.length) return { reason: 'client', deepest: rootDeep };
+    var cands = [];
+    for (var c = 0; c < clients.length; c++) cands.push(await overviewCandidate(clients[c], info.year));
+    return cands.length === 1 ? { pick: cands[0], reason: 'only', deepest: clients[0].handle } : { ask: cands, deepest: clients[0].handle };
+  }
+  /* Makes what is missing (`1. Overview`, then the year) inside the client's folder and returns the year folder. Only called after the path length has been checked. */
+  async function ensureOverview(cand) {
+    if (cand.apps) return cand.apps;
+    var ov = cand.ovHandle || await cand.client.handle.getDirectoryHandle(cand.ovName, { create: true });
+    return ov.getDirectoryHandle(cand.appsName, { create: true });
+  }
+
   /* ---------- what the browser keeps: the two handles (IndexedDB) and the two paths the adviser typed (localStorage) ---------- */
   var DB = 'wr-folders', STORE = 'roots', PATHS = 'wr-folders-paths';
   function idb(fn) {
@@ -275,7 +307,7 @@
   return {
     MAX_PATH: MAX_PATH, SWAP: SWAP, RULES: RULES, ALIASES: ALIASES, norm: norm, tokens: tokens, clientFolderName: clientFolderName, parseClient: parseClient, clientMatches: clientMatches, letterOf: letterOf, letterFolder: letterFolder,
     isLetterFolder: isLetterFolder, isStandard: isStandard, nameIs: nameIs, insurerWords: insurerWords, productWords: productWords, numbersIn: numbersIn, hasWord: hasWord, scoreDeal: scoreDeal, chooseDeal: chooseDeal, pathCheck: pathCheck, tooLongText: tooLongText,
-    listDirs: listDirs, findClients: findClients, clientFromFile: clientFromFile, dirOfFile: dirOfFile, dealCandidates: dealCandidates, resolveTarget: resolveTarget, factFindCandidates: factFindCandidates, resolveFactFind: resolveFactFind, relOf: relOf, labelOf: labelOf, probeFile: probeFile, makeFile: makeFile, discardEmpty: discardEmpty,
+    listDirs: listDirs, findClients: findClients, clientFromFile: clientFromFile, dirOfFile: dirOfFile, dealCandidates: dealCandidates, resolveTarget: resolveTarget, factFindCandidates: factFindCandidates, resolveFactFind: resolveFactFind, overviewCandidate: overviewCandidate, resolveOverview: resolveOverview, ensureOverview: ensureOverview, relOf: relOf, labelOf: labelOf, probeFile: probeFile, makeFile: makeFile, discardEmpty: discardEmpty,
     saveHandle: saveHandle, loadHandle: loadHandle, getPaths: getPaths, setPath: setPath, permission: permission, enabled: enabled
   };
 });

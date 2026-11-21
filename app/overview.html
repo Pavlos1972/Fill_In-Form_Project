@@ -12,6 +12,7 @@
 </style>
 <link rel="stylesheet" href="css/app.css?v=20261121a">
 <link rel="stylesheet" href="css/overview.css?v=20261121a">
+<link rel="stylesheet" href="css/folders.css?v=20261118c">
 </head>
 <body>
 <div class="top">
@@ -40,11 +41,14 @@
       <button class="btn ghost small" id="btnNew" type="button">New</button>
       <button class="btn ghost small" id="btnOpen" type="button">Open&hellip;</button>
       <button class="btn small" id="btnLoad" type="button" title="Fill the overview from the client&#39;s saved Fact Find file">Fill from Fact Find&hellip;</button>
+      <button class="btn ghost small" id="btnFolders" type="button" title="Connect your New Business and Client Files folders, so Save goes straight into the client&#39;s 1. Overview folder">Folders&hellip;</button>
     </div>
     <div class="grp mid"></div>
     <div class="grp right">
       <button class="btn small" id="btnSave" type="button">Save</button>
       <button class="btn ghost small" id="btnSaveAs" type="button">Save as&hellip;</button>
+      <button class="btn ghost small" id="btnPreview" type="button">Preview PDF</button>
+      <button class="btn small" id="btnPdf" type="button">Save PDF</button>
     </div>
   </div>
   <input type="file" id="fileIn" accept=".json,application/json" hidden>
@@ -70,11 +74,17 @@
 <div class="toast" id="toast" hidden></div>
 
 <script src="js/build.js?v=20261121a"></script>
+<script src="vendor/jspdf.umd.min.js"></script>
+<script src="vendor/jspdf.plugin.autotable.min.js"></script>
 <script src="js/util.js?v=20261118b"></script>
 <script src="js/ov-schema.js?v=20261121a"></script>
 <script src="js/ov-calc.js?v=20261121a"></script>
 <script src="js/ov-store.js?v=20261121a"></script>
 <script src="js/ov-check.js?v=20261121a"></script>
+<script src="assets/logo.js?v=20261018p"></script>
+<script src="js/ov-pdf.js?v=20261121b"></script>
+<script src="js/folders.js?v=20261118d"></script>
+<script src="js/folders-ui.js?v=20261118d"></script>
 <script src="js/handover.js?v=20261120a"></script>
 <script src="js/ov-ui.js?v=20261121a"></script>
 <script>/* copy check: see js/build.js */(function(){var d=document,u=[].map.call(d.querySelectorAll('script[src],link[href]'),function(e){return e.src||e.href}),m=(d.querySelector('meta[name="wr-build"]')||{}).content||'';if(window.FF&&FF.build&&FF.build.run){FF.build.run(u,location.href,m);return}var b=d.createElement('div');b.id='buildBanner';b.setAttribute('role','alert');b.style.cssText='position:fixed;top:0;left:0;right:0;z-index:99999;background:#b00020;color:#fff;padding:10px 16px;font:600 14px/1.4 sans-serif';b.textContent='Mixed versions: this copy of the Fact Find is not complete (js/build.js is missing), so do not use it for a client. Ask for it to be installed again.';d.body.appendChild(b)})();</script>

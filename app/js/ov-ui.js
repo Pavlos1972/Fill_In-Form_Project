@@ -1,4 +1,4 @@
-/* The Client Overview screen (stage 2: the entry page). A left menu of the eleven blocks with a dot each (green complete, amber needs a look, grey waiting for a document), one block at a time, the figures the page
+/* The Client Overview screen (stages 2 and 3: the entry page, the PDF and saving into the client's folder). A left menu of the eleven blocks with a dot each (green complete, amber needs a look, grey waiting for a document), one block at a time, the figures the page
    works out (totals, the shortfall, "compared with what you have now") drawn from ov-calc.js, the checks from ov-check.js, saving and opening the overview's own file, and the pre-fill from the Fact Find.
    Amounts never wrap and there is no sideways scroll bar: the tables use fixed columns. Typing is kept at once; the figures and the dots follow without redrawing the boxes (so the cursor stays where it is). */
 (function () {
@@ -7,7 +7,7 @@
   var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
   var DRAFT_KEY = 'wr-overview-draft', CLIENT = '_client';
 
-  var state, cur = CLIENT, fileHandle = null, ffHandle = null, fileBase = '', dirty = false, onDisk = true, lastSaved = null, toastTimer = null, draftHold = false, last = { problems: [], dots: {}, byBlock: {} };
+  var state, cur = CLIENT, fileHandle = null, ffHandle = null, forceNormal = false, lastFolder = null, fileBase = '', dirty = false, onDisk = true, lastSaved = null, toastTimer = null, draftHold = false, last = { problems: [], dots: {}, byBlock: {} };
 
   /* ---------- drafts, saving and opening (the Fact Find's way: a safety copy in the browser while work is unsaved, removed once a file is saved and read back) ---------- */
   function saveDraft() {
@@ -37,15 +37,22 @@
     document.body.appendChild(a); a.click(); a.remove(); setTimeout(function () { URL.revokeObjectURL(a.href); }, 2000);
   }
   var lastWritten = null;
-  /* Chrome's "Save as" window where there is one, otherwise a plain download; with a remembered file it writes straight back to it. Written, read back and proved (util.writeVerified). */
-  function writeFile(blob, name, type, ext, handle, id, startIn) {
-    lastWritten = null;
+  /* What the folder search needs to know (folders.js): the client, and the year the overview goes under (1. Overview\<year>). */
+  function folderInfo() { return { kind: 'overview', sname: state.header.sname, fname: state.header.fname, year: schema.yearOf(state), kinds: [schema.yearOf(state)] }; }
+  /* Chrome's "Save as" window where there is one, otherwise a plain download; with a remembered file it writes straight back to it. For a first Save (o.auto) the client's folder is looked for first (Folders…): the file goes
+     into 1. Overview\<year> (made if it is missing), or the normal Save window opens with the reason. Written, read back and proved (util.writeVerified). */
+  function writeFile(blob, name, type, ext, handle, id, startIn, o) {
+    o = o || {}; lastWritten = null; if (!handle) lastFolder = null;
     if (!window.showSaveFilePicker) { download(blob, name); return Promise.resolve(null); }
-    var accept = {}, open; accept[blob.type] = [ext];
-    var picker = function () { var o = { suggestedName: name, types: [{ description: type, accept: accept }] }; if (startIn) o.startIn = startIn; else o.id = id; return window.showSaveFilePicker(o); };
-    if (handle) open = Promise.resolve(handle.requestPermission ? handle.requestPermission({ mode: 'readwrite' }) : 'granted').then(function (p) { if (p !== 'granted') throw new Error('Chrome did not allow changes to that file.'); return handle; });
-    else open = picker();
-    return open.then(function (h) { return util.writeVerified(h, blob, { pdf: ext === '.pdf' }).then(function (r) { lastWritten = r; return h; }); });
+    var accept = {}, open, FU = window.FF && FF.foldersUI; accept[blob.type] = [ext];
+    var picker = function (start) { var po = { suggestedName: name, types: [{ description: type, accept: accept }] }; if (start || startIn) po.startIn = start || startIn; else po.id = id; return window.showSaveFilePicker(po); };
+    if (handle) open = Promise.resolve(handle.requestPermission ? handle.requestPermission({ mode: 'readwrite' }) : 'granted').then(function (p) { if (p !== 'granted') throw new Error('Chrome did not allow changes to that file.'); return { handle: handle }; });
+    else if (o.auto && FU && !forceNormal) open = FU.open({ kind: 'overview', info: folderInfo(), name: name, hints: [ffHandle].filter(Boolean), sibling: o.sibling || null, openedHandle: fileHandle, picker: picker, toast: toast, startedAt: Date.now(),
+      retry: function () { forceNormal = true; $(ext === '.pdf' ? '#btnPdf' : '#btnSave').click(); } });
+    else { forceNormal = false; open = picker().then(function (h) { return { handle: h }; }); }
+    return open.then(function (x) {
+      return util.writeVerified(x.handle, blob, { pdf: ext === '.pdf' }).then(function (r) { lastWritten = r; lastFolder = x.folder ? x.folder.label : (handle ? lastFolder : null); return x.handle; }, function (e) { if (x.folder) FU.failed(x.folder); throw e; });
+    });
   }
   function saveFailed(e, blob, name) {
     if (!e || e.name === 'AbortError') return false;
@@ -60,19 +67,32 @@
   function saveJson(forceAs) {
     if (state.newer) { toast('This file was made by a newer version, so it is read-only here.', 6000); return; }
     var text = store.toJSON(state), blob = new Blob([text], { type: 'application/json' });
-    writeFile(blob, currentBase() + '.json', 'Client Overview', '.json', forceAs ? null : fileHandle, 'overview-data', fileHandle).then(function (h) {
+    writeFile(blob, currentBase() + '.json', 'Client Overview', '.json', forceAs ? null : fileHandle, 'overview-data', fileHandle, { auto: !forceAs }).then(function (h) {
       if (h) { fileHandle = h; fileBase = h.name.replace(/\.json$/i, ''); rememberHandle(h); } else if (!fileBase) fileBase = currentBase();
       return readBack(h, text).then(function (v) {
         if (v === 'different') { refreshChrome(); toast('The saved file does not match the overview, so your work is still kept here. Try Save again.', 7000); return; }
-        dirty = false; onDisk = v === 'ok'; lastSaved = new Date(); saveDraft(); refreshChrome(); toast('Saved.');
+        dirty = false; onDisk = v === 'ok'; lastSaved = new Date(); saveDraft(); refreshChrome(); toast(lastFolder ? 'Saved to ' + lastFolder + '. Wrong folder? Use Save as\u2026' : 'Saved.', lastFolder ? 9000 : 0);
       });
-    }).catch(function (e) { if (saveFailed(e, blob, currentBase() + '.json')) { if (!forceAs && fileHandle) { fileHandle = null; rememberHandle(null); } dirty = true; onDisk = false; saveDraft(); } refreshChrome(); });
+    }).catch(function (e) { if (saveFailed(e, blob, currentBase() + '.json')) { if (!forceAs && fileHandle) { fileHandle = null; lastFolder = null; rememberHandle(null); } dirty = true; onDisk = false; saveDraft(); } refreshChrome(); });
+  }
+  function pdfName() { return schema.fileName(state) + '.pdf'; }
+  function makePdf() { return OV.pdf.build(state); }
+  /* The PDF goes beside the saved file (the same year folder); a first PDF finds the client's folder like a first Save. */
+  function savePdf() {
+    var blob = makePdf().output('blob');
+    writeFile(blob, pdfName(), 'PDF document', '.pdf', null, 'overview-pdf', fileHandle, { auto: true, sibling: fileHandle })
+      .then(function () { toast((lastWritten && lastWritten.checked ? 'PDF saved and checked (' + util.formatSize(lastWritten.size) + ').' : 'PDF saved.') + (lastFolder ? ' Saved in ' + lastFolder + '.' : ''), lastFolder ? 9000 : 0); drawMeta(); })
+      .catch(function (e) { saveFailed(e, blob, pdfName()); });
+  }
+  function previewPdf() {
+    var blob = makePdf().output('blob'), url = URL.createObjectURL(blob), w = window.open(url, '_blank');
+    if (!w) download(blob, pdfName());
   }
   function openFile(file, handle) {
     var r = new FileReader();
     r.onload = function () {
       try {
-        state = store.fromJSON(r.result); fileHandle = handle || null; fileBase = file.name.replace(/\.json$/i, ''); dirty = false; onDisk = true; cur = CLIENT; rememberHandle(handle || null); saveDraft(); redraw();
+        state = store.fromJSON(r.result); fileHandle = handle || null; lastFolder = null; fileBase = file.name.replace(/\.json$/i, ''); dirty = false; onDisk = true; cur = CLIENT; rememberHandle(handle || null); saveDraft(); redraw();
         toast(state.newer ? 'Opened ' + file.name + ' read-only: it was made by a newer version.' : 'Opened ' + file.name, state.newer ? 7000 : 3500);
       } catch (e) { toast(e.message || 'Could not open that file.', 6000); }
     };
@@ -104,7 +124,7 @@
   }
   function newOverview() {
     if (dirty && !window.confirm('Start a new overview? Changes you have not saved will be lost.')) return;
-    state = store.blank(); fileHandle = null; ffHandle = null; fileBase = ''; rememberHandle(null); dirty = false; onDisk = true; lastSaved = null; cur = CLIENT; saveDraft(); redraw();
+    state = store.blank(); fileHandle = null; ffHandle = null; fileBase = ''; rememberHandle(null); lastFolder = null; dirty = false; onDisk = true; lastSaved = null; cur = CLIENT; saveDraft(); redraw();
   }
 
   /* ---------- small drawing helpers ---------- */
@@ -423,13 +443,13 @@
     $('#saveState').textContent = (fileBase ? fileBase + ' · ' : '') + (dirty ? 'unsaved changes' : (lastSaved ? 'saved ' + lastSaved.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'no changes'));
     $('#sFilled').textContent = c.confirmed; $('#sVerify').textContent = c.check; $('#sEmpty').textContent = c.waiting;
     $('#btnAgree').hidden = !c.check;
-    $('#verLine').textContent = 'Version ' + schema.version + ', ' + schema.released;
+    $('#verLine').textContent = 'Version ' + schema.pageVersion + ', ' + schema.released;
     schema.BLOCKS.forEach(function (b) { var d = document.querySelector('[data-dot="' + b.id + '"]'); if (d) d.className = 'dot ' + (last.dots[b.id] || 'grey'); });
     drawChecks(); drawMeta();
   }
   function drawMeta() {
     var ff = state.factFind, from = ff && ff.file ? '<div>Filled from the Fact Find <b>' + esc(ff.file) + '</b>' + (ff.changed ? ' <span class="chg">(' + ff.changed + ' changed since)</span>' : '') + '</div>' : '<div>Not filled from a Fact Find yet.</div>';
-    $('#meta').innerHTML = '<div>It saves as</div><div class="fn">' + esc(currentBase()) + '</div><div>in the folder <span class="fn">1. Overview\\' + esc(schema.yearOf(state)) + '</span></div>' + from;
+    $('#meta').innerHTML = '<div>It saves as</div><div class="fn">' + esc(currentBase()) + '</div><div>in the folder <span class="fn">1. Overview\\' + esc(schema.yearOf(state)) + '</span></div>' + from + (window.FF && FF.foldersUI ? FF.foldersUI.metaHTML(lastFolder) : '');
   }
 
   /* ---------- events ---------- */
@@ -473,6 +493,10 @@
   $('#btnAgree').addEventListener('click', function () { var n = store.acceptAll(state); touch(); redraw(); toast(n + (n === 1 ? ' row' : ' rows') + ' marked as checked.'); });
   $('#btnSave').addEventListener('click', function () { saveJson(false); });
   $('#btnSaveAs').addEventListener('click', function () { saveJson(true); });
+  $('#btnPdf').addEventListener('click', savePdf);
+  $('#btnPreview').addEventListener('click', previewPdf);
+  $('#btnFolders').addEventListener('click', function () { FF.foldersUI.connect().then(drawMeta); });
+  if (window.FF && FF.foldersUI) FF.foldersUI.init(drawMeta);
   $('#btnNew').addEventListener('click', newOverview);
   $('#btnOpen').addEventListener('click', chooseFile);
   $('#btnLoad').addEventListener('click', chooseFactFind);
@@ -486,7 +510,7 @@
   try { restoredBase = restored ? (localStorage.getItem(DRAFT_KEY + '-file') || '') : ''; } catch (e) { restoredBase = ''; }
   state = store.blank();
   if (restored) draftHold = true; else rememberHandle(null);
-  window.OV.app = { get state() { return state; }, redraw: redraw, setState: function (s) { state = s; redraw(); }, fillFactFindText: function (t, n) { var rep = store.fillFromFactFind(state, t, n); touch(); redraw(); return rep; }, go: function (b) { cur = b; drawNav(); drawMain(); refreshChrome(); } };
+  window.OV.app = { get state() { return state; }, makePdf: makePdf, redraw: redraw, setState: function (s) { state = s; redraw(); }, fillFactFindText: function (t, n) { var rep = store.fillFromFactFind(state, t, n); touch(); redraw(); return rep; }, go: function (b) { cur = b; drawNav(); drawMain(); refreshChrome(); } };
   redraw();
   var HO = null, HF = window.FF && FF.handover;
   if (HF) { HF.bindMenu(document); HO = HF.wants(window) ? HF.peek() : null; HF.stripFlag(window); }
