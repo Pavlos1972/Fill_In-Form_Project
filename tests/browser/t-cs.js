@@ -45,7 +45,7 @@ srv.listen(0, async () => {
   ok(await p.evaluate(() => [...document.querySelectorAll('#nav button')].map(x => x.querySelector('span').textContent).join('|')) === 'Product & client|Contact & work|Beneficiaries & bank|Source of funds|Risk tolerance', 'five pages in the list on the left');
   ok(await p.evaluate(() => !document.querySelector('#btnVoice, #btnListen, #btnTimer, #btnSettings')), 'no voice, listen, meeting or settings buttons: this page needs no voice and no keys');
   ok(/Version 1\.[3-9]/.test(await p.evaluate(() => document.querySelector('#verLine').textContent)), 'the top says the version');
-  ok(await p.evaluate(() => [...document.querySelectorAll('.top a.btn')].map(a => a.getAttribute('href')).join('|')) === 'index.html|short-risk.html', 'links to the Fact Find and the Risk Application in the top bar');
+  ok(await p.evaluate(() => [...document.querySelectorAll('.top a.btn')].map(a => a.getAttribute('href')).join('|')) === 'index.html|short-risk.html|overview.html', 'links to the Fact Find, the Risk Application and the Client Overview in the top bar');
   ok(await p.evaluate(() => ['btnLoad', 'btnLoadSR'].map(i => document.getElementById(i).textContent.replace(/\s+/g, ' ').trim()).join('|')) === 'Load from Fact Find…|Load from Risk Application file…', 'two Load buttons');
   ok(await p.evaluate(() => document.querySelector('[data-f="date"]').value === FF.util.todayDMY()), 'the date of application starts as today');
 

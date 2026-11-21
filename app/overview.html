@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="wr-build" content="5.4">
+<title>Client Overview</title>
+<link rel="icon" type="image/png" href="assets/logo.png">
+<style>
+  html { color-scheme: light; }
+  body { margin: 0; font: 14px/1.45 system-ui, "Segoe UI", sans-serif; padding-inline: 16px; padding-block: 14px 40px; }
+</style>
+<link rel="stylesheet" href="css/app.css?v=20261121a">
+<link rel="stylesheet" href="css/overview.css?v=20261121a">
+</head>
+<body>
+<div class="top">
+  <div class="titlebar">
+    <div class="tleft">
+      <img class="brand" src="assets/logo.png" alt="Wealth Revolution, insurance and investment brokers" width="127" height="68">
+      <div class="ttl"><h1>Client Overview</h1><small id="verLine"></small></div>
+    </div>
+    <div class="tmid">
+      <span class="who">Client <b id="clientName">New client</b></span>
+      <span class="savestate" id="saveState"></span>
+    </div>
+    <span class="chips">
+      <details class="otherforms" id="otherForms">
+        <summary class="btn ghost small" title="The other pages of this site: each opens in another tab">Other forms &#9662;</summary>
+        <div class="ofmenu">
+          <a class="btn ghost small" id="linkFF" href="index.html" target="_blank" rel="noopener" title="Open the Fact Find in another tab">Fact Find &#8599;</a>
+          <a class="btn ghost small" id="linkSR" href="short-risk.html" data-base="short-risk.html" target="_blank" rel="noopener" title="Open the Risk Application in another tab, filled from the Fact Find when this client&#39;s Fact Find is open">Risk Application &#8599;</a>
+          <a class="btn ghost small" id="linkCS" href="capture-sheet.html" data-base="capture-sheet.html" target="_blank" rel="noopener" title="Open the Investment Application in another tab, filled from the Fact Find when this client&#39;s Fact Find is open">Investment Application &#8599;</a>
+        </div>
+      </details>
+    </span>
+  </div>
+  <div class="actions">
+    <div class="grp left">
+      <button class="btn ghost small" id="btnNew" type="button">New</button>
+      <button class="btn ghost small" id="btnOpen" type="button">Open&hellip;</button>
+      <button class="btn small" id="btnLoad" type="button" title="Fill the overview from the client&#39;s saved Fact Find file">Fill from Fact Find&hellip;</button>
+    </div>
+    <div class="grp mid"></div>
+    <div class="grp right">
+      <button class="btn small" id="btnSave" type="button">Save</button>
+      <button class="btn ghost small" id="btnSaveAs" type="button">Save as&hellip;</button>
+    </div>
+  </div>
+  <input type="file" id="fileIn" accept=".json,application/json" hidden>
+  <input type="file" id="ffIn" accept=".json,application/json" hidden>
+</div>
+
+<div class="app">
+  <nav class="nav" id="nav" aria-label="Blocks"></nav>
+  <main class="main ov" id="main"></main>
+  <aside class="side">
+    <div class="card"><h3>Progress</h3>
+      <div class="summary">
+        <div><b id="sFilled">0</b><span>checked</span></div>
+        <div><b id="sVerify">0</b><span>to check</span></div>
+        <div><b id="sEmpty">0</b><span>waiting</span></div>
+      </div>
+      <button class="btn ghost small" id="btnAgree" type="button" hidden>Mark everything as checked</button>
+    </div>
+    <div class="card"><h3>Checks</h3><div class="checks" id="checks"></div></div>
+    <div class="card"><h3>This overview</h3><div class="meta" id="meta"></div></div>
+  </aside>
+</div>
+<div class="toast" id="toast" hidden></div>
+
+<script src="js/build.js?v=20261121a"></script>
+<script src="js/util.js?v=20261118b"></script>
+<script src="js/ov-schema.js?v=20261121a"></script>
+<script src="js/ov-calc.js?v=20261121a"></script>
+<script src="js/ov-store.js?v=20261121a"></script>
+<script src="js/ov-check.js?v=20261121a"></script>
+<script src="js/handover.js?v=20261120a"></script>
+<script src="js/ov-ui.js?v=20261121a"></script>
+<script>/* copy check: see js/build.js */(function(){var d=document,u=[].map.call(d.querySelectorAll('script[src],link[href]'),function(e){return e.src||e.href}),m=(d.querySelector('meta[name="wr-build"]')||{}).content||'';if(window.FF&&FF.build&&FF.build.run){FF.build.run(u,location.href,m);return}var b=d.createElement('div');b.id='buildBanner';b.setAttribute('role','alert');b.style.cssText='position:fixed;top:0;left:0;right:0;z-index:99999;background:#b00020;color:#fff;padding:10px 16px;font:600 14px/1.4 sans-serif';b.textContent='Mixed versions: this copy of the Fact Find is not complete (js/build.js is missing), so do not use it for a client. Ask for it to be installed again.';d.body.appendChild(b)})();</script>
+</body>
+</html>

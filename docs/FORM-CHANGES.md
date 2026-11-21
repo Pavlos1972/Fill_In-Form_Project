@@ -4,6 +4,11 @@ A dated list of what changed in the form's boxes, newest first. **One line for e
 
 The version is `version` in `app/js/schema.js` (the Fact Find), `app/js/sr-schema.js` (the Short Risk Application) and `app/js/cs-schema.js` (the Investment Capture Sheet); a saved file carries it as `schema`. Earlier changes are in the README and in the git history; this list starts with 3.1.
 
+## 5.4: 21 November 2026 (Fact Find 5.3 to 5.4; Risk Application 1.5 to 1.6; Investment Application 1.4 to 1.5; NEW page: Client Overview 0.1)
+
+**Stage 2 of the Client Overview build** (the entry page; see the README, "Client Overview", and `docs/OVERVIEW-DATA-CONTRACT.md`). **The three existing forms: no id, list, box, choice or sum changed; the saved files' contents are unchanged apart from `schema`.** Their top bars' **Other forms** menu gains a **Client Overview** link (display only); the Fact Find's link carries the client on screen to the new page (`?from=factfind`, as for the two applications).
+- **New page `app/overview.html` (Client Overview 0.1)** with its own saved file (`app: "wr-overview"`, `schema: "0.1"`, layout in `docs/OVERVIEW-DATA-CONTRACT.md`, revision b): header, eleven blocks, the figures the page works out (never read back), the checks. Nothing in the Fact Find's saved file changes.
+
 ## 5.3: 20 November 2026 (Fact Find 5.2 to 5.3; Risk Application 1.4 to 1.5; Investment Application 1.3 to 1.4)
 
 The adviser's list after the 20 November meetings (see the README, Release 5.3). **No id added, removed or relabelled. One page title relabelled (Risk Application), one box's choices changed, two boxes got a show/grey rule, one box got a Calendar. The saved files' contents are unchanged apart from `schema` (`5.3`, `1.5`, `1.4`).**

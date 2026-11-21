@@ -838,8 +838,8 @@
     var t = e.target; if (!d.contains(t) || (t.closest && t.closest('.ofmenu a'))) ofClose();
   });
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape') ofClose(); });
-  /* 5.3: the Risk Application and the Investment Application open filled from this Fact Find: the client on the screen (saved or not) is left in this browser for them (handover.js) when their link is clicked. */
-  ['#linkSR', '#linkCS'].forEach(function (sel) {
+  /* 5.3: the Risk Application, the Investment Application and the Client Overview open filled from this Fact Find: the client on the screen (saved or not) is left in this browser for them (handover.js) when their link is clicked. */
+  ['#linkSR', '#linkCS', '#linkOV'].forEach(function (sel) {
     var a = $(sel); if (!a) return;
     a.addEventListener('click', function () { if (window.FF && FF.handover) FF.handover.send(store.toJSON(state), fileBase || currentBase()); });
   });

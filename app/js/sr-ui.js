@@ -389,8 +389,10 @@
      (amber "verify", typed boxes never overwritten). Unsaved work for another client is not replaced without asking; for the same client the restored work just gets its empty boxes filled. */
   var HO = null, HF = window.FF && FF.handover;
   if (HF) { HF.bindMenu(document); HO = HF.wants(window) ? HF.peek() : null; HF.stripFlag(window); }
-  var linkOther = HF && $('#linkCS');                                                                      // the other application: it opens filled from the Fact Find too, when that Fact Find is for this client
-  if (linkOther) linkOther.addEventListener('click', function () { var h = HF.peek(); linkOther.href = linkOther.getAttribute('data-base') + (h && HF.sameClient(h.who, state.f.fname.v, state.f.sname.v) ? '?from=factfind' : ''); });
+  ['#linkCS', '#linkOV'].forEach(function (sel) {                                                          // the other application and the Client Overview: they open filled from the Fact Find too, when that Fact Find is for this client
+    var a = HF && $(sel); if (!a) return;
+    a.addEventListener('click', function () { var h = HF.peek(); a.href = a.getAttribute('data-base') + (h && HF.sameClient(h.who, state.f.fname.v, state.f.sname.v) ? '?from=factfind' : ''); });
+  });
   function hoWho(ho) { return [ho.who && ho.who.fname, ho.who && ho.who.sname].filter(Boolean).join(' ') || 'the client'; }
   function fromFactFind(ho) {
     try {

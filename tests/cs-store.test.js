@@ -19,7 +19,7 @@ test('the form: five pages in the order of the work, the Declaration with the ap
   assert.deepStrictEqual(schema.pages[4].sections, ['risk', 'risk_result']);
   const order = schema.sections.map(s => s.id);
   assert.ok(order.indexOf('funds') < order.indexOf('declare') && order.indexOf('declare') < order.indexOf('risk') && order.indexOf('risk') < order.indexOf('risk_result'));
-  assert.strictEqual(schema.version, '1.4');
+  assert.strictEqual(schema.version, '1.5');
   assert.strictEqual(new Set(schema.fieldIds).size, schema.fieldIds.length, 'no box id is used twice');
   schema.sections.forEach(s => assert.ok(schema.pageOf[s.id], s.id + ' is on a page'));
 });
