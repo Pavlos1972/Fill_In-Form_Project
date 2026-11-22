@@ -135,12 +135,12 @@ srv.listen(0, async () => {
   await pg.evaluate(() => { OV.app.setState(OV.store.blank()); const st = OV.app.state; st.header.fname = 'Lean'; st.header.sname = 'Client'; OV.app.setState(st); });
   await pg.click('#btnPresent'); await pg.waitForTimeout(500);
   const pr = await pg.evaluate(() => {
-    const root = document.querySelector('#pres'), cs = getComputedStyle(root), logo = root.querySelector('img.plogo'), tabs = [...root.querySelectorAll('.ptab')], nodes = [...root.querySelectorAll('.pnode')];
-    return { bg: cs.backgroundColor, logo: !!logo && logo.complete && logo.naturalWidth > 0 && logo.getBoundingClientRect().width > 20, offTabs: tabs.filter(t => t.classList.contains('off')).map(t => t.textContent), disabled: tabs.filter(t => t.disabled).length, offNodes: nodes.filter(n => n.classList.contains('off') && n.disabled).length, nodes: nodes.length };
+    const root = document.querySelector('#pres'), cs = getComputedStyle(root), logo = root.querySelector('img.plogo'), tabs = [...root.querySelectorAll('.ptab')], cards = [...root.querySelectorAll('.pcard')];
+    return { bg: cs.backgroundColor, logo: !!logo && logo.complete && logo.naturalWidth > 0 && logo.getBoundingClientRect().width > 20, tabs: tabs.map(t => t.textContent).join(), off: root.querySelectorAll('.ptab.off, .ptab:disabled, .pcard.off, .pcard:disabled').length, cards: cards.length };
   });
   ok(pr.bg === 'rgb(255, 255, 255)', '8. the Presentation has a white background: ' + pr.bg);
   ok(pr.logo, '8. the Wealth Revolution logo is in the bar');
-  ok(JSON.stringify(pr.offTabs) === JSON.stringify(['5 Shortfall quote', '7 Comparative', '9 Proposed', '10 Goals']) && pr.disabled === 4 && pr.offNodes === 4 && pr.nodes === 11, '8. the same four pages are left out: a grey tab and a grey node that cannot be opened: ' + JSON.stringify(pr));
+  ok(pr.tabs === 'Main,Policies,FNA,Group,Shortfall,Reduced,Investments,Other' && pr.off === 0 && pr.cards === 7, '8. the same four pages are left out: they are not on the tab row and not on the main page (no grey tab, no strike-through): ' + JSON.stringify(pr));
   await pg.screenshot({ path: out + '/seemore-present-map.png' });
   await pg.keyboard.press('ArrowRight'); await pg.waitForTimeout(150);
   await pg.keyboard.press('ArrowRight'); await pg.keyboard.press('ArrowRight'); await pg.keyboard.press('ArrowRight'); await pg.keyboard.press('ArrowRight'); await pg.waitForTimeout(150);

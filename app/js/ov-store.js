@@ -73,7 +73,7 @@
     var t = schema.lineTypesById[type] || schema.lineTypesById.other, l = { id: uid('l'), type: t.id, label: t.l, term: t.term || null,
       life: { lump: null, monthly: null }, sev: { lump: null }, lsd: { lump: null, monthly: null }, ip: { monthly: null }, waiting: null, abi: null, st: 'empty', src: null, by: 'person', removed: false };
     if (t.id === 'child') { l.name = ''; l.sname = ''; l.term = 'Age 24'; l.waiting = 'N/A'; }
-    if (t.id === 'debt') { l.debt = ''; l.bank = ''; l.accelerated = true; }
+    if (t.id === 'debt') { l.debt = ''; l.bank = ''; l.accelerated = null; }                                       // accelerated (true) or standalone (false) debt cover: not known until the quote says so
     (t.na || []).forEach(function (k) { if (k === 'waiting') l.waiting = 'N/A'; else l[k] = 'N/A'; });
     return Object.assign(l, o || {});
   }
@@ -321,6 +321,7 @@
     l = l && typeof l === 'object' ? l : {};
     var t = schema.lineTypesById[l.type] ? l.type : 'other';
     var n = Object.assign(newLine(t), l); n.type = t; n.id = n.id || uid('l'); n.st = ST[l.st] ? l.st : 'verify'; n.removed = !!n.removed;
+    if (t === 'debt') n.accelerated = n.accelerated === true || n.accelerated === false ? n.accelerated : (/^accelerated$/i.test(String(n.accelerated || '')) ? true : /^stand ?alone$/i.test(String(n.accelerated || '')) ? false : null);
     if (t === 'child') n.waiting = 'N/A';                                                                          // Paul's rule (22 November): a child care line has no waiting period, whatever an older file or a document says
     ['life', 'sev', 'lsd', 'ip'].forEach(function (p) { if (n[p] !== 'N/A' && (n[p] == null || typeof n[p] !== 'object')) n[p] = newLine(t)[p]; });
     return n;

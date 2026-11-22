@@ -145,6 +145,8 @@ Paul saw and corrected the mock-ups ("I'm happy with everything") and asked for 
 
 ## 8. Stage 5 built (21 November 2026): the Presentation (Client Overview page 0.4, on the work branch, not merged)
 
+**Superseded on 22 November (section 13): the voice described below was REMOVED from the Presentation altogether, the key points load by themselves and the look was redone. The sections on the voice discipline are kept only as history.**
+
 | Part | Where |
 |---|---|
 | Without a screen (tested alone) | `app/js/ov-pres.js`: the tabs, the map's short figures, the closed list of topics built from the overview (`topics`), the command grammar (`parse`), the decision (`decide`), the engine (`createEngine`) and the key-points library (`parseKeyPoints`, `pointsFor`, `benefitsFor`) |
@@ -251,9 +253,31 @@ Relayed by the Fix Skills chat with Paul's "yes: build it all": thirteen items (
 - **Which lines the page ticks:** only a **child or debt line that agrees with the Fact Find** (name, bank, amount). Household, death-related needs and dread have nothing in the Fact Find to agree with, so they stay *to check* (the page still never marks as checked something it only read). If Paul wants them ticked too, that is a one-line change.
 - **A debt line's amounts are not filled from the Fact Find**, only its name and bank (Paul asked for the bank; an amount the quote does not print stays empty and the check says so).
 - **Severe illness N/A is set when a quote is READ**; a quote typed by hand keeps its empty boxes. A pillar that is N/A is a grey N/A (not a box), as for death-related needs.
-- **The block numbers are gone from the screen only.** The PDF's and the Presentation's tabs (and the PDF's "(block 8)" words) still carry them: Paul spoke of the Studio's menu.
+- **The block numbers are gone from the screen** (and, since the Presentation round of section 13, from the Presentation too). The PDF's tabs (and the PDF's "(block 8)" words) still carry them: Paul spoke of the Studio's menu.
 - **Preview PDF, Save PDF and Present stay on the right of the top bar** (Paul listed what stays on the left).
 - **The key is stored with the Fact Find's own settings** (the same browser storage, so it is "the same key"); Remove the saved key is in Settings. A quote is now sent to Anthropic together with the Fact Find's debts and children (so the debts can be named): the Settings text says so.
 - **The pay-out guide is looked for** among the files the folder listing found (now including the numbered quotes folder), else beside the quote that was picked, else in the client's quotes folder.
 - **What was loaded** appears in a small card in the corner (not a window that blocks the page) when something needs a look or several documents were loaded; a failure is also told in the message and on the block's bar.
 - **Not certain:** all of it is seen only in my own screenshots, not on Paul's screen; whether a real BrightRock quote now gives an ABI on every line depends on the real reading (the instruction is stronger and the page fills "Not found" where it is empty, but the real Anthropic call has still never been made on a real document); the real Liberty schedules (their premiums and numbers) are untested.
+
+## 13. The Presentation round (22 November; built in the same release as Studio 0.8, after Paul's decision that the voice is "too volatile")
+
+The Fix Skills chat relayed, in three messages (the first, with a voice through the speech listener and Claude, was **withdrawn by Paul and superseded** by the second and third), what Paul wants of the Presentation. **Built, tested and on the work branch; NOT merged (waits for Paul's own "merge"), NOT installed.**
+
+| Paul's point | What was built |
+|---|---|
+| **No voice at all** (no microphone, no voice button, no listening line) | `ov-pres.js` lost its grammar, topics, decisions and engine; `ov-present.js` lost the listener, the Voice button and the line; `overview.html` no longer loads `listen.js`. The Fact Find's own voice is untouched. A test fails if voice code or text comes back. |
+| **P2: highlight by clicking** (Life cover, Severe illness, Lump sum disability, Income protector, **ACI, ABI**; a line click "as now"); **nothing greyed out** | Six buttons (each shown only where its column is on the page: the shortfall and the comparison have no ACI or ABI) and the column headings do the same; a line click as before; **the dimming rules are gone** (a browser check reads the computed opacity of every element with a highlight on: all 1). |
+| **P4: remove the word "Highlight"** | Gone from the screen and from the buttons' tooltips. |
+| **P5: key points by themselves, two or three bullets, loaded automatically** | The page reads **`wr-keypoints.json` at the top of New Business (then Client Files)**, through the folders connected with Folders…, and keeps a copy in the browser; at most three points show, for the insurer on screen and what is highlighted (the benefit keys are in `OVERVIEW-DATA-CONTRACT.md` section 13). No button, no file chooser. |
+| **P6: match the entry screen** (accelerated / standalone per debt line, child care waiting N/A, ACI in the quote's words on every line, ABI filled, no block numbers on the tabs) | `accelerated` on a debt line is now yes / no / unknown (contract revision h), chosen on the entry screen, asked of the reading, printed in the PDF and the Presentation; the Presentation already took the quote's ACI words and the line's ABI and N/A waiting from the same code; its tabs, titles and cards carry no number. |
+| **The look** (white, blue, orange, logo; cards; pills; soft tables; glow; sliding key-points card; no scroll bars) | `css/present.css` and `js/ov-present.js` rewritten: a blue header band and cards with icons on the main page, rounded pill tabs (the current one filled blue with an orange underline), a left-out page simply not there, tables with room to breathe and big bold figures, a soft orange glow, the slim key-points card with a coloured top edge that slides in, a gentle fade between pages. |
+
+**Decisions made while building (my readings, for Paul to correct):**
+- **The key-points file is `wr-keypoints.json` at the top of New Business (then Client Files).** The page reads it with the connection it already has; the browser asks for a folder's permission only when nothing is kept in the browser yet (the click on Present allows it). If Paul prefers another place, it is one function (`FF.foldersUI.rootFile`).
+- **A point over 200 characters is left out** (and counted in the top bar): a bullet must be short. **An empty `insurer` in the file means every insurer.**
+- **A left-out page is not on the tab row and not on the main page at all** (Paul: either left out or quietly greyed without a line; left out is cleaner).
+- **The PDF keeps its numbered tabs** (Paul spoke of the Presentation and the Studio's screen).
+- **A new debt line starts "not known"** (it started "accelerated"); **an older saved file may carry an accelerated debt line nobody confirmed**: the choice is on the entry screen to check.
+- **The main page has the client's name in a blue band** (the top bar's name is hidden there so it is not shown twice).
+- **Not certain:** seen only in my own screenshots, not on Paul's screen or a projector; the permission prompt for the folder has not been seen with Chrome's real folder picker; the key points have only been tried with an invented library; whether the real reading gives `accelerated` correctly is untested (the real Anthropic call has never been made on a real document).

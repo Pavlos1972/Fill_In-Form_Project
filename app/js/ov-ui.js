@@ -214,7 +214,7 @@
     if (l.removed) return fresh(p) ? '<tr class="removed" data-row="' + p + '" data-notice="' + p + '"><td colspan="' + cols + '"><span class="gone">' + esc((l.label || t.l) + (l.name ? ' · ' + l.name + ' ' + (l.sname || '') : '') + (l.debt ? ' · ' + l.debt : '')) + ' removed.</span> <button type="button" class="lnk" data-undo="' + p + '">Undo</button></td></tr>' : '';
     var need = '<b>' + esc(l.type === 'other' ? '' : t.l) + '</b>';
     if (l.type === 'child') need = '<b>Child care</b><div class="two">' + inp(p + '.name', 'text', '', 'Name') + inp(p + '.sname', 'text', '', 'Surname') + '</div>';
-    else if (l.type === 'debt') need = '<b>Debt</b><div class="two">' + inp(p + '.debt', 'text', '', 'Debt') + inp(p + '.bank', 'text', '', 'Bank') + '</div>';
+    else if (l.type === 'debt') need = '<b>Debt</b><div class="two">' + inp(p + '.debt', 'text', '', 'Debt') + inp(p + '.bank', 'text', '', 'Bank') + '</div><div class="accsel">' + sel(p + '.accelerated', [{ id: 'true', l: 'Accelerated' }, { id: 'false', l: 'Standalone' }], 'tri') + '</div>';
     else if (l.type === 'other') need = inp(p + '.label', 'text', '', 'Description');
     function pillar(pid, hasLump, hasMonthly) {
       if (l[pid] === 'N/A') return '<td class="c"><span class="na">N/A</span></td>';

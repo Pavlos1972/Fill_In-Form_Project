@@ -6,6 +6,17 @@ Written on 20 November 2026 by Chat 3 ("Fact Find Audio to Text Form - Chat 3"),
 
 `docs/HANDOVER-TO-CHAT-3.md` is **not replaced**: its sections 3 (saving into the client's folder), 4 (the routine, with the tool names), 6 (the changes page), 8 (open items) and 9 (the names clean-up record) are still true and are the detailed reference. This file carries what is new since, and everything else in short.
 
+## 0d. UPDATE of 22 November 2026, the same evening (Chat 3): the Presentation round is built INTO Studio 0.8 (not merged, not installed)
+
+After Studio 0.8 was pushed (`a97c1f4`), the Fix Skills chat relayed three messages about the Presentation: the first (a voice through Whisper / Claude) was **withdrawn by Paul** ("too volatile"), the second removed the voice altogether and kept the click highlights and the key points, the third asked for a new look and for **screenshots of the main page, a quote page and a page with key points before Paul's merge** (sent). Built on the work branch; **only Paul's own "merge" merges it.** Details: `docs/PROJECT-CLIENT-OVERVIEW.md` section 13, the README's Presentation bullets, `docs/OVERVIEW-DATA-CONTRACT.md` section 13 and revision h.
+
+- **No voice in the Presentation** (`ov-pres.js` is now only the tabs, the main-page figures and the key-points library logic; `overview.html` does not load `listen.js`).
+- **Highlight by clicking** (six buttons including ACI and ABI, the column headings, a line); **nothing dimmed**.
+- **Key points found by the page:** `wr-keypoints.json` at the top of New Business (then Client Files), read by `FF.foldersUI.rootFile`; copy in `localStorage` `wr-keypoints`; at most three bullets; benefit keys in the contract's section 13 (tell the Fix Skills chat where the page reads the file and the keys so it can draft the library for Paul's approval; **the library is never committed: a test fails if a key-points file is in the repository**).
+- **`accelerated` per debt line** (true / false / null; new lines start null; the entry screen, the reading, the PDF and the Presentation).
+- **New look**, no block numbers on the Presentation (the PDF keeps its numbered tabs), a left-out page is not there at all.
+- **Next:** wait for Paul's "merge" (the routine, the ZIP, the FOR THE FIX SKILLS CHAT block with the keys `match` and `accelerated`, the key-points file and keys, voice removed, display changes).
+
 ## 0c. UPDATE of 22 November 2026, still later (Chat 3): Client Overview Studio 0.8 is BUILT and waits for Paul's "merge"
 
 After Studio 0.7 (PR 94, `64698a1`, merged and published; ZIP sent), the Fix Skills chat relayed **Paul's third batch, after he used 0.7 on a real client** (13 items, "yes: build it all, report, merge only on my word, tell me any change to the saved file"). **Built, tested (929 unit tests; browser suite incl. the new `t-overview-load.js`) and pushed on the work branch; NOT merged, NOT installed.** Details: `README.md` "Client Overview Studio 0.8" bullet, `docs/FORM-CHANGES.md`, `docs/PROJECT-CLIENT-OVERVIEW.md` section 12, `docs/OVERVIEW-DATA-CONTRACT.md` revision g, `CLAUDE.md` section 0 first row.

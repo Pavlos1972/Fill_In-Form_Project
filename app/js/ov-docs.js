@@ -35,12 +35,13 @@
   /* ---------- reading with Claude (only when switched on) ---------- */
   var RULES = 'Answer with ONE JSON object and nothing else. Amounts are plain numbers in rand (no R, no spaces, no commas); percentages are plain numbers (10 means 10%); dates are dd/mm/yyyy. Copy only what the document says: if you cannot find ' +
     'a figure, write null, never a guess. Write "N/A" only where the document marks a cell as not applicable. Do not add, work out or round anything.';
-  var LINE = '{ "type": "household" | "child" | "debt" | "death" | "dread" | "other", "label": "text", "term": "text as printed", "name": "child first name", "sname": "child surname", "debt": "debt name as printed", "bank": "bank", ' +
+  var LINE = '{ "type": "household" | "child" | "debt" | "death" | "dread" | "other", "label": "text", "term": "text as printed", "name": "child first name", "sname": "child surname", "debt": "debt name as printed", "bank": "bank", "accelerated": true | false | null, ' +
     '"life": { "lump": n, "monthly": n }, "sev": { "lump": n }, "lsd": { "lump": n, "monthly": n }, "ip": { "monthly": n }, "waiting": "text as printed", "abi": n | "Not found" }';
   var SPECS = {
     quote: 'This is an insurance quote (BrightRock or another insurer). Return { "insurer": "text", "number": "the quote or CP number as printed", "date": "dd/mm/yyyy", "rates": "e.g. Non-smoker rates", "aci": n (the yearly premium increase as a number), "aciText": "the yearly premium increase EXACTLY as the quote words it, for example 7.5% + age rater, or CPI + 2%; null when the quote only gives a figure", "premium": n (the total monthly premium), ' +
       '"abi": n (only when the quote prints ONE annual benefit increase for the whole quote), "servicing": true | false (true when the quote is for a policy the client already has, a review or servicing quote; false for new business), "disabilityAge": n (the age lump sum disability and the income protector run to), "lines": [ ' + LINE + ' ], "printedTotals": { "life": { "lump": n, "monthly": n }, "sev": { "lump": n }, "lsd": { "lump": n, "monthly": n }, "ip": { "monthly": n } } }. ' +
       'Each need (household, each child, each debt, death-related needs, additional expense needs / dread) is one line; the monthly figure printed under a lump sum is "monthly". A child line has the child\'s name and surname; a debt line the debt\'s name and the bank. ' +
+      'A debt line says whether its debt cover is ACCELERATED ("accelerated": true: it is paid out of, and reduces, the life cover) or STANDALONE ("accelerated": false: a separate benefit on top of the life cover); when the quote does not say, write null. ' +
       'EVERY line has its own "abi": the annual benefit increase (annual base increase) of that need, as a number. BrightRock prints it for each need, or once for the whole quote: when it is printed once, copy it onto every line it covers (and also give it as "abi" of the quote). ' +
       'When the quote prints no annual benefit increase for a line, write "Not found" in that line\'s "abi", never null. Severe illness has an amount only on the lines where the quote gives one (the additional expense needs line); leave it null on the others. ' +
       'For a quote that does not list needs separately (other insurers), give one line of type "other" for each benefit with its label. printedTotals is only what the document itself prints as totals; leave it null if it prints none.',
@@ -112,7 +113,7 @@
     var t = schema.lineTypesById[l.type] ? l.type : 'other', out = store.newLine(t, { label: s(l.label) || schema.lineTypesById[t].l });
     if (s(l.term)) out.term = s(l.term);
     if (t === 'child') { out.name = s(l.name) || ''; out.sname = s(l.sname) || ''; }
-    if (t === 'debt') { out.debt = s(l.debt) || ''; out.bank = s(l.bank) || ''; }
+    if (t === 'debt') { out.debt = s(l.debt) || ''; out.bank = s(l.bank) || ''; out.accelerated = l.accelerated === true || /^accelerated$/i.test(String(l.accelerated || '')) ? true : l.accelerated === false || /^stand ?alone$/i.test(String(l.accelerated || '')) ? false : null; }
     [['life', ['lump', 'monthly']], ['sev', ['lump']], ['lsd', ['lump', 'monthly']], ['ip', ['monthly']]].forEach(function (p) {
       if (out[p[0]] === 'N/A') return;
       var c = l[p[0]]; if (c === 'N/A') { out[p[0]] = 'N/A'; return; }

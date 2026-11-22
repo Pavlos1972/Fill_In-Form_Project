@@ -202,3 +202,6 @@ dialog#resultsDlg .docsess { max-height: 60vh; overflow: auto; }
 
 /* "Not found" in an ABI box (the quote printed none) must be readable in the narrow column */
 .ovt input.isna { font-size: 11px; padding-left: 3px; padding-right: 3px; }
+
+/* Studio 0.8: accelerated or standalone, under a debt's name */
+.ovt .accsel select { width: 100%; font-size: 11.5px; padding: 1px 2px; margin-top: 2px; color: var(--muted, #646e76); }
