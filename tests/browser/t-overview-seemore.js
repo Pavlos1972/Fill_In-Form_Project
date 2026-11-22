@@ -57,7 +57,7 @@ srv.listen(0, async () => {
     const c = document.querySelector('#main .qcard'), t = c.querySelector('table.lines'), heads = [...t.querySelectorAll('thead th')].map(x => x.textContent.replace(/\s+/g, ' ').trim());
     const abi = [...t.querySelectorAll('[data-p$=".abi"]')].map(i => i.value), money = [...t.querySelectorAll('input.amt[data-k="money"]')].map(i => i.value).filter(Boolean);
     const kid = [...t.querySelectorAll('tr.ln')].find(r => /Child care/.test(r.textContent));
-    return { heads, xbtn: t.querySelectorAll('.xbtn').length, adders: c.querySelectorAll('.adders .addrow').length, abi, moneyOk: money.length > 5 && money.every(v => /^R[\d,.]+$/.test(v)), aci: t.querySelector('tbody td .aci').textContent, kidWait: kid.querySelector('[data-p$=".waiting"]').value,
+    return { heads, xbtn: t.querySelectorAll('.xbtn').length, adders: c.querySelectorAll('.adders .addrow').length, abi, moneyOk: money.length > 5 && money.every(v => /^R[\d,.]+$/.test(v)), aci: t.querySelector('tbody td .aci').textContent, kidWait: kid.cells[6].textContent.trim(),
       totals: t.querySelector('tr.tot.lump').textContent, cols: t.querySelectorAll('colgroup col').length };
   });
   ok(q.heads.length === 9 && q.heads[8] === 'ABI' && q.xbtn === 0 && q.cols === 9, '2. a quote\'s lines have nine columns: no remove (X) column to the right of ABI: ' + JSON.stringify(q.heads));

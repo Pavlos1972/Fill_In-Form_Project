@@ -289,7 +289,8 @@
         await files(k.handle, [k.name]);
         var years = (await listDirs(k.handle)).filter(function (y) { return RULES.year.test(norm(y.name)); }).sort(function (a, b) { return b.name < a.name ? -1 : 1; });
         if (years.length) await files(years[0].handle, [k.name, years[0].name]);
-      } else if (!isStandard(k.name)) {
+      } else if (isStandard(k.name) && /quote|goal|rgar|egar|proposal|analysis/.test(nk)) await files(k.handle, [k.name]);          // the quotes (and their change moment pay-out guides), the goal analysis reports and the proposals
+      else if (!isStandard(k.name)) {
         var inner = await listDirs(k.handle);
         for (var j = 0; j < inner.length; j++) if (/comparative quotes/.test(norm(inner[j].name))) await files(inner[j].handle, [k.name, inner[j].name]);
       }

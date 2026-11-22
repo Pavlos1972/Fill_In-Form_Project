@@ -36,11 +36,13 @@
   var RULES = 'Answer with ONE JSON object and nothing else. Amounts are plain numbers in rand (no R, no spaces, no commas); percentages are plain numbers (10 means 10%); dates are dd/mm/yyyy. Copy only what the document says: if you cannot find ' +
     'a figure, write null, never a guess. Write "N/A" only where the document marks a cell as not applicable. Do not add, work out or round anything.';
   var LINE = '{ "type": "household" | "child" | "debt" | "death" | "dread" | "other", "label": "text", "term": "text as printed", "name": "child first name", "sname": "child surname", "debt": "debt name as printed", "bank": "bank", ' +
-    '"life": { "lump": n, "monthly": n }, "sev": { "lump": n }, "lsd": { "lump": n, "monthly": n }, "ip": { "monthly": n }, "waiting": "text as printed", "abi": n }';
+    '"life": { "lump": n, "monthly": n }, "sev": { "lump": n }, "lsd": { "lump": n, "monthly": n }, "ip": { "monthly": n }, "waiting": "text as printed", "abi": n | "Not found" }';
   var SPECS = {
     quote: 'This is an insurance quote (BrightRock or another insurer). Return { "insurer": "text", "number": "the quote or CP number as printed", "date": "dd/mm/yyyy", "rates": "e.g. Non-smoker rates", "aci": n (the yearly premium increase as a number), "aciText": "the yearly premium increase EXACTLY as the quote words it, for example 7.5% + age rater, or CPI + 2%; null when the quote only gives a figure", "premium": n (the total monthly premium), ' +
-      '"servicing": true | false (true when the quote is for a policy the client already has, a review or servicing quote; false for new business), "disabilityAge": n (the age lump sum disability and the income protector run to), "lines": [ ' + LINE + ' ], "printedTotals": { "life": { "lump": n, "monthly": n }, "sev": { "lump": n }, "lsd": { "lump": n, "monthly": n }, "ip": { "monthly": n } } }. ' +
-      'Each need (household, each child, each debt, death-related needs, additional expense needs / dread) is one line; the monthly figure printed under a lump sum is "monthly". A child line has the child\'s name and surname; a debt line the debt\'s name. ' +
+      '"abi": n (only when the quote prints ONE annual benefit increase for the whole quote), "servicing": true | false (true when the quote is for a policy the client already has, a review or servicing quote; false for new business), "disabilityAge": n (the age lump sum disability and the income protector run to), "lines": [ ' + LINE + ' ], "printedTotals": { "life": { "lump": n, "monthly": n }, "sev": { "lump": n }, "lsd": { "lump": n, "monthly": n }, "ip": { "monthly": n } } }. ' +
+      'Each need (household, each child, each debt, death-related needs, additional expense needs / dread) is one line; the monthly figure printed under a lump sum is "monthly". A child line has the child\'s name and surname; a debt line the debt\'s name and the bank. ' +
+      'EVERY line has its own "abi": the annual benefit increase (annual base increase) of that need, as a number. BrightRock prints it for each need, or once for the whole quote: when it is printed once, copy it onto every line it covers (and also give it as "abi" of the quote). ' +
+      'When the quote prints no annual benefit increase for a line, write "Not found" in that line\'s "abi", never null. Severe illness has an amount only on the lines where the quote gives one (the additional expense needs line); leave it null on the others. ' +
       'For a quote that does not list needs separately (other insurers), give one line of type "other" for each benefit with its label. printedTotals is only what the document itself prints as totals; leave it null if it prints none.',
     policy: 'This is a policy schedule. Return { "insurer": "text", "product": "text", "policyNo": "text", "doc": "dd/mm/yyyy (date of commencement)", "premium": n (monthly), "aci": n, "aciText": "the yearly premium increase exactly as the schedule words it, or null when it only gives a figure", "abi": n, "ipAge": n, "benefits": { "life": "short description as printed", "lsd": "...", "ip": "..." }, "lines": [ ' + LINE + ' ] }. ' +
       'Give one line for each benefit or need with its amounts; use type "other" for a benefit that is not a need.',
@@ -55,6 +57,15 @@
     cmp: 'This is a BrightRock change moment pay-out guide. Return { "number": "the CP number", "activationDate": "dd/mm/yyyy", "reason": "BrightRock\'s reason, only if it gives no pay-out, else null", "rows": [ { "key": "total" | "retirement" | "childcare" | "child", "name": "child first name", "sname": "child surname", "today": n, "projected": n, "payoutDate": "dd/mm/yyyy" or null } ] }.'
   };
   var SPEC_OF = { fna: 'quote', shortfallQuote: 'quote', reduced: 'quote', comparative: 'quote', policies: 'policy', group: 'group', investments: 'investment', astute: 'astute', cmp: 'cmp', proposed: 'proposal', goals: 'goal', other: 'policy' };
+  /* What the Fact Find says about the client's debts and children, for the reading of a quote (the quote often prints no bank or the debt's name): Claude is asked to name each debt line from it. '' when there is nothing. */
+  function factNote(state) {
+    var f = state && state.factFind && state.factFind.facts; if (!f) return '';
+    var debts = (f.debts || []).map(function (d) { return '- ' + [d.desc || d.type, d.prov ? 'bank: ' + d.prov : '', calc.isNum(d.bal) ? 'balance R' + d.bal : '', calc.isNum(d.inst) ? 'instalment R' + d.inst + ' a month' : ''].filter(Boolean).join(', '); });
+    var kids = (f.children || []).map(function (c) { return '- ' + [c.name, c.sname].filter(Boolean).join(' '); });
+    if (!debts.length && !kids.length) return '';
+    return 'The adviser\'s Fact Find for this client lists these debts and children. Match each debt line and child line of the quote to one of them and use their names (and the bank of a debt) where the quote does not print them; do not invent a line the quote does not have.\n' +
+      (debts.length ? 'Debts:\n' + debts.join('\n') + '\n' : '') + (kids.length ? 'Children:\n' + kids.join('\n') : '');
+  }
   function promptFor(block, ctx) {
     return 'You read insurance documents for a South African financial adviser. ' + RULES + '\n\n' + SPECS[SPEC_OF[block]] + (ctx && ctx.clientNote ? '\n\n' + ctx.clientNote : '');
   }
@@ -95,7 +106,8 @@
   function s(v) { return v == null || v === '' ? null : String(v).trim() || null; }
   function dmy(v) { var t = s(v); if (!t) return null; var d = util.parseDate(t); return d ? util.formatDate(d) : t; }
   /* A line as the document gave it: only the known cells, as numbers; anything else is dropped. */
-  function line(l, src) {
+  function line(l, src, o) {
+    o = o || {};
     l = l && typeof l === 'object' ? l : {};
     var t = schema.lineTypesById[l.type] ? l.type : 'other', out = store.newLine(t, { label: s(l.label) || schema.lineTypesById[t].l });
     if (s(l.term)) out.term = s(l.term);
@@ -106,8 +118,11 @@
       var c = l[p[0]]; if (c === 'N/A') { out[p[0]] = 'N/A'; return; }
       if (c && typeof c === 'object') p[1].forEach(function (k) { if (c[k] !== undefined) out[p[0]][k] = n(c[k]); });
     });
-    if (s(l.waiting) && (out.waiting !== 'N/A' || t === 'child')) out.waiting = s(l.waiting);                 // a child care line starts as N/A; a document that gives a waiting period wins
-    if (l.abi !== undefined) out.abi = n(l.abi);
+    if (t === 'child') out.waiting = 'N/A';                                                                    // Paul's rule (22 November): child care never has a waiting period, whatever the document says
+    else if (out.waiting !== 'N/A' && s(l.waiting)) out.waiting = s(l.waiting);
+    var hasAbi = function (v) { return v !== undefined && v !== null && v !== ''; };
+    if (hasAbi(l.abi)) out.abi = n(l.abi); else if (hasAbi(o.abi)) out.abi = n(o.abi); else if (o.quote) out.abi = 'Not found';        // a quote's line always has an ABI; one the quote does not print says so
+    if (o.quote && out.sev !== 'N/A' && !calc.isNum(out.sev.lump)) out.sev = 'N/A';                          // severe illness is N/A on every line except where the quote has an amount
     out.st = 'verify'; out.by = 'page'; out.src = src; return out;
   }
   function pillarsOf(c) {
@@ -124,6 +139,18 @@
     return hit;
   }
 
+  /* The Fact Find's children and debts against a quote that was read: a debt line the quote gives without its name or bank (or a child line without a surname) gets them from the matching Fact Find row (matched by name, then by the
+     instalment or the balance). Only empty text boxes are filled: what the quote printed is never replaced, and no amount is invented. */
+  function enrich(state, q) {
+    var f = state && state.factFind && state.factFind.facts; if (!f) return 0;
+    var lines = calc.activeLines(q), n2 = 0;
+    calc.matchChildren(lines, f.children || []).pairs.forEach(function (p) { if (!s(p.line.sname) && s(p.ff.sname)) { p.line.sname = s(p.ff.sname); n2++; } });
+    calc.matchDebts(lines, f.debts || []).pairs.forEach(function (p) {
+      if (!s(p.line.debt) && (s(p.ff.desc) || s(p.ff.type))) { p.line.debt = s(p.ff.desc) || s(p.ff.type); n2++; }
+      if (!s(p.line.bank) && s(p.ff.prov)) { p.line.bank = s(p.ff.prov); n2++; }
+    });
+    return n2;
+  }
   /* A quote. data: what was read (or, with reading off, { number, date } from the file name). o: { replaces: id } */
   function applyQuote(state, block, data, file, o) {
     o = o || {}; data = data || {};
@@ -135,7 +162,9 @@
     if (data.premium !== undefined && !o.nameOnly) q.premium = n(data.premium);
     if (data.servicing === true || data.servicing === false) q.servicing = data.servicing;
     if (data.disabilityAge !== undefined && calc.isNum(n(data.disabilityAge))) q.disabilityAge = n(data.disabilityAge);
-    if (read) q.lines = data.lines.map(function (l) { return line(l, src); });
+    if (read) q.lines = data.lines.map(function (l) { return line(l, src, { quote: true, abi: data.abi }); });
+    if (!s(data.aciText) && read) { var lw = data.lines.filter(function (l) { return l && s(l.aciText); })[0]; if (lw) q.aciText = s(lw.aciText); }          // the ACI words belong to the quote: the lines show the same
+    if (read) enrich(state, q);
     if (data.printedTotals && typeof data.printedTotals === 'object') q.printedTotals = pillarsOf(data.printedTotals);
     q.st = 'verify'; q.by = 'page'; q.src = src; q.status = 'pending';
     if (o.replaces) { var old = store.findQuote(state, o.replaces); if (old) { old.removed = true; old.replacedBy = q.id; q.replaces = old.id; } }
@@ -149,7 +178,13 @@
     var byNo = pn ? hits.filter(function (i) { return qkey(i.policyNo) === pn; }) : [];
     if (byNo.length === 1) return byNo[0];
     var who = calc.norm(getName(data)), byName = who ? hits.filter(function (i) { var m = calc.norm(getName(i)); return m && (m === who || who.indexOf(m) >= 0 || m.indexOf(who) >= 0); }) : [];
-    return byName.length === 1 ? byName[0] : (byName.length > 1 ? { ambiguous: byName } : null);
+    if (byName.length <= 1) return byName.length ? byName[0] : null;
+    /* more than one policy of this insurer (two Liberty policies): the policy number, then the premium (the Fact Find's monthly spend against the schedule's), then the one no document has filled yet */
+    var prem = n(data.premium), byPrem = calc.isNum(prem) ? byName.filter(function (i) { return calc.isNum(i.premium) && Math.abs(i.premium - prem) <= 1; }) : [];
+    if (byPrem.length === 1) return byPrem[0];
+    var pool = byPrem.length ? byPrem : byName, open = pool.filter(function (i) { return i.st === 'ff' || i.st === 'empty'; });
+    if (byPrem.length > 1 && open.length >= 1) return open[0];                                              // the same premium twice: the first one nothing has filled yet
+    return { ambiguous: byName };
   }
   function applyPolicy(state, item, data, file) {
     var src = srcOf('schedule', file);
@@ -247,6 +282,6 @@
     return !Object.keys(data).some(function (k) { return has(data[k]) && typeof data[k] !== 'object'; }) && !Object.keys(data).some(function (k) { var v = data[k]; return v && typeof v === 'object' && Object.keys(v).some(function (j) { return has(v[j]); }); });
   }
 
-  return { classify: classify, promptFor: promptFor, parseReply: parseReply, readWithClaude: readWithClaude, applyQuote: applyQuote, applyPolicy: applyPolicy, applyOther: applyOther, applyGroup: applyGroup, applyInvestment: applyInvestment, applyAstute: applyAstute, applyProposed: applyProposed, applyGoal: applyGoal, isEmptyRead: isEmptyRead,
+  return { classify: classify, promptFor: promptFor, parseReply: parseReply, readWithClaude: readWithClaude, applyQuote: applyQuote, enrich: enrich, factNote: factNote, applyPolicy: applyPolicy, applyOther: applyOther, applyGroup: applyGroup, applyInvestment: applyInvestment, applyAstute: applyAstute, applyProposed: applyProposed, applyGoal: applyGoal, isEmptyRead: isEmptyRead,
     applyCmp: applyCmp, matchItem: matchItem, logDoc: logDoc, findQuoteByNumber: findQuoteByNumber, SPEC_OF: SPEC_OF, BLOCK_LABEL: BLOCK_LABEL, QUOTE_OF: QUOTE_OF, ENDPOINT: ENDPOINT };
 });

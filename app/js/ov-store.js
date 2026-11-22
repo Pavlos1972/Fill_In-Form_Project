@@ -49,7 +49,7 @@
     for (var i = 0; i < parts.length - 1; i++) { o = o[parts[i]]; if (o == null) return undefined; if (typeof o === 'object' && !Array.isArray(o) && Object.prototype.hasOwnProperty.call(o, 'st')) owner = o; }
     var last = parts[parts.length - 1];
     o[last] = val;
-    if (owner) { owner.st = 'confirmed'; owner.by = 'person'; }
+    if (owner) { owner.st = 'confirmed'; owner.by = 'person'; delete owner.match; }                          // a person's typing is a person's check: the page's automatic match is over
     return val;
   }
   /* A row (a quote, a line, an item) is checked by a person: it turns green. */
@@ -321,7 +321,7 @@
     l = l && typeof l === 'object' ? l : {};
     var t = schema.lineTypesById[l.type] ? l.type : 'other';
     var n = Object.assign(newLine(t), l); n.type = t; n.id = n.id || uid('l'); n.st = ST[l.st] ? l.st : 'verify'; n.removed = !!n.removed;
-    if (t === 'child' && (n.waiting == null || n.waiting === '')) n.waiting = 'N/A';                                   // an older file: a child care line has no waiting period unless a document gave one
+    if (t === 'child') n.waiting = 'N/A';                                                                          // Paul's rule (22 November): a child care line has no waiting period, whatever an older file or a document says
     ['life', 'sev', 'lsd', 'ip'].forEach(function (p) { if (n[p] !== 'N/A' && (n[p] == null || typeof n[p] !== 'object')) n[p] = newLine(t)[p]; });
     return n;
   }

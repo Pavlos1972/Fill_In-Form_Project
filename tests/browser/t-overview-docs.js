@@ -32,14 +32,15 @@ const POLICY = { insurer: 'Other Insurer', product: 'Test Protector', policyNo: 
   const upload = async (files, sel) => { await p.setInputFiles(sel || '#docIn', files); await p.waitForTimeout(400); };
   const st = () => p.evaluate(() => OV.app.state);
   const toast = () => p.evaluate(() => document.querySelector('#toast').textContent);
-  const side = () => p.evaluate(() => document.querySelector('#docs').innerText.replace(/\s+/g, ' '));
+  const side = () => p.evaluate(() => OV.app.lastLog().map(x => x.msg).join(' ') + ' ' + document.querySelector('#toast').textContent);          // what the last load said (the Documents panel is gone)
+  const reading = on => p.evaluate(v => localStorage.setItem('wr-overview-read', v ? '1' : '0'), on);
   const calls = () => p.evaluate(() => window.__api.length);
   const reply = r => p.evaluate(r => { window.__reply = r; }, r);
 
   /* ---- 1. reading is ON to start with; switched off, a document is only recorded ---- */
-  ok(await p.evaluate(() => document.querySelector('#aiSwitch').checked) && /no Anthropic key/.test(await p.evaluate(() => document.querySelector('#aiNote').textContent)), '1. reading is ON to start with (Paul\'s decision of 22 November), and with no key the card says so');
-  await p.uncheck('#aiSwitch'); await p.waitForTimeout(100);
-  ok(await p.evaluate(() => !document.querySelector('#aiSwitch').checked) && /Off: an uploaded document is only recorded/.test(await p.evaluate(() => document.querySelector('#aiNote').textContent)), '1. switched OFF by the adviser: a document is only recorded, and the page says what that means');
+  ok(await p.evaluate(() => OV.app.aiOn()), '1. reading is ON to start with (Paul\'s decision of 22 November)');
+  await reading(false); await p.waitForTimeout(100);
+  ok(await p.evaluate(() => !OV.app.aiOn()), '1. switched OFF by the adviser (in Settings): a document is only recorded');
   await upload([file('BR FNA - 100000001 - R2900.00 - 19.11.26.pdf'), file('BR Reduced Quote - 100000003 - R1400.00 - 04.09.26.pdf'), file('notes.pdf')]);
   const dlgText = await p.evaluate(() => { const d = document.querySelector('dialog.fdlg[open]'); return d ? d.innerText : ''; });
   ok(/What are these documents\?/.test(dlgText) && /notes\.pdf/.test(dlgText) && !/BR FNA - 100000001|BR Reduced/.test(dlgText), '1. the one the page cannot sort asks what it is (the other two are sorted by their names)');
@@ -48,13 +49,13 @@ const POLICY = { insurer: 'Other Insurer', product: 'Test Protector', policyNo: 
   ok(fna && fna.number === '100000001' && fna.date === '19/11/2026' && fna.premium === null && fna.src.file.startsWith('BR FNA'), '1. the FNA quote was started from the number and date in its file name (the premium in the name is not taken)');
   ok(fna.lines.every(l => l.st === 'ff') && red && red.number === '100000003' && s.blocks.comparative.quotes.length === 1, '1. its lines still wait for the document; the reduced quote and the comparative quote are there too');
   ok(s.documents.length === 3 && (await calls()) === 0, '1. three documents recorded, and nothing was sent anywhere');
-  ok(/3 documents loaded/.test(await toast()) && /BR FNA - 100000001/.test(await side()) && /recorded/.test(await side()), '1. the message and the Documents card say what was loaded: ' + (await toast()).slice(0, 90));
+  ok(/3 documents loaded/.test(await toast()) && /BR FNA - 100000001/.test(await side()) && /started from the number and date/.test(await side()), '1. the message and the load\'s own list say what was loaded: ' + (await toast()).slice(0, 90));
 
   /* ---- 2. switching reading on asks first; with no key it says so and only records ---- */
-  await p.check('#aiSwitch'); await p.waitForTimeout(100);
-  ok(await p.evaluate(() => document.querySelector('#aiSwitch').checked) && /no Anthropic key/.test(await p.evaluate(() => document.querySelector('#aiNote').textContent)), '2. switched on (after the question), the card says there is no key yet');
+  await reading(true); await p.waitForTimeout(100);
+  ok(await p.evaluate(() => OV.app.aiOn()), '2. switched on again');
   await upload([file('BR Shortfall - 100000002 - R2500.00 - 20.11.26.pdf')]);
-  ok((await calls()) === 0 && (await st()).blocks.shortfallQuote.quotes.length === 1 && /no Anthropic key/.test(await side()), '2. with no key the document is only recorded, and nothing is sent');
+  ok((await calls()) === 0 && (await st()).blocks.shortfallQuote.quotes.length === 1 && /needs your Anthropic key/.test(await side()) && await p.evaluate(() => !!document.querySelector('#toast [data-toastlink]')), '2. with no key the document is only recorded, nothing is sent, and the message has a link to Settings');
 
   /* ---- 3. with a key: the quote is read into amber rows with its file; the totals follow ---- */
   await p.evaluate(() => FF.lookup.saveSettings({ apiKey: 'sk-test-key', model: 'claude-test' }));
@@ -64,10 +65,10 @@ const POLICY = { insurer: 'Other Insurer', product: 'Test Protector', policyNo: 
   s = await st(); const q2 = s.blocks.fna.quotes[1];
   const api = await p.evaluate(() => window.__api);
   ok(api.length === 1 && api[0].key === 'sk-test-key' && api[0].type === 'document' && Buffer.from(api[0].data, 'base64').toString() === '%PDF-1.4 the quote' && /insurance quote/.test(api[0].prompt), '3. the document went to Anthropic as itself (base64) with the key and the quote instructions');
-  ok(q2 && q2.number === '100000020' && q2.lines.length === 5 && q2.lines.every(l => l.st === 'verify' && l.by === 'page' && l.src.file.startsWith('BR FNA - 100000020')) && q2.st === 'verify', '3. read into a new quote: five lines, amber, each with its file');
+  ok(q2 && q2.number === '100000020' && q2.lines.length === 5 && q2.lines.every(l => (l.st === 'verify' || (l.st === 'confirmed' && l.match === 'factfind')) && l.by === 'page' && l.src.file.startsWith('BR FNA - 100000020')) && q2.st === 'verify', '3. read into a new quote: five lines, amber (or checked by the page where the Fact Find agrees), each with its file');
   ok(await p.evaluate(() => /R3,100,000/.test(document.querySelectorAll('[data-comp^="qtot"]')[1].innerText.replace(/\s+/g, '')) || /R3,100,000/.test(document.body.innerText.replace(/\s+/g, ''))), '3. the totals follow the figures that were read');
   ok(await p.evaluate(() => document.querySelectorAll('.qcard').length) === 2 && /to check/.test(await p.evaluate(() => document.querySelectorAll('.qcard')[1].innerText)), '3. the new quote shows "to check"');
-  ok(!(await st()).blocks.fna.quotes[1].lines.some(l => l.st === 'confirmed'), '3. nothing read is marked as checked');
+  ok(!(await st()).blocks.fna.quotes[1].lines.some(l => l.st === 'confirmed' && l.match !== 'factfind'), '3. nothing read is marked as checked by anyone but the page\'s own match with the Fact Find');
   await p.screenshot({ path: out + '/overview-docs-read.png', fullPage: true });
 
   /* ---- 4. failures are told in plain words, and the document is still recorded ---- */
@@ -105,7 +106,7 @@ const POLICY = { insurer: 'Other Insurer', product: 'Test Protector', policyNo: 
   ok(/not in the Fact Find/.test(await side()) && (await st()).blocks.policies.items.length === items0, '6. a schedule for an insurer that is not in the Fact Find is not guessed: it says to add it in the Fact Find first, and adds nothing');
 
   /* ---- 7. reading off again: nothing is sent; the switch is remembered per browser ---- */
-  await p.uncheck('#aiSwitch'); const n1 = await calls();
+  await reading(false); const n1 = await calls();
   await upload([file('BR FNA - 100000050 - R1.00 - 07.01.27.pdf')]);
   ok((await calls()) === n1 && !(await p.evaluate(() => localStorage.getItem('wr-overview-read') === '1')), '7. switched off again: nothing is sent');
   ok(!errs.length, 'no page errors ' + errs.join(' | '));

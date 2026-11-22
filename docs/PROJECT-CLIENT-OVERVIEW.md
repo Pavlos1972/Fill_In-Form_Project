@@ -230,3 +230,30 @@ Relayed by the Fix Skills chat with Paul's "GO" (twenty-one items) and, in the m
 - **A document that was just read opens its item** (a quote just added opens too), so it can be checked at once; everything else starts folded.
 - **The Checks panel's lines** count a quote's rows still amber, and the differences from the Fact Find or from Paul's standards; the full list of checks is one click away.
 - **Not certain:** all of it is seen only in my own screenshots, not on Paul's screen; the white Presentation has not been seen on a projector; the ACI wording depends on how well the real reading copies it (the Anthropic call has still never been made on a real document).
+
+## 12. Paul's third batch after using Studio 0.7 on a real client (22 November; Client Overview Studio 0.8, on the work branch)
+
+Relayed by the Fix Skills chat with Paul's "yes: build it all": thirteen items (the Anthropic key in the Studio, the Documents panel removed, an ABI on every line, a progress bar under a block's name, no block numbers with Back / Next, a decluttered top bar and one upload button per block, the debts from the Fact Find, matched = green tick, severe illness N/A, child care waiting always N/A, the ACI words on each line, the change moment pay-out automatic, two Liberty schedules). Built as asked; **the saved file gains one key, `match`, and loses none (contract revision g)**.
+
+| Part | Where |
+|---|---|
+| Settings, the key, the reading switch, the link in the no-key message | `ov-ui.js` `openSettings`, `toastLink`, `aiOn` / `aiSet`; the key is stored with `FF.lookup.saveSettings` (the Fact Find's own settings, same origin) |
+| Top bar, More menu, one load button, one upload button per block | `overview.html`, `ov-ui.js` (`loadFromClientFolder`, `fromClientFolder`, `pickAny`), `css/overview.css` |
+| Bar under a block's name | `ov-ui.js` `prog`, `progStart` / `progStep` / `progEnd`, `progHTML` (in `drawNav`) |
+| No block numbers, Back / Next | `ov-ui.js` `drawNav`, `pagerHTML` (a page whose dot is `na` is skipped) |
+| Reading rules | `ov-docs.js` `line()` (ABI, severe illness, child care waiting), the prompts, `enrich`, `factNote`; `ov-store.js` `normLine` |
+| Matching and the tick | `ov-calc.js` `matchChildren` / `matchDebts` (one matching for the checks, the reading and the tick); `ov-check.js` `run` (messages with `short`, `matched`), `autoMatch`; `ov-ui.js` `badgeHTML`, `lineWhy`, `paintWhy` |
+| The pay-out guide by itself | `ov-ui.js` `autoGuide`, `ingest` (quotes first, guides after, `unmatchedGuides`), `showResults`; `folders.js` `clientDocuments` now also lists the quotes, goal analysis and proposals folders |
+| Two policies of one insurer | `ov-docs.js` `matchItem` (policy number, then premium, then the first unfilled one) |
+| Tests | `tests/overview-load.test.js`, `tests/browser/t-overview-load.js` (a real folder tree, a stand-in for the Anthropic call that answers by what is in the document); the older Overview tests were updated |
+
+**Decisions made while building (my readings, for Paul to correct):**
+- **Which lines the page ticks:** only a **child or debt line that agrees with the Fact Find** (name, bank, amount). Household, death-related needs and dread have nothing in the Fact Find to agree with, so they stay *to check* (the page still never marks as checked something it only read). If Paul wants them ticked too, that is a one-line change.
+- **A debt line's amounts are not filled from the Fact Find**, only its name and bank (Paul asked for the bank; an amount the quote does not print stays empty and the check says so).
+- **Severe illness N/A is set when a quote is READ**; a quote typed by hand keeps its empty boxes. A pillar that is N/A is a grey N/A (not a box), as for death-related needs.
+- **The block numbers are gone from the screen only.** The PDF's and the Presentation's tabs (and the PDF's "(block 8)" words) still carry them: Paul spoke of the Studio's menu.
+- **Preview PDF, Save PDF and Present stay on the right of the top bar** (Paul listed what stays on the left).
+- **The key is stored with the Fact Find's own settings** (the same browser storage, so it is "the same key"); Remove the saved key is in Settings. A quote is now sent to Anthropic together with the Fact Find's debts and children (so the debts can be named): the Settings text says so.
+- **The pay-out guide is looked for** among the files the folder listing found (now including the numbered quotes folder), else beside the quote that was picked, else in the client's quotes folder.
+- **What was loaded** appears in a small card in the corner (not a window that blocks the page) when something needs a look or several documents were loaded; a failure is also told in the message and on the block's bar.
+- **Not certain:** all of it is seen only in my own screenshots, not on Paul's screen; whether a real BrightRock quote now gives an ABI on every line depends on the real reading (the instruction is stronger and the page fills "Not found" where it is empty, but the real Anthropic call has still never been made on a real document); the real Liberty schedules (their premiums and numbers) are untested.

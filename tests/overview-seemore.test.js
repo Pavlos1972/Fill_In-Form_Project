@@ -39,7 +39,7 @@ test('an overview filled before this answer was kept does not say "the Fact Find
   assert.strictEqual(r2.changed, 1, 'a real change of the answer counts as one item');
 });
 
-test('a child care line has no waiting period: N/A by default, also in older files; a document that gives one wins; death and dread stay N/A', () => {
+test('a child care line has no waiting period: ALWAYS N/A, also in older files and whatever a document says (Paul\'s rule); death and dread stay N/A', () => {
   assert.strictEqual(store.newLine('child').waiting, 'N/A');
   assert.strictEqual(store.newLine('household').waiting, null);
   assert.strictEqual(store.newLine('death').waiting, 'N/A'); assert.strictEqual(store.newLine('dread').waiting, 'N/A');
@@ -48,7 +48,7 @@ test('a child care line has no waiting period: N/A by default, also in older fil
   assert.strictEqual(back.blocks.fna.quotes[0].lines.filter(l => l.type === 'child')[0].waiting, 'N/A', 'an older file opens with N/A');
   const st = store.blank(); const r = docs.applyQuote(st, 'fna', { number: '1', lines: [{ type: 'child', name: 'Amy', life: { lump: 1 } }, { type: 'child', name: 'Ben', waiting: '3 months', life: { lump: 1 } }, { type: 'household', waiting: '1 month' }, { type: 'death', waiting: '2 months' }] }, 'q.pdf');
   const w = r.quote.lines.map(l => l.waiting);
-  assert.deepStrictEqual(w, ['N/A', '3 months', '1 month', 'N/A']);
+  assert.deepStrictEqual(w, ['N/A', 'N/A', '1 month', 'N/A'], 'the child line that printed 3 months is N/A anyway');
 });
 
 test('the ACI in the quote\'s own words: read into aciText for a quote and a policy; the figure alone reads "10% fixed"', () => {
@@ -97,7 +97,7 @@ test('the Checks panel: one line for each document read, e.g. "BrightRock FNA CP
   assert.ok(lines().some(l => l.state === 'tocheck' && /^BrightRock FNA CP 127687903: \d+ to check/.test(l.text)), 'amber while the rows are to check: ' + JSON.stringify(lines().map(l => l.text)));
   store.acceptAll(s);
   const open = lines().filter(l => l.block === 'fna');
-  assert.ok(open.length === 1 && open[0].state === 'tocheck' && open[0].flagged === 1 && /guide is not loaded/.test(open[0].tip), 'every row is checked, but the change moment pay-out guide is missing: ' + JSON.stringify(open.map(l => [l.text, l.tip])));
+  assert.ok(open.length === 1 && open[0].state === 'tocheck' && open[0].flagged === 1 && /No change moment pay-out guide found for CP 127687903/.test(open[0].tip), 'every row is checked, but the change moment pay-out guide is missing: ' + JSON.stringify(open.map(l => [l.text, l.tip])));
   q.cmp = { number: '127687903', activationDate: null, reason: null, rows: [{ key: 'total', today: 1, projected: 2 }], st: 'verify', by: 'page', src: { kind: 'cmp', file: 'cmpo.pdf' } };
   const two = lines().filter(l => l.block === 'fna'); assert.strictEqual(two.length, 2, 'one line for the quote, one for its pay-out');
   assert.ok(two.some(l => l.text === 'BrightRock FNA CP 127687903 checked' && l.state === 'checked'), JSON.stringify(two.map(l => l.text)));
@@ -143,8 +143,8 @@ test('the monthly figure under a BrightRock lump sum says what it is: "Income po
   ['js/ov-ui.js', 'js/ov-pdf.js', 'js/ov-present.js'].forEach(f => assert.ok(!/'Income portion'/.test(app(f)), f + ' takes the label from the schema'));
 });
 
-test('the page version is 0.7 and the saved file\'s layout is still 0.1 (revision f adds keys, removes none)', () => {
-  assert.strictEqual(schema.pageVersion, '0.7'); assert.strictEqual(schema.version, '0.1');
+test('the page version is 0.8 and the saved file\'s layout is still 0.1 (revisions f and g add keys, remove none)', () => {
+  assert.strictEqual(schema.pageVersion, '0.8'); assert.strictEqual(schema.version, '0.1');
   const s = store.blank(); store.fillFromFactFind(s, ff(), 'ff.json'); const j = JSON.parse(store.toJSON(s));
   assert.ok('asked' in j.factFind.facts, 'factFind.facts.asked'); assert.ok('aciText' in j.blocks.fna.quotes.concat([store.newQuote(s, 'fna')])[0] || true);
   const q = store.newQuote(s, 'fna'); assert.ok('aciText' in q);

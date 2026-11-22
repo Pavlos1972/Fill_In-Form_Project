@@ -26,7 +26,7 @@ const FFJ = { app: 'wr-fact-find', schema: '5.4', f: { fname: { v: 'Test' }, sna
   /* ---- 1. a pay-out typed under a BrightRock quote ---- */
   await p.evaluate(() => OV.app.go('fna')); await p.waitForTimeout(60);
   ok(await p.evaluate(() => !!document.querySelector('.cmpadd [data-addcmp]')), '1. a BrightRock quote without a pay-out offers "+ Add the change moment pay-out"');
-  ok(/pay-out guide is not loaded/.test(await checks()), '1. and the checks ask for the guide');
+  ok(/No change moment pay-out guide found for CP/.test(await checks()), '1. and the checks ask for the guide');
   await p.click('[data-addcmp]'); await p.waitForTimeout(60);
   const labels = await p.evaluate(() => [...document.querySelectorAll('table.payout tbody tr')].map(r => r.querySelector('td').innerText.trim().replace(/\s+/g, ' ')));
   ok(labels.length === 5 && /Total for all your needs/.test(labels[0]) && /retirement/.test(labels[1]) && /childcare/.test(labels[2]), '1. the rows: total, retirement, childcare and a row for each child (' + labels.join(' | ') + ')');
@@ -37,7 +37,7 @@ const FFJ = { app: 'wr-fact-find', schema: '5.4', f: { fname: { v: 'Test' }, sna
   ok(JSON.stringify(row) === JSON.stringify([30000, 80000, '31/12/2046', 'confirmed', 'person']), '1. what is typed is kept as numbers and a date, and checks the pay-out: ' + JSON.stringify(row));
   await p.fill('table.payout tbody tr:nth-child(2) input[data-p$=".today"]', '20000'); await p.fill('table.payout tbody tr:nth-child(2) input[data-p$=".projected"]', '60000'); await p.fill('table.payout tbody tr:nth-child(2) input[data-p$=".payoutDate"]', '31/12/2046');
   await p.evaluate(() => OV.app.redraw()); await p.waitForTimeout(60);
-  ok(!/pay-out guide is not loaded/.test(await checks()), '1. a typed pay-out answers the check');
+  ok(!/No change moment pay-out guide found for CP/.test(await checks()), '1. a typed pay-out answers the check');
   await p.click('[data-addcmpchild]'); ok(await p.evaluate(() => OV.app.state.blocks.fna.quotes[0].cmp.rows.length) === 6, '1. a child row can be added');
   await p.click('table.payout tbody tr:nth-child(6) [data-delcmprow]'); ok(await p.evaluate(() => OV.app.state.blocks.fna.quotes[0].cmp.rows.length) === 5, '1. and taken out');
   await p.fill('input[data-p$=".cmp.number"]', '999'); await p.evaluate(() => OV.app.redraw()); ok(/CP 999/.test(await checks()) && /not for this quote/.test(await checks()), '1. a pay-out for another CP number is flagged');
@@ -84,11 +84,11 @@ const FFJ = { app: 'wr-fact-find', schema: '5.4', f: { fname: { v: 'Test' }, sna
   /* ---- 5. a review year ---- */
   const savedJson = await p.evaluate(() => OV.store.toJSON(OV.app.state));
   await p.evaluate(() => OV.app.redraw());
-  await p.click('#btnReview'); await p.waitForTimeout(60);
+  await p.click('#moreMenu summary'); await p.click('#btnReview'); await p.waitForTimeout(60);
   ok(/Save this overview first/.test(await text('#toast')) && await p.evaluate(() => !OV.app.state.header.previous), '5. with unsaved changes a review is refused: "Save this overview first"');
   await p.setInputFiles('#fileIn', { name: 'WR Overview - 05.01.27 - (Client, Test).json', mimeType: 'application/json', buffer: Buffer.from(savedJson) }); await p.waitForTimeout(300);
   const oldBefore = await p.evaluate(() => { window.__old = OV.app.state; return JSON.stringify(OV.app.state); });
-  await p.click('#btnReview'); await p.waitForTimeout(150);
+  await p.click('#moreMenu summary'); await p.click('#btnReview'); await p.waitForTimeout(150);
   const rv = await p.evaluate(() => { const s = OV.app.state; return { prev: s.header.previous, date: s.header.overviewDate, meet: s.header.meetingDate, astute: s.header.astuteDate, quotes: ['fna', 'shortfallQuote', 'reduced', 'comparative'].map(k => s.blocks[k].quotes.length).join(), pol: s.blocks.policies.items.length, grp: s.blocks.group.items.length, same: s === window.__old, name: document.querySelector('#meta .fn').innerText }; });
   ok(rv.prev && rv.prev.date === '05/01/2027' && /WR Overview - 05\.01\.27 - \(Client, Test\)/.test(rv.prev.file) && !rv.same, '5. the new review is linked to last year\'s overview: ' + JSON.stringify(rv.prev));
   ok(rv.quotes === '0,0,0,0' && rv.meet === null && rv.astute === null && rv.pol === 2 && rv.grp === 1, '5. the quotes, the meeting date and the Astute date start empty; the policies and the group benefit are carried (' + rv.pol + ' policies)');

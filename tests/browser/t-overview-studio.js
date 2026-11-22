@@ -61,10 +61,10 @@ srv.listen(0, async () => {
   const p0 = await c0.newPage(); p0.on('dialog', d => d.accept());
   await p0.goto(base + 'overview.html'); await p0.waitForTimeout(500);
   ok(await p0.evaluate(() => document.title === 'Client Overview Studio' && document.querySelector('h1').textContent === 'Client Overview Studio'), '1. the page is called Client Overview Studio in its heading and its tab');
-  ok(await p0.evaluate(() => document.querySelector('#aiSwitch').checked && /no Anthropic key/.test(document.querySelector('#aiNote').textContent)), '1. reading is ON to start with (with no key the card says so)');
+  ok(await p0.evaluate(() => OV.app.aiOn() && !FF.lookup.getSettings().apiKey), '1. reading is ON to start with (and there is no key yet)');
   await p0.evaluate(() => { OV.app.fillFactFindText(JSON.stringify({ app: 'wr-fact-find', schema: '5.4', f: { fname: { v: 'Dina' }, sname: { v: 'Docs' } }, l: { kids: [], debts: [], risk: [], grp: [], ret_ra: [], inv: [], raq: [], invq: [], bfred: [] } }), 'ff.json'); OV.app.go('fna'); });
   await p0.click('[data-upc=fna]'); await p0.waitForTimeout(400);
-  ok(/Connect your client folders first/.test(await p0.evaluate(() => document.querySelector('#toast').textContent)) && await p0.evaluate(() => window.__picks.length) === 0, '1. with no folders connected the page says so and opens no file window');
+  ok(/Nothing was chosen/.test(await p0.evaluate(() => document.querySelector('#toast').textContent)) && await p0.evaluate(() => window.__picks.length) === 1 && await p0.evaluate(() => window.__picks[0].startIn) === null, '1. with no folders connected the normal file window opens by itself (and closing it chooses nothing)');
   await c0.close();
 
   /* ---- 2. connect the folders (on the Risk Application, as before), then the Studio ---- */
@@ -85,11 +85,11 @@ srv.listen(0, async () => {
   if (await p.$('#restoreDraft')) await p.click('#restoreNew');
   await p.evaluate(t => OV.app.fillFactFindText(t, 'ff.json'), JSON.stringify(FFJ));
   await p.evaluate(() => FF.lookup.saveSettings({ apiKey: 'sk-test-key', model: 'claude-test' })); await p.evaluate(() => OV.app.redraw());
-  const st = () => p.evaluate(() => OV.app.state), toast = () => p.evaluate(() => document.querySelector('#toast').textContent), side = () => p.evaluate(() => document.querySelector('#docs').innerText.replace(/\s+/g, ' '));
+  const st = () => p.evaluate(() => OV.app.state), toast = () => p.evaluate(() => document.querySelector('#toast').textContent), side = () => p.evaluate(() => OV.app.lastLog().map(x => x.msg).join(' ') + ' ' + document.querySelector('#toast').textContent);
   const open = names => p.evaluate(async n => { let d = await navigator.storage.getDirectory(); for (const x of n.slice(0, -1)) d = await d.getDirectoryHandle(x); window.__open = await d.getFileHandle(n[n.length - 1]); }, names);
   const kinds = o => p.evaluate(o => { window.__kinds = o; }, o), picks = () => p.evaluate(() => window.__picks), api = () => p.evaluate(() => window.__api);
   const factsBefore = JSON.stringify((await st()).factFind.facts);
-  ok(/On: an uploaded document is sent to Anthropic/.test(await p.evaluate(() => document.querySelector('#aiNote').textContent)), '2. with a key, reading is on and the card says what that means');
+  ok(await p.evaluate(() => OV.app.aiOn() && !!FF.lookup.getSettings().apiKey), '2. with a key, reading is on');
 
   /* the dots and what they mean, before anything is filled */
   const nav = await p.evaluate(() => ({ legend: document.querySelector('#legend').innerText.replace(/\s+/g, ' '), titles: [...document.querySelectorAll('#nav button[data-block]')].map(x => x.title).filter(Boolean).length, sf: document.querySelector('[data-dot=shortfall]').className, sfTitle: document.querySelector('[data-dot=shortfall]').closest('button').title }));

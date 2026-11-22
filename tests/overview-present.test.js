@@ -216,7 +216,7 @@ test('the page: a Present button, the stylesheet and the scripts in the right or
   assert.ok(/who/.test(ui) && /engine\.hear\(t, m && m\.who\)/.test(ui), 'every line goes to the engine with its speaker tag');
   assert.ok(/'wr-keypoints'/.test(ui) && !/wr-keypoints.*\.json/.test(ui), 'the library is kept in this browser only');
   assert.ok(!/<input(?![^>]*type="file")|<select|<textarea|contenteditable/i.test(ui.replace(/'<input type="file"[^']*'/g, '')) || /pKpIn/.test(ui), 'the only input is the hidden file chooser for the key points');
-  assert.strictEqual(require('../app/js/ov-schema.js').pageVersion, '0.7');
+  assert.strictEqual(require('../app/js/ov-schema.js').pageVersion, '0.8');
 });
 
 test('the Presentation reads the overview and never writes to it', () => {

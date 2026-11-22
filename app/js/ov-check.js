@@ -19,7 +19,8 @@
   function run(state) {
     var out = [], tol = (state.settings && state.settings.tolerance) || 1, h = state.header || {}, std = (state.settings && state.settings.standards) || schema.STANDARDS;
     var facts = state.factFind && state.factFind.facts, B = state.blocks;
-    function add(id, block, where, message, line) { out.push({ id: id, severity: 'amber', block: block, where: where, message: message, line: line || null }); }          // line: the id of the line the problem is about, so the screen can flag it
+    var matched = {};                                                                                    // the ids of the quote lines that are the same as a row of the Fact Find (child, debt)
+    function add(id, block, where, message, line, short) { out.push({ id: id, severity: 'amber', block: block, where: where, message: message, short: short || message, line: line || null }); }          // line: the id of the line the problem is about, so the screen can flag it and say why on the line (short: the words for the line)
     var differs = function (a, b) { return isNum(a) && isNum(b) && Math.abs(a - b) > tol; };
 
     schema.QUOTE_KINDS.forEach(function (kind) {
@@ -32,29 +33,25 @@
           });
         }
         if (kind !== 'comparative' && facts) {
-          var kids = lines.filter(function (l) { return l.type === 'child'; }), ffKids = facts.children || [], seen = {};
-          ffKids.forEach(function (c) {
-            var nm = norm(c.name + ' ' + c.sname), l = kids.filter(function (x) { return !seen[x.id] && norm((x.name || '') + ' ' + (x.sname || '')) === nm; })[0], loose = false;
-            if (!l && norm(c.name)) { l = kids.filter(function (x) { return !seen[x.id] && norm(x.name) === norm(c.name); })[0]; loose = !!l; }
-            if (!l) { if (figures || kids.length) add('quote.children', block, where, (c.name + ' ' + c.sname).trim() + ' is in the Fact Find but has no child line in this quote.'); return; }
-            seen[l.id] = 1;
-            if (loose) add('quote.children', block, where, (c.name + ' ' + c.sname).trim() + ': the quote has the child as "' + (l.name + ' ' + (l.sname || '')).trim() + '"; the Fact Find has the surname "' + c.sname + '".', l.id);
+          var mk = calc.matchChildren(lines, facts.children || []), md = calc.matchDebts(lines, facts.debts || []), fullName = function (x) { return ((x.name || '') + ' ' + (x.sname || '')).trim(); };
+          mk.pairs.forEach(function (p) {
+            var c = p.ff, l = p.line, nm = fullName(c), bad = 0;
+            if (p.loose) { add('quote.children', block, where, nm + ': the quote has the child as "' + fullName(l) + '"; the Fact Find has the surname "' + c.sname + '".', l.id); bad++; }
             var m = calc.lineVal(l, 'life', 'monthly');
-            if (differs(m, c.cost)) add('quote.children', block, where, (c.name + ' ' + c.sname).trim() + ': the quote has ' + fmtR(m) + ' a month; the Fact Find has ' + fmtR(c.cost) + '.', l.id);
+            if (differs(m, c.cost)) { add('quote.children', block, where, nm + ': the quote has ' + fmtR(m) + ' a month; the Fact Find has ' + fmtR(c.cost) + '.', l.id); bad++; }
+            if (!bad) matched[l.id] = 1;
           });
-          kids.forEach(function (l) { if (!seen[l.id] && (l.name || l.sname)) add('quote.children', block, where, 'The quote has a child line for ' + (l.name + ' ' + (l.sname || '')).trim() + ', who is not in the Fact Find.', l.id); });
-          var debts = lines.filter(function (l) { return l.type === 'debt'; }), ffDebts = facts.debts || [], used = {};
-          ffDebts.forEach(function (d) {
-            var keys = [norm(d.desc), norm(d.type), norm(d.prov + ' ' + d.type)].filter(Boolean);
-            var l = debts.filter(function (x) { return !used[x.id] && keys.indexOf(norm(x.debt)) >= 0; })[0] || debts.filter(function (x) { var nd = norm(x.debt); return !used[x.id] && nd.length > 2 && keys.some(function (k) { return k.length > 2 && (nd.indexOf(k) >= 0 || k.indexOf(nd) >= 0); }); })[0];
-            var label = d.desc || d.type || 'a debt';
-            if (!l) { if (figures || debts.length) add('quote.debts', block, where, label + ' is in the Fact Find but has no debt line in this quote.'); return; }
-            used[l.id] = 1;
-            var m = calc.lineVal(l, 'life', 'monthly'), bk = norm(l.bank), fb = norm(d.prov);
-            if (bk && fb && bk.indexOf(fb) < 0 && fb.indexOf(bk) < 0) add('quote.debts', block, where, label + ': the quote has the bank "' + l.bank + '"; the Fact Find has "' + d.prov + '".', l.id);
-            if (differs(m, d.inst)) add('quote.debts', block, where, label + ': the quote has an instalment of ' + fmtR(m) + '; the Fact Find has ' + fmtR(d.inst) + '.', l.id);
+          mk.missing.forEach(function (c) { if (figures || mk.pairs.length || mk.extra.length) add('quote.children', block, where, fullName(c) + ' is in the Fact Find, not in the quote.'); });
+          mk.extra.forEach(function (l) { if (l.name || l.sname) add('quote.children', block, where, fullName(l) + ' is in the quote, not in the Fact Find.', l.id); });
+          md.pairs.forEach(function (p) {
+            var d = p.ff, l = p.line, label = d.desc || d.type || 'a debt', m = calc.lineVal(l, 'life', 'monthly'), bk = norm(l.bank), fb = norm(d.prov), bad = 0;
+            if (bk && fb && bk.indexOf(fb) < 0 && fb.indexOf(bk) < 0) { add('quote.debts', block, where, label + ': the quote has the bank "' + l.bank + '"; the Fact Find has "' + d.prov + '".', l.id); bad++; }
+            if (!bk && !fb) { add('quote.debts', block, where, label + ': bank missing in the Fact Find and the quote.', l.id, 'Bank missing in the Fact Find and the quote.'); bad++; }
+            if (differs(m, d.inst)) { add('quote.debts', block, where, label + ': the quote has an instalment of ' + fmtR(m) + '; the Fact Find has ' + fmtR(d.inst) + '.', l.id); bad++; }
+            if (!bad) matched[l.id] = 1;
           });
-          debts.forEach(function (l) { if (!used[l.id] && l.debt) add('quote.debts', block, where, 'The quote has a debt line "' + l.debt + '" that is not in the Fact Find.', l.id); });
+          md.missing.forEach(function (d) { if (figures || md.pairs.length || md.extra.length) add('quote.debts', block, where, (d.desc || d.type || 'A debt') + ' is in the Fact Find, not in the quote.'); });
+          md.extra.forEach(function (l) { if (l.debt) add('quote.debts', block, where, l.debt + ' is in the quote, not in the Fact Find.', l.id); });
         }
         if (kind === 'shortfall') {
           var sf = calc.shortfall(state);
@@ -77,7 +74,7 @@
         }
         if (isNum(q.disabilityAge) && isNum(h.disabilityAge) && q.disabilityAge !== h.disabilityAge) add('age', block, where, 'The quote covers disability to age ' + q.disabilityAge + '; the Fact Find says ' + h.disabilityAge + '.');
         if (kind === 'reduced' && isNum(q.premium) && isNum(h.premiumBudget) && q.premium > h.premiumBudget + tol) add('budget', block, where, 'The premium of ' + fmtR(q.premium) + ' is above the client\'s budget of ' + fmtR(h.premiumBudget) + '.');
-        if (kind !== 'comparative' && /bright/i.test(q.insurer) && figures && !q.cmp) add('gaps', block, where, 'The change moment pay-out guide is not loaded for this quote.');
+        if (kind !== 'comparative' && /bright/i.test(q.insurer) && figures && !q.cmp) add('gaps', block, where, 'No change moment pay-out guide found for CP ' + (q.number || '(no number yet)') + '.');
         if (q.cmp && q.cmp.number && q.number && norm(q.cmp.number) !== norm(q.number)) add('cmp.match', block, where, 'The change moment pay-out is for CP ' + q.cmp.number + ', not for this quote (CP ' + q.number + ').');
       });
     });
@@ -122,7 +119,7 @@
       ['policies', 'group', 'investments', 'goals', 'other'].forEach(function (bid) { calc.active(B[bid].items).forEach(function (it) { if (it.src && it.src.kind === 'previous' && it.st === 'verify') waiting++; }); });
       if (waiting) add('review.carried', 'policies', 'Review of ' + (h.previous.date || 'last year'), waiting + (waiting === 1 ? ' item was' : ' items were') + ' carried over from last year\'s overview and still ' + (waiting === 1 ? 'waits' : 'wait') + ' for the latest schedule or statement (a document replaces it; typing a figure checks it).');
     }
-    return { problems: out, dots: dots(state, out), byBlock: byBlock(out) };
+    return { problems: out, dots: dots(state, out), byBlock: byBlock(out), matched: matched };
   }
   /* The Checks panel (Paul, 22 November): one line for each document read, e.g. "BrightRock FNA CP 127687903 checked", and one for its change moment pay-out, instead of the long list of every single check.
      A line is checked (every row of the document checked, nothing flagged), to check (rows still amber, or something differs from the Fact Find or from Paul's standards) or waiting (nothing read or typed yet).
@@ -153,6 +150,17 @@
       });
     });
     return out;
+  }
+  /* A line where the Fact Find and the quote agree is checked by the page (Paul, 22 November): a child or a debt line the quote gives that is the same as a row of the Fact Find (name, bank, amounts) and has nothing flagged
+     turns green with a tick, no "to check". Only a line the page itself read (st verify, by page) is touched; a person's typing and every line that is missing, different or only in one of the two stay as they are.
+     Returns how many lines were checked. */
+  function autoMatch(state, q) {
+    var res = run(state), n = 0, flagged = {};
+    res.problems.forEach(function (p) { if (p.line) flagged[p.line] = 1; });
+    calc.activeLines(q).forEach(function (l) {
+      if ((l.type === 'child' || l.type === 'debt') && res.matched[l.id] && !flagged[l.id] && l.st === 'verify' && l.by === 'page') { l.st = 'confirmed'; l.match = 'factfind'; n++; }
+    });
+    return n;
   }
   function byBlock(problems) { var m = {}; problems.forEach(function (p) { (m[p.block || '_'] = m[p.block || '_'] || []).push(p); }); return m; }
 
@@ -185,5 +193,5 @@
     if (dot === 'amber') return p.length ? 'To check: ' + p.length + (p.length === 1 ? ' thing is' : ' things are') + ' flagged. ' + [p[0].where, p[0].message].filter(Boolean).join(' ').slice(0, 140) : 'To check: some rows came from the Fact Find or from a document and are waiting for you to check them.';
     return id === 'shortfall' ? 'Nothing yet: the shortfall is worked out as soon as the FNA quote has figures.' : 'Nothing yet: waiting for a document, or for what you type.';
   }
-  return { run: run, dots: dots, qLabel: qLabel, qTitle: qTitle, docLines: docLines, dotText: dotText, LEGEND: LEGEND };
+  return { run: run, dots: dots, qLabel: qLabel, qTitle: qTitle, docLines: docLines, autoMatch: autoMatch, dotText: dotText, LEGEND: LEGEND };
 });

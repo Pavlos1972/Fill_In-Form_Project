@@ -22,6 +22,7 @@
   function fmtAci(x) {
     if (!x) return '';
     var t = typeof x.aciText === 'string' ? x.aciText.trim() : '';
+    if (!t && Array.isArray(x.lines)) { var w = x.lines.filter(function (l) { return l && !l.removed && typeof l.aciText === 'string' && l.aciText.trim(); })[0]; if (w) t = w.aciText.trim(); }          // a file whose lines carry the words (the skill may write them there): the quote shows them too, so the top and the lines always read the same
     if (t) return t;
     return isNum(x.aci) ? fmtPct(x.aci) + ' fixed' : (x.aci === 'N/A' || x.aci === 'Not found' ? x.aci : '');
   }
@@ -105,6 +106,34 @@
   function fmtDiff(n) { if (!isNum(n)) return ''; if (Math.abs(n) < 0.005) return 'R0'; return (n > 0 ? '+' : '−') + fmtR(Math.abs(n)); }
   function pillarOfBlock() { return P; }
 
+  /* The Fact Find's children and debts against the lines of a quote (the checks, the automatic match and the reading all use this one matching).
+     A child: the full name, else the first name alone (loose: the surname differs). A debt: by what it is called (the description, the type, the provider and the type), by part of that name, and last by the amount
+     (the instalment, or the balance against the lump sum). Returns { pairs: [{ line, ff, loose }], missing: [Fact Find rows with no line], extra: [lines with no Fact Find row] }. */
+  function matchChildren(lines, ffKids) {
+    var kids = lines.filter(function (l) { return l.type === 'child'; }), seen = {}, pairs = [], missing = [];
+    (ffKids || []).forEach(function (c) {
+      var nm = norm(c.name + ' ' + c.sname), l = kids.filter(function (x) { return !seen[x.id] && norm((x.name || '') + ' ' + (x.sname || '')) === nm; })[0], loose = false;
+      if (!l && norm(c.name)) { l = kids.filter(function (x) { return !seen[x.id] && norm(x.name) === norm(c.name); })[0]; loose = !!l; }
+      if (!l) { missing.push(c); return; }
+      seen[l.id] = 1; pairs.push({ line: l, ff: c, loose: loose });
+    });
+    return { pairs: pairs, missing: missing, extra: kids.filter(function (l) { return !seen[l.id]; }) };
+  }
+  function matchDebts(lines, ffDebts) {
+    var debts = lines.filter(function (l) { return l.type === 'debt'; }), used = {}, pairs = [], missing = [];
+    (ffDebts || []).forEach(function (d) {
+      var keys = [norm(d.desc), norm(d.type), norm(d.prov + ' ' + d.type)].filter(Boolean);
+      var l = debts.filter(function (x) { return !used[x.id] && keys.indexOf(norm(x.debt)) >= 0; })[0] || debts.filter(function (x) { var nd = norm(x.debt); return !used[x.id] && nd.length > 2 && keys.some(function (k) { return k.length > 2 && (nd.indexOf(k) >= 0 || k.indexOf(nd) >= 0); }); })[0];
+      if (!l) l = debts.filter(function (x) {                                                           // a line with no name (or another one) but the same instalment, or the same balance as its lump sum
+        var m = lineVal(x, 'life', 'monthly'), g = lineVal(x, 'life', 'lump');
+        return !used[x.id] && !norm(x.debt) && ((isNum(m) && isNum(d.inst) && d.inst > 0 && Math.abs(m - d.inst) < 1) || (isNum(g) && isNum(d.bal) && d.bal > 0 && Math.abs(g - d.bal) < 1));
+      })[0];
+      if (!l) { missing.push(d); return; }
+      used[l.id] = 1; pairs.push({ line: l, ff: d });
+    });
+    return { pairs: pairs, missing: missing, extra: debts.filter(function (l) { return !used[l.id]; }) };
+  }
+
   /* Which pages the PDF and the Presentation have (Paul, 22 November): a page with nothing to say is left out and its tab is greyed. The Shortfall quote page needs group risk AND a shortfall quote asked for in the Fact Find (or one
      already there); the Comparative quotes page needs one asked for in the Fact Find (the standard quote lane) or one already there; Proposed investments and Goal analysis reports need at least one (a report that was asked for or has figures).
      The other eleven pages are always there (an empty Current investments page says there are none). */
@@ -120,7 +149,7 @@
   var PAGE_WHY = { shortfallQuote: 'Left out: there is no group risk, or no shortfall quote was asked for.', comparative: 'Left out: no comparative quote was asked for in the Fact Find.', proposed: 'Left out: there are no proposed investments.', goals: 'Left out: no goal analysis report was asked for.' };
   function pageWhy(id) { return PAGE_WHY[id] || ''; }
 
-  return { isNum: isNum, r2: r2, norm: norm, fmtR: fmtR, fmtPct: fmtPct, fmtAci: fmtAci, pageShown: pageShown, pageWhy: pageWhy, fmtDiff: fmtDiff, show: show, lineVal: lineVal, active: active, activeLines: activeLines, totals: totals, sumLines: sumLines,
+  return { isNum: isNum, r2: r2, norm: norm, fmtR: fmtR, fmtPct: fmtPct, fmtAci: fmtAci, matchChildren: matchChildren, matchDebts: matchDebts, pageShown: pageShown, pageWhy: pageWhy, fmtDiff: fmtDiff, show: show, lineVal: lineVal, active: active, activeLines: activeLines, totals: totals, sumLines: sumLines,
     quotes: quotes, allQuotes: allQuotes, policies: policies, policyTotals: policyTotals, groupItems: groupItems, hasGroupRisk: hasGroupRisk, groupTotals: groupTotals, investments: investments,
     personalInvestments: personalInvestments, shortfall: shortfall, compare: compare, pillars: pillarOfBlock };
 });
