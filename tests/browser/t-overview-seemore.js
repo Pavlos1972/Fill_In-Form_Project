@@ -57,7 +57,7 @@ srv.listen(0, async () => {
     const c = document.querySelector('#main .qcard'), t = c.querySelector('table.lines'), heads = [...t.querySelectorAll('thead th')].map(x => x.textContent.replace(/\s+/g, ' ').trim());
     const abi = [...t.querySelectorAll('[data-p$=".abi"]')].map(i => i.value), money = [...t.querySelectorAll('input.amt[data-k="money"]')].map(i => i.value).filter(Boolean);
     const kid = [...t.querySelectorAll('tr.ln')].find(r => /Child care/.test(r.textContent));
-    return { heads, xbtn: t.querySelectorAll('.xbtn').length, adders: c.querySelectorAll('.adders .addrow').length, abi, moneyOk: money.length > 5 && money.every(v => /^R[\d,.]+$/.test(v)), aci: t.querySelector('tbody td .aci').textContent, kidWait: kid.querySelector('[data-p$=".waiting"]').value,
+    return { heads, xbtn: t.querySelectorAll('.xbtn').length, adders: c.querySelectorAll('.adders .addrow').length, abi, moneyOk: money.length > 5 && money.every(v => /^R[\d,.]+$/.test(v)), aci: t.querySelector('tbody td .aci').textContent, kidWait: kid.cells[6].textContent.trim(),
       totals: t.querySelector('tr.tot.lump').textContent, cols: t.querySelectorAll('colgroup col').length };
   });
   ok(q.heads.length === 9 && q.heads[8] === 'ABI' && q.xbtn === 0 && q.cols === 9, '2. a quote\'s lines have nine columns: no remove (X) column to the right of ABI: ' + JSON.stringify(q.heads));
@@ -135,16 +135,15 @@ srv.listen(0, async () => {
   await pg.evaluate(() => { OV.app.setState(OV.store.blank()); const st = OV.app.state; st.header.fname = 'Lean'; st.header.sname = 'Client'; OV.app.setState(st); });
   await pg.click('#btnPresent'); await pg.waitForTimeout(500);
   const pr = await pg.evaluate(() => {
-    const root = document.querySelector('#pres'), cs = getComputedStyle(root), logo = root.querySelector('img.plogo'), tabs = [...root.querySelectorAll('.ptab')], nodes = [...root.querySelectorAll('.pnode')];
-    return { bg: cs.backgroundColor, logo: !!logo && logo.complete && logo.naturalWidth > 0 && logo.getBoundingClientRect().width > 20, offTabs: tabs.filter(t => t.classList.contains('off')).map(t => t.textContent), disabled: tabs.filter(t => t.disabled).length, offNodes: nodes.filter(n => n.classList.contains('off') && n.disabled).length, nodes: nodes.length };
+    const root = document.querySelector('#pres'), cs = getComputedStyle(root), logo = root.querySelector('img.plogo'), tabs = [...root.querySelectorAll('.ptab')], cards = [...root.querySelectorAll('.pcard')];
+    return { bg: cs.backgroundColor, logo: !!logo && logo.complete && logo.naturalWidth > 0 && logo.getBoundingClientRect().width > 20, tabs: tabs.map(t => t.textContent).join(), off: root.querySelectorAll('.ptab.off, .ptab:disabled, .pcard.off, .pcard:disabled').length, cards: cards.length };
   });
   ok(pr.bg === 'rgb(255, 255, 255)', '8. the Presentation has a white background: ' + pr.bg);
   ok(pr.logo, '8. the Wealth Revolution logo is in the bar');
-  ok(JSON.stringify(pr.offTabs) === JSON.stringify(['5 Shortfall quote', '7 Comparative', '9 Proposed', '10 Goals']) && pr.disabled === 4 && pr.offNodes === 4 && pr.nodes === 11, '8. the same four pages are left out: a grey tab and a grey node that cannot be opened: ' + JSON.stringify(pr));
+  ok(pr.tabs === 'Overview,Current policies,FNA quote,Group benefits,Shortfall,Reduced quotes,Investments,Goal analysis,Other' && pr.off === 8 && pr.cards === 11, '8. nine tabs; with nothing in the overview every tab but Overview is greyed and disabled (no strike-through), and the Overview still shows its eleven cards: ' + JSON.stringify(pr));
   await pg.screenshot({ path: out + '/seemore-present-map.png' });
   await pg.keyboard.press('ArrowRight'); await pg.waitForTimeout(150);
-  await pg.keyboard.press('ArrowRight'); await pg.keyboard.press('ArrowRight'); await pg.keyboard.press('ArrowRight'); await pg.keyboard.press('ArrowRight'); await pg.waitForTimeout(150);
-  ok(await pg.evaluate(() => OV.present.ps.tab === 'reduced'), '8. next and back skip the pages that are left out (map, policies, FNA, group, shortfall, then reduced)');
+  ok(await pg.evaluate(() => OV.present.ps.tab === 'map' && !document.querySelector('.pcard.bright')), '8. next and back have nowhere to go while no page has anything to show, and no card opens a page');
   await pg.keyboard.press('Escape');
   await pg.evaluate(ff => { const S = OV.store, D = OV.docs, st = S.blank(); S.fillFromFactFind(st, JSON.stringify(ff), 'ff.json');
     D.applyQuote(st, 'fna', { insurer: 'BrightRock', number: '100000001', aci: 7.5, aciText: '7.5% + age rater', premium: 2900, lines: [{ type: 'household', life: { lump: 800000, monthly: 5000 }, abi: 5 }, { type: 'child', name: 'Amy', sname: 'See', life: { lump: 500000, monthly: 5000 }, abi: 5 }] }, 'fna.pdf'); OV.app.setState(st); }, FFJ);

@@ -150,6 +150,6 @@ test('the page: an Upload from client folder button in all six blocks, the file 
   assert.ok((ui.match(/data-upc=/g) || []).length >= 3 && /data-upc="proposed"/.test(ui) && /data-upc="goals"/.test(ui) && /data-upc="' \+ b\.id \+ '"/.test(ui), 'quote blocks, proposed investments and goal reports each have the button');
   assert.ok(/startIn: handle/.test(ui) && /CLIENT_KIND = \{ fna: 'quote', shortfallQuote: 'quote', reduced: 'quote', comparative: 'comparative', proposed: 'proposal', goals: 'goal' \}/.test(ui), 'the file window opens in the client\'s folder for that kind of document');
   assert.ok(/ingest\(\[file\], \{ block: block, dir: res\.handle \}\)/.test(ui), 'the document is read into the block it was picked for, with the folder to look in for the pay-out guide');
-  assert.ok(/Upload from another folder/.test(ui), 'the old upload stays, with a clearer name');
+  assert.ok(!/Upload from another folder/.test(ui) && /function pickAny\(block, dir\)/.test(ui) && /pickAny\(block\)/.test(ui), 'there is one upload button per block: when the client\'s folder is not found the normal file window opens by itself');
   assert.ok(/!== '0'/.test(ui), 'reading is on unless switched off');
 });

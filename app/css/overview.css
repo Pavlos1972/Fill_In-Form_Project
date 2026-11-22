@@ -157,8 +157,8 @@ dialog#restoreDraft .grow { flex: 1; }
 .ovt .aci { white-space: normal; font-size: 12.5px; line-height: 1.25; display: inline-block; text-align: right; overflow-wrap: anywhere; }
 
 /* a quote's lines have no remove column any more: nine columns */
-.ovt.lines.qlines .c-need { width: 17%; } .ovt.lines.qlines .c-term { width: 12%; } .ovt.lines.qlines .c-life { width: 13%; } .ovt.lines.qlines .c-sev { width: 10%; } .ovt.lines.qlines .c-lsd { width: 13%; }
-.ovt.lines.qlines .c-ip { width: 12%; } .ovt.lines.qlines .c-wait { width: 8%; } .ovt.lines.qlines .c-aci { width: 9%; } .ovt.lines.qlines .c-abi { width: 6%; }
+.ovt.lines.qlines .c-need { width: 15%; } .ovt.lines.qlines .c-term { width: 11%; } .ovt.lines.qlines .c-life { width: 13%; } .ovt.lines.qlines .c-sev { width: 9%; } .ovt.lines.qlines .c-lsd { width: 13%; }
+.ovt.lines.qlines .c-ip { width: 12%; } .ovt.lines.qlines .c-wait { width: 8%; } .ovt.lines.qlines .c-aci { width: 10%; } .ovt.lines.qlines .c-abi { width: 9%; }
 .ovt.lines:not(.qlines) .c-aci { width: 9%; } .ovt.lines:not(.qlines) .c-need { width: 15%; } .ovt.lines:not(.qlines) .c-term { width: 12%; }
 .ovt.pols .p-name { width: 21%; } .ovt.pols .p-aci { width: 11%; }
 .ovt.prop .q-type { width: 18%; } .ovt.prop .q-prov { width: 21%; } .ovt.prop .q-contrib { width: 14%; }
@@ -172,3 +172,36 @@ dialog#restoreDraft .grow { flex: 1; }
 .checks .none { color: var(--muted); font-size: 12.5px; padding: 4px 0; }
 .checks details.allchecks { margin-top: 8px; }
 .checks details.allchecks > summary { cursor: pointer; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+
+/* Studio 0.8 (Paul's third batch): the bar under a block's name while a document is downloaded and read */
+.nav button { flex-wrap: wrap; }
+.nav .prog { flex: 1 0 100%; position: relative; height: 15px; margin: 5px 0 1px; border-radius: 4px; background: var(--line); overflow: hidden; font-size: 10.5px; line-height: 15px; }
+.nav .prog[hidden] { display: none; }
+.nav .prog i { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: var(--brand); transition: width .35s linear; }
+.nav .prog em { position: relative; display: block; padding: 0 6px; font-style: normal; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nav .prog.done i { background: var(--ok); }
+.nav .prog.done em, .nav .prog.error em { color: #fff; font-weight: 600; }
+.nav .prog.recorded i { background: #e0a800; }
+.nav .prog.error i { background: var(--bad); }
+/* a line the page checked because the Fact Find and the quote agree: a small green tick; the reason on a line that is to be checked */
+.tickok { display: inline-flex; align-items: center; justify-content: center; width: 17px; height: 17px; border-radius: 50%; background: var(--ok); color: #fff; font-size: 11px; font-weight: 700; line-height: 1; }
+.ovt small.why { color: var(--warn); font-weight: 600; }
+.ovt small.why:empty { display: none; }
+/* one upload button for a block and a small link to type by hand */
+.blockacts { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 16px; margin: 10px 0; }
+.blockacts .addrow.big { margin: 0; }
+button.lnk.small { font-size: 12.5px; }
+#moreMenu .ofmenu { right: auto; left: 0; }
+.toast .lnk { color: #9fd8f5; font-weight: 600; }
+dialog#settingsDlg { max-width: 520px; }
+dialog#settingsDlg .f { margin: 10px 0; }
+dialog#settingsDlg input[type=password] { width: 100%; min-height: 38px; padding: 6px 9px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--ink); }
+dialog#settingsDlg .fbtns { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
+dialog#resultsDlg { position: fixed; top: auto; left: auto; right: 16px; bottom: 16px; margin: 0; width: min(520px, calc(100vw - 32px)); border: 1px solid var(--line); border-radius: 10px; padding: 14px; background: var(--surface); color: var(--ink); box-shadow: 0 6px 24px rgba(0,0,0,.2); z-index: 20; }
+dialog#resultsDlg .docsess { max-height: 60vh; overflow: auto; }
+
+/* "Not found" in an ABI box (the quote printed none) must be readable in the narrow column */
+.ovt input.isna { font-size: 11px; padding-left: 3px; padding-right: 3px; }
+
+/* Studio 0.8: accelerated or standalone, under a debt's name */
+.ovt .accsel select { width: 100%; font-size: 11.5px; padding: 1px 2px; margin-top: 2px; color: var(--muted, #646e76); }

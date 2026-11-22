@@ -49,7 +49,7 @@
     for (var i = 0; i < parts.length - 1; i++) { o = o[parts[i]]; if (o == null) return undefined; if (typeof o === 'object' && !Array.isArray(o) && Object.prototype.hasOwnProperty.call(o, 'st')) owner = o; }
     var last = parts[parts.length - 1];
     o[last] = val;
-    if (owner) { owner.st = 'confirmed'; owner.by = 'person'; }
+    if (owner) { owner.st = 'confirmed'; owner.by = 'person'; delete owner.match; }                          // a person's typing is a person's check: the page's automatic match is over
     return val;
   }
   /* A row (a quote, a line, an item) is checked by a person: it turns green. */
@@ -73,7 +73,7 @@
     var t = schema.lineTypesById[type] || schema.lineTypesById.other, l = { id: uid('l'), type: t.id, label: t.l, term: t.term || null,
       life: { lump: null, monthly: null }, sev: { lump: null }, lsd: { lump: null, monthly: null }, ip: { monthly: null }, waiting: null, abi: null, st: 'empty', src: null, by: 'person', removed: false };
     if (t.id === 'child') { l.name = ''; l.sname = ''; l.term = 'Age 24'; l.waiting = 'N/A'; }
-    if (t.id === 'debt') { l.debt = ''; l.bank = ''; l.accelerated = true; }
+    if (t.id === 'debt') { l.debt = ''; l.bank = ''; l.accelerated = null; }                                       // accelerated (true) or standalone (false) debt cover: not known until the quote says so
     (t.na || []).forEach(function (k) { if (k === 'waiting') l.waiting = 'N/A'; else l[k] = 'N/A'; });
     return Object.assign(l, o || {});
   }
@@ -184,6 +184,7 @@
       raq: asked('raq', ['ins', 'monthly', 'lump']), invq: asked('invq', ['purpose', 'product', 'ins', 'monthly', 'lump']),
       rgar: /^request/i.test(f('rgar_req')), egar: /^request/i.test(f('egar_req')),
       asked: quotesAsked(f, rows),
+      answers: { hasRisk: f('has_risk'), hasGroup: f('has_group'), hasRa: f('has_ra'), hasPp: f('has_pp'), hasInv: f('has_inv'), raqReqs: rows('raq').map(function (d) { return str(d.req); }).filter(Boolean), refSti: f('ref_sti') },     // what the Fact Find answered, for the Presentation's sentences (never guessed: an empty answer says so)
       other: { ma: { value: f('ma'), provider: f('ma_prov'), plan: f('ma_plan'), broker: f('ma_broker') }, gap: { value: f('gap'), provider: f('gap_prov'), broker: f('gap_broker') },
         will: { value: f('will'), where: f('will_where') === 'Other' ? f('will_where_other') : f('will_where'), up: f('will_up'), broker: f('will_broker'), date: f('will_date') },
         shortterm: { value: f('sti'), broker: f('sti_broker'), personal: money(f('sti_personal')) } }
@@ -201,8 +202,10 @@
   }
   /* How many items of the Fact Find differ between two readings of it. */
   function diffFacts(a, b) {
-    var oldHad = a && a.asked !== undefined, newHad = b && b.asked !== undefined;
-    if (oldHad !== newHad) { a = Object.assign({}, a); b = Object.assign({}, b); delete a.asked; delete b.asked; }
+    ['asked', 'answers'].forEach(function (k) {                                                                  // a key an older reading did not have is not a change in the Fact Find
+      var oldHad = a && a[k] !== undefined, newHad = b && b[k] !== undefined;
+      if (oldHad !== newHad) { a = Object.assign({}, a); b = Object.assign({}, b); delete a[k]; delete b[k]; }
+    });
     var x = flat(a), y = flat(b), seen = {}, items = {};
     Object.keys(x).concat(Object.keys(y)).forEach(function (k) {
       if (seen[k]) return; seen[k] = 1;
@@ -321,7 +324,8 @@
     l = l && typeof l === 'object' ? l : {};
     var t = schema.lineTypesById[l.type] ? l.type : 'other';
     var n = Object.assign(newLine(t), l); n.type = t; n.id = n.id || uid('l'); n.st = ST[l.st] ? l.st : 'verify'; n.removed = !!n.removed;
-    if (t === 'child' && (n.waiting == null || n.waiting === '')) n.waiting = 'N/A';                                   // an older file: a child care line has no waiting period unless a document gave one
+    if (t === 'debt') n.accelerated = n.accelerated === true || n.accelerated === false ? n.accelerated : (/^accelerated$/i.test(String(n.accelerated || '')) ? true : /^stand ?alone$/i.test(String(n.accelerated || '')) ? false : null);
+    if (t === 'child') n.waiting = 'N/A';                                                                          // Paul's rule (22 November): a child care line has no waiting period, whatever an older file or a document says
     ['life', 'sev', 'lsd', 'ip'].forEach(function (p) { if (n[p] !== 'N/A' && (n[p] == null || typeof n[p] !== 'object')) n[p] = newLine(t)[p]; });
     return n;
   }

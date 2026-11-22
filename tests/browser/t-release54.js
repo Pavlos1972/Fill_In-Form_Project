@@ -19,9 +19,9 @@ const FFJ = { app: 'wr-fact-find', schema: '5.4', f: { fname: { v: 'Test' }, sna
   const ov = watch(await ctx.newPage());
   await ov.goto('file://' + dir + '/overview.html'); await ov.waitForTimeout(400); await ov.evaluate(() => OV.app.openAll());          // the page starts folded (See more); this test is about what is inside
   ok(!(await ov.$('#buildBanner')), '1. no "Mixed versions" bar');
-  ok(await ov.evaluate(() => document.title) === 'Client Overview Studio' && /Version 0\.7/.test(await ov.evaluate(() => document.querySelector('#verLine').textContent)), '1. the page says it is the Client Overview, version 0.6');
+  ok(await ov.evaluate(() => document.title) === 'Client Overview Studio' && /Version 0\.8/.test(await ov.evaluate(() => document.querySelector('#verLine').textContent)), '1. the page says it is the Client Overview Studio, version 0.8');
   const nav = await ov.evaluate(() => [...document.querySelectorAll('#nav button')].map(x => x.textContent.replace(/\s+/g, ' ').trim()));
-  ok(nav.length === 12 && nav[0] === 'Client details' && nav[6] === '6 Reduced quotes' && nav[11] === '11 Medical aid, will & short-term', '1. the menu: Client details and the eleven blocks in order: ' + nav.join(' | '));
+  ok(nav.length === 12 && nav[0] === 'Client details' && nav[6] === 'Reduced quotes' && nav[11] === 'Medical aid, will & short-term', '1. the menu: Client details and the eleven blocks in order: ' + nav.join(' | '));
   ok(await ov.evaluate(() => document.querySelectorAll('.dot[data-dot]').length === 11 && document.querySelectorAll('#legend .dot').length === 4), '1. a dot beside each block, and four in the legend under the menu');
   await ov.screenshot({ path: out + '/release54-client.png' });
 
@@ -62,7 +62,7 @@ const FFJ = { app: 'wr-fact-find', schema: '5.4', f: { fname: { v: 'Test' }, sna
   await p.evaluate(() => OV.app.go('fna')); await p.click('[data-addq="fna"]'); await p.waitForTimeout(150);
   ok(await p.evaluate(() => OV.app.state.blocks.fna.quotes[0].lines.map(l => l.type).join(',')) === 'household,child,child,debt,debt,debt,death,dread', '3. a new FNA starts with the household, each child, each debt, death-related needs and dread');
   ok(/Pending client decision/.test(await p.evaluate(() => document.querySelector('.statusbadge').textContent)), '3. a new quote is "Pending client decision"');
-  ok(await p.evaluate(() => [...document.querySelectorAll('tr.ln')].filter(r => /N\/A/.test(r.textContent)).length) === 2, '3. death-related needs and dread show N/A in the cells that do not apply');
+  ok(await p.evaluate(() => [...document.querySelectorAll('tr.ln')].filter(r => /N\/A/.test(r.textContent)).length) === 4, '3. death-related needs and dread show N/A in the cells that do not apply, and so do the two child care lines (their waiting period is always N/A)');
   const set = async (path, v) => { const s = '[data-p="' + path + '"]'; await p.fill(s, v); await p.press(s, 'Tab'); };
   const q0 = 'blocks.fna.quotes.0.';
   await set(q0 + 'number', '100000001'); await set(q0 + 'aci', '10'); await set(q0 + 'premium', '2900');

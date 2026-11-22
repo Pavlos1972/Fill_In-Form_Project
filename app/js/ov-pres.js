@@ -1,279 +1,285 @@
-/* The Client Overview's Presentation, the part that needs no screen (stage 5): the tabs, the short figures on the map, the closed list of things Paul can ask for by voice, the fixed command grammar, the engine
-   that decides whether a spoken line moves the screen, and the private key-points library. The screen itself is js/ov-present.js; this file is tested on its own (tests/overview-present.test.js).
-   Rules that are built in here and must not be undone (docs/PROJECT-CLIENT-OVERVIEW.md section 8):
-   - only the adviser's own microphone is ever acted on: a line tagged as the client's (or any other tag) is dropped before anything reads it, and no spoken line is kept;
-   - a line moves the screen only when it STARTS with a command phrase ("let's talk about ...", "go to ...", "show me ...", "next", "back", "back to the main page"); everything else is ignored, so ordinary talk never moves it;
-   - after a move there is a short cool-down, and after a click the voice is paused for a while; clicking always works;
-   - what is asked for must be on the closed list built from this overview; a name that fits two things moves nothing and offers buttons;
-   - the voice never calls Claude: the grammar and the list are plain code.
+/* The Client Overview Studio's Presentation, the part that needs no screen: the nine tabs and which page each holds, which pages have something to show, the ONE wording table for the sentences on the Overview page
+   (chosen from the Fact Find's answers and the Studio's blocks, never guessed), and the private key-points library (what is loaded, which cards show for what is highlighted, in which sections).
+   The screen itself is js/ov-present.js; this file is tested on its own (tests/overview-present.test.js).
+   The Presentation has NO voice (Paul, 22 November: too volatile, removed altogether): everything is done by clicking. Rules that are built in here and must not be undone (docs/PROJECT-CLIENT-OVERVIEW.md section 8):
+   - the key-points library is private: only a point with an approval (who and when) AND a source (the page of the client's own quote, checked against brightrock.co.za) is ever kept; none of it is in the repository;
+   - what a click asks the library for is decided by plain code from a closed list of benefit keys, never by a guess; the ACI card is built from the client's own quote, not from the library;
+   - a sentence on the Overview page is only ever one of the sentences in WORDING, chosen by a rule; an area the Fact Find has no answer for says "This was not discussed in our last meeting."
    Loads in the browser (window.OV.pres) and in Node. */
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory(require('./ov-schema.js'), require('./ov-calc.js'));
   else { root.OV = root.OV || {}; root.OV.pres = factory(root.OV.schema, root.OV.calc); }
 })(typeof self !== 'undefined' ? self : this, function (schema, calc) {
-  var TABS = ['Main', '1 Policies', '2 FNA', '3 Group', '4 Shortfall', '5 Shortfall quote', '6 Reduced', '7 Comparative', '8 Investments', '9 Proposed', '10 Goals', '11 Other'];
+  /* ---------- the nine tabs (Paul, 22 November): a tab can hold two of the Studio's blocks, chosen by a small button on the page ---------- */
+  var TABS = [
+    { id: 'map', l: 'Overview', blocks: ['map'] },
+    { id: 'policies', l: 'Current policies', blocks: ['policies'] },
+    { id: 'fna', l: 'FNA quote', blocks: ['fna'] },
+    { id: 'group', l: 'Group benefits', blocks: ['group'] },
+    { id: 'shortfall', l: 'Shortfall', blocks: ['shortfall', 'shortfallQuote'] },
+    { id: 'reduced', l: 'Reduced quotes', blocks: ['reduced', 'comparative'] },
+    { id: 'investments', l: 'Investments', blocks: ['investments', 'proposed'] },
+    { id: 'goals', l: 'Goal analysis', blocks: ['goals'] },
+    { id: 'other', l: 'Other', blocks: ['other'] }
+  ];
   var ORDER = ['map'].concat(schema.BLOCKS.map(function (b) { return b.id; }));
-  var COOL_MS = 2500, PAUSE_MS = 8000, CHOICE_MS = 12000;
+  var TAB_OF = {}; TABS.forEach(function (t) { t.blocks.forEach(function (b) { TAB_OF[b] = t.id; }); });
+  var KP_FILE = 'wr-keypoints.json', KP_MAX = 8, KP_LONG = 200, KP_SOURCE_LONG = 120;
 
-  /* ---------- words ---------- */
-  /* What speech gives and what the closed list holds are both brought to plain lower-case words: "Let's" is "lets", "pay-out" is "pay out", accents and punctuation are gone. */
-  function words(s) {
-    return String(s == null ? '' : s).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/['’`]/g, '').replace(/-/g, ' ').replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim();
-  }
-  function toks(s) { var w = words(s); return w ? w.split(' ') : []; }
-  function hasSeq(tk, seq) {
-    if (!seq.length || seq.length > tk.length) return false;
-    for (var i = 0; i + seq.length <= tk.length; i++) { var j = 0; while (j < seq.length && tk[i + j] === seq[j]) j++; if (j === seq.length) return true; }
-    return false;
-  }
-  function set(s) { var o = {}; s.split(' ').forEach(function (w) { o[w] = 1; }); return o; }
-
-  /* ---------- the command grammar ---------- */
-  var FILLER = set('ok okay so now right alright then and well please yes great good perfect sure');
-  var NAVNOISE = set('the to one page block section tab slide lets let us go move on please show we can shall me our a an');
-  var LEADWORDS = set('back go lets let show take return get come can');
-  var LEADS = ['lets talk about', 'let us talk about', 'lets look at', 'let us look at', 'lets have a look at', 'let us have a look at', 'lets go to', 'let us go to', 'lets move to', 'let us move to', 'can we talk about', 'can we look at', 'can we go to',
-    'shall we talk about', 'shall we look at', 'go to', 'show me', 'take us to', 'take me to', 'move to', 'turn to'].sort(function (a, b) { return b.length - a.length; });
-
-  /* One spoken line -> a command or null. cmd: main | next | back | clear | goto (with topic: the words after the command phrase). */
-  function parse(text) {
-    var tk = toks(text);
-    while (tk.length && FILLER[tk[0]]) tk.shift();
-    while (tk.length && FILLER[tk[tk.length - 1]]) tk.pop();
-    if (!tk.length || tk.length > 24) return null;
-    var core = tk.filter(function (w) { return !NAVNOISE[w]; });
-    if (core.length === 2 && (core[0] === 'clear' || core[0] === 'remove') && /^highlight/.test(core[1]) && tk.length <= 5) return { cmd: 'clear' };
-    var noBack = core.filter(function (w) { return w !== 'back' && w !== 'return'; });
-    if (tk.length <= 8 && LEADWORDS[tk[0]] && noBack.length === 1 && (noBack[0] === 'main' || (/^(map|home|overview|menu|start)$/.test(noBack[0]) && tk.indexOf('back') >= 0))) return { cmd: 'main' };
-    if (tk.length <= 7 && core.length === 1 && core[0] === 'next') return { cmd: 'next' };
-    if (tk.length <= 7 && core.length === 1 && (core[0] === 'back' || core[0] === 'previous')) return { cmd: 'back' };
-    var str = tk.join(' ');
-    for (var i = 0; i < LEADS.length; i++) {
-      var lead = LEADS[i];
-      if (str.indexOf(lead + ' ') === 0) return { cmd: 'goto', lead: lead, topic: str.slice(lead.length + 1) };
-    }
-    return null;
-  }
-
-  /* ---------- the closed list of topics, built from this overview ---------- */
-  var BLOCK_ALIASES = {
-    policies: ['current policies', 'existing policies', 'policies', 'current cover', 'what you have in place'],
-    fna: ['fna quote', 'fna', 'financial needs analysis', 'needs analysis'],
-    group: ['group benefits', 'group risk', 'group', 'personal investments', 'benefits through work', 'employer benefits'],
-    shortfall: ['shortfall'],
-    shortfallQuote: ['shortfall quote', 'shortfall quotes'],
-    reduced: ['reduced quotes', 'reduced quote', 'reduced', 'budget quote'],
-    comparative: ['comparative quotes', 'comparative quote', 'comparative'],
-    investments: ['current investments', 'existing investments', 'investments'],
-    proposed: ['proposed investments', 'proposed investment', 'investment proposal', 'investment proposals', 'investments'],
-    goals: ['goal analysis reports', 'goal analysis report', 'goal analysis', 'goals', 'retirement goal', 'education goal', 'rgar', 'egar'],
-    other: ['medical aid', 'gap cover', 'will', 'short term', 'short term insurance', 'legacy protection', 'legacy protection plan']
-  };
-  var BLOCK_NOUN = { fna: ['fna quote', 'fna'], shortfallQuote: ['shortfall quote', 'shortfall'], reduced: ['reduced quote', 'reduced'], comparative: ['comparative quote', 'comparative'] };
-  var SUB_ALIASES = {
-    quote: ['the quote', 'this quote'],
-    cmp: ['your change moment pay out', 'change moment pay out', 'change moment payout', 'change moment', 'pay out', 'payout'],
-    cmpr: ['compared with what you have now', 'compared with what you have', 'compare with what you have now', 'compared with', 'compare with', 'comparison', 'compare']
-  };
-  var PILLAR_ALIASES = {
-    life: ['life cover', 'life'],
-    sev: ['severe illness', 'severe', 'critical illness'],
-    lsd: ['lump sum disability', 'disability', 'permanent disability'],
-    ip: ['income protector sickness benefit', 'income protector', 'income protection', 'sickness benefit', 'sickness']
-  };
-  var TYPE_ALIASES = {
-    household: ['household needs', 'household', 'the house', 'house', 'living expenses'],
-    child: ['child care', 'childcare', 'children', 'kids'],
-    debt: ['debts', 'debt', 'loans'],
-    death: ['death related needs', 'death related', 'death needs', 'funeral', 'death'],
-    dread: ['additional expense needs', 'additional expenses', 'additional expense', 'dread']
-  };
-  var ROW_ALIASES = { 'total-ip': ['total income protected', 'income protected'], 'total-lump': ['total lump sum'], 'total-premium': ['monthly premium', 'the premium', 'premium'] };
-  var ORD = ['first', 'second', 'third', 'fourth', 'fifth'], NUM = ['one', 'two', 'three', 'four', 'five'];
-
-  /* The line keys a row answers to: its type, and for a child or a debt its own name, so "Amy" or "the car loan" finds the one line. */
+  /* The line keys a row answers to: its type, and for a child or a debt its own name, so one line can be found. The last key is the most specific one. */
   function lineKeys(l) {
     var keys = ['type:' + (l && l.type || 'other')];
     if (l && l.type === 'child' && l.name) keys.push('child:' + calc.norm(l.name));
     if (l && l.type === 'debt' && (l.debt || l.bank)) keys.push('debt:' + calc.norm(l.debt || l.bank));
     return keys;
   }
-  function linesOf(state) {
-    var out = [];
-    schema.QUOTE_KINDS.forEach(function (k) { calc.quotes(state, schema.blockOfQuote[k]).forEach(function (q) { out = out.concat(calc.activeLines(q)); }); });
-    calc.policies(state).forEach(function (e) { out = out.concat(calc.activeLines(e.item)); });
-    return out;
-  }
-  function alias(list) { return list.map(toks).filter(function (t) { return t.length; }); }
-  function topic(dim, label, target, aliases, specific) { return { dim: dim, label: label, target: target, aliases: alias(aliases), specific: specific ? 2 : 0 }; }
-  var GENERIC = set('loan loans finance account the and of');
 
-  function topics(state) {
-    var out = [], b;
-    schema.BLOCKS.forEach(function (bl) { if (calc.pageShown(state, bl.id)) out.push(topic('nav', bl.n + ' ' + bl.title, { tab: bl.id }, BLOCK_ALIASES[bl.id] || [bl.title])); });          // a page that is left out cannot be asked for
-    /* a block with several quotes: the first, the second ... one, and each insurer */
-    schema.QUOTE_KINDS.forEach(function (k) {
-      var id = schema.blockOfQuote[k], qs = calc.quotes(state, id), bl = schema.blocksById[id];
-      if (!qs.length || !calc.pageShown(state, id)) return;
-      qs.forEach(function (q, i) {
-        var tg = { tab: id, qi: i }, lab = bl.n + ' ' + bl.title + (qs.length > 1 ? ' (' + (i + 1) + ')' : '') + (q.insurer ? ', ' + q.insurer : ''), al = [];
-        if (qs.length > 1) BLOCK_NOUN[id].forEach(function (nn) { al.push(ORD[i] + ' ' + nn, nn + ' ' + (i + 1), nn + ' ' + NUM[i]); });
-        if (q.insurer) { al.push(q.insurer); BLOCK_NOUN[id].forEach(function (nn) { al.push(q.insurer + ' ' + nn); }); }
-        if (al.length) out.push(topic('nav', lab, tg, al, true));
-      });
-    });
-    /* a current policy: by its insurer */
-    calc.policies(state).forEach(function (e, i) {
-      if (!calc.activeLines(e.item).length || !e.item.insurer) return;
-      out.push(topic('nav', '1 Current policies, ' + e.item.insurer + (e.item.policyNo ? ' ' + e.item.policyNo : ''), { tab: 'policies', pol: i }, [e.item.insurer, e.item.insurer + ' policy'].concat(e.item.policyNo ? [e.item.policyNo] : []), true));
-    });
-    Object.keys(SUB_ALIASES).forEach(function (k) { out.push(topic('sub', { quote: 'The quote', cmp: 'Your change moment pay-out', cmpr: 'Compared with what you have now' }[k], { sub: k }, SUB_ALIASES[k])); });
-    schema.PILLARS.forEach(function (p) { out.push(topic('pillar', p.l, { pil: p.id }, PILLAR_ALIASES[p.id])); });
-    schema.LINE_TYPES.forEach(function (t) { if (TYPE_ALIASES[t.id]) out.push(topic('line', t.l, { line: 'type:' + t.id }, TYPE_ALIASES[t.id])); });
-    Object.keys(ROW_ALIASES).forEach(function (k) { out.push(topic('line', { 'total-ip': 'Total income protected', 'total-lump': 'Total lump sum', 'total-premium': 'Monthly premium' }[k], { line: k }, ROW_ALIASES[k])); });
-    var seen = {};
-    linesOf(state).forEach(function (l) {
-      if (l.type === 'child' && l.name && !seen['c' + calc.norm(l.name)]) {
-        seen['c' + calc.norm(l.name)] = 1;
-        out.push(topic('line', ((l.name || '') + ' ' + (l.sname || '')).trim(), { line: 'child:' + calc.norm(l.name) }, [l.name, ((l.name || '') + ' ' + (l.sname || '')).trim()], true));
-      }
-      if (l.type === 'debt' && (l.debt || l.bank) && !seen['d' + calc.norm(l.debt || l.bank)]) {
-        var key = calc.norm(l.debt || l.bank); seen['d' + key] = 1;
-        var al = [l.debt, l.bank].filter(Boolean); toks(l.debt || '').forEach(function (w) { if (w.length > 2 && !/^(the|and|of)$/.test(w)) al.push(w); });
-        out.push(topic('line', [l.debt, l.bank].filter(Boolean).join(' - '), { line: 'debt:' + key }, al, true));
-      }
-    });
-    return out;
+  /* ---------- which pages have something to show: a tab with nothing to show is greyed and cannot be clicked ---------- */
+  function facts(state) { return (state && state.factFind && state.factFind.facts) || null; }
+  function answers(state) { var f = facts(state); return (f && f.answers) || {}; }
+  function hasContent(state, id) {
+    var B = (state && state.blocks) || {};
+    if (id === 'map') return true;
+    if (id === 'policies') return calc.policies(state).length > 0;
+    if (id === 'fna' || id === 'shortfallQuote' || id === 'reduced' || id === 'comparative') return calc.quotes(state, id).length > 0;
+    if (id === 'group') return calc.groupItems(state).length > 0 || calc.personalInvestments(state).count > 0 || answers(state).hasGroup === 'No';      // "no group benefits" is something to show (three red lines)
+    if (id === 'shortfall') return !!calc.shortfall(state).has;
+    if (id === 'investments') return calc.investments(state).length > 0;
+    if (id === 'proposed') return calc.active(B.proposed && B.proposed.items).length > 0;
+    if (id === 'goals') return calc.active(B.goals && B.goals.items).length > 0;
+    if (id === 'other') return ((B.other && B.other.items) || []).some(function (i) { return !i.removed && (i.company || i.product || i.note || i.policyNo || calc.isNum(i.premium)); });
+    return false;
   }
+  /* A block can be opened when the PDF has a page for it (calc.pageShown) and there is something on it. */
+  function blockOn(state, id) { return id === 'map' || (calc.pageShown(state, id) && hasContent(state, id)); }
+  function tabOn(state, tabId) { var t = TABS.filter(function (x) { return x.id === tabId; })[0]; return !!t && t.blocks.some(function (b) { return blockOn(state, b); }); }
+  function firstBlock(state, tabId) { var t = TABS.filter(function (x) { return x.id === tabId; })[0]; return t ? (t.blocks.filter(function (b) { return blockOn(state, b); })[0] || null) : null; }
+  function tabBlocks(state, blockId) { var t = TABS.filter(function (x) { return x.id === TAB_OF[blockId]; })[0]; return t ? t.blocks.filter(function (b) { return blockOn(state, b); }) : []; }
+  /* The blocks that can be reached, in order, for next / back and the arrow keys: the Overview and every block that can be opened. */
+  function shownOrder(state) { return ORDER.filter(function (id) { return blockOn(state, id); }); }
 
-  /* What a topic text asks for: the best topic of each kind (screen page, tab, benefit, line). Two topics of one kind with the same best score, and different targets, are an unclear request. */
-  function match(topicText, list) {
-    var tk = toks(topicText), best = { nav: [], sub: [], pillar: [], line: [] }, top = { nav: 0, sub: 0, pillar: 0, line: 0 };
-    list.forEach(function (t) {
-      var sc = 0; t.aliases.forEach(function (a) { if (hasSeq(tk, a) && a.length + t.specific > sc) sc = a.length + t.specific; });
-      if (!sc) return;
-      if (sc > top[t.dim]) { top[t.dim] = sc; best[t.dim] = [t]; } else if (sc === top[t.dim] && !best[t.dim].some(function (x) { return JSON.stringify(x.target) === JSON.stringify(t.target); })) best[t.dim].push(t);
-    });
-    return best;
-  }
-  /* One spoken line -> { status, moves, label, choices }. status: none (not a command) | unknown (a command about something not on the list) | move | choose (unclear: nothing moves, buttons are offered). */
-  function decide(text, list) {
-    var c = parse(text);
-    if (!c) return { status: 'none' };
-    if (c.cmd === 'main') return { status: 'move', moves: [{ tab: 'map' }], label: 'Main page' };
-    if (c.cmd === 'next') return { status: 'move', moves: [{ step: 1 }], label: 'Next' };
-    if (c.cmd === 'back') return { status: 'move', moves: [{ step: -1 }], label: 'Back' };
-    if (c.cmd === 'clear') return { status: 'move', moves: [{ clear: true }], label: 'Highlights cleared' };
-    var best = match(c.topic, list), dims = ['nav', 'sub', 'pillar', 'line'], moves = [], labels = [], unclear = null;
-    dims.forEach(function (d) {
-      if (!best[d].length) return;
-      if (best[d].length === 1) { moves.push(best[d][0].target); labels.push(best[d][0].label); } else if (!unclear) unclear = best[d];
-    });
-    if (unclear) {
-      return { status: 'choose', choices: unclear.slice(0, 4).map(function (t) { return { label: t.label, moves: [t.target].concat(moves) }; }) };
+  /* ---------- the Overview page: ONE wording table (Paul, 22 November) so he can approve and change the sentences once ---------- */
+  var WORDING = {
+    notDiscussed: 'This was not discussed in our last meeting.',
+    heading: '{name}, here’s what we’ll cover today',
+    headingNoName: 'Here’s what we’ll cover today',
+    policies: { none: 'You have no personal policies in place right now.', one: 'You have one policy with {insurers} right now. We’ll show you what it covers.', many: 'You have {count} policies with {insurers} right now. We’ll show you what they cover.',
+      oneNoName: 'You have one policy in place right now. We’ll show you what it covers.', manyNoName: 'You have {count} policies in place right now. We’ll show you what they cover.' },
+    fna: { some: 'Based on our last meeting, we’ll show you what you ideally need to take out.' },
+    shortfall: { some: 'We’ll show you the gap between what you have and what you need.' },
+    reduced: { some: 'A more affordable way to close that gap.' },
+    group: { none: 'You have no group benefits in place. Your employer doesn’t cover you for anything.', some: 'Your employer covers you for {cover}.', someNoAmounts: 'You have group benefits through your employer.', fundOnly: 'Your employer provides a retirement fund, but no group risk cover.' },
+    groupCover: { life: 'life cover', sev: 'severe illness cover', lsd: 'disability cover', ip: 'income protection' },
+    retirement: { has: 'You already have a retirement annuity.', cannotAfford: 'You can’t afford an RA right now.', asked: 'We’ll show you what a retirement annuity could do for you.', none: 'You don’t have a retirement annuity.' },
+    investments: { none: 'You don’t have any investments right now.', one: 'You have one investment with {providers} right now.', many: 'You have {count} investments with {providers} right now.', oneNoName: 'You have one investment right now.', manyNoName: 'You have {count} investments right now.' },
+    goals: { none: 'You didn’t ask us for a goal analysis at this time.', done: 'A goal analysis was done for you.', asked: 'You asked us for a goal analysis. We’ll go through it once it is back.' },
+    medical: { medical: 'You have medical aid in place.', hospital: 'You have a hospital plan in place.', none: 'You don’t have medical aid.' },
+    will: { upToDate: 'Your will is in place and up to date.', needsUpdate: 'Your will is in place but needs updating.', has: 'You have a will.', none: 'You don’t have a will.' },
+    shortterm: { review: 'Your short-term insurance is being reviewed, and we’re waiting for feedback.', has: 'You have short-term insurance in place.', none: 'You don’t have short-term insurance.', spouse: 'Your spouse looks after your short-term insurance.' }
+  };
+  var NUMBER_WORDS = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
+  function fill(t, o) { return String(t).replace(/\{(\w+)\}/g, function (m, k) { return o[k] != null ? o[k] : m; }); }
+  function words(n) { return n >= 0 && n < NUMBER_WORDS.length ? NUMBER_WORDS[n] : String(n); }
+  function listOf(a) { a = a.filter(Boolean); return a.length < 2 ? (a[0] || '') : a.slice(0, -1).join(', ') + ' and ' + a[a.length - 1]; }
+  function unique(a) { var seen = {}, out = []; a.forEach(function (x) { var k = calc.norm(x); if (x && !seen[k]) { seen[k] = 1; out.push(String(x).trim()); } }); return out; }
+
+  /* The eleven cards: a card with a page behind it (opens) is bright and opens that tab; the others show their sentence only. */
+  var AREAS = [
+    { id: 'policies', head: 'Current policies', icon: 'policies', opens: 'policies' },
+    { id: 'fna', head: 'Life cover: FNA quote', icon: 'fna', opens: 'fna' },
+    { id: 'shortfall', head: 'Shortfall', icon: 'shortfall', opens: 'shortfall' },
+    { id: 'reduced', head: 'Reduced quote', icon: 'reduced', opens: 'reduced' },
+    { id: 'group', head: 'Group benefits', icon: 'group', opens: null },
+    { id: 'retirement', head: 'Retirement planning', icon: 'retire', opens: null },
+    { id: 'investments', head: 'Investments', icon: 'investments', opens: null },
+    { id: 'goals', head: 'Goal analysis', icon: 'goals', opens: null },
+    { id: 'medical', head: 'Medical aid', icon: 'medical', opens: null },
+    { id: 'will', head: 'Will', icon: 'will', opens: null },
+    { id: 'shortterm', head: 'Short-term insurance', icon: 'home', opens: null }
+  ];
+  var W = WORDING;
+  function sentenceFor(state, id) {
+    var f = facts(state), a = answers(state), B = (state && state.blocks) || {}, o = (f && f.other) || {}, none = W.notDiscussed;
+    if (id === 'policies') {
+      var ps = calc.policies(state), ins = unique(ps.map(function (e) { return e.item.insurer; }));
+      if (!ps.length) return a.hasRisk === 'No' ? W.policies.none : none;
+      if (ps.length === 1) return ins.length ? fill(W.policies.one, { insurers: listOf(ins) }) : W.policies.oneNoName;
+      return ins.length ? fill(W.policies.many, { count: words(ps.length), insurers: listOf(ins) }) : fill(W.policies.manyNoName, { count: words(ps.length) });
     }
-    if (!moves.length) return { status: 'unknown', topic: c.topic };
-    return { status: 'move', moves: moves, label: labels.join(' · ') };
-  }
-
-  /* ---------- the engine: locked until a command phrase, cool-down after a move, paused after a click, only the adviser's microphone ---------- */
-  function isAdviser(who) { return who === 'me' || who == null || who === ''; }   // the listener is started on the microphone alone; only the call's sound is tagged 'client'
-  function createEngine(o) {
-    var now = o.now || Date.now, on = false, cool = 0, paused = 0, choiceUntil = 0, choices = null;
-    function status() {
-      if (!on) return 'off';
-      var t = now();
-      if (t < paused) return 'paused';
-      if (t < cool) return 'cooling';
-      if (choices && t < choiceUntil) return 'choose';
-      return 'locked';
+    if (id === 'fna') return calc.quotes(state, 'fna').length ? W.fna.some : none;
+    if (id === 'shortfall') return calc.shortfall(state).has ? W.shortfall.some : none;
+    if (id === 'reduced') return calc.quotes(state, 'reduced').length ? W.reduced.some : none;
+    if (id === 'group') {
+      var gi = calc.groupItems(state), risk = gi.filter(function (g) { return g.kind === 'risk'; });
+      if (risk.length) {
+        var gt = calc.groupTotals(state), cover = ['life', 'sev', 'lsd', 'ip'].filter(function (k) { return calc.isNum(gt[k]) && gt[k] > 0; }).map(function (k) { return W.groupCover[k]; });
+        return cover.length ? fill(W.group.some, { cover: listOf(cover) }) : W.group.someNoAmounts;
+      }
+      if (gi.length) return W.group.fundOnly;
+      return a.hasGroup === 'No' ? W.group.none : none;
     }
-    return {
-      status: status,
-      get on() { return on; },
-      setOn: function (v) { on = !!v; cool = 0; paused = 0; choices = null; },
-      pause: function (ms) { if (on) paused = now() + (ms || o.pauseMs || PAUSE_MS); choices = null; },
-      choices: function () { return choices && now() < choiceUntil ? choices : null; },
-      clearChoices: function () { choices = null; },
-      /* One line from the listener. The text is read here and kept nowhere. */
-      hear: function (text, who) {
-        if (!on) return { status: 'off' };
-        if (!isAdviser(who)) return { status: 'ignored' };
-        var s = status();
-        if (s === 'paused' || s === 'cooling') return { status: s };
-        var d = decide(text, o.topics());
-        if (d.status === 'move') { choices = null; cool = now() + (o.coolMs || COOL_MS); if (o.onMove) o.onMove(d.moves, d.label); } else if (d.status === 'choose') { choices = d.choices; choiceUntil = now() + CHOICE_MS; if (o.onChoices) o.onChoices(d.choices); } else if (d.status === 'unknown' && o.onUnknown) o.onUnknown(d.topic);
-        return { status: d.status, label: d.label };
-      },
-      /* A button of an unclear request was clicked: the moves are done, the voice waits as after any click. */
-      choose: function (i) { var c = choices && choices[i]; if (!c) return false; choices = null; paused = on ? now() + (o.pauseMs || PAUSE_MS) : 0; if (o.onMove) o.onMove(c.moves, c.label); return true; }
-    };
+    if (id === 'retirement') {
+      if ((f && f.ret_ra && f.ret_ra.length) || a.hasRa === 'Yes') return W.retirement.has;
+      if ((a.raqReqs || []).some(function (r) { return /afford/i.test(r); })) return W.retirement.cannotAfford;
+      if (f && f.raq && f.raq.length) return W.retirement.asked;
+      return a.hasRa === 'No' ? W.retirement.none : none;
+    }
+    if (id === 'investments') {
+      var iv = calc.investments(state), prov = unique(iv.map(function (i) { return i.provider; }));
+      if (!iv.length) return a.hasInv === 'No' ? W.investments.none : none;
+      if (iv.length === 1) return prov.length ? fill(W.investments.one, { providers: listOf(prov) }) : W.investments.oneNoName;
+      return prov.length ? fill(W.investments.many, { count: words(iv.length), providers: listOf(prov) }) : fill(W.investments.manyNoName, { count: words(iv.length) });
+    }
+    if (id === 'goals') {
+      var gs = calc.active(B.goals && B.goals.items), figures = gs.some(function (g) { return ['currentValuePm', 'futureValuePm', 'aci', 'premium'].some(function (k) { return calc.isNum(g[k]); }); });
+      if (figures) return W.goals.done;
+      if (gs.some(function (g) { return g.requested === true; }) || (f && (f.rgar || f.egar))) return W.goals.asked;
+      return f ? W.goals.none : none;
+    }
+    if (id === 'medical') return o.ma && o.ma.value === 'Medical aid' ? W.medical.medical : o.ma && o.ma.value === 'Hospital plan' ? W.medical.hospital : o.ma && o.ma.value === 'None' ? W.medical.none : none;
+    if (id === 'will') {
+      var w = o.will || {};
+      if (w.value === 'Yes') return w.up === 'Yes' ? W.will.upToDate : w.up === 'No' ? W.will.needsUpdate : W.will.has;
+      return w.value === 'No' ? W.will.none : none;
+    }
+    if (id === 'shortterm') {
+      var s = o.shortterm || {};
+      if (a.refSti === 'Cameron to contact client') return W.shortterm.review;
+      return s.value === 'Yes' ? W.shortterm.has : s.value === 'No' ? W.shortterm.none : s.value === 'Handled by spouse' ? W.shortterm.spouse : none;
+    }
+    return none;
   }
-
-  /* ---------- the map: a short figure for each block (no income figure, ever) ---------- */
-  function short(n) {
-    if (!calc.isNum(n)) return '';
-    var a = Math.abs(n);
-    if (a >= 1000000) return 'R' + (Math.round(a / 100000) / 10).toString().replace(/\.0$/, '') + 'm';
-    if (a >= 10000) return 'R' + Math.round(a / 1000) + 'k';
-    return calc.fmtR(a);
-  }
-  function qCount(n, one) { return n + ' ' + one + (n === 1 ? '' : 's'); }
-  function mapFigures(state) {
-    var f = {}, pt = calc.policyTotals(state), sf = calc.shortfall(state), pi = calc.personalInvestments(state), gt = calc.groupTotals(state), items;
-    f.policies = pt.count.all ? qCount(pt.count.all, 'policy').replace('policys', 'policies') + ' · ' + short(pt.premium.all) + ' p.m.' : 'None yet';
-    var fna = calc.quotes(state, 'fna')[0]; f.fna = fna ? (calc.isNum(fna.premium) ? short(fna.premium) + ' p.m.' : 'Quote loaded') : 'Waiting';
-    var gi = calc.groupItems(state); f.group = gi.length || pi.count ? [gt.life ? short(gt.life) + ' group life' : '', pi.count ? short(pi.gross) + ' invested' : ''].filter(Boolean).join(' · ') || qCount(gi.length, 'item') : 'None';
-    f.shortfall = sf.has ? short(sf.short.life) + ' life shortfall' : 'Waiting';
-    ['shortfallQuote', 'reduced', 'comparative'].forEach(function (id) {
-      var qs = calc.quotes(state, id), prem = qs.filter(function (q) { return calc.isNum(q.premium); }).map(function (q) { return q.premium; });
-      f[id] = !qs.length ? (id === 'shortfallQuote' && !calc.hasGroupRisk(state) ? 'Not needed' : 'None yet') : qCount(qs.length, 'quote') + (prem.length ? ' · from ' + short(Math.min.apply(null, prem)) + ' p.m.' : '');
+  /* The Overview page's cards: [{ id, head, icon, text, opens, bright }]. A card opens its tab only when that tab can be opened (a tab with nothing to show is greyed). */
+  function cover(state) {
+    return AREAS.map(function (ar) {
+      var opens = ar.opens && tabOn(state, ar.opens) ? ar.opens : null;
+      return { id: ar.id, head: ar.head, icon: ar.icon, text: sentenceFor(state, ar.id), opens: opens, bright: !!opens };
     });
-    f.investments = pi.count ? qCount(pi.count, 'investment') + ' · ' + short(pi.gross) : 'None';
-    items = calc.active(state.blocks.proposed.items); f.proposed = items.length ? qCount(items.length, 'proposal') : 'None';
-    items = calc.active(state.blocks.goals.items); f.goals = items.length ? qCount(items.length, 'report') : 'None';
-    items = calc.active(state.blocks.other.items); f.other = items.length ? qCount(items.length, 'item') : 'None';
-    schema.BLOCKS.forEach(function (b) { if (!calc.pageShown(state, b.id)) f[b.id] = 'Not included'; });                 // the same pages are left out as in the PDF
-    return f;
+  }
+  function heading(state) {
+    var n = String((state && state.header && state.header.fname) || '').trim();
+    return n ? fill(W.heading, { name: n }) : W.headingNoName;
   }
 
-  /* ---------- the key-points library (private: kept in the browser, never in the repository) ---------- */
-  var KP_BENEFITS = { life: 'Life cover', sev: 'Severe illness', lsd: 'Lump sum disability', ip: 'Income protector / sickness benefit', instalmentProtector: 'Instalment Protector', childCover: 'Child care cover', conversion: 'Conversion' };
-  /* The file as Paul keeps it ({app:"wr-keypoints", schema:"0.x", points:[...]}). Only a point with an approval (who and when) is ever kept: an unapproved one is dropped here and never shows. */
+  /* ---------- the key-points library (private: found by the page, kept in the browser, never in the repository) ---------- */
+  /* The benefit keys a point can carry (the file's "benefit"). The columns: life, sev, lsd, ip, aci, abi. Extra topics shown with a column or a line: see PIL_EXTRA and lineBenefits. Older keys stay valid. */
+  var KP_BENEFITS = {
+    life: 'Life cover', sev: 'Severe illness', lsd: 'Lump sum disability', ip: 'Income protector', aci: 'ACI (yearly premium increase)', abi: 'ABI (annual benefit increase)',
+    sevUpTo200: 'Severe illness: the up to 200% extender', sevAdvanced: 'Severe illness: the advanced option', traumaIQ: 'Trauma IQ', sevChild: 'Severe illness for the children (10% doubling to 20% with child care cover)', sevChildExtra: 'Extra conditions for the children', sevChildClaim: 'What a child’s claim also pays',
+    rareChildhood: 'Children’s rare childhood diseases', ipClaimRoutes: 'Income protector: the two ways to claim', ipWaiting: 'Income protector: the waiting period',
+    childCare: 'Child care cover', debt: 'Debts', debtAccelerated: 'Accelerated debt cover', debtStandalone: 'Standalone debt cover', household: 'Household needs', death: 'Death-related needs', dread: 'Additional expense needs (dread)',
+    instalmentProtector: 'Instalment Protector', childCover: 'Child care cover (older key)', conversion: 'Conversion'
+  };
+  var KP_SECTIONS = { insured: 'The life insured', children: 'The children' };
+  var PIL_EXTRA = { sev: ['sevUpTo200', 'sevAdvanced', 'traumaIQ', 'sevChild', 'sevChildExtra', 'sevChildClaim'], ip: ['ipClaimRoutes', 'ipWaiting'] };
+  function bkey(b) { return String(b == null ? '' : b).toLowerCase().replace(/[^a-z0-9]/g, ''); }
+  function sectionOf(p) {
+    var s = bkey(p.section);
+    if (s === 'children' || s === 'child' || s === 'kids') return 'children';
+    if (s === 'insured' || s === 'lifeinsured' || s === 'life') return 'insured';
+    return /^(sevchild|rarechildhood|childcare|childcover)/.test(bkey(p.benefit)) ? 'children' : 'insured';
+  }
+
+  /* The file as Paul keeps it ({app:"wr-keypoints", schema:"0.x", points:[...]}). Only a point with an approval (who and when) and a source (the page of the client's own quote) is ever kept: an unapproved one, or
+     one with no source, is dropped here and never shows; so is one too long to be a short card (it is counted, so the page can say so). */
   function parseKeyPoints(text) {
     var j; try { j = typeof text === 'string' ? JSON.parse(text) : text; } catch (e) { return { ok: false, error: 'This is not a readable key-points file.' }; }
     if (!j || j.app !== 'wr-keypoints' || !Array.isArray(j.points)) return { ok: false, error: 'This is not a key-points file (it should say "wr-keypoints").' };
     if (!/^0\./.test(String(j.schema || ''))) return { ok: false, error: 'This key-points file has a layout this page does not know (' + String(j.schema || 'none') + ').' };
-    var good = [], dropped = 0;
+    var good = [], dropped = 0, tooLong = 0, noSource = 0;
     j.points.forEach(function (p) {
       var okp = p && typeof p.text === 'string' && p.text.trim() && typeof p.insurer === 'string' && typeof p.benefit === 'string' && p.approved && typeof p.approved === 'object' && p.approved.by && p.approved.date;
-      if (okp) good.push({ id: String(p.id || ''), insurer: String(p.insurer), product: String(p.product || ''), benefit: String(p.benefit), text: String(p.text).trim() }); else dropped++;
+      if (!okp) { dropped++; return; }
+      var src = typeof p.source === 'string' ? p.source.trim() : '';
+      if (!src) { noSource++; return; }
+      if (String(p.text).trim().length > KP_LONG || src.length > KP_SOURCE_LONG) { tooLong++; return; }
+      good.push({ id: String(p.id || ''), insurer: String(p.insurer), product: String(p.product || ''), benefit: String(p.benefit), section: sectionOf(p), text: String(p.text).trim(), source: src });
     });
-    return { ok: true, points: good, total: j.points.length, dropped: dropped };
+    return { ok: true, points: good, total: j.points.length, dropped: dropped, noSource: noSource, tooLong: tooLong };
   }
   function sameInsurer(a, b) { a = calc.norm(a); b = calc.norm(b); return !!a && !!b && (a === b || a.indexOf(b + ' ') === 0 || b.indexOf(a + ' ') === 0); }
-  /* At most four approved points for the insurer (and product, when the point names one) and the benefits being discussed, in the file's order. */
-  function pointsFor(points, insurer, benefits, product) {
+  function anyInsurer(a) { return !calc.norm(a) || /^(all|any|every)( insurers?)?$/.test(calc.norm(a)); }
+  /* The benefit keys a highlighted LINE asks about, most specific first. */
+  function lineBenefits(l) {
+    if (!l) return [];
+    if (l.type === 'child') return ['childCare', 'traumaIQ', 'rareChildhood', 'childCover'];
+    if (l.type === 'debt') return ['debt'].concat(l.accelerated === true ? ['debtAccelerated'] : l.accelerated === false ? ['debtStandalone'] : [], calc.isNum(l.ip && l.ip.monthly) && l.ip.monthly > 0 ? ['instalmentProtector'] : []);
+    if (l.type === 'household') return ['household'];
+    if (l.type === 'death') return ['death'];
+    if (l.type === 'dread') return ['dread'];
+    return [];
+  }
+  function benefitsFor(pil, extra) {
     var out = [];
-    (points || []).forEach(function (p) {
-      if (out.length >= 4 || benefits.indexOf(p.benefit) < 0 || !sameInsurer(p.insurer, insurer)) return;
-      if (p.product && product && calc.norm(product).indexOf(calc.norm(p.product)) < 0 && calc.norm(p.product).indexOf(calc.norm(product)) < 0) return;
-      out.push(p);
-    });
+    function add(k) { if (k && out.indexOf(k) < 0) out.push(k); }
+    (extra || []).forEach(add);
+    if (pil) { add(pil); (PIL_EXTRA[pil] || []).forEach(add); }
     return out;
   }
-  /* The benefits a pillar button (and a highlighted line) asks about: an income-protector debt line is also the Instalment Protector; a child line is also the child care cover. */
-  function benefitsFor(pil, rows) {
-    if (!pil) return [];
-    var b = [pil], r = rows || [];
-    if (pil === 'ip' && r.some(function (k) { return /^(type|debt):debt|^debt:/.test(k); })) b.push('instalmentProtector');
-    if ((pil === 'life' || pil === 'lsd') && r.some(function (k) { return /^(type:child|child:)/.test(k); })) b.push('childCover');
-    return b;
+  /* The approved points for the insurer (and the product, when the point names one; a point with no insurer is for every insurer) and the benefits asked about, at most KP_MAX: one point of each benefit in turn,
+     so that a column with several topics shows a little of each, then the next of each, each in the file's order. */
+  function pointsFor(points, insurer, benefits, product, max) {
+    var out = [], cap = max || KP_MAX, byKey = (benefits || []).map(function (b) {
+      var k = bkey(b);
+      return (points || []).filter(function (p) {
+        if (bkey(p.benefit) !== k) return false;
+        if (!anyInsurer(p.insurer) && !sameInsurer(p.insurer, insurer)) return false;
+        if (p.product && product && calc.norm(product).indexOf(calc.norm(p.product)) < 0 && calc.norm(p.product).indexOf(calc.norm(product)) < 0) return false;
+        return true;
+      });
+    }), seen = {};
+    for (var round = 0; out.length < cap && round < 20; round++) {
+      var any = false;
+      byKey.forEach(function (list) {
+        var p = list[round]; if (p) any = true;
+        if (p && out.length < cap && !seen[p.id || p.text]) { seen[p.id || p.text] = 1; out.push(p); }
+      });
+      if (!any) break;
+    }
+    return out;
   }
 
-  /* The tabs that can be opened: the map and every page the PDF has too (a page with nothing to say is left out). */
-  function shownOrder(state) { return ORDER.filter(function (id) { return id === 'map' || calc.pageShown(state, id); }); }
+  /* The ACI card is built from the client's own quote, not from the library (Paul: "Premiums rise <x>% a year, plus the age adjuster."): the figure is the quote's, and the age adjuster is named only when the quote's own words name one. */
+  function aciCard(q) {
+    if (!q) return null;
+    var t = typeof q.aciText === 'string' ? q.aciText.trim() : '', m = /(\d+(?:[.,]\d+)?)\s*%/.exec(t), x = m ? m[1].replace(',', '.') : (calc.isNum(q.aci) ? String(q.aci) : null);
+    if (x == null) return null;
+    return { id: 'aci', section: 'insured', text: 'Premiums rise ' + x + '% a year' + (/age/i.test(t) ? ', plus the age adjuster.' : '.'), source: 'This quote' + (q.number ? ', ' + (/bright/i.test(q.insurer || '') ? 'CP ' : 'quote ') + q.number : ''), generated: true };
+  }
 
-  return { TABS: TABS, ORDER: ORDER, shownOrder: shownOrder, COOL_MS: COOL_MS, PAUSE_MS: PAUSE_MS, words: words, parse: parse, topics: topics, match: match, decide: decide, createEngine: createEngine, isAdviser: isAdviser, lineKeys: lineKeys,
-    mapFigures: mapFigures, short: short, parseKeyPoints: parseKeyPoints, pointsFor: pointsFor, benefitsFor: benefitsFor, KP_BENEFITS: KP_BENEFITS };
+  /* Placeholder cards (same layout) shown for a BrightRock quote until the checked library is found; they state no fact. Paul's switch (Key points: on / off) hides them like any card. */
+  var PLACEHOLDER_SOURCE = 'BrightRock quote, page to come';
+  var PLACEHOLDERS = {
+    life: [['insured', 'Placeholder: what the life cover pays, and when.'], ['insured', 'Placeholder: how the cover follows the client’s needs.']],
+    sev: [['insured', 'Placeholder: severe illness cover for the life insured.'], ['insured', 'Placeholder: the severe illness extender.'], ['insured', 'Placeholder: the advanced option.'], ['insured', 'Placeholder: Trauma IQ.'],
+      ['children', 'Placeholder: severe illness cover for the children, with child care cover.'], ['children', 'Placeholder: the extra conditions for the children.'], ['children', 'Placeholder: what a child’s claim also pays.']],
+    lsd: [['insured', 'Placeholder: what lump sum disability pays, and when.']],
+    ip: [['insured', 'Placeholder: what the income protector pays.'], ['insured', 'Placeholder: the ways to claim, and the waiting period.']],
+    abi: [['insured', 'Placeholder: how the benefits increase each year.']]
+  };
+  function placeholdersFor(pil) {
+    return (PLACEHOLDERS[pil] || []).map(function (p, i) { return { id: 'ph-' + pil + '-' + i, section: p[0], text: p[1], source: PLACEHOLDER_SOURCE, placeholder: true }; });
+  }
+
+  /* What shows on the right for what is highlighted: sections of cards. o = { kp, insurer, product, pil, extra (the highlighted lines' benefit keys), quote }.
+     The ACI column shows only the ACI card. Severe illness (and any highlight that has both) is in two sections with banners: the life insured, the children. Returns { sections: [{ key, label, cards }], total }. */
+  function keyCards(o) {
+    o = o || {}; var cards = [];
+    if (o.pil === 'aci') { var a = aciCard(o.quote); if (a) cards = [a]; }
+    else if (o.pil || (o.extra && o.extra.length)) {
+      var bens = benefitsFor(o.pil, o.extra);
+      if (o.kp) cards = pointsFor(o.kp.points, o.insurer, bens, o.product);
+      else if (/bright/i.test(o.insurer || '') && o.pil && o.placeholders !== false) cards = placeholdersFor(o.pil).slice(0, KP_MAX);
+    }
+    var sections = [], by = {};
+    cards.forEach(function (c) { var k = c.section || 'insured'; if (!by[k]) { by[k] = { key: k, label: null, cards: [] }; sections.push(by[k]); } by[k].cards.push(c); });
+    sections.sort(function (x, y) { return (x.key === 'insured' ? 0 : 1) - (y.key === 'insured' ? 0 : 1); });
+    var banners = o.pil === 'sev' || sections.length > 1;
+    sections.forEach(function (s) { s.label = banners ? KP_SECTIONS[s.key] : null; });
+    return { sections: sections, total: cards.length };
+  }
+
+  return { TABS: TABS, ORDER: ORDER, TAB_OF: TAB_OF, hasContent: hasContent, blockOn: blockOn, tabOn: tabOn, firstBlock: firstBlock, tabBlocks: tabBlocks, shownOrder: shownOrder, lineKeys: lineKeys,
+    WORDING: WORDING, AREAS: AREAS, sentenceFor: sentenceFor, cover: cover, heading: heading, parseKeyPoints: parseKeyPoints, pointsFor: pointsFor, lineBenefits: lineBenefits, benefitsFor: benefitsFor, aciCard: aciCard, placeholdersFor: placeholdersFor, keyCards: keyCards,
+    KP_BENEFITS: KP_BENEFITS, KP_SECTIONS: KP_SECTIONS, KP_FILE: KP_FILE, KP_MAX: KP_MAX, KP_LONG: KP_LONG, PLACEHOLDERS: PLACEHOLDERS, PLACEHOLDER_SOURCE: PLACEHOLDER_SOURCE };
 });

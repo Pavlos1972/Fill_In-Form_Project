@@ -145,6 +145,8 @@ Paul saw and corrected the mock-ups ("I'm happy with everything") and asked for 
 
 ## 8. Stage 5 built (21 November 2026): the Presentation (Client Overview page 0.4, on the work branch, not merged)
 
+**Superseded on 22 November (section 13): the voice described below was REMOVED from the Presentation altogether, the key points load by themselves and the look was redone. The sections on the voice discipline are kept only as history.**
+
 | Part | Where |
 |---|---|
 | Without a screen (tested alone) | `app/js/ov-pres.js`: the tabs, the map's short figures, the closed list of topics built from the overview (`topics`), the command grammar (`parse`), the decision (`decide`), the engine (`createEngine`) and the key-points library (`parseKeyPoints`, `pointsFor`, `benefitsFor`) |
@@ -230,3 +232,93 @@ Relayed by the Fix Skills chat with Paul's "GO" (twenty-one items) and, in the m
 - **A document that was just read opens its item** (a quote just added opens too), so it can be checked at once; everything else starts folded.
 - **The Checks panel's lines** count a quote's rows still amber, and the differences from the Fact Find or from Paul's standards; the full list of checks is one click away.
 - **Not certain:** all of it is seen only in my own screenshots, not on Paul's screen; the white Presentation has not been seen on a projector; the ACI wording depends on how well the real reading copies it (the Anthropic call has still never been made on a real document).
+
+## 12. Paul's third batch after using Studio 0.7 on a real client (22 November; Client Overview Studio 0.8, on the work branch)
+
+Relayed by the Fix Skills chat with Paul's "yes: build it all": thirteen items (the Anthropic key in the Studio, the Documents panel removed, an ABI on every line, a progress bar under a block's name, no block numbers with Back / Next, a decluttered top bar and one upload button per block, the debts from the Fact Find, matched = green tick, severe illness N/A, child care waiting always N/A, the ACI words on each line, the change moment pay-out automatic, two Liberty schedules). Built as asked; **the saved file gains one key, `match`, and loses none (contract revision g)**.
+
+| Part | Where |
+|---|---|
+| Settings, the key, the reading switch, the link in the no-key message | `ov-ui.js` `openSettings`, `toastLink`, `aiOn` / `aiSet`; the key is stored with `FF.lookup.saveSettings` (the Fact Find's own settings, same origin) |
+| Top bar, More menu, one load button, one upload button per block | `overview.html`, `ov-ui.js` (`loadFromClientFolder`, `fromClientFolder`, `pickAny`), `css/overview.css` |
+| Bar under a block's name | `ov-ui.js` `prog`, `progStart` / `progStep` / `progEnd`, `progHTML` (in `drawNav`) |
+| No block numbers, Back / Next | `ov-ui.js` `drawNav`, `pagerHTML` (a page whose dot is `na` is skipped) |
+| Reading rules | `ov-docs.js` `line()` (ABI, severe illness, child care waiting), the prompts, `enrich`, `factNote`; `ov-store.js` `normLine` |
+| Matching and the tick | `ov-calc.js` `matchChildren` / `matchDebts` (one matching for the checks, the reading and the tick); `ov-check.js` `run` (messages with `short`, `matched`), `autoMatch`; `ov-ui.js` `badgeHTML`, `lineWhy`, `paintWhy` |
+| The pay-out guide by itself | `ov-ui.js` `autoGuide`, `ingest` (quotes first, guides after, `unmatchedGuides`), `showResults`; `folders.js` `clientDocuments` now also lists the quotes, goal analysis and proposals folders |
+| Two policies of one insurer | `ov-docs.js` `matchItem` (policy number, then premium, then the first unfilled one) |
+| Tests | `tests/overview-load.test.js`, `tests/browser/t-overview-load.js` (a real folder tree, a stand-in for the Anthropic call that answers by what is in the document); the older Overview tests were updated |
+
+**Decisions made while building (my readings, for Paul to correct):**
+- **Which lines the page ticks:** only a **child or debt line that agrees with the Fact Find** (name, bank, amount). Household, death-related needs and dread have nothing in the Fact Find to agree with, so they stay *to check* (the page still never marks as checked something it only read). If Paul wants them ticked too, that is a one-line change.
+- **A debt line's amounts are not filled from the Fact Find**, only its name and bank (Paul asked for the bank; an amount the quote does not print stays empty and the check says so).
+- **Severe illness N/A is set when a quote is READ**; a quote typed by hand keeps its empty boxes. A pillar that is N/A is a grey N/A (not a box), as for death-related needs.
+- **The block numbers are gone from the screen** (and, since the Presentation round of section 13, from the Presentation too). The PDF's tabs (and the PDF's "(block 8)" words) still carry them: Paul spoke of the Studio's menu.
+- **Preview PDF, Save PDF and Present stay on the right of the top bar** (Paul listed what stays on the left).
+- **The key is stored with the Fact Find's own settings** (the same browser storage, so it is "the same key"); Remove the saved key is in Settings. A quote is now sent to Anthropic together with the Fact Find's debts and children (so the debts can be named): the Settings text says so.
+- **The pay-out guide is looked for** among the files the folder listing found (now including the numbered quotes folder), else beside the quote that was picked, else in the client's quotes folder.
+- **What was loaded** appears in a small card in the corner (not a window that blocks the page) when something needs a look or several documents were loaded; a failure is also told in the message and on the block's bar.
+- **Not certain:** all of it is seen only in my own screenshots, not on Paul's screen; whether a real BrightRock quote now gives an ABI on every line depends on the real reading (the instruction is stronger and the page fills "Not found" where it is empty, but the real Anthropic call has still never been made on a real document); the real Liberty schedules (their premiums and numbers) are untested.
+
+## 13. The Presentation round (22 November; built in the same release as Studio 0.8, after Paul's decision that the voice is "too volatile")
+
+The Fix Skills chat relayed, in three messages (the first, with a voice through the speech listener and Claude, was **withdrawn by Paul and superseded** by the second and third), what Paul wants of the Presentation. **Built, tested and on the work branch; NOT merged (waits for Paul's own "merge"), NOT installed.**
+
+| Paul's point | What was built |
+|---|---|
+| **No voice at all** (no microphone, no voice button, no listening line) | `ov-pres.js` lost its grammar, topics, decisions and engine; `ov-present.js` lost the listener, the Voice button and the line; `overview.html` no longer loads `listen.js`. The Fact Find's own voice is untouched. A test fails if voice code or text comes back. |
+| **P2: highlight by clicking** (Life cover, Severe illness, Lump sum disability, Income protector, **ACI, ABI**; a line click "as now"); **nothing greyed out** | Six buttons (each shown only where its column is on the page: the shortfall and the comparison have no ACI or ABI) and the column headings do the same; a line click as before; **the dimming rules are gone** (a browser check reads the computed opacity of every element with a highlight on: all 1). |
+| **P4: remove the word "Highlight"** | Gone from the screen and from the buttons' tooltips. |
+| **P5: key points by themselves, two or three bullets, loaded automatically** | The page reads **`wr-keypoints.json` at the top of New Business (then Client Files)**, through the folders connected with Folders…, and keeps a copy in the browser; at most three points show, for the insurer on screen and what is highlighted (the benefit keys are in `OVERVIEW-DATA-CONTRACT.md` section 13). No button, no file chooser. |
+| **P6: match the entry screen** (accelerated / standalone per debt line, child care waiting N/A, ACI in the quote's words on every line, ABI filled, no block numbers on the tabs) | `accelerated` on a debt line is now yes / no / unknown (contract revision h), chosen on the entry screen, asked of the reading, printed in the PDF and the Presentation; the Presentation already took the quote's ACI words and the line's ABI and N/A waiting from the same code; its tabs, titles and cards carry no number. |
+| **The look** (white, blue, orange, logo; cards; pills; soft tables; glow; sliding key-points card; no scroll bars) | `css/present.css` and `js/ov-present.js` rewritten: a blue header band and cards with icons on the main page, rounded pill tabs (the current one filled blue with an orange underline), a left-out page simply not there, tables with room to breathe and big bold figures, a soft orange glow, the slim key-points card with a coloured top edge that slides in, a gentle fade between pages. |
+
+**Decisions made while building (my readings, for Paul to correct):**
+- **The key-points file is `wr-keypoints.json` at the top of New Business (then Client Files).** The page reads it with the connection it already has; the browser asks for a folder's permission only when nothing is kept in the browser yet (the click on Present allows it). If Paul prefers another place, it is one function (`FF.foldersUI.rootFile`).
+- **A point over 200 characters is left out** (and counted in the top bar): a bullet must be short. **An empty `insurer` in the file means every insurer.**
+- **A left-out page is not on the tab row and not on the main page at all** (Paul: either left out or quietly greyed without a line; left out is cleaner).
+- **The PDF keeps its numbered tabs** (Paul spoke of the Presentation and the Studio's screen).
+- **A new debt line starts "not known"** (it started "accelerated"); **an older saved file may carry an accelerated debt line nobody confirmed**: the choice is on the entry screen to check.
+- **The main page has the client's name in a blue band** (the top bar's name is hidden there so it is not shown twice).
+- **Not certain:** seen only in my own screenshots, not on Paul's screen or a projector; the permission prompt for the folder has not been seen with Chrome's real folder picker; the key points have only been tried with an invented library; whether the real reading gives `accelerated` correctly is untested (the real Anthropic call has never been made on a real document).
+
+## 14. The approved Presentation design (22 November, evening) and the Overview page's wording
+
+Paul approved a design (relayed by the Fix Skills chat); it **replaces the design part of section 13** (the voice removal, click highlighting, no greying, no word *Highlight*, the ACI / ABI buttons all stand). **Built, tested and on the work branch; NOT merged (waits for Paul's own "merge"), NOT installed.**
+
+| Paul's point | What was built |
+|---|---|
+| White page, top bar with the logo, client name and *Client Overview · Presentation · date*, pill tabs (active #27A8E0 with an orange #F28C28 underline), rounded corners (about 16px) and a soft shadow everywhere | `css/present.css` and `js/ov-present.js` rewritten; the orange is #F28C28 in the Presentation |
+| Nine tabs: Overview, Current policies, FNA quote, Group benefits, Shortfall, Reduced quotes, Investments, Goal analysis, Other; a tab with nothing to show is greyed and cannot be clicked | `TABS` in `js/ov-pres.js`. **The Studio has eleven blocks, so three tabs hold two each, with a small button on the page for each** (Shortfall / Shortfall quote, Reduced quotes / Comparative quotes, Current investments / Proposed investments). A block "has something to show" when there is data (`hasContent`) and the PDF has a page for it. **This replaces "a left-out page is not there at all"** |
+| The Overview page: banner, *<First name>, here's what we'll cover today*, cards of four with an icon, a heading and ONE factual sentence, no figures; four bright cards that open a page, the rest soft grey and not clickable; fade in one after another | `WORDING` / `sentenceFor` / `cover` in `js/ov-pres.js` (ONE table); `mapView` in `js/ov-present.js` |
+| Quote tables like the PDF (header #DDEFF9, grid #B8C4CE, rounded, the totals rows always, the blue premium bar, full terms) | `linesTable`, `.ptbl` rules |
+| Pills + a Key points: on / off switch; cards that slide in one after another with a *Source:* line; Severe illness in two sections; ACI card only *Premiums rise <x>% a year, plus the age adjuster.*; placeholders until the checked library arrives | `keyCards`, `aciCard`, `PLACEHOLDERS` in `js/ov-pres.js`; `paintPanel`, `setKeys` in `js/ov-present.js`; library layout in `OVERVIEW-DATA-CONTRACT.md` section 13 (a `source` per point, an optional `section`) |
+| Current policies / Group benefits (three red lines) / Shortfall (Need, Current cover, Shortfall in red) / Other cards | `policiesView`, `groupView`, `shortfallView`, `otherView` |
+
+**The wording of the Overview page (one sentence per area; this is the table Paul approves; each is chosen by the rule shown):**
+
+| Card | Rule and sentence |
+|---|---|
+| **Current policies** | policies in block 1: none and the Fact Find says no personal cover (*Has personal risk cover* = No): *You have no personal policies in place right now.* One: *You have one policy with {insurer} right now. We'll show you what it covers.* Several: *You have {two, three...} policies with {insurers, each once} right now. We'll show you what they cover.* (no insurer name known: *You have one policy in place right now...* / *You have {n} policies in place right now...*) |
+| **Life cover: FNA quote** | an FNA quote is loaded: *Based on our last meeting, we'll show you what you ideally need to take out.* |
+| **Shortfall** | the shortfall can be worked out: *We'll show you the gap between what you have and what you need.* |
+| **Reduced quote** | a reduced quote is loaded: *A more affordable way to close that gap.* |
+| **Group benefits** | no group item and the Fact Find says no group risk: *You have no group benefits in place. Your employer doesn't cover you for anything.* A group risk statement with amounts: *Your employer covers you for {life cover, severe illness cover, disability cover, income protection}.* without amounts: *You have group benefits through your employer.* only a pension or provident fund: *Your employer provides a retirement fund, but no group risk cover.* |
+| **Retirement planning** | a retirement annuity listed or *Has retirement annuities* = Yes: *You already have a retirement annuity.* An older answer *Cannot afford now* on the RA quote list: *You can't afford an RA right now.* An RA quote asked for: *We'll show you what a retirement annuity could do for you.* *Has retirement annuities* = No: *You don't have a retirement annuity.* |
+| **Investments** | investments in block 8: *You have one investment with {provider} right now.* / *You have {n} investments with {providers} right now.*; none and *Has investments* = No: *You don't have any investments right now.* |
+| **Goal analysis** | a report with figures: *A goal analysis was done for you.* A report asked for: *You asked us for a goal analysis. We'll go through it once it is back.* The Fact Find read and none asked for: *You didn't ask us for a goal analysis at this time.* |
+| **Medical aid** | *Medical aid in place* (answer Medical aid): *You have medical aid in place.* Hospital plan: *You have a hospital plan in place.* None: *You don't have medical aid.* |
+| **Will** | has a will and it is up to date: *Your will is in place and up to date.* has one that is not up to date: *Your will is in place but needs updating.* has one, up to date not answered: *You have a will.* No will: *You don't have a will.* |
+| **Short-term insurance** | the Cameron referral box says *Cameron to contact client*: *Your short-term insurance is being reviewed, and we're waiting for feedback.* Otherwise Yes: *You have short-term insurance in place.* No: *You don't have short-term insurance.* Handled by spouse: *Your spouse looks after your short-term insurance.* |
+| **Any area with no answer** (or no Fact Find read) | *This was not discussed in our last meeting.* |
+
+**Decisions made while building (my readings, for Paul to correct):**
+- **Only the four named cards open a page** (Current policies, FNA quote, Shortfall, Reduced quote), and only when their tab has something to show. Group benefits, Investments and Goal analysis have tabs but their cards only say their sentence (one field of the table, `opens`, changes that).
+- **The sentences need the Fact Find's answers**, so the saved overview now keeps `factFind.facts.answers` (contract revision h). **An overview saved before this has no answers: its cards say *This was not discussed in our last meeting.* until Fill from Fact Find is run again.**
+- **The retirement sentence**: the Fact Find has no *can't afford* box any more (removed in 3.4); the sentence is shown only for an older answer. The sentences for *RA quote asked for*, *a goal analysis was done / asked for*, *a spouse looks after short-term*, *the group employer covers ...* and *a retirement fund only* are mine, built on the same rule (a fact in the Fact Find or the Studio, never a guess); say if any should go.
+- **The ACI card** names *the age adjuster* only when the quote's own words (`aciText`) name one; with *10% fixed* it reads *Premiums rise 10% a year.*
+- **Placeholder cards** show (for a BrightRock quote only) until the library is found, so Paul can see the layout; **they must not be shown to a client**: if no library is found the top bar says *No key points file found · placeholder cards shown*, and the switch hides them.
+- **The shortfall's Current cover** is the group benefits plus the personal investments added together, with each amount under it (the PDF's two columns); the added figure is the only figure on that page that the PDF does not print as it is. **The client's current personal policies (block 1, e.g. two Liberty policies) are NOT counted: they are being replaced (Paul, in this chat, 22 November, evening). A relayed message of the same evening asked for the opposite; Paul's own word was followed, and a test pins it.** **Paul's other answers that evening (relayed): the whole wording table above is approved, including my own sentence variants; the key-points library is approved and is being saved as `wr-keypoints.json` at the top of New Business.**
+- **Policy lines in the Current policies table** are named *Insurer PolicyNumber* (one space), as in *Liberty 12345678*.
+- **Not certain:** all of it is seen only in my own screenshots, not on Paul's screen or a projector; the sentences are only as good as the Fact Find's answers; the key-point cards have only been tried with invented text; the real folder permission prompt has not been seen.
+
