@@ -81,7 +81,7 @@ srv.listen(0, async () => {
   await rp.fill('dialog.fdlg [data-key="A"] [data-path]', 'C:\\Users\\tester\\Company\\New Business'); await rp.fill('dialog.fdlg [data-key="B"] [data-path]', 'C:\\Users\\tester\\Company\\Client Files');
   await rp.click('dialog.fdlg [data-done]'); await rp.waitForTimeout(300);
   const p = await ctx.newPage(); const errs = []; p.on('pageerror', e => errs.push(e.message)); p.on('dialog', d => d.accept());
-  await p.goto(base + 'overview.html'); await p.waitForTimeout(900); await wireOn(p);
+  await p.goto(base + 'overview.html'); await p.waitForTimeout(900); await wireOn(p); await p.evaluate(() => OV.app.openAll());          // the page starts folded (See more); this test is about what is inside
   if (await p.$('#restoreDraft')) await p.click('#restoreNew');
   await p.evaluate(t => OV.app.fillFactFindText(t, 'ff.json'), JSON.stringify(FFJ));
   await p.evaluate(() => FF.lookup.saveSettings({ apiKey: 'sk-test-key', model: 'claude-test' })); await p.evaluate(() => OV.app.redraw());
@@ -115,7 +115,7 @@ srv.listen(0, async () => {
   const flags = await p.evaluate(() => [...document.querySelectorAll('.qcard:last-of-type tr.ffdiff')].map(r => ({ need: (r.querySelector('.need').innerText + ' ' + [...r.querySelectorAll('.need input')].map(i => i.value).join(' ')).replace(/\s+/g, ' ').trim(), title: r.title })));
   ok(flags.length === 3 && flags.some(f => /Amy/.test(f.need) && /surname "Docs"/.test(f.title)) && flags.some(f => /Cleo/.test(f.need) && /not in the Fact Find/.test(f.title)) && flags.some(f => /Home loan/.test(f.need) && /bank "Other Bank"/.test(f.title) && /instalment of R11,000; the Fact Find has R12,000/.test(f.title)), '4. the lines that differ are marked amber with what differs: ' + JSON.stringify(flags.map(f => f.need)));
   ok(JSON.stringify((await st()).factFind.facts) === factsBefore && q.lines.filter(l => l.type === 'child')[0].sname === 'Docz', '4. nothing was overwritten: the Fact Find is as it was and the document\'s own surname is kept');
-  const chk = await p.evaluate(() => document.querySelector('#checks').innerText);
+  const chk = await p.evaluate(() => document.querySelector('#checks').textContent);
   ok(/Amy/.test(chk) && /Cleo/.test(chk), '4. the Checks list the differences too');
   const dots = await p.evaluate(() => ({ sf: document.querySelector('[data-dot=shortfall]').className, fna: document.querySelector('[data-dot=fna]').className, fnaTitle: document.querySelector('[data-dot=fna]').closest('button').title }));
   ok(/green/.test(dots.sf) && /amber/.test(dots.fna) && /^To check: \d+ things? (is|are) flagged/.test(dots.fnaTitle), '4. once the FNA has figures the shortfall dot is green; the FNA dot is amber with its reason on hover: ' + dots.fnaTitle.slice(0, 90));
@@ -134,7 +134,7 @@ srv.listen(0, async () => {
   await p.click('[data-upc=proposed]'); await p.waitForTimeout(1200);
   s = await st(); const pr = s.blocks.proposed.items.filter(i => !i.removed && i.quote === '12345678')[0];
   ok((await picks())[2].startIn === '8. Proposals' && s.blocks.proposed.items.length === n0 && pr && pr.type === 'Retirement annuity (RA)' && pr.monthly === 5200 && pr.boostPct === 4 && pr.netInvested === 4800 && pr.aci === 10 && pr.st === 'verify' && pr.ffKey, '5. the proposal was read from the proposals folder into the row the Fact Find asked for (no second row)');
-  ok(/the quote has a premium of R5,200 a month; the Fact Find asked for R5,000/.test(await p.evaluate(() => document.querySelector('#checks').innerText)), '5. and the difference from the Fact Find\'s request is flagged');
+  ok(/the quote has a premium of R5,200 a month; the Fact Find asked for R5,000/.test(await p.evaluate(() => document.querySelector('#checks').textContent)), '5. and the difference from the Fact Find\'s request is flagged');
 
   /* ---- 6. a reading that found nothing; a window that is closed ---- */
   await p.evaluate(() => OV.app.go('reduced'));

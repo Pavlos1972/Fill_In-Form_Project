@@ -13,7 +13,7 @@ const FFJ = { app: 'wr-fact-find', schema: '5.4', f: { fname: { v: 'Test' }, sna
   const b = await chromium.launch({ executablePath: process.env.CHROMIUM || undefined, args: ['--no-sandbox'] });
   const p = await (await b.newContext({ viewport: { width: 1600, height: 900 } })).newPage(); const errs = []; p.on('pageerror', e => errs.push(e.message)); p.on('console', m => { if (m.type() === 'error') errs.push(m.text()); });
   p.on('dialog', d => d.accept());
-  await p.goto('file://' + dir + '/overview.html'); await p.waitForTimeout(400);
+  await p.goto('file://' + dir + '/overview.html'); await p.waitForTimeout(400); await p.evaluate(() => OV.app.openAll());          // the page starts folded (See more); this test is about what is inside
   await p.evaluate(t => {
     const A = OV.app, s = A.state; A.fillFactFindText(t, 'ff.json'); s.header.overviewDate = '05/01/2027'; s.header.astuteDate = '20/12/2026';
     const q = OV.store.addQuote(s, 'fna'); q.number = '100000001'; q.aci = 10; q.premium = 2900; q.date = '19/11/2026'; q.lines.filter(l => l.type === 'household')[0].life.lump = 800000; q.lines.filter(l => l.type === 'household')[0].life.monthly = 5000;
@@ -21,7 +21,7 @@ const FFJ = { app: 'wr-fact-find', schema: '5.4', f: { fname: { v: 'Test' }, sna
     A.redraw();
   }, JSON.stringify(FFJ));
   const text = sel => p.evaluate(s => document.querySelector(s).innerText, sel);
-  const checks = () => p.evaluate(() => document.querySelector('#checks').innerText);
+  const checks = () => p.evaluate(() => document.querySelector('#checks').textContent);                 // the folded list of every individual check is in it too
 
   /* ---- 1. a pay-out typed under a BrightRock quote ---- */
   await p.evaluate(() => OV.app.go('fna')); await p.waitForTimeout(60);
@@ -48,13 +48,13 @@ const FFJ = { app: 'wr-fact-find', schema: '5.4', f: { fname: { v: 'Test' }, sna
 
   /* ---- 2. a comparative quote tailored to what the insurer prints ---- */
   await p.evaluate(() => OV.app.go('comparative')); await p.click('[data-addq=comparative]'); await p.waitForTimeout(60);
-  ok(/Type what this insurer/.test(await text('.qcard')) && /whole-of-life amount/.test(await text('.qcard')), '2. a comparative quote says what to type');
-  ok(await p.evaluate(() => document.querySelector('.qcard .adders .addrow').textContent) === '+ Other line', '2. its first button is "+ Other line"');
+  ok(/what the other insurer.s quote prints/.test(await text('.qcard')) && /whole-of-life amount/.test(await text('.qcard')), '2. a comparative quote says what to type');
+  ok(await p.evaluate(() => document.querySelectorAll('.qcard .adders .addrow').length === 0 && !document.querySelector('.qcard .xbtn')), '2. no add buttons and no remove column: its lines come only from the quote');
   ok(await p.evaluate(() => { const l = OV.app.state.blocks.comparative.quotes[0].lines; return l.length === 1 && l[0].label === 'Cover' && l[0].term === 'Whole of life'; }) && await p.evaluate(() => document.querySelector('.qcard tr.ln input[data-p$=".label"]').value) === 'Cover', '2. it starts with one "Cover" line, whole of life');
   await p.fill('.qcard tr.ln input[data-p$=".life.lump"]', '450000'); await p.fill('.qcard tr.ln input[data-p$=".sev.lump"]', '100000'); await p.fill('.qcard input[data-p$=".insurer"]', 'Old Mutual'); await p.fill('.qcard input[data-p$=".premium"]', '1700');
   const tot = await p.evaluate(() => document.querySelector('.qcard [data-comp^="qtot"]').innerText.replace(/\s+/g, ' '));
   ok(/R450,000/.test(tot) && /R100,000/.test(tot) && /R1,700/.test(tot), '2. the totals follow: ' + tot.slice(0, 120));
-  await p.click('.qcard [data-addl$="|household"]'); ok(await p.evaluate(() => OV.app.state.blocks.comparative.quotes[0].lines.length) === 2, '2. the other kinds of line can still be added');
+  ok(await p.evaluate(() => OV.app.state.blocks.comparative.quotes[0].lines.length) === 1, '2. and it still has its one Cover line (nothing can be added by hand to a quote that has lines)');
 
   /* ---- 3. one of our BrightRock policies ---- */
   await p.evaluate(() => OV.app.go('policies')); await p.waitForTimeout(60);
@@ -67,7 +67,8 @@ const FFJ = { app: 'wr-fact-find', schema: '5.4', f: { fname: { v: 'Test' }, sna
   const page = n => cp.execFileSync('pdftotext', ['-f', String(n), '-l', String(n), '-layout', file, '-']).toString();
   ok(/Your change moment pay-out/.test(page(3)) && /R30,000/.test(page(3)) && /R80,000/.test(page(3)) && /R20,000/.test(page(3)) && /31\/12\/2046/.test(page(3)), '4. the PDF prints the typed pay-out under the quote');
   ok(/Your change moment pay-out/.test(page(2)) && /R12,000/.test(page(2)) && /R33,000/.test(page(2)), '4. and under our BrightRock policy on the policies page');
-  ok(/Whole of life/.test(page(8)) && /R450,000/.test(page(8)) && /Cover/.test(page(8)), '4. a comparative quote with its own line is on the comparative page');
+  const cmpPage = await p.evaluate(() => OV.pdf.pagesOf(OV.app.state).ids.indexOf('comparative') + 1);                       // a page with nothing to say is left out, so the number is looked up
+  ok(cmpPage > 0 && /Whole of life/.test(page(cmpPage)) && /R450,000/.test(page(cmpPage)) && /Cover/.test(page(cmpPage)), '4. a comparative quote with its own line is on the comparative page (page ' + cmpPage + ')');
   await p.click('#btnPresent'); await p.waitForTimeout(150);
   await p.evaluate(() => { OV.present.go('fna'); OV.present.applyMoves([{ sub: 'cmp' }]); });
   const pv = await text('#pSlide'); ok(/Total for all your needs/.test(pv) && /R30,000/.test(pv) && /R80,000/.test(pv) && /R20,000/.test(pv), '4. the Presentation shows the typed pay-out in its tab');

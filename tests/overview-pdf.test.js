@@ -36,7 +36,8 @@ const PDF = global.window.OV.pdf;
 
 const FFJ = () => ({
   app: 'wr-fact-find', schema: '5.4',
-  f: { fname: { v: 'Test' }, sname: { v: 'Client' }, net: { v: 'R 40 000.00' }, gross: { v: 'R 50 000.00' }, ip_age: { v: '65' }, date: { v: '20/11/2031' }, dd_cover: { v: 'R 500 000.00' }, ma: { v: 'Medical aid' }, ma_prov: { v: 'Test Medical' }, ma_broker: { v: 'Paul K' } },
+  f: { fname: { v: 'Test' }, sname: { v: 'Client' }, net: { v: 'R 40 000.00' }, gross: { v: 'R 50 000.00' }, ip_age: { v: '65' }, date: { v: '20/11/2031' }, dd_cover: { v: 'R 500 000.00' }, ma: { v: 'Medical aid' }, ma_prov: { v: 'Test Medical' }, ma_broker: { v: 'Paul K' },
+    bf_sf_req: { v: 'Request a quote' }, fna_req: { v: 'Request a quote' }, rgar_req: { v: 'Request a quote' } },                // the Fact Find asks for a shortfall quote, a comparative quote and the RGAR: all twelve pages
   l: { kids: [{ d: { name: 'Amy', sname: 'Client', cost: 'R 5 000.00' } }, { d: { name: 'Ben', sname: 'Client', cost: 'R 5 000.00' } }],
     debts: [{ d: { type: 'Home loan', prov: 'Test Bank', desc: 'Home loan', inst: 'R 12 000.00', bal: 'R 1 200 000.00' } }, { d: { type: 'Vehicle finance', prov: 'Test Bank', desc: 'Car loan', inst: 'R 4 000.00', bal: 'R 200 000.00' } }, { d: { type: 'Credit card', prov: 'Test Bank', desc: 'Credit card', inst: 'R 1 500.00', bal: 'R 50 000.00' } }],
     risk: [{ d: { prov: 'Other Insurer', spend: 'R 1 200.00', broker: 'Other broker' } }, { d: { prov: 'Our Insurer', spend: 'R 900.00', broker: 'Paul K' } }], grp: [{ d: { prov: 'Test Group', spend: 'R 150.00', broker: 'Other broker' } }],
@@ -79,7 +80,7 @@ test('every page has the row of twelve tabs, and each tab is a link to its page'
 test('the cover: the client\'s name, "Your financial overview", the date, the broker and the Astute date', () => {
   PDF.build(filled());
   const c = page(0);
-  assert.ok(/Test Client/.test(c) && /Your financial overview/.test(c) && /Prepared 05\/01\/2027/.test(c) && /Broker: Paul Kafentzis/.test(c) && /Astute report: 20\/12\/2026/.test(c), c.slice(0, 300));
+  assert.ok(/Test Client/.test(c) && /Your financial overview/.test(c) && /Prepared 05\/01\/2027/.test(c) && /by Broker Paul Kafentzis/.test(c) && /Astute report: 20\/12\/2026/.test(c), c.slice(0, 300));
 });
 
 test('the quote: its status, CP number, lines, totals, premium, and the change moment pay-out and comparison on the SAME page', () => {
@@ -95,7 +96,7 @@ test('the quote: its status, CP number, lines, totals, premium, and the change m
 test('a BrightRock line is drawn as the lump sum, the monthly figure under it, and what it is called; a debt\'s income protector carries the Instalment Protector note', () => {
   PDF.build(filled());
   const t = page(FNA);
-  assert.ok(t.includes('Income portion') && t.includes('Monthly instalment'), 'the labels');
+  assert.ok(t.includes('Income portion p.m.') && t.includes('Monthly instalment'), 'the labels (the income portion says p.m.: per month)');
   assert.ok(t.includes('Instalment Protector') && t.includes('To be ceded to the bank'));
   assert.ok(t.includes('R12,000 p.m.') && t.includes('R22,500 p.m.'));
   assert.ok(t.includes('R800,000') && t.includes('R5,000') && t.includes('R1,200,000'));
@@ -117,11 +118,59 @@ test('the other blocks: policies with their totals, group benefits with the pers
   ['6. Reduced quotes', 'Accepted', 'Reduced quote'].forEach(x => assert.ok(page(6).includes(x), 'reduced: ' + x));
 });
 
-test('an empty block says so in plain words; with no group risk there is no shortfall quote to show', () => {
+const pageOf = (st, id) => PDF.pagesOf(st).ids.indexOf(id);
+
+test('an empty block says so in plain words; a page with nothing to say is left out and its tab is greyed', () => {
   const s = store.blank(); s.header.fname = 'Test'; s.header.sname = 'Client'; PDF.build(s);
-  assert.ok(/There is no FNA quote yet/.test(page(4)) && /No current policies/.test(page(1)) && /No current investments/.test(page(8)) && /No proposed investments/.test(page(9)));
-  assert.ok(/The client has no group risk, so no shortfall quote is needed/.test(page(5)) && /Nothing to show here for this client/.test(page(2)));
-  assert.strictEqual(pages.length, 12);
+  const ids = PDF.pagesOf(s).ids;
+  assert.deepStrictEqual(ids, ['cover', 'policies', 'fna', 'group', 'shortfall', 'reduced', 'investments', 'other'], 'no shortfall quote, comparative quotes, proposed investments or goal reports: those pages are left out');
+  assert.strictEqual(pages.length, ids.length);
+  assert.ok(/There is no FNA quote yet/.test(page(pageOf(s, 'shortfall'))) && /No current policies/.test(page(pageOf(s, 'policies'))) && /Nothing to show here for this client/.test(page(pageOf(s, 'fna'))));
+  assert.ok(/There are no current investments in place\./.test(page(pageOf(s, 'investments'))), 'the Current investments page is kept and says so');
+  const grp = page(pageOf(s, 'group'));
+  assert.ok(/There are no group benefits in place\./.test(grp) && /There are no personal investments in place\./.test(grp), 'each says so on its own: ' + grp);
+  assert.ok(!/Total/.test(grp), 'no table when there is nothing to list');
+});
+
+test('left-out pages: the tab row keeps all twelve tabs, but only the pages that exist are linked, to their own page numbers', () => {
+  const s = store.blank(); s.header.fname = 'Test'; s.header.sname = 'Client'; PDF.build(s);
+  const n = PDF.pagesOf(s).ids.length;
+  assert.strictEqual(n, 8);
+  assert.strictEqual(links.length, n * n, 'each page links to every page that exists');
+  for (let from = 1; from <= n; from++) assert.deepStrictEqual(links.filter(l => l.page === from).map(l => l.to), [1, 2, 3, 4, 5, 6, 7, 8], 'page ' + from);
+  pages.forEach((p, i) => PDF.TABS.forEach(l => assert.ok(p.includes(l), 'page ' + (i + 1) + ' still shows the tab ' + l)));
+  assert.deepStrictEqual(PDF.pagesOf(s).no, [1, 2, 3, 4, 5, 0, 6, 0, 7, 0, 0, 8], 'tab number of every page; 0 = left out (grey)');
+});
+
+test('the Shortfall quote page needs group risk AND a shortfall quote asked for; the Comparative quotes page needs one asked for in the Fact Find (or one there); Proposed and Goals need something', () => {
+  const s = filled();
+  assert.ok(calc.pageShown(s, 'shortfallQuote') && calc.pageShown(s, 'comparative') && calc.pageShown(s, 'proposed') && calc.pageShown(s, 'goals'));
+  s.factFind.facts.asked = { sf: false, comparative: false };
+  assert.ok(!calc.pageShown(s, 'shortfallQuote') && !calc.pageShown(s, 'comparative'), 'not asked, none there: left out');
+  store.addQuote(s, 'comparative').insurer = 'Other Co';
+  assert.ok(calc.pageShown(s, 'comparative'), 'a comparative quote that is there is shown');
+  s.factFind.facts.asked = { sf: true, comparative: false }; s.blocks.group.items.forEach(g => { g.removed = true; });
+  assert.ok(!calc.pageShown(s, 'shortfallQuote'), 'asked for, but without group risk: left out');
+  const t = filled(); t.blocks.proposed.items.forEach(i => { i.removed = true; }); t.blocks.goals.items.forEach(g => { g.requested = false; });
+  assert.ok(!calc.pageShown(t, 'proposed') && !calc.pageShown(t, 'goals'));
+  t.blocks.goals.items[0].currentValuePm = 1000;
+  assert.ok(calc.pageShown(t, 'goals'), 'a report with figures is shown');
+  assert.ok(['policies', 'fna', 'group', 'shortfall', 'reduced', 'investments', 'other'].every(id => calc.pageShown(store.blank(), id)), 'the other pages are always there');
+});
+
+test('the PDF always holds the full policies and quotes: nothing of the screen\'s See more / See less reaches it', () => {
+  const s = filled(); PDF.build(s);
+  const t = all();
+  assert.ok(t.includes('Child care\nAmy Client') && t.includes('Debt\nHome loan - Test Bank') && t.includes('Our Insurer') && t.includes('R1,000,000'), 'every line of every quote and policy is printed');
+  assert.ok(!/See more|See less/.test(t));
+});
+
+test('the ACI is printed as the quote words it, or as "10% fixed" when it gives only a figure', () => {
+  const s = filled(); PDF.build(s); assert.ok(page(FNA).includes('10% fixed'), 'a figure alone');
+  s.blocks.fna.quotes[0].aciText = '7.5% + age rater'; PDF.build(s);
+  assert.ok(page(FNA).includes('7.5% + age rater') && !page(FNA).includes('10% fixed'), 'the quote\'s own words');
+  s.blocks.policies.items[0].aci = 10; s.blocks.policies.items[1].aciText = 'CPI + 2%'; PDF.build(s);
+  assert.ok(page(1).includes('10% fixed') && page(1).includes('CPI + 2%'), 'a policy too');
 });
 
 test('what is for Sitamah and Paul only is never printed: the checks, the amber statuses, the Fact Find notes', () => {

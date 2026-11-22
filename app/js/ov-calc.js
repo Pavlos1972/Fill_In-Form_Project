@@ -18,6 +18,13 @@
     return (n < 0 ? '-' : '') + 'R' + p.join('.');
   }
   function fmtPct(n) { return isNum(n) ? String(Math.round(n * 100) / 100) + '%' : ''; }
+  /* The ACI as the document words it ("7.5% + age rater": every insurer has its own terms); a document that gives only a figure reads "10% fixed". */
+  function fmtAci(x) {
+    if (!x) return '';
+    var t = typeof x.aciText === 'string' ? x.aciText.trim() : '';
+    if (t) return t;
+    return isNum(x.aci) ? fmtPct(x.aci) + ' fixed' : (x.aci === 'N/A' || x.aci === 'Not found' ? x.aci : '');
+  }
   /* What a cell shows: a number as rand, "N/A" and "Not found" as they are, nothing known as an empty string. */
   function show(v) { return isNum(v) ? fmtR(v) : (v === 'N/A' || v === 'Not found' ? v : ''); }
 
@@ -48,7 +55,7 @@
     var have = {}; items.forEach(function (i) { if (i.policyNo) have[norm(i.policyNo)] = 1; });
     allQuotes(state).forEach(function (q) {
       if (q.status !== 'accepted' || !q.policyNo || !q.startDate || have[norm(q.policyNo)]) return;
-      out.push({ derived: true, item: { id: q.id, wr: true, insurer: q.insurer, product: q.productName || (q.kind === 'fna' ? 'FNA' : q.kind), policyNo: q.policyNo, doc: q.startDate, premium: q.premium, aci: q.aci, abi: null,
+      out.push({ derived: true, item: { id: q.id, wr: true, insurer: q.insurer, product: q.productName || (q.kind === 'fna' ? 'FNA' : q.kind), policyNo: q.policyNo, doc: q.startDate, premium: q.premium, aci: q.aci, aciText: q.aciText || null, abi: null,
         ipAge: q.disabilityAge, benefits: q.benefits || {}, lines: q.lines || [], cmp: q.cmp || null, st: q.st, src: q.src, by: q.by, fromQuote: q.id } });
     });
     return out;
@@ -98,7 +105,22 @@
   function fmtDiff(n) { if (!isNum(n)) return ''; if (Math.abs(n) < 0.005) return 'R0'; return (n > 0 ? '+' : '−') + fmtR(Math.abs(n)); }
   function pillarOfBlock() { return P; }
 
-  return { isNum: isNum, r2: r2, norm: norm, fmtR: fmtR, fmtPct: fmtPct, fmtDiff: fmtDiff, show: show, lineVal: lineVal, active: active, activeLines: activeLines, totals: totals, sumLines: sumLines,
+  /* Which pages the PDF and the Presentation have (Paul, 22 November): a page with nothing to say is left out and its tab is greyed. The Shortfall quote page needs group risk AND a shortfall quote asked for in the Fact Find (or one
+     already there); the Comparative quotes page needs one asked for in the Fact Find (the standard quote lane) or one already there; Proposed investments and Goal analysis reports need at least one (a report that was asked for or has figures).
+     The other eleven pages are always there (an empty Current investments page says there are none). */
+  function asked(state) { var f = state && state.factFind && state.factFind.facts; return (f && f.asked) || {}; }
+  function pageShown(state, id) {
+    var B = (state && state.blocks) || {};
+    if (id === 'shortfallQuote') return hasGroupRisk(state) && (!!asked(state).sf || quotes(state, 'shortfallQuote').length > 0);
+    if (id === 'comparative') return !!asked(state).comparative || quotes(state, 'comparative').length > 0;
+    if (id === 'proposed') return active(B.proposed && B.proposed.items).length > 0;
+    if (id === 'goals') return active(B.goals && B.goals.items).some(function (g) { return g.requested === true || ['currentValuePm', 'futureValuePm', 'aci', 'premium'].some(function (k) { return isNum(g[k]); }); });
+    return true;
+  }
+  var PAGE_WHY = { shortfallQuote: 'Left out: there is no group risk, or no shortfall quote was asked for.', comparative: 'Left out: no comparative quote was asked for in the Fact Find.', proposed: 'Left out: there are no proposed investments.', goals: 'Left out: no goal analysis report was asked for.' };
+  function pageWhy(id) { return PAGE_WHY[id] || ''; }
+
+  return { isNum: isNum, r2: r2, norm: norm, fmtR: fmtR, fmtPct: fmtPct, fmtAci: fmtAci, pageShown: pageShown, pageWhy: pageWhy, fmtDiff: fmtDiff, show: show, lineVal: lineVal, active: active, activeLines: activeLines, totals: totals, sumLines: sumLines,
     quotes: quotes, allQuotes: allQuotes, policies: policies, policyTotals: policyTotals, groupItems: groupItems, hasGroupRisk: hasGroupRisk, groupTotals: groupTotals, investments: investments,
     personalInvestments: personalInvestments, shortfall: shortfall, compare: compare, pillars: pillarOfBlock };
 });

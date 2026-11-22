@@ -201,3 +201,32 @@ Paul looked at the page on his screen and asked, through the Fix Skills chat: (1
 - **"Client Overview" stays in the Presentation's centre and in the PDF** (the client-facing words); only the page's own heading, tab and menu links are Studio.
 
 **Not certain:** seen only in my own screenshots; the real file window opening in a real OneDrive folder (`startIn` with a connected folder handle) is untried here; the folder names above are a guess; the real reading quality is unknown.
+
+## 11. Paul's changes after using Studio 0.6 on his own screen (22 November, second batch; Client Overview Studio 0.7, on the work branch)
+
+Relayed by the Fix Skills chat with Paul's "GO" (twenty-one items) and, in the middle of the build, one more line from Paul himself: the monthly figure under a BrightRock lump sum, *Income portion*, must read **Income portion p.m.** (per month). Built as asked; **the saved file gains keys and loses none (contract revision f)**.
+
+| Part | Where |
+|---|---|
+| See more / See less | `ov-ui.js` (`openSet`, `isOpen`, `seeBtn`; the summary tables of blocks 1, 8 and 9 draw each row in its own `<tbody data-comp>` so the open detail under it is never redrawn while typing; the detail is a `<tbody class="dtl">`); `overview.css` |
+| Lines read from the quote | `ov-ui.js` `lineHTML` / `linesTable` (no × column and no add buttons for a quote; a policy keeps both; a quote with no active lines still offers the add buttons) |
+| % and R in the boxes | `ov-ui.js` `dispIn` (the parsing already understood both) |
+| ACI in the quote's words | `aciText` (`ov-store.js` `newQuote`, `ov-docs.js` prompts and `applyQuote` / `applyPolicy`), `ov-calc.js` `fmtAci`; screen, PDF and Presentation |
+| Child care waiting N/A | `ov-store.js` `newLine`, `normLine`; `ov-docs.js` `line()` |
+| Checks panel | `ov-check.js` `docLines`, `qTitle`; `ov-ui.js` `drawChecks` (the long list folded under *All N individual checks*) |
+| Undo notices | `ov-ui.js` `recent`, `fresh`, `markRemoved`, `sweepNotices` (10 seconds) |
+| Block 11 | `ov-ui.js` `badgeHTML` (*from Fact Find*), `otherBlock` (upload for the legacy plan only); `ov-docs.js` `applyOther`; `ov-check.js` `dots` (amber until confirmed) |
+| Pages left out | `ov-calc.js` `pageShown` / `pageWhy`; `ov-store.js` `quotesAsked` (`factFind.facts.asked`); `ov-pdf.js` `pagesOf`, `tabRow`; `ov-pres.js` `shownOrder`, `topics`, `mapFigures`; `ov-present.js` |
+| PDF cover and empty pages | `ov-pdf.js` `cover` (white, a blue strip), `groupPage`, `investmentsPage` |
+| Presentation design | `css/present.css` (white, the Wealth Revolution blue, orange accents), the logo in the bar |
+| Tests | `tests/overview-seemore.test.js`, `tests/browser/t-overview-seemore.js`; the older Overview browser tests call `OV.app.openAll()` once (the page itself starts folded) |
+
+**Decisions made while building (my readings, for Paul to correct):**
+- **"Quotes are read from the document and not editable"** is read as: no add and no remove of lines; the boxes still take typing, so a misread figure can be corrected (the page never marks a typed or read figure as checked on its own).
+- **A quote with nothing in it yet** (started by hand, no lines) still offers the add buttons, so a hand-typed quote is not a dead end; a policy keeps its add and remove buttons (Paul spoke of quotes).
+- **"Shortfall quote requested" / "comparative requested in the Fact Find"** are read from the Fact Find's boxes: a shortfall quote is asked for when `bf_sf_req` or `sf_req` says *Request a quote*; a comparative quote when the standard lane asks for one (`fna_req`, `sf_req` or a row of `redq`). A quote that is already in the overview also makes its page show.
+- **A goal analysis page** is there when a report was asked for (or has figures); **a proposed investments page** when there is at least one.
+- **"Always the full policies and quotes" in the Presentation** is read as: nothing of the screen's folding reaches it (it already showed every quote's lines in full, and a policy's lines when it is clicked).
+- **A document that was just read opens its item** (a quote just added opens too), so it can be checked at once; everything else starts folded.
+- **The Checks panel's lines** count a quote's rows still amber, and the differences from the Fact Find or from Paul's standards; the full list of checks is one click away.
+- **Not certain:** all of it is seen only in my own screenshots, not on Paul's screen; the white Presentation has not been seen on a projector; the ACI wording depends on how well the real reading copies it (the Anthropic call has still never been made on a real document).
