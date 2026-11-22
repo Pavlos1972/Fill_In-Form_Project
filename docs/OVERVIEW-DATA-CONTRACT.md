@@ -166,7 +166,7 @@ Matched to its quote by CP number. If the insurer gives no pay-out, `rows: []` a
 
 - **Quote totals:** total lump sum per pillar, total income protected per pillar (severe illness: `"N/A"`), from the lines that are not `removed` (not from `printedTotals`).
 - **Block 1 totals:** per pillar for the WR group, for the other-broker group, and the grand total.
-- **Block 4, the shortfall**, per pillar, from the FNA that is not removed (the first, or the one flagged by the page): `life = fna.life.lump − (group.life.amount + personal investments)`; `sev = fna.sev.lump − group.sev.amount`; `lsd = fna.lsd.lump − group.lsd.amount`; `ip = fna.ip.monthly − group.ip.amount (p.m.)`; never below 0. **Personal investments reduce the life pillar only** (as in Paul's worked example).
+- **Block 4, the shortfall**, per pillar, from the FNA that is not removed (the first, or the one flagged by the page): `life = fna.life.lump − (group.life.amount + personal investments)`; `sev = fna.sev.lump − group.sev.amount`; `lsd = fna.lsd.lump − group.lsd.amount`; `ip = fna.ip.monthly − group.ip.amount (p.m.)`; never below 0. **Personal investments reduce the life pillar only** (as in Paul's worked example). **The current personal policies of block 1 are NOT counted** (they are being replaced; Paul, 22 November: the shortfall has the group risk and the personal investments only).
 - **"Compared with what you have now"** for every quote: three rows (what you have now = the grand totals of block 1; this quote; the difference) per pillar plus the monthly premium.
 - **The checks** (section 10).
 

@@ -127,6 +127,19 @@ test('the Fact Find\'s answers the sentences need are kept in the overview (answ
   assert.ok(again.factFind.facts.answers && again.factFind.facts.answers.hasGroup === 'No');
 });
 
+test('the shortfall has the group benefits and the personal investments ONLY: the current personal policies of block 1 are being replaced and are not counted (Paul, 22 November)', () => {
+  const s = sample(), fna = calc.quotes(s, 'fna')[0]; fna.lines.forEach(l => { if (l.type === 'household') { l.life.lump = 3000000; l.sev.lump = null; l.lsd.lump = 2000000; l.ip.monthly = 30000; } });
+  s.blocks.group.items.push({ id: 'g1', kind: 'risk', provider: 'Test Group', life: { amount: 800000 }, lsd: { amount: 100000 }, st: 'verify', removed: false });
+  const before = JSON.stringify(calc.shortfall(s).short), pi = calc.personalInvestments(s).gross;
+  assert.strictEqual(calc.shortfall(s).short.life, calc.r2(calc.shortfall(s).fna.life - (800000 + pi)), 'the need less the group benefits and the personal investments');
+  s.blocks.policies.items[0].lines.push(store.newLine('other', { label: 'Cover', life: { lump: 1000000, monthly: null }, sev: { lump: 300000 }, lsd: { lump: 500000, monthly: null }, ip: { monthly: 10000 } }));
+  assert.ok(calc.policyTotals(s).all.life.lump >= 1000000, 'the policy is in block 1');
+  assert.strictEqual(JSON.stringify(calc.shortfall(s).short), before, 'a policy in block 1 (a Liberty policy that is being replaced) changes no shortfall figure');
+  assert.ok(!('pol' in calc.shortfall(s)), 'the shortfall holds no current-policies figure');
+  const ui = app('js/ov-present.js'), pdf = app('js/ov-pdf.js'), scr = app('js/ov-ui.js');
+  assert.ok(!/Current policies ' \+ calc\.fmtR|Less current policies/.test(ui + pdf + scr), 'no column, line or note for the current policies in the shortfall (screen, PDF, Presentation)');
+});
+
 test('the design: white, the Wealth Revolution blue and orange, rounded 16px corners, the PDF\'s header blue and grid lines, the blue premium bar, soft shadow', () => {
   const css = app('css/present.css'), js = app('js/ov-present.js');
   assert.ok(/\.pres \{[^}]*background: #fff/.test(css), 'a white background');
