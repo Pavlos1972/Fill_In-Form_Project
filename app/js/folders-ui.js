@@ -199,11 +199,24 @@
     var sub = await F.clientSubfolder(clients[0], kind);
     return { handle: sub.handle, label: sub.parts.join(' \\ '), several: clients.length > 1 };
   }
+  /* A small file kept at the top of a connected folder (the Presentation's key-points library, `wr-keypoints.json`): New Business first, then Client Files. Reads only. The browser is asked for a folder's permission
+     only when ask is true (a click is behind it); otherwise only a folder that is already open to this page is read. Resolves { text, from } or null. */
+  async function rootFile(name, ask) {
+    await load();
+    var all = withPaths(), keys = Object.keys(all);
+    if (!F.enabled() || !keys.length) return null;
+    for (var i = 0; i < keys.length; i++) {
+      var h = all[keys[i]].handle;
+      if ((await F.permission(h, !!ask)) !== 'granted') continue;
+      try { var f = await (await h.getFileHandle(name)).getFile(); return { text: await f.text(), from: LABEL[keys[i]] }; } catch (e) { /* not in this folder */ }
+    }
+    return null;
+  }
   function forget() { cache = {}; }
   function metaHTML(lastFolder) {
     var k = Object.keys(roots), line = !F.enabled() ? '' : k.length ? 'Folders connected: ' + k.map(function (x) { return LABEL[x]; }).join(', ') + '.' : 'Folders not connected: Save asks where to save. Click <b>Folders&hellip;</b> to connect them.';
     return (lastFolder ? '<div>Saved in <b>' + esc(lastFolder) + '</b></div>' : '') + (line ? '<div class="fnote">' + line + '</div>' : '');
   }
 
-  FF.foldersUI = { init: init, connect: connect, open: open, clientFiles: clientFiles, clientFolder: clientFolder, failed: failed, forget: forget, metaHTML: metaHTML, ask: ask, connected: function () { return Object.keys(roots); } };
+  FF.foldersUI = { init: init, connect: connect, open: open, clientFiles: clientFiles, clientFolder: clientFolder, rootFile: rootFile, failed: failed, forget: forget, metaHTML: metaHTML, ask: ask, connected: function () { return Object.keys(roots); } };
 })();

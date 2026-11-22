@@ -146,5 +146,5 @@ test('only the name of a file is ever kept (no folder path); reading is ON by de
   const src = require('fs').readFileSync(require('path').join(__dirname, '..', 'app', 'js', 'ov-ui.js'), 'utf8');
   assert.ok(/function aiOn\(\)[^}]*!== '0'/.test(src) && /var want = aiOn\(\), key = aiKey\(\), read = want && !!key\.apiKey/.test(src), 'reading needs the switch AND a key');
   assert.ok(/getItem\(AI_KEY\) !== '0'/.test(src) && /catch \(e\) \{ return true; \}/.test(src), 'the switch starts ON and is off only when the adviser switched it off');
-  assert.ok(/window\.confirm\('Switch reading on\?/.test(src), 'switching it on again asks first');
+  assert.ok(/id="setRead"/.test(src) && /aiSet\(dlg\.querySelector\('#setRead'\)\.checked\)/.test(src), 'the reading switch is in Settings (the Documents panel is gone)');
 });

@@ -102,7 +102,7 @@ test('the checks of a review year: what was carried over still waits for a docum
   assert.ok(!check.run(sample()).problems.some(p => p.id === 'review.carried'), 'an ordinary overview has no such check');
   const o = sample(), q = o.blocks.fna.quotes[0]; q.cmp.number = '999'; assert.ok(check.run(o).problems.some(p => p.id === 'cmp.match' && /CP 999/.test(p.message)), 'the pay-out is for another CP number');
   q.cmp.number = '100000001'; assert.ok(!check.run(o).problems.some(p => p.id === 'cmp.match'));
-  const g = store.blank(); const bq = store.addQuote(g, 'fna'); bq.number = '5'; bq.lines[0].life.lump = 1; assert.ok(check.run(g).problems.some(p => p.id === 'gaps' && /pay-out guide is not loaded/.test(p.message)), 'no pay-out yet: the old gap check still asks for it');
+  const g = store.blank(); const bq = store.addQuote(g, 'fna'); bq.number = '5'; bq.lines[0].life.lump = 1; assert.ok(check.run(g).problems.some(p => p.id === 'gaps' && /No change moment pay-out guide found for CP 5/.test(p.message)), 'no pay-out yet: the gap check says so');
   store.addCmp(g, 'blocks.fna.quotes.0'); assert.ok(!check.run(g).problems.some(p => p.id === 'gaps' && /pay-out guide is not loaded/.test(p.message)), 'a typed pay-out answers it');
 });
 
