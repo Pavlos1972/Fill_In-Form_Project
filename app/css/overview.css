@@ -143,3 +143,32 @@ dialog#restoreDraft .grow { flex: 1; }
 /* a line that differs from the Fact Find is marked amber (hover for what differs) */
 .ovt tr.ffdiff > td { background: #fff7e0; }
 .ovt tr.ffdiff > td:first-child { box-shadow: inset 4px 0 0 #e0a800; }
+
+/* See more / See less (22 November): a folded item shows only its heading; an item's detail opens directly under its row */
+.see { font: inherit; font-size: 12.5px; background: var(--surface); color: var(--accent); border: 1px solid var(--brand); border-radius: 999px; padding: 3px 12px; cursor: pointer; white-space: nowrap; }
+.see:hover { background: var(--accent-soft); }
+.see.open { background: var(--accent-soft); }
+.ovt td > .see { display: inline-block; margin-top: 4px; }
+.qcard.folded { margin: 8px 0; }
+.qcard.folded > header { border-bottom: 0; }
+.ovt tbody.dtl > tr > td { padding: 8px 10px 12px; background: var(--surface-2); }
+.ovt tbody.dtl .qcard { margin: 0; }
+.ovt tr.pol > td:first-child .stb { float: right; margin-left: 4px; }
+.ovt .aci { white-space: normal; font-size: 12.5px; line-height: 1.25; display: inline-block; text-align: right; overflow-wrap: anywhere; }
+
+/* a quote's lines have no remove column any more: nine columns */
+.ovt.lines.qlines .c-need { width: 17%; } .ovt.lines.qlines .c-term { width: 12%; } .ovt.lines.qlines .c-life { width: 13%; } .ovt.lines.qlines .c-sev { width: 10%; } .ovt.lines.qlines .c-lsd { width: 13%; }
+.ovt.lines.qlines .c-ip { width: 12%; } .ovt.lines.qlines .c-wait { width: 8%; } .ovt.lines.qlines .c-aci { width: 9%; } .ovt.lines.qlines .c-abi { width: 6%; }
+.ovt.lines:not(.qlines) .c-aci { width: 9%; } .ovt.lines:not(.qlines) .c-need { width: 15%; } .ovt.lines:not(.qlines) .c-term { width: 12%; }
+.ovt.pols .p-name { width: 21%; } .ovt.pols .p-aci { width: 11%; }
+.ovt.prop .q-type { width: 18%; } .ovt.prop .q-prov { width: 21%; } .ovt.prop .q-contrib { width: 14%; }
+
+/* the Checks panel: one line for each document read */
+.checks .docline { display: flex; gap: 6px; width: 100%; text-align: left; margin: 0 0 4px; padding: 6px 9px; border: 0; border-radius: 6px; cursor: pointer; font-size: 12.5px; line-height: 1.35; }
+.checks .docline i { font-style: normal; font-weight: 700; flex: none; width: 1em; }
+.checks .docline.ok { background: var(--ok-soft); color: var(--ok); }
+.checks .docline.amber { background: var(--warn-soft); color: var(--warn); }
+.checks .docline.wait { background: var(--surface-2); color: var(--muted); }
+.checks .none { color: var(--muted); font-size: 12.5px; padding: 4px 0; }
+.checks details.allchecks { margin-top: 8px; }
+.checks details.allchecks > summary { cursor: pointer; font-size: 12px; color: var(--muted); margin-bottom: 6px; }

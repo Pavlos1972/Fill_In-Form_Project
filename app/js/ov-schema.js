@@ -5,7 +5,7 @@
   else { root.OV = root.OV || {}; root.OV.schema = factory(); }
 })(typeof self !== 'undefined' ? self : this, function () {
   /* VERSION is the layout of the saved file (docs/OVERVIEW-DATA-CONTRACT.md): the filling skill stops on one it does not know. PAGE_VERSION is the page's own version, which changes with every stage. */
-  var VERSION = '0.1', PAGE_VERSION = '0.6', APP_ID = 'wr-overview';
+  var VERSION = '0.1', PAGE_VERSION = '0.7', APP_ID = 'wr-overview';
 
   /* The four pillars, in the order of the columns. life and lsd have a lump sum and a monthly figure; sev only a lump sum; ip only a monthly figure. */
   var PILLARS = [
@@ -49,10 +49,10 @@
 
   /* The lines of a quote or a policy. monthly is what the monthly figure under a BrightRock lump sum is called. */
   var LINE_TYPES = [
-    { id: 'household', l: 'Household needs', monthly: 'Income portion', abi: 'household' },
-    { id: 'child', l: 'Child care', monthly: 'Income portion', abi: 'child' },
+    { id: 'household', l: 'Household needs', monthly: 'Income portion p.m.', abi: 'household' },
+    { id: 'child', l: 'Child care', monthly: 'Income portion p.m.', abi: 'child' },
     { id: 'debt', l: 'Debt', monthly: 'Monthly instalment', abi: 'debt' },
-    { id: 'death', l: 'Death-related needs', monthly: 'Income portion', abi: 'death', na: ['lsd', 'ip', 'waiting'], term: 'On my death' },
+    { id: 'death', l: 'Death-related needs', monthly: 'Income portion p.m.', abi: 'death', na: ['lsd', 'ip', 'waiting'], term: 'On my death' },
     { id: 'dread', l: 'Additional expense needs (dread)', monthly: 'Monthly', abi: 'dread', na: ['lsd', 'ip', 'waiting'], term: 'Whole of life' },
     { id: 'other', l: 'Other line', monthly: 'Monthly', abi: null }
   ];

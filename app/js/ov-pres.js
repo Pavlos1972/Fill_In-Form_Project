@@ -110,11 +110,11 @@
 
   function topics(state) {
     var out = [], b;
-    schema.BLOCKS.forEach(function (bl) { out.push(topic('nav', bl.n + ' ' + bl.title, { tab: bl.id }, BLOCK_ALIASES[bl.id] || [bl.title])); });
+    schema.BLOCKS.forEach(function (bl) { if (calc.pageShown(state, bl.id)) out.push(topic('nav', bl.n + ' ' + bl.title, { tab: bl.id }, BLOCK_ALIASES[bl.id] || [bl.title])); });          // a page that is left out cannot be asked for
     /* a block with several quotes: the first, the second ... one, and each insurer */
     schema.QUOTE_KINDS.forEach(function (k) {
       var id = schema.blockOfQuote[k], qs = calc.quotes(state, id), bl = schema.blocksById[id];
-      if (!qs.length) return;
+      if (!qs.length || !calc.pageShown(state, id)) return;
       qs.forEach(function (q, i) {
         var tg = { tab: id, qi: i }, lab = bl.n + ' ' + bl.title + (qs.length > 1 ? ' (' + (i + 1) + ')' : '') + (q.insurer ? ', ' + q.insurer : ''), al = [];
         if (qs.length > 1) BLOCK_NOUN[id].forEach(function (nn) { al.push(ORD[i] + ' ' + nn, nn + ' ' + (i + 1), nn + ' ' + NUM[i]); });
@@ -233,6 +233,7 @@
     items = calc.active(state.blocks.proposed.items); f.proposed = items.length ? qCount(items.length, 'proposal') : 'None';
     items = calc.active(state.blocks.goals.items); f.goals = items.length ? qCount(items.length, 'report') : 'None';
     items = calc.active(state.blocks.other.items); f.other = items.length ? qCount(items.length, 'item') : 'None';
+    schema.BLOCKS.forEach(function (b) { if (!calc.pageShown(state, b.id)) f[b.id] = 'Not included'; });                 // the same pages are left out as in the PDF
     return f;
   }
 
@@ -270,6 +271,9 @@
     return b;
   }
 
-  return { TABS: TABS, ORDER: ORDER, COOL_MS: COOL_MS, PAUSE_MS: PAUSE_MS, words: words, parse: parse, topics: topics, match: match, decide: decide, createEngine: createEngine, isAdviser: isAdviser, lineKeys: lineKeys,
+  /* The tabs that can be opened: the map and every page the PDF has too (a page with nothing to say is left out). */
+  function shownOrder(state) { return ORDER.filter(function (id) { return id === 'map' || calc.pageShown(state, id); }); }
+
+  return { TABS: TABS, ORDER: ORDER, shownOrder: shownOrder, COOL_MS: COOL_MS, PAUSE_MS: PAUSE_MS, words: words, parse: parse, topics: topics, match: match, decide: decide, createEngine: createEngine, isAdviser: isAdviser, lineKeys: lineKeys,
     mapFigures: mapFigures, short: short, parseKeyPoints: parseKeyPoints, pointsFor: pointsFor, benefitsFor: benefitsFor, KP_BENEFITS: KP_BENEFITS };
 });

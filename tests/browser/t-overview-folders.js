@@ -63,7 +63,7 @@ srv.listen(0, async () => {
   ok(/Folders connected: New Business, Client Files/.test(await rp.evaluate(() => document.querySelector('#meta').innerText)), 'the Risk Application is connected (the connection is made once, there)');
   /* the Client Overview, in the same browser profile: nothing is connected again */
   const p = await ctx.newPage(); const errs = []; p.on('pageerror', e => errs.push(e.message)); p.on('dialog', d => d.accept());
-  await p.goto(base + 'overview.html'); await p.waitForTimeout(900); await wireOn(p);
+  await p.goto(base + 'overview.html'); await p.waitForTimeout(900); await wireOn(p); await p.evaluate(() => OV.app.openAll());
   if (await p.$('#restoreDraft')) await p.click('#restoreNew');
   ok(/Folders connected: New Business, Client Files/.test(await p.evaluate(() => document.querySelector('#meta').innerText)), 'the Overview reuses the connection made on the Risk Application');
   ok(await p.evaluate(() => !!document.querySelector('#btnFolders') && !!document.querySelector('#btnPdf') && !!document.querySelector('#btnPreview')), 'the Overview has Folders…, Preview PDF and Save PDF');

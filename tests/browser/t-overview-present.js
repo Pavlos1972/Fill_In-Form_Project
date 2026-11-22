@@ -23,7 +23,7 @@ const KP = { app: 'wr-keypoints', schema: '0.1', points: [
 (async () => {
   const b = await chromium.launch({ executablePath: process.env.CHROMIUM || undefined, args: ['--no-sandbox'] });
   const p = await (await b.newContext({ viewport: { width: 1600, height: 900 } })).newPage(); const errs = []; p.on('pageerror', e => errs.push(e.message)); p.on('console', m => { if (m.type() === 'error') errs.push(m.text()); });
-  await p.goto('file://' + dir + '/overview.html'); await p.waitForTimeout(400);
+  await p.goto('file://' + dir + '/overview.html'); await p.waitForTimeout(400); await p.evaluate(() => OV.app.openAll());
   await p.evaluate(t => {
     const A = OV.app, s = A.state; A.fillFactFindText(t, 'ff.json'); s.header.overviewDate = '05/01/2027';
     const q = OV.store.addQuote(s, 'fna'); q.number = '100000001'; q.aci = 10; q.premium = 2900; q.date = '19/11/2026';

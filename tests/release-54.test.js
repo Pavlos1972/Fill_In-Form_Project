@@ -248,7 +248,10 @@ test('the shortfall check compares the shortfall quote with what the form works 
 
 test('the dot of every block: grey when waiting, amber when it needs a look, green when complete, hollow for a shortfall quote nobody needs', () => {
   const s = filled(), d = () => check.run(s).dots;
-  assert.strictEqual(d().policies, 'grey'); assert.strictEqual(d().fna, 'grey'); assert.strictEqual(d().shortfall, 'grey'); assert.strictEqual(d().other, 'grey');
+  assert.strictEqual(d().policies, 'grey'); assert.strictEqual(d().fna, 'grey'); assert.strictEqual(d().shortfall, 'grey');
+  assert.strictEqual(d().other, 'amber', 'block 11 follows the Fact Find and has no document to wait for: what it says is to be checked');
+  s.blocks.other.items.forEach(it => { if (it.st === 'ff') it.st = 'confirmed'; }); assert.strictEqual(d().other, 'green', 'a click confirms it; the items with nothing in them wait for nothing');
+  s.blocks.other.items.forEach(it => { if (it.st === 'confirmed') it.st = 'ff'; });
   assert.strictEqual(d().shortfallQuote, 'grey', 'there is group risk (the Fact Find has a provider): a shortfall quote is wanted');
   const none = filled(); none.blocks.group.items = none.blocks.group.items.filter(i => i.kind !== 'risk'); assert.strictEqual(check.run(none).dots.shortfallQuote, 'na');
   fnaFilled(s); assert.strictEqual(d().fna, 'amber'); assert.strictEqual(d().shortfall, 'green');

@@ -7,7 +7,7 @@
   else { root.OV = root.OV || {}; root.OV.docs = factory(root.FF.util, root.OV.schema, root.OV.calc, root.OV.store); }
 })(typeof self !== 'undefined' ? self : this, function (util, schema, calc, store) {
   var ENDPOINT = 'https://api.anthropic.com/v1/messages', API_VERSION = '2023-06-01';
-  var BLOCK_LABEL = { policies: 'Current policies', fna: 'FNA quote', group: 'Group benefits', shortfallQuote: 'Shortfall quote', reduced: 'Reduced quote', comparative: 'Comparative quote', investments: 'Current investments', astute: 'Astute report', cmp: 'Change moment pay-out guide', proposed: 'Proposed investment', goals: 'Goal analysis report' };
+  var BLOCK_LABEL = { policies: 'Current policies', fna: 'FNA quote', group: 'Group benefits', shortfallQuote: 'Shortfall quote', reduced: 'Reduced quote', comparative: 'Comparative quote', investments: 'Current investments', astute: 'Astute report', cmp: 'Change moment pay-out guide', proposed: 'Proposed investment', goals: 'Goal analysis report', other: 'Legacy protection plan' };
   var QUOTE_OF = { fna: 'fna', shortfallQuote: 'shortfall', reduced: 'reduced', comparative: 'comparative' };
 
   /* ---------- sorting a document by its name ---------- */
@@ -38,11 +38,11 @@
   var LINE = '{ "type": "household" | "child" | "debt" | "death" | "dread" | "other", "label": "text", "term": "text as printed", "name": "child first name", "sname": "child surname", "debt": "debt name as printed", "bank": "bank", ' +
     '"life": { "lump": n, "monthly": n }, "sev": { "lump": n }, "lsd": { "lump": n, "monthly": n }, "ip": { "monthly": n }, "waiting": "text as printed", "abi": n }';
   var SPECS = {
-    quote: 'This is an insurance quote (BrightRock or another insurer). Return { "insurer": "text", "number": "the quote or CP number as printed", "date": "dd/mm/yyyy", "rates": "e.g. Non-smoker rates", "aci": n (the yearly premium increase), "premium": n (the total monthly premium), ' +
+    quote: 'This is an insurance quote (BrightRock or another insurer). Return { "insurer": "text", "number": "the quote or CP number as printed", "date": "dd/mm/yyyy", "rates": "e.g. Non-smoker rates", "aci": n (the yearly premium increase as a number), "aciText": "the yearly premium increase EXACTLY as the quote words it, for example 7.5% + age rater, or CPI + 2%; null when the quote only gives a figure", "premium": n (the total monthly premium), ' +
       '"servicing": true | false (true when the quote is for a policy the client already has, a review or servicing quote; false for new business), "disabilityAge": n (the age lump sum disability and the income protector run to), "lines": [ ' + LINE + ' ], "printedTotals": { "life": { "lump": n, "monthly": n }, "sev": { "lump": n }, "lsd": { "lump": n, "monthly": n }, "ip": { "monthly": n } } }. ' +
       'Each need (household, each child, each debt, death-related needs, additional expense needs / dread) is one line; the monthly figure printed under a lump sum is "monthly". A child line has the child\'s name and surname; a debt line the debt\'s name. ' +
       'For a quote that does not list needs separately (other insurers), give one line of type "other" for each benefit with its label. printedTotals is only what the document itself prints as totals; leave it null if it prints none.',
-    policy: 'This is a policy schedule. Return { "insurer": "text", "product": "text", "policyNo": "text", "doc": "dd/mm/yyyy (date of commencement)", "premium": n (monthly), "aci": n, "abi": n, "ipAge": n, "benefits": { "life": "short description as printed", "lsd": "...", "ip": "..." }, "lines": [ ' + LINE + ' ] }. ' +
+    policy: 'This is a policy schedule. Return { "insurer": "text", "product": "text", "policyNo": "text", "doc": "dd/mm/yyyy (date of commencement)", "premium": n (monthly), "aci": n, "aciText": "the yearly premium increase exactly as the schedule words it, or null when it only gives a figure", "abi": n, "ipAge": n, "benefits": { "life": "short description as printed", "lsd": "...", "ip": "..." }, "lines": [ ' + LINE + ' ] }. ' +
       'Give one line for each benefit or need with its amounts; use type "other" for a benefit that is not a need.',
     group: 'This is a group risk benefit statement or a pension / provident fund statement. Return { "provider": "text", "statementDate": "dd/mm/yyyy", "basis": "e.g. 1.5 x insurance salary", "paidBy": "employer" | "employee" | "both" | null, "monthlyCost": n, "ipWaiting": "text", "aci": n, "abi": n, ' +
       '"life": { "amount": n, "endAge": "age or Whole of life as printed" }, "sev": { "amount": n, "endAge": "..." }, "lsd": { "amount": n, "endAge": "..." }, "ip": { "amount": n (a month), "endAge": "..." }, "value": n (fund value), "employer": n (a month), "employee": n (a month) }. ' +
@@ -54,7 +54,7 @@
     goal: 'This is a Retirement Goal Analysis Report (RGAR) or an Education Goal Analysis Report (EGAR). Return { "kind": "rgar" | "egar", "note": "a short reason, only if the report says it could not be done or is not applicable, else null", "currentValuePm": n (the current value in rand a month, gross), "futureValuePm": n (the future value in rand a month, gross), "aci": n, "premium": n (the monthly premium) }.',
     cmp: 'This is a BrightRock change moment pay-out guide. Return { "number": "the CP number", "activationDate": "dd/mm/yyyy", "reason": "BrightRock\'s reason, only if it gives no pay-out, else null", "rows": [ { "key": "total" | "retirement" | "childcare" | "child", "name": "child first name", "sname": "child surname", "today": n, "projected": n, "payoutDate": "dd/mm/yyyy" or null } ] }.'
   };
-  var SPEC_OF = { fna: 'quote', shortfallQuote: 'quote', reduced: 'quote', comparative: 'quote', policies: 'policy', group: 'group', investments: 'investment', astute: 'astute', cmp: 'cmp', proposed: 'proposal', goals: 'goal' };
+  var SPEC_OF = { fna: 'quote', shortfallQuote: 'quote', reduced: 'quote', comparative: 'quote', policies: 'policy', group: 'group', investments: 'investment', astute: 'astute', cmp: 'cmp', proposed: 'proposal', goals: 'goal', other: 'policy' };
   function promptFor(block, ctx) {
     return 'You read insurance documents for a South African financial adviser. ' + RULES + '\n\n' + SPECS[SPEC_OF[block]] + (ctx && ctx.clientNote ? '\n\n' + ctx.clientNote : '');
   }
@@ -106,7 +106,7 @@
       var c = l[p[0]]; if (c === 'N/A') { out[p[0]] = 'N/A'; return; }
       if (c && typeof c === 'object') p[1].forEach(function (k) { if (c[k] !== undefined) out[p[0]][k] = n(c[k]); });
     });
-    if (out.waiting !== 'N/A' && s(l.waiting)) out.waiting = s(l.waiting);
+    if (s(l.waiting) && (out.waiting !== 'N/A' || t === 'child')) out.waiting = s(l.waiting);                 // a child care line starts as N/A; a document that gives a waiting period wins
     if (l.abi !== undefined) out.abi = n(l.abi);
     out.st = 'verify'; out.by = 'page'; out.src = src; return out;
   }
@@ -131,6 +131,7 @@
     if (s(data.insurer)) q.insurer = s(data.insurer);
     q.number = s(data.number) || ''; q.date = dmy(data.date); if (s(data.rates)) q.rates = s(data.rates);
     if (data.aci !== undefined) q.aci = n(data.aci);
+    if (s(data.aciText)) q.aciText = s(data.aciText);
     if (data.premium !== undefined && !o.nameOnly) q.premium = n(data.premium);
     if (data.servicing === true || data.servicing === false) q.servicing = data.servicing;
     if (data.disabilityAge !== undefined && calc.isNum(n(data.disabilityAge))) q.disabilityAge = n(data.disabilityAge);
@@ -155,9 +156,18 @@
     ['insurer', 'product', 'policyNo'].forEach(function (k) { if (s(data[k])) item[k] = s(data[k]); });
     if (dmy(data.doc)) item.doc = dmy(data.doc);
     ['premium', 'aci', 'abi'].forEach(function (k) { if (data[k] !== undefined && data[k] !== null) item[k] = n(data[k]); });
+    if (s(data.aciText)) item.aciText = s(data.aciText);
     if (data.ipAge !== undefined && calc.isNum(n(data.ipAge))) item.ipAge = n(data.ipAge);
     if (data.benefits && typeof data.benefits === 'object') { item.benefits = item.benefits || {}; ['life', 'lsd', 'ip'].forEach(function (k) { if (s(data.benefits[k])) item.benefits[k] = s(data.benefits[k]); }); }
     if (data.lines && data.lines.length) item.lines = data.lines.map(function (l) { return line(l, src); });
+    item.st = 'verify'; item.by = 'page'; item.src = src; return item;
+  }
+  /* The legacy protection plan of block 11 (the only item there that takes a document): read like a policy schedule, put in the item's own boxes. */
+  function applyOther(state, item, data, file) {
+    var src = srcOf('schedule', file), b = (data && data.benefits) || {};
+    if (s(data.insurer)) item.company = s(data.insurer); if (s(data.product)) item.product = s(data.product); if (s(data.policyNo)) item.policyNo = s(data.policyNo);
+    if (data.premium !== undefined && data.premium !== null) item.premium = n(data.premium);
+    var note = [b.life, b.lsd, b.ip].filter(Boolean).join(' / '); if (note) item.note = note;
     item.st = 'verify'; item.by = 'page'; item.src = src; return item;
   }
   function applyGroup(state, item, data, file) {
@@ -237,6 +247,6 @@
     return !Object.keys(data).some(function (k) { return has(data[k]) && typeof data[k] !== 'object'; }) && !Object.keys(data).some(function (k) { var v = data[k]; return v && typeof v === 'object' && Object.keys(v).some(function (j) { return has(v[j]); }); });
   }
 
-  return { classify: classify, promptFor: promptFor, parseReply: parseReply, readWithClaude: readWithClaude, applyQuote: applyQuote, applyPolicy: applyPolicy, applyGroup: applyGroup, applyInvestment: applyInvestment, applyAstute: applyAstute, applyProposed: applyProposed, applyGoal: applyGoal, isEmptyRead: isEmptyRead,
+  return { classify: classify, promptFor: promptFor, parseReply: parseReply, readWithClaude: readWithClaude, applyQuote: applyQuote, applyPolicy: applyPolicy, applyOther: applyOther, applyGroup: applyGroup, applyInvestment: applyInvestment, applyAstute: applyAstute, applyProposed: applyProposed, applyGoal: applyGoal, isEmptyRead: isEmptyRead,
     applyCmp: applyCmp, matchItem: matchItem, logDoc: logDoc, findQuoteByNumber: findQuoteByNumber, SPEC_OF: SPEC_OF, BLOCK_LABEL: BLOCK_LABEL, QUOTE_OF: QUOTE_OF, ENDPOINT: ENDPOINT };
 });

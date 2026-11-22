@@ -72,7 +72,7 @@
   function newLine(type, o) {
     var t = schema.lineTypesById[type] || schema.lineTypesById.other, l = { id: uid('l'), type: t.id, label: t.l, term: t.term || null,
       life: { lump: null, monthly: null }, sev: { lump: null }, lsd: { lump: null, monthly: null }, ip: { monthly: null }, waiting: null, abi: null, st: 'empty', src: null, by: 'person', removed: false };
-    if (t.id === 'child') { l.name = ''; l.sname = ''; l.term = 'Age 24'; }
+    if (t.id === 'child') { l.name = ''; l.sname = ''; l.term = 'Age 24'; l.waiting = 'N/A'; }
     if (t.id === 'debt') { l.debt = ''; l.bank = ''; l.accelerated = true; }
     (t.na || []).forEach(function (k) { if (k === 'waiting') l.waiting = 'N/A'; else l[k] = 'N/A'; });
     return Object.assign(l, o || {});
@@ -81,7 +81,7 @@
      quote's figures ("from the Fact Find, waiting for document"). */
   function newQuote(state, kind, o) {
     var q = { id: uid('q'), kind: kind, insurer: kind === 'comparative' ? '' : 'BrightRock', number: '', date: null, rates: 'Non-smoker rates', servicing: false, status: 'pending', disabilityAge: state.header.disabilityAge,
-      aci: null, premium: null, printedTotals: null, lines: [], cmp: null, policyNo: null, startDate: null, replaces: null, replacedBy: null, st: 'empty', src: null, by: 'person', removed: false };
+      aci: null, aciText: null, premium: null, printedTotals: null, lines: [], cmp: null, policyNo: null, startDate: null, replaces: null, replacedBy: null, st: 'empty', src: null, by: 'person', removed: false };
     if (kind !== 'comparative') {
       var facts = state.factFind && state.factFind.facts, ffLine = function (l) { l.st = 'ff'; l.by = 'page'; l.src = { kind: 'factfind' }; return l; };
       q.lines.push(ffLine(newLine('household')));
@@ -150,6 +150,13 @@
     counts[k] = (counts[k] || 0) + 1;
     return k + ':' + counts[k];
   }
+  /* Which of the quotes the PDF and the Presentation have pages for the Fact Find asks for (Client priorities and quotes needed): a shortfall quote (BrightRock or standard) and a comparative quote (the standard lane:
+     the FNA, the shortfall quote or a reduced quote asked for from any insurer). */
+  function quotesAsked(f, rows) {
+    var req = function (id) { return f(id) === 'Request a quote'; };
+    var red = rows('redq').some(function (d) { return d.req === 'Request a quote'; });
+    return { sf: req('bf_sf_req') || req('sf_req'), comparative: req('fna_req') || req('sf_req') || red };
+  }
   /* Reads a saved Fact Find (parsed) and gathers what the overview uses (section 11 of the contract). */
   function factsFrom(j) {
     var f = function (id) { var c = j.f && j.f[id]; return c && c.v != null ? String(c.v).trim() : ''; };
@@ -176,6 +183,7 @@
       ret_pp: keyed('ret_pp', ['type', 'prov', 'val', 'contrib', 'broker']), ret_ra: keyed('ret_ra', ['prov', 'status', 'val', 'contrib', 'broker']), inv: keyed('inv', ['type', 'prov', 'val', 'prem', 'broker']),
       raq: asked('raq', ['ins', 'monthly', 'lump']), invq: asked('invq', ['purpose', 'product', 'ins', 'monthly', 'lump']),
       rgar: /^request/i.test(f('rgar_req')), egar: /^request/i.test(f('egar_req')),
+      asked: quotesAsked(f, rows),
       other: { ma: { value: f('ma'), provider: f('ma_prov'), plan: f('ma_plan'), broker: f('ma_broker') }, gap: { value: f('gap'), provider: f('gap_prov'), broker: f('gap_broker') },
         will: { value: f('will'), where: f('will_where') === 'Other' ? f('will_where_other') : f('will_where'), up: f('will_up'), broker: f('will_broker'), date: f('will_date') },
         shortterm: { value: f('sti'), broker: f('sti_broker'), personal: money(f('sti_personal')) } }
@@ -193,6 +201,8 @@
   }
   /* How many items of the Fact Find differ between two readings of it. */
   function diffFacts(a, b) {
+    var oldHad = a && a.asked !== undefined, newHad = b && b.asked !== undefined;
+    if (oldHad !== newHad) { a = Object.assign({}, a); b = Object.assign({}, b); delete a.asked; delete b.asked; }
     var x = flat(a), y = flat(b), seen = {}, items = {};
     Object.keys(x).concat(Object.keys(y)).forEach(function (k) {
       if (seen[k]) return; seen[k] = 1;
@@ -218,7 +228,7 @@
     }
     facts.risk.forEach(function (r) {
       var it = findByKey(B.policies.items, r.ffKey);
-      if (!it) { B.policies.items.push({ id: 'ff-' + r.ffKey.replace(/[^a-z0-9]+/g, '-'), ffKey: r.ffKey, wr: isWR(r.broker), insurer: r.prov, product: '', policyNo: '', doc: null, broker: r.broker, premium: r.spend, aci: null, abi: null, ipAge: null,
+      if (!it) { B.policies.items.push({ id: 'ff-' + r.ffKey.replace(/[^a-z0-9]+/g, '-'), ffKey: r.ffKey, wr: isWR(r.broker), insurer: r.prov, product: '', policyNo: '', doc: null, broker: r.broker, premium: r.spend, aci: null, aciText: null, abi: null, ipAge: null,
         benefits: {}, cession: null, lines: [], cmp: null, st: 'ff', src: src, by: 'page', removed: false }); rep.added++; }
       else upd(it, [['insurer', r.prov], ['broker', r.broker], ['wr', isWR(r.broker)], ['premium', r.spend]]);
     });
@@ -311,6 +321,7 @@
     l = l && typeof l === 'object' ? l : {};
     var t = schema.lineTypesById[l.type] ? l.type : 'other';
     var n = Object.assign(newLine(t), l); n.type = t; n.id = n.id || uid('l'); n.st = ST[l.st] ? l.st : 'verify'; n.removed = !!n.removed;
+    if (t === 'child' && (n.waiting == null || n.waiting === '')) n.waiting = 'N/A';                                   // an older file: a child care line has no waiting period unless a document gave one
     ['life', 'sev', 'lsd', 'ip'].forEach(function (p) { if (n[p] !== 'N/A' && (n[p] == null || typeof n[p] !== 'object')) n[p] = newLine(t)[p]; });
     return n;
   }
