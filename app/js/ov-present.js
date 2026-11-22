@@ -1,15 +1,14 @@
-/* The Client Overview Studio's Presentation, the screen: a full-screen, read-only view of exactly what the PDF sent to the client holds (the figures come from ov-calc.js, the same code), for the meeting.
-   A main page with the client's name and a card for each block; tabs across the top; a quote has small tabs (The quote / Your change moment pay-out / Compared with what you have now).
-   There is NO voice (Paul, 22 November: removed altogether): everything is done by clicking. A button (Life cover, Severe illness, Lump sum disability, Income protector, ACI, ABI) or a column heading highlights
-   that column, a click on a line highlights that line; nothing else is dimmed. The key points Paul has approved for the insurer and for what is highlighted (at most three) slide in on the right by themselves:
-   the library is private, it is found by the page itself (wr-keypoints.json at the top of a connected folder) and kept in this browser.
-   It never scrolls (a page is drawn at one width and scaled to fit) and it never changes the overview. Nothing for Sitamah and Paul only is shown: no checks, no amber statuses, no income figure. */
+/* The Client Overview Studio's Presentation, the screen: a full-screen, read-only view of what the PDF sent to the client holds (the figures come from ov-calc.js, the same code), for the meeting.
+   Design approved by Paul on 22 November: a white page, a top bar (logo, client, "Client Overview · Presentation · date"), nine pill tabs (a tab with nothing to show is greyed), an Overview page of cards with ONE factual
+   sentence each (js/ov-pres.js, the wording table), quote tables like the PDF (grid lines, totals, the blue premium bar), pills that highlight a column and a Key points on / off switch, key points as small cards that
+   slide in on the right (private library found by the page itself; placeholders until then), Severe illness in two sections. There is NO voice. It never scrolls (a page is drawn at one width and scaled to fit) and it
+   never changes the overview. Nothing for Sitamah and Paul only is shown: no checks, no amber statuses, no income figure. */
 (function () {
   var FF = window.FF, OV = window.OV, schema = OV.schema, calc = OV.calc, P = OV.pres;
   var $ = function (s) { return document.querySelector(s); };
   var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
   var KP_KEY = 'wr-keypoints', SLIDE_W = 1240;
-  var ps = { tab: 'map', qi: 0, sub: 'quote', pol: null, pil: null, rows: [] };
+  var ps = { tab: 'map', qi: 0, sub: 'quote', pol: null, pil: null, rows: [], keys: true };
   var root = null, open = false, kp = null, kpNote = '', prevOverflow = '';
 
   function state() { return OV.app.state; }
@@ -35,7 +34,11 @@
     ip: 'M3 7h18v10H3z M12 14a2 2 0 100-4 2 2 0 000 4z M6 10v.01 M18 14v.01',
     aci: 'M4 17l5-5 4 4 7-8 M15 8h5v5',
     abi: 'M5 19L19 5 M7.5 9a1.5 1.5 0 100-3 1.5 1.5 0 000 3z M16.5 18a1.5 1.5 0 100-3 1.5 1.5 0 000 3z',
-    key: 'M12 3a6 6 0 00-3.5 10.9V17h7v-3.1A6 6 0 0012 3z M9.5 20h5'
+    key: 'M12 3a6 6 0 00-3.5 10.9V17h7v-3.1A6 6 0 0012 3z M9.5 20h5',
+    retire: 'M12 4v2 M5.6 8.6l1.4 1.4 M18.4 8.6L17 10 M4 15h16 M7 15a5 5 0 0110 0 M3 19h18',
+    will: 'M7 3h8l4 4v14H7z M15 3v4h4 M10 12h6 M10 16h4',
+    medical: 'M10 4h4v6h6v4h-6v6h-4v-6H4v-4h6z',
+    home: 'M4 11l8-7 8 7v9H4z M10 20v-6h4v6'
   };
   function ico(id, cls) { return IC[id] ? '<svg class="' + (cls || 'ic') + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="' + IC[id] + '"/></svg>' : ''; }
 
@@ -52,14 +55,22 @@
   function tbl(widths, head, body, cls) {
     return '<div class="ptw"><table class="ptbl ' + (cls || '') + '"><colgroup>' + widths.map(function (w) { return '<col style="width:' + w + '%">'; }).join('') + '</colgroup><thead><tr>' + head + '</tr></thead><tbody>' + body + '</tbody></table></div>';
   }
-  function head(b, right) { return '<div class="phead"><span class="pico">' + ico(b.id) + '</span><h2 class="ptitle">' + esc(b.title) + '</h2><span class="sp"></span>' + (right || '') + '</div>'; }
+  var BLOCK_SHORT = { shortfall: 'Shortfall', shortfallQuote: 'Shortfall quote', reduced: 'Reduced quotes', comparative: 'Comparative quotes', investments: 'Current investments', proposed: 'Proposed investments' };
+  /* A tab that holds two blocks has a small button for each (only the ones that can be opened). */
+  function blockChips(b) {
+    var bl = P.tabBlocks(state(), b.id); if (bl.length < 2) return '';
+    return '<span class="pchips blk">' + bl.map(function (id) { return '<button type="button" class="pchip' + (id === b.id ? ' on' : '') + '" data-act="blk" data-b="' + id + '">' + esc(BLOCK_SHORT[id] || id) + '</button>'; }).join('') + '</span>';
+  }
+  function head(b, right) { return '<div class="phead"><span class="pico">' + ico(b.id) + '</span><h2 class="ptitle">' + esc(b.title) + '</h2>' + blockChips(b) + '<span class="sp"></span>' + (right || '') + '</div>'; }
   function empty(text) { return '<p class="pempty">' + esc(text) + '</p>'; }
   function note(text) { return '<p class="pnote">' + esc(text) + '</p>'; }
   function ageText(age) { return age ? '\nAge ' + age : ''; }
   var PILL_ROW = [['life', 'Life cover'], ['sev', 'Severe illness'], ['lsd', 'Lump sum disability'], ['ip', 'Income protector']];
   var BUTTONS = PILL_ROW.concat([['aci', 'ACI'], ['abi', 'ABI']]);
   function pillBtns() { return BUTTONS.map(function (p) { return '<button type="button" class="pbtn" data-act="pil" data-p="' + p[0] + '">' + ico(p[0]) + '<span>' + p[1] + '</span></button>'; }).join(''); }
-  function hb() { return '<span class="pbtns2">' + pillBtns() + '</span>'; }
+  function keySwitch() { return '<button type="button" class="pswitch' + (ps.keys ? ' on' : '') + '" data-act="keys" role="switch" aria-checked="' + ps.keys + '"><span class="sw"></span><span class="st">Key points: ' + (ps.keys ? 'on' : 'off') + '</span></button>'; }
+  /* The pills; the Key points switch only where key points can show (a quote, a policy's lines). */
+  function hb(keys) { return '<span class="pbtns2">' + pillBtns() + (keys ? keySwitch() : '') + '</span>'; }
   function tools(left) { return left ? '<div class="ptools">' + left + '</div>' : ''; }
 
   /* ---------- the lines of a quote or a policy ---------- */
@@ -82,10 +93,10 @@
   }
   function lineRow(l, aci) {
     var isNA = function (k) { return l[k] === 'N/A'; };
-    return '<tr data-keys="' + esc(P.lineKeys(l).join('|')) + '" data-ben="' + esc(P.lineBenefits(l).join(',')) + '" data-label="' + esc(lineLabel(l)) + '">' + needCell(l) + td(esc(l.term || ''), 'l') + pillCell(l, 'life', true) + pillCell(l, 'sev', false) + pillCell(l, 'lsd', true) + pillCell(l, 'ip', true) +
+    return '<tr data-keys="' + esc(P.lineKeys(l).join('|')) + '" data-ben="' + esc(P.lineBenefits(l).join(',')) + '" data-label="' + esc(lineLabel(l)) + '">' + needCell(l) + td(esc(l.term || ''), 'l term') + pillCell(l, 'life', true) + pillCell(l, 'sev', false) + pillCell(l, 'lsd', true) + pillCell(l, 'ip', true) +
       td(isNA('waiting') ? '<span class="na">N/A</span>' : esc(l.waiting || '-')) + td(aci ? AC(aci) : '<span class="none">&ndash;</span>', '', 'aci') + td(PC(l.abi), '', 'abi') + '</tr>';
   }
-  var LINE_W = [15, 8, 13, 9, 13, 15, 7, 12, 8];
+  var LINE_W = [15, 13, 12, 9, 12, 14, 7, 11, 7];
   function linesHead(age) {
     return th('Need', '', 'l') + th('Term', '', 'l') + th('Life cover', 'life') + th('Severe illness', 'sev') + th('Lump sum disability' + ageText(age), 'lsd') + th('Income protector / sickness benefit' + ageText(age), 'ip') + th('Waiting period') + th('ACI', 'aci') + th('ABI', 'abi');
   }
@@ -95,7 +106,7 @@
       var tt = calc.totals(c);
       body += '<tr class="tot" data-keys="total-lump"><td class="l" colspan="2">Total lump sum</td>' + td(A(tt.life.lump), '', 'life') + td(A(tt.sev.lump), '', 'sev') + td(A(tt.lsd.lump), '', 'lsd') + td('', '', 'ip') + '<td></td>' + td('', '', 'aci') + td('', '', 'abi') + '</tr>' +
         '<tr class="tot" data-keys="total-ip"><td class="l" colspan="2">Total income protected</td>' + td(PM(tt.life.monthly), '', 'life') + td('<span class="na">N/A</span>', '', 'sev') + td(PM(tt.lsd.monthly), '', 'lsd') + td(PM(tt.ip.monthly), '', 'ip') + '<td></td>' + td('', '', 'aci') + td('', '', 'abi') + '</tr>' +
-        '<tr class="prem" data-keys="total-premium"><td class="l" colspan="2">Monthly premium</td><td colspan="2">' + A(c.premium) + '</td><td class="l" colspan="5">' + esc(c.rates || '') + '</td></tr>';
+        '<tr class="prem" data-keys="total-premium"><td class="l" colspan="5">Monthly premium' + (c.rates ? ' \u00b7 ' + esc(c.rates) : '') + '</td><td colspan="4">' + A(c.premium) + '</td></tr>';
     }
     return tbl(LINE_W, linesHead(age), body, 'lines');
   }
@@ -129,7 +140,7 @@
     var cur = Math.min(ps.qi, qs.length - 1), q = qs[cur], hasCmp = !!q.cmp, sub = ps.sub === 'cmp' && !hasCmp ? 'quote' : ps.sub;
     var chips = qs.length > 1 ? '<span class="sp"></span><span class="pchips">' + qs.map(function (x, i) { return '<button type="button" class="pchip' + (i === cur ? ' on' : '') + '" data-act="q" data-i="' + i + '">' + esc((x.insurer || 'Quote') + (x.number ? ' ' + x.number : '')) + '</button>'; }).join('') + '</span>' : '';
     var subs = [['quote', 'The quote']].concat(hasCmp ? [['cmp', 'Your change moment pay-out']] : [], [['cmpr', 'Compared with what you have now']]);
-    var out = head(b, sub !== 'cmp' ? hb() : '') + quoteHead(q, chips);
+    var out = head(b, sub !== 'cmp' ? hb(true) : '') + quoteHead(q, chips);
     out += tools('<span class="psubs">' + subs.map(function (s) { return '<button type="button" class="psub' + (s[0] === sub ? ' on' : '') + '" data-act="sub" data-s="' + s[0] + '">' + s[1] + '</button>'; }).join('') + '</span>');
     if (sub === 'cmp') return out + cmpView(q);
     if (sub === 'cmpr') return out + compareView(q);
@@ -146,23 +157,24 @@
     var one = ps.pol != null ? ps0[ps.pol] : null;
     if (one) {
       var it = one.item;
-      return head(b, hb()) + '<div class="qhead"><button type="button" class="pchip back" data-act="polall">&larr; All policies</button><span class="qinfo">' + esc([it.insurer || 'Policy', it.policyNo, it.product, it.doc ? 'DOC ' + it.doc : ''].filter(Boolean).join('   |   ')) + '</span></div>' + linesTable(it, true, it.ipAge || age) + (it.cmp ? '<div class="qhead"><span class="qinfo">Your change moment pay-out</span></div>' + cmpView(it) : '');
+      return head(b, hb(true)) + '<div class="qhead"><button type="button" class="pchip back" data-act="polall">&larr; All policies</button><span class="qinfo">' + esc([it.insurer || 'Policy', it.policyNo, it.product, it.doc ? 'DOC ' + it.doc : ''].filter(Boolean).join('   |   ')) + '</span></div>' + linesTable(it, true, it.ipAge || age) + (it.cmp ? '<div class="qhead"><span class="qinfo">Your change moment pay-out</span></div>' + cmpView(it) : '');
     }
     var ageH = ageText(age), rows = ps0.map(function (e, i) {
       var it = e.item, tt = calc.totals(it), lines = calc.activeLines(it), has = lines.length, bn = it.benefits || {}, notes = [bn.life, bn.lsd, bn.ip].filter(Boolean).join(' / ');
       var w = (lines.filter(function (l) { return l.waiting && l.waiting !== 'N/A'; })[0] || {}).waiting;
-      return '<tr' + (has ? ' data-act="pol" data-i="' + i + '"' : '') + '>' + tickCell('<b>' + esc((it.insurer || 'Policy') + (it.policyNo ? '   ' + it.policyNo : '')) + '</b><small>' + esc([it.product, it.doc ? 'DOC ' + it.doc : '', notes].filter(Boolean).join('  |  ')) + '</small>', !!it.wr) +
+      return '<tr' + (has ? ' data-act="pol" data-i="' + i + '"' : '') + '>' + tickCell('<b>' + esc((it.insurer || 'Policy') + (it.policyNo ? ' ' + it.policyNo : '')) + '</b><small>' + esc([it.product, it.doc ? 'DOC ' + it.doc : '', notes].filter(Boolean).join('  |  ')) + '</small>', !!it.wr) +
         td(has ? A(tt.life.lump) : A(null), '', 'life') + td(has ? A(tt.sev.lump) : A(null), '', 'sev') + td(has ? A(tt.lsd.lump) : A(null), '', 'lsd') + td(has ? PM(tt.ip.monthly) : A(null), '', 'ip') + td(esc(w || '-')) + td(AC(it), '', 'aci') + td(PC(it.abi), '', 'abi') + td(A(it.premium)) + '</tr>';
     }).join('');
     var tot = function (label, tt, prem, cls) { return '<tr class="' + cls + '"><td class="l">' + label + '</td>' + td(A(tt.life.lump), '', 'life') + td(A(tt.sev.lump), '', 'sev') + td(A(tt.lsd.lump), '', 'lsd') + td(PM(tt.ip.monthly), '', 'ip') + '<td></td>' + td('', '', 'aci') + td('', '', 'abi') + td(A(prem)) + '</tr>'; };
     if (pt.count.wr) rows += tot('Total: policies where we are the broker', pt.wr, pt.premium.wr, 'prem'); if (pt.count.other) rows += tot('Total: other brokers', pt.other, pt.premium.other, 'prem');
     rows += tot('Grand total (all policies)', pt.all, pt.premium.all, 'tot');
-    return head(b, hb()) + tools('<span class="phint">Click a policy to see its lines</span>') +
+    return head(b, hb(false)) + tools('<span class="phint">Click a policy to see its lines</span>') +
       tbl([25, 10, 9, 10, 11, 8, 12, 6, 9], th('Policy', '', 'l') + th('Life cover', 'life') + th('Severe illness', 'sev') + th('Lump sum disability' + ageH, 'lsd') + th('Income protector / sickness benefit' + ageH, 'ip') + th('Waiting period') + th('ACI', 'aci') + th('ABI', 'abi') + th('Premium'), rows);
   }
   function groupView(b) {
-    var s = state(), items = calc.groupItems(s), pi = calc.personalInvestments(s), gt = calc.groupTotals(s), prem = 0, age = s.header.disabilityAge;
-    if (!items.length && !pi.count) return head(b) + empty('No group benefits or personal investments.');
+    var s = state(), items = calc.groupItems(s), pi = calc.personalInvestments(s), gt = calc.groupTotals(s), prem = 0, age = s.header.disabilityAge, risk = items.filter(function (g) { return g.kind === 'risk'; });
+    var red = risk.length ? '' : '<div class="pnone">' + ['No group life cover', 'No group disability or income protection', 'No group severe illness cover'].map(function (t) { return '<p><i>&#10005;</i>' + t + '</p>'; }).join('') + '</div>';
+    if (!items.length && !pi.count) return head(b) + red;
     var cell = function (g, p) {
       var c = g[p]; if (!c || !calc.isNum(c.amount)) return td(c && c.amount === 'Not found' ? '<span class="na">Not found</span>' : '<span class="none">&ndash;</span>', '', p);
       return td((p === 'ip' ? PM(c.amount) : A(c.amount)) + (c.endAge != null && c.endAge !== '' ? '<small>' + esc(/^\d+$/.test(String(c.endAge)) ? 'To age ' + c.endAge : c.endAge) + '</small>' : ''), '', p);
@@ -178,17 +190,18 @@
     rows += '<tr><td class="l"><b>Personal investments</b><small>The total of the current investments</small></td>' + td(pi.count ? A(pi.gross) : A(null), '', 'life') + td('', '', 'sev') + td('', '', 'lsd') + td('', '', 'ip') + td('<span class="na">N/A</span>') + td('<span class="na">N/A</span>', '', 'aci') + td('<span class="na">N/A</span>', '', 'abi') + td(pi.count ? A(pi.monthly) : A(null)) + '</tr>';
     rows += '<tr class="tot"><td class="l">Total</td>' + td(A(calc.r2(gt.life + pi.gross)), '', 'life') + td(A(gt.sev), '', 'sev') + td(A(gt.lsd), '', 'lsd') + td(PM(gt.ip), '', 'ip') + '<td></td>' + td('', '', 'aci') + td('', '', 'abi') + td(A(prem)) + '</tr>';
     var ageH = ageText(age);
-    return head(b, hb()) + tbl([25, 11, 10, 11, 12, 8, 6, 6, 11], th('Item', '', 'l') + th('Life cover', 'life') + th('Severe illness', 'sev') + th('Lump sum disability' + ageH, 'lsd') + th('Income protector / sickness benefit' + ageH, 'ip') + th('Waiting period') + th('ACI', 'aci') + th('ABI', 'abi') + th('Total monthly premium'), rows);
+    return head(b, hb(false)) + red + tbl([25, 11, 10, 11, 12, 8, 6, 6, 11], th('Item', '', 'l') + th('Life cover', 'life') + th('Severe illness', 'sev') + th('Lump sum disability' + ageH, 'lsd') + th('Income protector / sickness benefit' + ageH, 'ip') + th('Waiting period') + th('ACI', 'aci') + th('ABI', 'abi') + th('Total monthly premium'), rows);
   }
   function shortfallView(b) {
     var sf = calc.shortfall(state());
     if (!sf.has) return head(b) + empty('There is no FNA quote yet, so the shortfall cannot be worked out.');
     var rows = PILL_ROW.map(function (r) {
-      var p = r[0], pi = p === 'life' ? sf.pi.gross : 0;
-      return '<tr data-pil="' + p + '">' + td('<b>' + (p === 'ip' ? 'Income protector (R p.m.)' : r[1]) + '</b>', 'l') + td(A(sf.fna[p])) + td(sf.group[p] ? A(sf.group[p]) : '<span class="none">none</span>') + td(pi ? A(pi) : '<span class="none">none</span>') + td(A(sf.short[p]), 'tot') + '</tr>';
+      var p = r[0], grp = sf.group[p] || 0, pi = p === 'life' ? sf.pi.gross : 0, cur = calc.r2(grp + pi);
+      var sub = (grp ? '<small>Group benefits ' + calc.fmtR(grp) + '</small>' : '') + (pi ? '<small>Personal investments ' + calc.fmtR(pi) + '</small>' : '');
+      return '<tr data-pil="' + p + '">' + td('<b>' + (p === 'ip' ? 'Income protector (R p.m.)' : r[1]) + '</b>', 'l') + td(A(sf.fna[p])) + td((cur ? A(cur) : '<span class="none">none</span>') + sub) + td(A(sf.short[p]), 'sf') + '</tr>';
     }).join('');
-    return head(b, hb()) + tbl([25, 19, 19, 19, 18], th('', '', 'l') + th('FNA') + th('Less group benefits') + th('Less personal investments') + th('Shortfall'), rows) +
-      note('The FNA assumes you have nothing in place. The shortfall takes off what you already have through your group benefits and your personal investments (your retirement annuities and other investments count towards the life cover shortfall).');
+    return head(b, hb(false)) + tbl([28, 24, 24, 24], th('', '', 'l') + th('Need') + th('Current cover') + th('Shortfall'), rows) +
+      note('The need is what the FNA says you need if you have nothing in place. Your current cover is what you already have through your group benefits and your personal investments (your retirement annuities and other investments count towards the life cover). The shortfall is the gap.');
   }
   function investmentsView(b) {
     var items = calc.investments(state()), pi = calc.personalInvestments(state());
@@ -212,35 +225,44 @@
     return head(b) + tbl([27, 9, 21, 12, 12, 6, 13], th('Report', '', 'l') + th('Requested') + th('Note', '', 'l') + th('Current value (R p.m. gross)') + th('Future value (R p.m. gross)') + th('ACI') + th('Premium'),
       items.map(function (i) { return '<tr>' + td('<b>' + esc(i.kind === 'rgar' ? 'Retirement Goal Analysis Report (RGAR)' : 'Education Goal Analysis Report (EGAR)') + '</b>', 'l') + td(i.requested ? 'Yes' : 'No', 'c') + td(esc(i.note || ''), 'l') + td(A(i.currentValuePm)) + td(A(i.futureValuePm)) + td(PC(i.aci)) + td(A(i.premium)) + '</tr>'; }).join(''));
   }
+  var OTHER_ICON = { medical: 'medical', gap: 'medical', will: 'will', legacy: 'policies', shortterm: 'home' }, OTHER_SAY = { medical: 'medical', will: 'will', shortterm: 'shortterm' };
   function otherView(b) {
-    return head(b) + tbl([17, 24, 14, 8, 11, 26], th('Item', '', 'l') + th('Company & product', '', 'l') + th('Policy number', '', 'l') + th('Broker') + th('Premium') + th('Notes', '', 'l'),
-      state().blocks.other.items.filter(function (i) { return !i.removed; }).map(function (i) {
-        var nm = (schema.OTHER_KEYS.filter(function (k) { return k.key === i.key; })[0] || { l: i.key }).l, has = i.company || i.product || i.note;
-        return '<tr>' + td('<b>' + esc(nm) + '</b>', 'l') + td(esc([i.company, i.product].filter(Boolean).join('   ') || '-'), 'l') + td(esc(i.policyNo || '-'), 'l') + td(has ? '<b class="' + (i.wr ? 'yes' : 'no') + '">' + (i.wr ? '&#10003;' : '&#10005;') + '</b>' : '-', 'c') + td(A(i.premium)) + td(esc(i.note || ''), 'l') + '</tr>';
-      }).join(''));
+    var cards = state().blocks.other.items.filter(function (i) { return !i.removed; }).filter(function (i) { return i.company || i.product || i.note || i.policyNo || calc.isNum(i.premium) || OTHER_SAY[i.key]; }).map(function (i, n) {
+      var nm = (schema.OTHER_KEYS.filter(function (k) { return k.key === i.key; })[0] || { l: i.key }).l, has = i.company || i.product || i.note, say = OTHER_SAY[i.key] ? P.sentenceFor(state(), OTHER_SAY[i.key]) : '', fromFF = i.st === 'ff' && !!say;
+      var rows = [i.company || i.product ? '<p><span>Company</span>' + esc([i.company, i.product].filter(Boolean).join('   ')) + '</p>' : '', i.policyNo ? '<p><span>Policy number</span>' + esc(i.policyNo) + '</p>' : '',
+        calc.isNum(i.premium) ? '<p><span>Premium</span>' + A(i.premium) + '</p>' : '', has ? '<p><span>Broker</span><b class="' + (i.wr ? 'yes' : 'no') + '">' + (i.wr ? '&#10003; Wealth Revolution' : '&#10005; Another broker') + '</b></p>' : '',
+        i.note && !fromFF ? '<p><span>Notes</span>' + esc(i.note) + '</p>' : ''].join('');
+      return '<div class="ocard" style="--i:' + n + '"><div class="oh"><span class="pico">' + ico(OTHER_ICON[i.key] || 'other') + '</span><b>' + esc(nm) + '</b></div>' + (say ? '<p class="osay">' + esc(say) + '</p>' : '') + (rows ? '<div class="orows">' + rows + '</div>' : '') + '</div>';
+    }).join('');
+    return head(b) + '<div class="ocards">' + cards + '</div>';
   }
   var VIEWS = { policies: policiesView, fna: quotesView, group: groupView, shortfall: shortfallView, shortfallQuote: quotesView, reduced: quotesView, comparative: quotesView, investments: investmentsView, proposed: proposedView, goals: goalsView, other: otherView };
 
-  /* ---------- the main page: the client's name, and a card for each page that exists ---------- */
+  /* ---------- the Overview page: the client's name in a blue band, and one card for each area with ONE factual sentence (the wording table in js/ov-pres.js); no figures ---------- */
   function mapView() {
-    var s = state(), f = P.mapFigures(s), cards = schema.BLOCKS.filter(function (b) { return calc.pageShown(s, b.id); }).map(function (b) {
-      var sp = P.splitFigure(f[b.id]), none = /^(None|Waiting|Not needed)/.test(f[b.id] || '');
-      return '<button type="button" class="pcard' + (none ? ' empty' : '') + '" data-act="tab" data-tab="' + b.id + '"><span class="pico">' + ico(b.id) + '</span><span class="ct">' + esc(b.title) + '</span><span class="cf">' + esc(sp.fig) + '</span><span class="cc">' + esc(sp.cap) + '</span></button>';
+    var s = state(), cards = P.cover(s).map(function (c, n) {
+      var inner = '<span class="pico">' + ico(c.icon) + '</span><span class="ct">' + esc(c.head) + '</span><span class="cs">' + esc(c.text) + '</span>', st = ' style="--i:' + n + '"';
+      return c.opens ? '<button type="button" class="pcard bright" data-act="tab" data-tab="' + c.opens + '"' + st + '>' + inner + '</button>' : '<div class="pcard soft"' + st + '>' + inner + '</div>';
     }).join('');
-    return '<div class="phero"><div class="hn"><div class="nm">' + esc(schema.clientFull(s) || 'New client') + '</div><div class="ov">CLIENT OVERVIEW</div></div><div class="dt">' + esc(s.header.overviewDate || schema.todayDMY()) + '</div></div><div class="pcards">' + cards + '</div>';
+    return '<div class="phero"><div class="hn"><div class="ov">CLIENT OVERVIEW</div><div class="nm">' + esc(schema.clientFull(s) || 'New client') + '</div></div><div class="dt">' + esc(s.header.overviewDate || schema.todayDMY()) + '</div></div>' +
+      '<h2 class="pwelcome">' + esc(P.heading(s)) + '</h2><div class="pcards">' + cards + '</div>';
   }
 
   /* ---------- drawing ---------- */
   function slide() { return $('#pSlide'); }
   function render() {
-    var sl = slide(), b = schema.blocksById[ps.tab], ord = P.shownOrder(state());
+    var sl = slide(), b = schema.blocksById[ps.tab], st = state();
     root.classList.toggle('onmap', ps.tab === 'map');
     sl.className = 'pslide' + (ps.tab === 'map' ? ' pmap' : ''); sl.innerHTML = '<div class="pin">' + (ps.tab === 'map' ? mapView() : VIEWS[ps.tab](b)) + '</div>';
-    $('#pTabs').innerHTML = ord.map(function (id) { return '<button type="button" class="ptab' + (id === ps.tab ? ' on' : '') + '" data-act="tab" data-tab="' + id + '">' + esc(P.TABS[P.ORDER.indexOf(id)]) + '</button>'; }).join('');
-    $('#pWho').textContent = (schema.clientFull(state()) || 'New client') + ' · Client Overview';
+    $('#pTabs').innerHTML = P.TABS.map(function (t) {
+      var on = P.tabOn(st, t.id), cur = P.TAB_OF[ps.tab] === t.id || (t.id === 'map' && ps.tab === 'map');
+      return '<button type="button" class="ptab' + (cur ? ' on' : '') + (on ? '' : ' off') + '"' + (on ? ' data-act="tab" data-tab="' + t.id + '"' : ' disabled title="Nothing to show here for this client."') + '>' + esc(t.l) + '</button>';
+    }).join('');
+    $('#pWho').innerHTML = '<b>' + esc(schema.clientFull(st) || 'New client') + '</b><small>Client Overview \u00b7 Presentation \u00b7 ' + esc(st.header.overviewDate || schema.todayDMY()) + '</small>';
     syncButtons(); paintHL(); paintPanel(); paintState(); fit();
   }
-  function panelOn() { var c = context(); return ps.tab !== 'map' && !!(kp && c && c.insurer); }
+  /* The key-points column is there on a quote or a policy that has the pills, while the switch is on (the library, or the placeholder cards until it is found). */
+  function panelOn() { var c = context(), sl = slide(); return ps.tab !== 'map' && ps.keys && !!(c && c.insurer) && !!(sl && sl.querySelector('.pbtn:not([hidden])')); }
   function fit() {
     var st = $('#pStage'), sl = slide(); if (!st || !sl) return;
     $('#pMain').classList.toggle('haspanel', panelOn());
@@ -263,11 +285,12 @@
   }
   function context() {
     var b = schema.blocksById[ps.tab]; if (!b) return null;
-    if (b.kind === 'quotes') { var q = currentQuote(b); return q ? { insurer: q.insurer, product: q.productName || '' } : null; }
+    if (b.kind === 'quotes') { var q = currentQuote(b); return q ? { insurer: q.insurer, product: q.productName || '', quote: q } : null; }
     if (b.id === 'policies' && ps.pol != null) { var e = calc.policies(state())[ps.pol]; return e ? { insurer: e.item.insurer, product: e.item.product } : null; }
     return null;
   }
-  /* The key points of what is highlighted: at most three, for this insurer, in a slim card that slides in on the right. Nothing shows when nothing is highlighted or no approved point fits. */
+  /* The key points of what is highlighted, for this insurer, as small cards that slide in on the right one after another (Severe illness in two sections with blue banners; ACI is one card built from the quote).
+     Until the checked library is found, BrightRock quotes show placeholder cards in the same layout. Nothing shows when no card fits; the switch (Key points: on / off) hides the whole column. */
   function paintPanel() {
     var pn = $('#pPanel'); if (!pn) return;
     var on = panelOn(), main = $('#pMain'), was = main.classList.contains('haspanel');
@@ -276,20 +299,37 @@
     if (!on) { pn.innerHTML = ''; return; }
     var ctx = context(), rows = rowsOn(), extra = [], labels = [];
     rows.forEach(function (r) { (r.getAttribute('data-ben') || '').split(',').filter(Boolean).forEach(function (k) { extra.push(k); }); if (r.getAttribute('data-label')) labels.push(r.getAttribute('data-label')); });
-    var pts = ps.pil || rows.length ? P.pointsFor(kp.points, ctx.insurer, P.benefitsFor(ps.pil, extra), ctx.product) : [];
-    if (!pts.length) { pn.innerHTML = ''; return; }
-    var pl = (BUTTONS.filter(function (p) { return p[0] === ps.pil; })[0] || [0, ''])[1], what = [labels[0], pl].filter(Boolean).join('  ·  ');
-    pn.innerHTML = '<div class="kcard"><div class="khead"><span class="kico">' + ico('key') + '</span><span class="kfor">' + esc(ctx.insurer) + '</span></div><div class="kwhat">' + esc(what) + '</div><ul>' + pts.map(function (p) { return '<li>' + esc(p.text) + '</li>'; }).join('') + '</ul></div>';
-    var card = pn.firstChild; void card.offsetWidth; card.classList.add('in');
+    var res = ps.pil || rows.length ? P.keyCards({ kp: kp, insurer: ctx.insurer, product: ctx.product, pil: ps.pil, extra: extra, quote: ctx.quote }) : { sections: [], total: 0 };
+    if (!res.total) { pn.innerHTML = '<div class="khint">' + (ps.pil || rows.length ? 'No key points for this yet.' : 'Click a column heading or a line to see its key points here.') + '</div>'; return; }
+    var pl = (BUTTONS.filter(function (p) { return p[0] === ps.pil; })[0] || [0, ''])[1], what = [labels[0], pl].filter(Boolean).join('  \u00b7  '), n = 0;
+    pn.innerHTML = '<div class="kwrap"><div class="kwhat">' + esc(what) + '<small>' + esc(ctx.insurer) + '</small></div>' + res.sections.map(function (sec) {
+      return (sec.label ? '<div class="ksec">' + esc(sec.label) + '</div>' : '') + sec.cards.map(function (c) { return '<div class="kcard' + (c.placeholder ? ' ph' : '') + '" style="--i:' + (n++) + '"><p>' + esc(c.text) + '</p><small>Source: ' + esc(c.source) + '</small></div>'; }).join('');
+    }).join('') + '</div>';
+    void pn.offsetWidth; [].forEach.call(pn.querySelectorAll('.kcard'), function (c) { c.classList.add('in'); });
+    fitPanel();
   }
-  function kpText() { return kpNote || (!kp ? 'No key points loaded' : 'Key points ready · ' + kp.points.length + (kp.tooLong ? ' (' + kp.tooLong + ' too long, left out)' : '')); }
+  /* The column never scrolls: a long list of cards is drawn a little smaller instead. */
+  function fitPanel() {
+    var pn = $('#pPanel'), w = pn && pn.querySelector('.kwrap'); if (!w) return;
+    w.style.zoom = ''; var h = w.offsetHeight, avail = pn.clientHeight - 34, k = h > avail && avail > 0 ? Math.max(0.55, avail / h) : 1;
+    if (k < 1) w.style.zoom = k;
+  }
+  /* The switch: Key points on / off. Off: the cards slide away, then the column closes and the page grows to fill the screen. */
+  function setKeys(on) {
+    on = !!on; if (on === ps.keys) return;
+    ps.keys = on; [].forEach.call(document.querySelectorAll('#pres .pswitch'), function (b) { b.classList.toggle('on', on); b.setAttribute('aria-checked', on); b.querySelector('.st').textContent = 'Key points: ' + (on ? 'on' : 'off'); });
+    if (on) { paintPanel(); return; }
+    [].forEach.call(document.querySelectorAll('#pPanel .kcard'), function (c) { c.classList.remove('in'); c.classList.add('out'); });
+    setTimeout(function () { if (!ps.keys) paintPanel(); }, 380);
+  }
+  function kpText() { return kpNote || (kp ? 'Key points ready \u00b7 ' + kp.points.length + (kp.tooLong || kp.noSource ? ' (' + ((kp.tooLong || 0) + (kp.noSource || 0)) + ' left out: too long or no source)' : '') : 'No key points file found \u00b7 placeholder cards shown'); }
   function paintState() { var el = $('#pKpState'); if (el) { el.textContent = kpText(); el.classList.toggle('none', !kp); } }
 
   /* ---------- the key-points library: found by the page itself, kept in this browser ---------- */
   function loadKeyPoints(text, name, from) {
     var r = P.parseKeyPoints(text);
     if (!r.ok) { kpNote = r.error; paintState(); return r; }
-    kpNote = ''; saveKP({ file: name || P.KP_FILE, from: from || '', loaded: schema.todayDMY(), points: r.points, total: r.total, dropped: r.dropped, tooLong: r.tooLong });
+    kpNote = ''; saveKP({ file: name || P.KP_FILE, from: from || '', loaded: schema.todayDMY(), points: r.points, total: r.total, dropped: r.dropped, tooLong: r.tooLong, noSource: r.noSource });
     if (root) { paintPanel(); paintState(); } return r;
   }
   /* Looks for wr-keypoints.json at the top of a connected folder (New Business, then Client Files). Where the browser has to ask for a folder's permission (a click is behind it) is only when nothing is kept in this browser yet. */
@@ -297,14 +337,14 @@
     var got = null;
     try { got = FF.foldersUI && FF.foldersUI.rootFile ? await FF.foldersUI.rootFile(P.KP_FILE, !!ask) : null; } catch (e) { got = null; }
     if (got) loadKeyPoints(got.text, P.KP_FILE, got.from);
-    else if (!kp) { kpNote = 'No key points file found'; if (root) paintState(); }
+    else if (!kp && root) paintState();
     return !!got;
   }
 
   /* ---------- moving ---------- */
   function go(tab, qi, pol) {
     if (!schema.blocksById[tab] && tab !== 'map') return;
-    if (tab !== 'map' && !calc.pageShown(state(), tab)) return;                                    // a page that is left out cannot be opened
+    if (tab !== 'map' && !P.blockOn(state(), tab)) return;                                         // a page with nothing to show cannot be opened (its tab is greyed)
     if (tab === ps.tab && qi === undefined && pol === undefined) return;
     var same = tab === ps.tab;
     ps.tab = tab; ps.qi = qi !== undefined ? qi : (same ? ps.qi : 0); ps.pol = pol !== undefined ? pol : (same ? ps.pol : null); ps.sub = 'quote'; ps.pil = null; ps.rows = [];
@@ -347,7 +387,9 @@
       if (ev.target.closest('#pBtnClose')) { close(); return; }
       if (!act && hd) { setPil(hd.getAttribute('data-pil'), true); return; }
       if (!act && !tr) return;
-      if (act === 'tab') go(el.getAttribute('data-tab'));
+      if (act === 'tab') { var tb = P.firstBlock(state(), el.getAttribute('data-tab')); if (tb) go(tb); }
+      else if (act === 'blk') go(el.getAttribute('data-b'));
+      else if (act === 'keys') setKeys(!ps.keys);
       else if (act === 'q') { ps.qi = +el.getAttribute('data-i'); ps.sub = 'quote'; ps.pil = null; ps.rows = []; render(); }
       else if (act === 'sub') setSub(el.getAttribute('data-s'));
       else if (act === 'pil') setPil(el.getAttribute('data-p'), true);
@@ -366,7 +408,7 @@
     if (!root) { kp = loadKP(); build(); }
     if (open) return;
     open = true; prevOverflow = document.body.style.overflow; document.body.style.overflow = 'hidden'; root.hidden = false;
-    ps = { tab: 'map', qi: 0, sub: 'quote', pil: null, rows: [], pol: null };
+    ps = { tab: 'map', qi: 0, sub: 'quote', pil: null, rows: [], pol: null, keys: true };
     render(); setTimeout(fit, 30);
     refreshKeyPoints(!kp);                                                                          // the click that opened this is what lets the browser ask, and only when nothing is kept yet
   }
@@ -375,5 +417,5 @@
     open = false; root.hidden = true; document.body.style.overflow = prevOverflow;
   }
   var btn = $('#btnPresent'); if (btn) btn.addEventListener('click', openPres);
-  OV.present = { open: openPres, close: close, get isOpen() { return open; }, get ps() { return ps; }, applyMoves: applyMoves, go: go, loadKeyPoints: loadKeyPoints, refreshKeyPoints: refreshKeyPoints, get keyPoints() { return kp; }, kpText: kpText, render: render };
+  OV.present = { open: openPres, close: close, get isOpen() { return open; }, get ps() { return ps; }, applyMoves: applyMoves, go: go, setKeys: setKeys, loadKeyPoints: loadKeyPoints, refreshKeyPoints: refreshKeyPoints, get keyPoints() { return kp; }, kpText: kpText, render: render };
 })();

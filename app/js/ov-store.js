@@ -184,6 +184,7 @@
       raq: asked('raq', ['ins', 'monthly', 'lump']), invq: asked('invq', ['purpose', 'product', 'ins', 'monthly', 'lump']),
       rgar: /^request/i.test(f('rgar_req')), egar: /^request/i.test(f('egar_req')),
       asked: quotesAsked(f, rows),
+      answers: { hasRisk: f('has_risk'), hasGroup: f('has_group'), hasRa: f('has_ra'), hasPp: f('has_pp'), hasInv: f('has_inv'), raqReqs: rows('raq').map(function (d) { return str(d.req); }).filter(Boolean), refSti: f('ref_sti') },     // what the Fact Find answered, for the Presentation's sentences (never guessed: an empty answer says so)
       other: { ma: { value: f('ma'), provider: f('ma_prov'), plan: f('ma_plan'), broker: f('ma_broker') }, gap: { value: f('gap'), provider: f('gap_prov'), broker: f('gap_broker') },
         will: { value: f('will'), where: f('will_where') === 'Other' ? f('will_where_other') : f('will_where'), up: f('will_up'), broker: f('will_broker'), date: f('will_date') },
         shortterm: { value: f('sti'), broker: f('sti_broker'), personal: money(f('sti_personal')) } }
@@ -201,8 +202,10 @@
   }
   /* How many items of the Fact Find differ between two readings of it. */
   function diffFacts(a, b) {
-    var oldHad = a && a.asked !== undefined, newHad = b && b.asked !== undefined;
-    if (oldHad !== newHad) { a = Object.assign({}, a); b = Object.assign({}, b); delete a.asked; delete b.asked; }
+    ['asked', 'answers'].forEach(function (k) {                                                                  // a key an older reading did not have is not a change in the Fact Find
+      var oldHad = a && a[k] !== undefined, newHad = b && b[k] !== undefined;
+      if (oldHad !== newHad) { a = Object.assign({}, a); b = Object.assign({}, b); delete a[k]; delete b[k]; }
+    });
     var x = flat(a), y = flat(b), seen = {}, items = {};
     Object.keys(x).concat(Object.keys(y)).forEach(function (k) {
       if (seen[k]) return; seen[k] = 1;

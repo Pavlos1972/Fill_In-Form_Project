@@ -140,11 +140,10 @@ srv.listen(0, async () => {
   });
   ok(pr.bg === 'rgb(255, 255, 255)', '8. the Presentation has a white background: ' + pr.bg);
   ok(pr.logo, '8. the Wealth Revolution logo is in the bar');
-  ok(pr.tabs === 'Main,Policies,FNA,Group,Shortfall,Reduced,Investments,Other' && pr.off === 0 && pr.cards === 7, '8. the same four pages are left out: they are not on the tab row and not on the main page (no grey tab, no strike-through): ' + JSON.stringify(pr));
+  ok(pr.tabs === 'Overview,Current policies,FNA quote,Group benefits,Shortfall,Reduced quotes,Investments,Goal analysis,Other' && pr.off === 8 && pr.cards === 11, '8. nine tabs; with nothing in the overview every tab but Overview is greyed and disabled (no strike-through), and the Overview still shows its eleven cards: ' + JSON.stringify(pr));
   await pg.screenshot({ path: out + '/seemore-present-map.png' });
   await pg.keyboard.press('ArrowRight'); await pg.waitForTimeout(150);
-  await pg.keyboard.press('ArrowRight'); await pg.keyboard.press('ArrowRight'); await pg.keyboard.press('ArrowRight'); await pg.keyboard.press('ArrowRight'); await pg.waitForTimeout(150);
-  ok(await pg.evaluate(() => OV.present.ps.tab === 'reduced'), '8. next and back skip the pages that are left out (map, policies, FNA, group, shortfall, then reduced)');
+  ok(await pg.evaluate(() => OV.present.ps.tab === 'map' && !document.querySelector('.pcard.bright')), '8. next and back have nowhere to go while no page has anything to show, and no card opens a page');
   await pg.keyboard.press('Escape');
   await pg.evaluate(ff => { const S = OV.store, D = OV.docs, st = S.blank(); S.fillFromFactFind(st, JSON.stringify(ff), 'ff.json');
     D.applyQuote(st, 'fna', { insurer: 'BrightRock', number: '100000001', aci: 7.5, aciText: '7.5% + age rater', premium: 2900, lines: [{ type: 'household', life: { lump: 800000, monthly: 5000 }, abi: 5 }, { type: 'child', name: 'Amy', sname: 'See', life: { lump: 500000, monthly: 5000 }, abi: 5 }] }, 'fna.pdf'); OV.app.setState(st); }, FFJ);

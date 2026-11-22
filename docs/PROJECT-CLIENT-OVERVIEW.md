@@ -281,3 +281,44 @@ The Fix Skills chat relayed, in three messages (the first, with a voice through 
 - **A new debt line starts "not known"** (it started "accelerated"); **an older saved file may carry an accelerated debt line nobody confirmed**: the choice is on the entry screen to check.
 - **The main page has the client's name in a blue band** (the top bar's name is hidden there so it is not shown twice).
 - **Not certain:** seen only in my own screenshots, not on Paul's screen or a projector; the permission prompt for the folder has not been seen with Chrome's real folder picker; the key points have only been tried with an invented library; whether the real reading gives `accelerated` correctly is untested (the real Anthropic call has never been made on a real document).
+
+## 14. The approved Presentation design (22 November, evening) and the Overview page's wording
+
+Paul approved a design (relayed by the Fix Skills chat); it **replaces the design part of section 13** (the voice removal, click highlighting, no greying, no word *Highlight*, the ACI / ABI buttons all stand). **Built, tested and on the work branch; NOT merged (waits for Paul's own "merge"), NOT installed.**
+
+| Paul's point | What was built |
+|---|---|
+| White page, top bar with the logo, client name and *Client Overview · Presentation · date*, pill tabs (active #27A8E0 with an orange #F28C28 underline), rounded corners (about 16px) and a soft shadow everywhere | `css/present.css` and `js/ov-present.js` rewritten; the orange is #F28C28 in the Presentation |
+| Nine tabs: Overview, Current policies, FNA quote, Group benefits, Shortfall, Reduced quotes, Investments, Goal analysis, Other; a tab with nothing to show is greyed and cannot be clicked | `TABS` in `js/ov-pres.js`. **The Studio has eleven blocks, so three tabs hold two each, with a small button on the page for each** (Shortfall / Shortfall quote, Reduced quotes / Comparative quotes, Current investments / Proposed investments). A block "has something to show" when there is data (`hasContent`) and the PDF has a page for it. **This replaces "a left-out page is not there at all"** |
+| The Overview page: banner, *<First name>, here's what we'll cover today*, cards of four with an icon, a heading and ONE factual sentence, no figures; four bright cards that open a page, the rest soft grey and not clickable; fade in one after another | `WORDING` / `sentenceFor` / `cover` in `js/ov-pres.js` (ONE table); `mapView` in `js/ov-present.js` |
+| Quote tables like the PDF (header #DDEFF9, grid #B8C4CE, rounded, the totals rows always, the blue premium bar, full terms) | `linesTable`, `.ptbl` rules |
+| Pills + a Key points: on / off switch; cards that slide in one after another with a *Source:* line; Severe illness in two sections; ACI card only *Premiums rise <x>% a year, plus the age adjuster.*; placeholders until the checked library arrives | `keyCards`, `aciCard`, `PLACEHOLDERS` in `js/ov-pres.js`; `paintPanel`, `setKeys` in `js/ov-present.js`; library layout in `OVERVIEW-DATA-CONTRACT.md` section 13 (a `source` per point, an optional `section`) |
+| Current policies / Group benefits (three red lines) / Shortfall (Need, Current cover, Shortfall in red) / Other cards | `policiesView`, `groupView`, `shortfallView`, `otherView` |
+
+**The wording of the Overview page (one sentence per area; this is the table Paul approves; each is chosen by the rule shown):**
+
+| Card | Rule and sentence |
+|---|---|
+| **Current policies** | policies in block 1: none and the Fact Find says no personal cover (*Has personal risk cover* = No): *You have no personal policies in place right now.* One: *You have one policy with {insurer} right now. We'll show you what it covers.* Several: *You have {two, three...} policies with {insurers, each once} right now. We'll show you what they cover.* (no insurer name known: *You have one policy in place right now...* / *You have {n} policies in place right now...*) |
+| **Life cover: FNA quote** | an FNA quote is loaded: *Based on our last meeting, we'll show you what you ideally need to take out.* |
+| **Shortfall** | the shortfall can be worked out: *We'll show you the gap between what you have and what you need.* |
+| **Reduced quote** | a reduced quote is loaded: *A more affordable way to close that gap.* |
+| **Group benefits** | no group item and the Fact Find says no group risk: *You have no group benefits in place. Your employer doesn't cover you for anything.* A group risk statement with amounts: *Your employer covers you for {life cover, severe illness cover, disability cover, income protection}.* without amounts: *You have group benefits through your employer.* only a pension or provident fund: *Your employer provides a retirement fund, but no group risk cover.* |
+| **Retirement planning** | a retirement annuity listed or *Has retirement annuities* = Yes: *You already have a retirement annuity.* An older answer *Cannot afford now* on the RA quote list: *You can't afford an RA right now.* An RA quote asked for: *We'll show you what a retirement annuity could do for you.* *Has retirement annuities* = No: *You don't have a retirement annuity.* |
+| **Investments** | investments in block 8: *You have one investment with {provider} right now.* / *You have {n} investments with {providers} right now.*; none and *Has investments* = No: *You don't have any investments right now.* |
+| **Goal analysis** | a report with figures: *A goal analysis was done for you.* A report asked for: *You asked us for a goal analysis. We'll go through it once it is back.* The Fact Find read and none asked for: *You didn't ask us for a goal analysis at this time.* |
+| **Medical aid** | *Medical aid in place* (answer Medical aid): *You have medical aid in place.* Hospital plan: *You have a hospital plan in place.* None: *You don't have medical aid.* |
+| **Will** | has a will and it is up to date: *Your will is in place and up to date.* has one that is not up to date: *Your will is in place but needs updating.* has one, up to date not answered: *You have a will.* No will: *You don't have a will.* |
+| **Short-term insurance** | the Cameron referral box says *Cameron to contact client*: *Your short-term insurance is being reviewed, and we're waiting for feedback.* Otherwise Yes: *You have short-term insurance in place.* No: *You don't have short-term insurance.* Handled by spouse: *Your spouse looks after your short-term insurance.* |
+| **Any area with no answer** (or no Fact Find read) | *This was not discussed in our last meeting.* |
+
+**Decisions made while building (my readings, for Paul to correct):**
+- **Only the four named cards open a page** (Current policies, FNA quote, Shortfall, Reduced quote), and only when their tab has something to show. Group benefits, Investments and Goal analysis have tabs but their cards only say their sentence (one field of the table, `opens`, changes that).
+- **The sentences need the Fact Find's answers**, so the saved overview now keeps `factFind.facts.answers` (contract revision h). **An overview saved before this has no answers: its cards say *This was not discussed in our last meeting.* until Fill from Fact Find is run again.**
+- **The retirement sentence**: the Fact Find has no *can't afford* box any more (removed in 3.4); the sentence is shown only for an older answer. The sentences for *RA quote asked for*, *a goal analysis was done / asked for*, *a spouse looks after short-term*, *the group employer covers ...* and *a retirement fund only* are mine, built on the same rule (a fact in the Fact Find or the Studio, never a guess); say if any should go.
+- **The ACI card** names *the age adjuster* only when the quote's own words (`aciText`) name one; with *10% fixed* it reads *Premiums rise 10% a year.*
+- **Placeholder cards** show (for a BrightRock quote only) until the library is found, so Paul can see the layout; **they must not be shown to a client**: if no library is found the top bar says *No key points file found · placeholder cards shown*, and the switch hides them.
+- **The shortfall's Current cover** is the group benefits plus the personal investments added together, with each amount under it (the PDF's two columns); the added figure is the only figure on that page that the PDF does not print as it is.
+- **Policy lines in the Current policies table** are named *Insurer PolicyNumber* (one space), as in *Liberty 12345678*.
+- **Not certain:** all of it is seen only in my own screenshots, not on Paul's screen or a projector; the sentences are only as good as the Fact Find's answers; the key-point cards have only been tried with invented text; the real folder permission prompt has not been seen.
+

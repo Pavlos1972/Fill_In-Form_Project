@@ -1,39 +1,41 @@
-/* The Client Overview Studio's Presentation: a WHITE, full-screen view for the meeting, in the Wealth Revolution blue with orange accents and the firm's logo (Paul, 22 November: not black, and not bland).
-   It never scrolls: a page is drawn at one fixed width and scaled to fit (js/ov-present.js). Read-only: nothing here is an input. A page that is left out (as in the PDF) is simply not there.
-   Nothing is ever greyed out to make something else stand out: a highlight is a soft orange glow and everything stays fully visible. */
-.pres { --wr: #27a8e0; --wr-deep: #1276a8; --wr-night: #0d5f8a; --wr-soft: #e4f3fb; --wr-pale: #f4f9fc; --line: #e1ebf1; --or: #f0a050; --or-deep: #b8650d; --or-soft: #fff3e4; --or-glow: rgba(240, 160, 80, .5); --ink: #26323a; --muted: #6b7780; --red: #b3261e; --green: #2d8a52;
+/* The Client Overview Studio's Presentation, the design Paul approved on 22 November: a WHITE page with the Wealth Revolution blue (#27A8E0) and orange (#F28C28), the firm's logo, rounded corners (about 16px) and soft shadows
+   on the top bar, the tab bar, the cards, every table and the key-point cards. It never scrolls: a page is drawn at one fixed width and scaled to fit (js/ov-present.js). Read-only: nothing here is an input.
+   A tab with nothing to show is greyed (no line through it) and cannot be clicked. Nothing is ever greyed out to make something else stand out: a highlight is a light orange fill with orange side lines. */
+.pres { --wr: #27a8e0; --wr-deep: #0f6e99; --wr-soft: #e1f3fb; --wr-head: #ddeff9; --wr-pale: #f4f9fc; --grid: #b8c4ce; --line: #dfe8ee; --or: #f28c28; --or-deep: #b8650d; --or-soft: #fff1e0; --or-glow: rgba(242, 140, 40, .45); --ink: #26323a; --muted: #6b7780; --red: #c0392b; --green: #2d8a52; --r: 16px;
   position: fixed; inset: 0; z-index: 3000; background: #fff; color: var(--ink); font: 16px/1.4 "Segoe UI", system-ui, -apple-system, sans-serif; display: grid; grid-template-rows: auto auto minmax(0, 1fr); overflow: hidden; }
 .pres[hidden], .pres [hidden] { display: none !important; }
 .pres button { font: inherit; cursor: pointer; }
 .pres .sp { flex: 1; }
 
-/* the top bar: the logo, the client, the state of the key points, Close */
-.pres .pbar { grid-row: 1; display: flex; align-items: center; gap: 16px; padding: 8px 24px; background: #fff; position: relative; }
-.pres .pbar::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: linear-gradient(90deg, var(--wr) 0%, var(--wr) 62%, var(--or) 100%); }
-.pres .plogo { height: 42px; width: auto; flex: none; display: block; }
-.pres .pwho { font-weight: 600; font-size: 17px; color: var(--wr-deep); white-space: nowrap; padding-left: 16px; border-left: 3px solid var(--or); line-height: 1.1; }
-.pres.onmap .pwho { visibility: hidden; }
+/* the top bar: the logo, the client and "Client Overview · Presentation · date", the state of the key points, Close */
+.pres .pbar { grid-row: 1; display: flex; align-items: center; gap: 16px; margin: 12px 20px 0; padding: 8px 20px; background: #fff; border-radius: var(--r); box-shadow: 0 4px 18px rgba(15, 110, 153, .13); position: relative; }
+.pres .pbar::after { content: ""; position: absolute; left: 22px; right: 22px; bottom: 0; height: 3px; border-radius: 3px 3px 0 0; background: linear-gradient(90deg, var(--wr) 0%, var(--wr) 62%, var(--or) 100%); }
+.pres .plogo { height: 40px; width: auto; flex: none; display: block; }
+.pres .pwho { padding-left: 16px; border-left: 3px solid var(--or); line-height: 1.15; white-space: nowrap; }
+.pres .pwho b { display: block; font-size: 18px; font-weight: 700; color: var(--wr-deep); }
+.pres .pwho small { display: block; font-size: 12.5px; color: var(--muted); letter-spacing: .02em; }
 .pres .pkstate { color: var(--muted); font-size: 12.5px; white-space: nowrap; display: inline-flex; align-items: center; }
-.pres .pkstate::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: #2fa36b; margin-right: 7px; }
+.pres .pkstate::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: #2fa36b; margin-right: 7px; flex: none; }
 .pres .pkstate.none::before { background: #c3ccd3; }
 .pres .pb { background: #fff; color: var(--wr-deep); border: 1px solid var(--line); border-radius: 999px; padding: 7px 16px; font-size: 14px; font-weight: 600; transition: background .15s, border-color .15s; }
 .pres .pb:hover { background: var(--wr-soft); border-color: var(--wr); }
 
-/* the tabs: clean pills; the current one is filled blue with an orange underline */
-.pres .ptabs { grid-row: 2; display: flex; justify-content: center; gap: 8px; padding: 14px 24px 8px; background: #fff; overflow: hidden; }
-.pres .ptab { flex: 0 1 auto; min-width: 0; background: #fff; color: var(--wr-deep); border: 1px solid var(--line); border-radius: 999px; padding: 7px 16px; font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transition: background .15s, border-color .15s, color .15s; }
-.pres .ptab:hover { background: var(--wr-soft); border-color: var(--wr); }
+/* the tabs: a rounded bar of pills; the current one is WR blue with an orange underline; one with nothing to show is greyed */
+.pres .ptabs { grid-row: 2; display: flex; justify-content: center; gap: 8px; margin: 12px 20px 8px; padding: 7px; background: var(--wr-pale); border-radius: var(--r); box-shadow: 0 2px 10px rgba(15, 110, 153, .07); overflow: hidden; }
+.pres .ptab { flex: 0 1 auto; min-width: 0; background: #fff; color: var(--wr-deep); border: 1px solid var(--line); border-radius: 999px; padding: 7px 17px; font-size: 14.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transition: background .15s, border-color .15s, color .15s; }
+.pres .ptab:hover:not(:disabled) { background: var(--wr-soft); border-color: var(--wr); }
 .pres .ptab.on { background: var(--wr); color: #fff; border-color: var(--wr); box-shadow: inset 0 -3px 0 var(--or); }
+.pres .ptab.off, .pres .ptab:disabled { background: #eef1f3; color: #a3adb5; border-color: #e6eaed; cursor: not-allowed; font-weight: 500; text-decoration: none; }
 
 .pres .pmain { grid-row: 3; display: grid; grid-template-columns: minmax(0, 1fr); min-height: 0; overflow: hidden; }
-.pres .pmain.haspanel { grid-template-columns: minmax(0, 1fr) 306px; }
+.pres .pmain.haspanel { grid-template-columns: minmax(0, 1fr) 316px; }
 .pres .pstage { position: relative; overflow: hidden; min-width: 0; min-height: 0; background: #fff; }
 .pres .pslide { position: absolute; left: 0; top: 0; width: 1240px; transform-origin: 0 0; padding: 0 8px 8px; box-sizing: border-box; }
 .pres .pslide.pmap { padding: 0 8px 14px; }
 @media (prefers-reduced-motion: no-preference) { .pres .pin { animation: pres-in .3s ease-out both; } }
 @keyframes pres-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
 
-/* a page's heading: an icon, the title, and (for a block with several quotes) one button for each */
+/* a page's heading: an icon, the title, a small button for each block when a tab holds two, and the pills */
 .pres .phead { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 14px; margin: 6px 2px 10px; }
 .pres .pico { width: 44px; height: 44px; border-radius: 50%; background: var(--wr-soft); color: var(--wr-deep); display: inline-flex; align-items: center; justify-content: center; flex: none; box-shadow: 0 0 0 3px var(--or-soft); }
 .pres .pico svg { width: 24px; height: 24px; }
@@ -55,46 +57,61 @@
 .pres .psub.on { color: var(--wr-deep); border-bottom-color: var(--or); }
 .pres .phint { color: var(--muted); font-size: 14px; }
 
-/* the buttons that highlight a column: a soft orange glow while on */
+/* the pills that highlight a column (a light orange fill with orange side lines) and the Key points on / off switch */
 .pres .pbtn { display: inline-flex; align-items: center; gap: 5px; background: #fff; color: var(--wr-deep); border: 1px solid var(--line); border-radius: 999px; padding: 5px 12px 5px 9px; font-size: 13px; font-weight: 600; transition: background .2s, border-color .2s, box-shadow .2s, color .2s; }
 .pres .pbtn svg { width: 15px; height: 15px; flex: none; }
 .pres .pbtn:hover { border-color: var(--wr); background: var(--wr-pale); }
-.pres .pbtn.on { background: var(--or-soft); border-color: var(--or); color: var(--or-deep); box-shadow: 0 0 0 4px rgba(240, 160, 80, .2), 0 0 12px var(--or-glow); }
+.pres .pbtn.on { background: var(--or-soft); border-color: var(--or); color: var(--or-deep); box-shadow: 0 0 0 4px rgba(242, 140, 40, .18), 0 0 12px var(--or-glow); }
+.pres .pswitch { display: inline-flex; align-items: center; gap: 8px; margin-left: 6px; padding: 4px 12px 4px 5px; background: #fff; color: var(--muted); border: 1px solid var(--line); border-radius: 999px; font-size: 13px; font-weight: 600; transition: background .2s, color .2s, border-color .2s; }
+.pres .pswitch .sw { position: relative; width: 34px; height: 20px; border-radius: 999px; background: #c3ccd3; flex: none; transition: background .2s; }
+.pres .pswitch .sw::after { content: ""; position: absolute; left: 2px; top: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, .25); transition: transform .2s; }
+.pres .pswitch.on { color: var(--wr-deep); border-color: var(--wr); background: var(--wr-pale); }
+.pres .pswitch.on .sw { background: var(--wr); }
+.pres .pswitch.on .sw::after { transform: translateX(14px); }
 
-/* the main page */
-.pres .phero { position: relative; display: flex; align-items: center; justify-content: space-between; gap: 24px; margin: 8px 4px 24px; padding: 30px 44px; border-radius: 24px; color: #fff; overflow: hidden;
-  background: linear-gradient(112deg, var(--wr-night) 0%, var(--wr-deep) 38%, var(--wr) 100%); box-shadow: 0 12px 30px rgba(18, 118, 168, .28); }
+/* the Overview page: a deep blue banner, a welcome line, and a card for each area */
+.pres .phero { position: relative; display: flex; align-items: center; justify-content: space-between; gap: 24px; margin: 6px 4px 18px; padding: 26px 44px; border-radius: 22px; color: #fff; overflow: hidden;
+  background: linear-gradient(112deg, #27a8e0 0%, #1a8dc0 45%, #0f6e99 100%); box-shadow: 0 12px 30px rgba(15, 110, 153, .28); }
 .pres .phero::before { content: ""; position: absolute; right: -60px; top: -90px; width: 320px; height: 320px; border-radius: 50%; background: rgba(255, 255, 255, .09); }
-.pres .phero::after { content: ""; position: absolute; right: 150px; bottom: -120px; width: 220px; height: 220px; border-radius: 50%; background: rgba(240, 160, 80, .22); }
+.pres .phero::after { content: ""; position: absolute; right: 150px; bottom: -120px; width: 220px; height: 220px; border-radius: 50%; background: rgba(242, 140, 40, .24); }
 .pres .phero .hn { position: relative; z-index: 1; min-width: 0; }
-.pres .phero .nm { font-size: 42px; font-weight: 700; line-height: 1.1; letter-spacing: -.01em; }
-.pres .phero .ov { margin-top: 12px; display: flex; align-items: center; gap: 12px; letter-spacing: .32em; font-size: 14px; font-weight: 700; color: #ffd9ad; }
-.pres .phero .ov::before { content: ""; width: 44px; height: 4px; border-radius: 4px; background: var(--or); }
+.pres .phero .ov { display: flex; align-items: center; gap: 12px; letter-spacing: .32em; font-size: 12.5px; font-weight: 700; color: #ffe0bd; }
+.pres .phero .ov::before { content: ""; width: 40px; height: 4px; border-radius: 4px; background: var(--or); }
+.pres .phero .nm { margin-top: 8px; font-size: 42px; font-weight: 700; line-height: 1.1; letter-spacing: -.01em; }
 .pres .phero .dt { position: relative; z-index: 1; flex: none; font-size: 17px; font-weight: 600; padding: 9px 20px; border-radius: 999px; background: rgba(255, 255, 255, .18); border: 1px solid rgba(255, 255, 255, .35); }
-.pres .pcards { display: flex; flex-wrap: wrap; justify-content: center; gap: 18px; padding: 0 4px 4px; }
-.pres .pcard { position: relative; width: calc((100% - 54px) / 4); box-sizing: border-box; text-align: left; background: #fff; color: var(--ink); border: 1px solid var(--line); border-radius: 20px; padding: 18px 20px 16px; overflow: hidden;
-  display: grid; grid-template-columns: 44px minmax(0, 1fr); column-gap: 14px; align-items: center; box-shadow: 0 4px 14px rgba(18, 118, 168, .08); transition: transform .18s, box-shadow .18s, border-color .18s; }
-.pres .pcard::after { content: ""; position: absolute; left: 20px; right: 20px; bottom: 0; height: 3px; border-radius: 3px 3px 0 0; background: var(--or); transform: scaleX(0); transition: transform .22s; }
-.pres .pcard:hover { transform: translateY(-3px); border-color: var(--wr); box-shadow: 0 10px 24px rgba(18, 118, 168, .18); }
-.pres .pcard:hover::after { transform: scaleX(1); }
+.pres h2.pwelcome { margin: 0 6px 14px; font-size: 26px; font-weight: 700; color: var(--wr-deep); letter-spacing: -.01em; }
+.pres .pcards { display: flex; flex-wrap: wrap; justify-content: center; gap: 16px; padding: 0 4px 4px; }
+.pres .pcard { position: relative; width: calc((100% - 48px) / 4); box-sizing: border-box; text-align: left; border-radius: var(--r); padding: 16px 18px 15px; overflow: hidden; display: grid; grid-template-columns: 44px minmax(0, 1fr); column-gap: 13px; align-items: center; opacity: 0; }
+@media (prefers-reduced-motion: no-preference) { .pres .pcard { animation: card-in .5s ease-out both; animation-delay: calc(var(--i, 0) * 80ms + 60ms); } }
+@media (prefers-reduced-motion: reduce) { .pres .pcard { opacity: 1; } }
+@keyframes card-in { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
 .pres .pcard .pico { grid-column: 1; grid-row: 1; }
-.pres .pcard .ct { grid-column: 2; grid-row: 1; font-size: 16.5px; font-weight: 700; color: var(--wr-deep); line-height: 1.2; min-height: 40px; display: flex; align-items: center; }
-.pres .pcard .cf { grid-column: 1 / 3; grid-row: 2; margin-top: 12px; font-size: 26px; font-weight: 800; letter-spacing: -.01em; line-height: 1.15; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.pres .pcard .cc { grid-column: 1 / 3; grid-row: 3; min-height: 20px; font-size: 14px; color: var(--muted); }
-.pres .pcard.empty .cf { color: #9aa7b1; font-weight: 600; font-size: 21px; }
-.pres .pcard.empty .pico { background: #f0f3f6; color: #8f9ba5; box-shadow: none; }
+.pres .pcard .ct { grid-column: 2; grid-row: 1; font-size: 16.5px; font-weight: 700; line-height: 1.2; min-height: 40px; display: flex; align-items: center; }
+.pres .pcard .cs { grid-column: 1 / 3; grid-row: 2; margin-top: 10px; font-size: 15px; line-height: 1.4; min-height: 63px; }
+.pres .pcard.bright { background: #fff; color: var(--ink); border: 1px solid var(--line); box-shadow: 0 4px 16px rgba(15, 110, 153, .12); cursor: pointer; transition: transform .18s, box-shadow .18s, border-color .18s; }
+.pres .pcard.bright .ct { color: var(--wr-deep); }
+.pres .pcard.bright::after { content: ""; position: absolute; left: 18px; right: 18px; bottom: 0; height: 3px; border-radius: 3px 3px 0 0; background: var(--or); transform: scaleX(0); transition: transform .22s; }
+.pres .pcard.bright:hover { transform: translateY(-4px); border-color: var(--wr); box-shadow: 0 12px 26px rgba(15, 110, 153, .22); }
+.pres .pcard.bright:hover::after { transform: scaleX(1); }
+.pres .pcard.soft { background: #f3f5f7; color: #5d6872; border: 1px solid #e7ebee; box-shadow: none; cursor: default; }
+.pres .pcard.soft .ct { color: #6a7780; }
+.pres .pcard.soft .pico { background: #e8ecef; color: #86929b; box-shadow: none; }
 
-/* the tables: room to breathe, soft row dividers, rounded corners, big bold figures */
-.pres .ptw { background: #fff; border: 1px solid var(--line); border-radius: 18px; overflow: hidden; box-shadow: 0 6px 20px rgba(18, 118, 168, .09); }
-.pres .ptbl { width: 100%; border-collapse: separate; border-spacing: 0; table-layout: fixed; font-size: 16px; background: #fff; }
-.pres .ptbl th { background: var(--wr-pale); color: var(--wr-deep); font-weight: 700; font-size: 13px; font-family: inherit; text-transform: none; letter-spacing: .01em; line-height: 1.25; padding: 10px 8px 8px; text-align: center; border: 0; border-bottom: 2px solid var(--wr-soft); vertical-align: bottom; white-space: normal; transition: background .25s, color .25s, box-shadow .25s; }
-.pres .ptbl th .hi { display: block; margin: 0 auto 4px; color: var(--wr); width: 18px; height: 18px; }
+/* the tables, as in the PDF: a light blue header, a firm grid on every cell, rounded outer corners */
+.pres .ptw { background: #fff; border: 1px solid var(--grid); border-radius: var(--r); overflow: hidden; box-shadow: 0 6px 20px rgba(15, 110, 153, .1); }
+.pres .ptbl { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 16px; background: #fff; }
+.pres .ptbl th { background: var(--wr-head); color: var(--wr-deep); font-weight: 700; font-size: 13px; font-family: inherit; text-transform: none; letter-spacing: .01em; line-height: 1.25; padding: 9px 8px 8px; text-align: center; border: 1px solid var(--grid); vertical-align: bottom; white-space: normal; transition: background .25s, color .25s; }
+.pres .ptbl th .hi { display: block; margin: 0 auto 3px; color: var(--wr); width: 18px; height: 18px; }
 .pres .ptbl th .hi svg { width: 18px; height: 18px; display: block; }
 .pres .ptbl th[data-pil] { cursor: pointer; }
 .pres .ptbl th[data-pil]:hover { color: var(--or-deep); }
-.pres .ptbl td { border: 0; border-bottom: 1px solid #edf3f7; padding: 8px 10px; line-height: 1.2; text-align: right; vertical-align: middle; background: #fff; color: var(--ink); transition: background .25s, box-shadow .25s; }
+.pres .ptbl td { border: 1px solid var(--grid); padding: 8px 10px; line-height: 1.2; text-align: right; vertical-align: middle; background: #fff; color: var(--ink); transition: background .25s, box-shadow .25s; }
+.pres .ptbl tr:first-child td, .pres .ptbl thead tr:first-child th { border-top: 0; }
+.pres .ptbl tr > :first-child { border-left: 0; }
+.pres .ptbl tr > :last-child { border-right: 0; }
 .pres .ptbl tbody tr:last-child td { border-bottom: 0; }
-.pres .ptbl td.l, .pres .ptbl th.l { text-align: left; padding-left: 16px; }
+.pres .ptbl td.l, .pres .ptbl th.l { text-align: left; padding-left: 14px; }
+.pres .ptbl td.term { font-size: 14px; line-height: 1.25; }
 .pres .ptbl td.c { text-align: center; }
 .pres .ptbl .a { display: block; white-space: nowrap; font-variant-numeric: tabular-nums; font-size: 17.5px; font-weight: 700; letter-spacing: -.005em; line-height: 1.2; }
 .pres .ptbl .a.red { color: var(--red); font-size: 16px; font-weight: 600; }
@@ -109,44 +126,60 @@
 .pres .ptbl td b { color: var(--ink); font-weight: 700; }
 .pres .ptbl td b.yes { color: var(--green); }
 .pres .ptbl td b.no { color: var(--red); }
-.pres .ptbl tr.tot td { background: var(--or-soft); font-weight: 700; border-top: 2px solid #f6d6ad; border-bottom: 0; }
-.pres .ptbl tr.prem td { background: var(--wr-soft); font-weight: 700; border-top: 2px solid #cfe8f5; border-bottom: 0; }
-.pres .ptbl tr.prem td .a { font-size: 19px; color: var(--wr-deep); }
+.pres .ptbl td.sf .a { color: var(--red); font-size: 19px; }
+.pres .ptbl tr.tot td { background: #fdefe0; font-weight: 700; }
+.pres .ptbl tr.prem td { background: var(--wr-soft); font-weight: 700; color: var(--wr-deep); font-size: 16.5px; }
+.pres .ptbl tr.prem td .a { font-size: 20px; color: var(--wr-deep); }
 .pres .ptbl tr.diff td { background: var(--wr-pale); font-weight: 700; }
 .pres .ptbl tr[data-keys], .pres .ptbl tr[data-act] { cursor: pointer; }
-.pres .ptbl tr[data-keys]:hover td, .pres .ptbl tr[data-act]:hover td { background: var(--wr-pale); }
-.pres .ptbl tr.tot[data-keys]:hover td { background: #ffeed8; }
-.pres .ptbl tr.prem[data-keys]:hover td { background: #d9eef8; }
+.pres .ptbl tr[data-keys]:not(.on):hover td:not(.hl), .pres .ptbl tr[data-act]:hover td { background: var(--wr-pale); }
+.pres .ptbl tr.tot[data-keys]:not(.on):hover td:not(.hl) { background: #fbe6d0; }
+.pres .ptbl tr.prem[data-keys]:not(.on):hover td:not(.hl) { background: #d3eaf6; }
 .pres .ptbl td.tick { padding-left: 40px; position: relative; text-align: left; }
 .pres .ptbl td.tick i { position: absolute; left: 14px; top: 50%; margin-top: -10px; font-style: normal; font-weight: 700; font-size: 18px; line-height: 20px; }
 .pres .ptbl td.tick i.yes { color: var(--green); }
 .pres .ptbl td.tick i.no { color: var(--red); }
 .pres .pnote { color: var(--muted); font-size: 14px; margin: 12px 4px 0; line-height: 1.45; }
 .pres .pempty { color: var(--muted); font-size: 18px; margin: 18px 4px; }
+.pres .pnone { margin: 0 2px 14px; padding: 12px 20px; border: 1px solid #efc3bd; border-radius: var(--r); background: #fdf1ef; box-shadow: 0 4px 14px rgba(192, 57, 43, .08); }
+.pres .pnone p { margin: 4px 0; font-size: 18px; font-weight: 700; color: var(--red); display: flex; align-items: center; gap: 12px; }
+.pres .pnone i { font-style: normal; width: 24px; height: 24px; border-radius: 50%; background: #f8d9d4; display: inline-flex; align-items: center; justify-content: center; font-size: 14px; flex: none; }
 
-/* a highlighted column or line: a soft orange glow; nothing else changes */
-.pres .ptbl td.hl, .pres .ptbl th.hl { background: var(--or-soft); box-shadow: inset 2px 0 0 rgba(240, 160, 80, .75), inset -2px 0 0 rgba(240, 160, 80, .75), 0 0 14px var(--or-glow); position: relative; z-index: 1; }
-.pres .ptbl th.hl { color: var(--or-deep); box-shadow: inset 2px 0 0 rgba(240, 160, 80, .75), inset -2px 0 0 rgba(240, 160, 80, .75), inset 0 3px 0 var(--or), 0 0 14px var(--or-glow); }
+/* a highlighted column: a light orange fill with orange side lines; a highlighted line: a light orange fill with an orange left edge. Nothing else changes. */
+.pres .ptbl td.hl, .pres .ptbl th.hl { background: var(--or-soft); box-shadow: inset 2px 0 0 var(--or), inset -2px 0 0 var(--or); }
+.pres .ptbl th.hl { color: var(--or-deep); }
 .pres .ptbl th.hl .hi { color: var(--or); }
-.pres .ptbl tbody tr:last-child td.hl { box-shadow: inset 2px 0 0 rgba(240, 160, 80, .75), inset -2px 0 0 rgba(240, 160, 80, .75), inset 0 -3px 0 var(--or), 0 0 14px var(--or-glow); }
-.pres .ptbl tr.tot td.hl { background: #ffe8cb; }
-.pres .ptbl tr.on td { background: var(--or-soft); box-shadow: inset 0 2px 0 rgba(240, 160, 80, .7), inset 0 -2px 0 rgba(240, 160, 80, .7), 0 -7px 10px -7px var(--or-glow), 0 7px 10px -7px var(--or-glow); position: relative; z-index: 1; }
-.pres .ptbl tr.on td:first-child { box-shadow: inset 5px 0 0 var(--or), inset 0 2px 0 rgba(240, 160, 80, .7), inset 0 -2px 0 rgba(240, 160, 80, .7), 0 -7px 10px -7px var(--or-glow), 0 7px 10px -7px var(--or-glow); }
-.pres .ptbl tr.on td:last-child { box-shadow: inset -2px 0 0 rgba(240, 160, 80, .7), inset 0 2px 0 rgba(240, 160, 80, .7), inset 0 -2px 0 rgba(240, 160, 80, .7), 0 -7px 10px -7px var(--or-glow), 0 7px 10px -7px var(--or-glow); }
+.pres .ptbl tr.tot td.hl, .pres .ptbl tr.prem td.hl { background: #ffe6c8; }
+.pres .ptbl tr.on td { background: var(--or-soft); }
+.pres .ptbl tr.on td:first-child { box-shadow: inset 6px 0 0 var(--or); }
 .pres .ptbl tr.on td.hl { background: #ffe3c2; }
-.pres .ptbl tr.hl td { background: var(--or-soft); box-shadow: inset 0 2px 0 rgba(240, 160, 80, .7), inset 0 -2px 0 rgba(240, 160, 80, .7), 0 -7px 10px -7px var(--or-glow), 0 7px 10px -7px var(--or-glow); position: relative; z-index: 1; }
+.pres .ptbl tr.hl td { background: var(--or-soft); box-shadow: inset 0 2px 0 var(--or), inset 0 -2px 0 var(--or); }
 
-/* the key points: a slim card that slides in on the right, with a coloured top edge */
-.pres .ppanel { box-sizing: border-box; padding: 6px 22px 14px 4px; align-self: start; }
-.pres .kcard { background: #fff; border: 1px solid var(--line); border-radius: 18px; overflow: hidden; box-shadow: 0 12px 30px rgba(18, 118, 168, .16); padding-bottom: 8px; opacity: 0; transform: translateX(36px); transition: opacity .3s ease, transform .38s cubic-bezier(.2, .8, .2, 1); }
+/* the other page: a card for medical aid, will, short-term and the rest */
+.pres .ocards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; padding: 0 4px; }
+.pres .ocard { background: #fff; border: 1px solid var(--line); border-radius: var(--r); padding: 16px 18px; box-shadow: 0 4px 16px rgba(15, 110, 153, .1); }
+@media (prefers-reduced-motion: no-preference) { .pres .ocard { animation: card-in .5s ease-out both; animation-delay: calc(var(--i, 0) * 80ms); } }
+.pres .ocard .oh { display: flex; align-items: center; gap: 12px; }
+.pres .ocard .oh b:first-of-type { flex: 1; font-size: 18px; color: var(--wr-deep); }
+.pres .ocard .osay { margin: 10px 0 4px; font-size: 16px; font-weight: 600; }
+.pres .ocard .orows { margin-top: 8px; border-top: 1px solid var(--line); padding-top: 6px; }
+.pres .ocard .orows p { margin: 5px 0; font-size: 14.5px; display: flex; gap: 10px; }
+.pres .ocard .orows span { flex: none; width: 104px; color: var(--muted); }
+.pres .ocard .orows .a { font-weight: 700; }
+.pres .ocard .orows b.yes { color: var(--green); }
+.pres .ocard .orows b.no { color: var(--red); }
+
+/* the key points: small cards on the right with an orange top edge that slide in one after another; Severe illness has two sections with blue banners */
+.pres .ppanel { box-sizing: border-box; padding: 6px 22px 12px 4px; align-self: stretch; min-height: 0; overflow: hidden; }
+.pres .kwrap { width: 100%; }
+.pres .kwhat { margin: 2px 4px 8px; font-size: 17px; font-weight: 700; line-height: 1.25; color: var(--wr-deep); }
+.pres .kwhat small { display: block; margin-top: 2px; font-size: 11.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); font-weight: 700; }
+.pres .ksec { margin: 10px 0 7px; padding: 6px 12px; border-radius: 10px; background: var(--wr); color: #fff; font-size: 13.5px; font-weight: 700; letter-spacing: .02em; box-shadow: 0 3px 10px rgba(39, 168, 224, .3); }
+.pres .kcard { position: relative; margin: 0 0 9px; padding: 11px 14px 9px; background: #fff; border: 1px solid var(--line); border-top: 4px solid var(--or); border-radius: 12px; box-shadow: 0 6px 18px rgba(15, 110, 153, .14);
+  opacity: 0; transform: translateX(46px); transition: opacity .35s ease, transform .45s cubic-bezier(.2, .8, .2, 1); transition-delay: calc(var(--i, 0) * 90ms); }
 .pres .kcard.in { opacity: 1; transform: none; }
-.pres .kcard::before { content: ""; display: block; height: 5px; background: linear-gradient(90deg, var(--wr), var(--or)); }
-.pres .khead { display: flex; align-items: center; gap: 10px; padding: 14px 18px 0; }
-.pres .kico { width: 30px; height: 30px; border-radius: 50%; background: var(--or-soft); color: var(--or-deep); display: inline-flex; align-items: center; justify-content: center; flex: none; }
-.pres .kico svg { width: 17px; height: 17px; }
-.pres .kfor { font-size: 12.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); font-weight: 700; }
-.pres .kwhat { margin: 8px 18px 12px; font-size: 18px; font-weight: 700; line-height: 1.25; color: var(--wr-deep); }
-.pres .kcard ul { margin: 0; padding: 0 18px 6px; list-style: none; }
-.pres .kcard li { position: relative; padding-left: 22px; margin: 0 0 13px; font-size: 16px; line-height: 1.4; color: var(--ink); }
-.pres .kcard li::before { content: ""; position: absolute; left: 2px; top: 8px; width: 9px; height: 9px; border-radius: 50%; background: var(--or); box-shadow: 0 0 0 3px var(--or-soft); }
-@media (prefers-reduced-motion: reduce) { .pres .kcard { transition: none; opacity: 1; transform: none; } .pres .pin { animation: none; } .pres .pcard, .pres .pcard::after { transition: none; } }
+.pres .kcard.out { opacity: 0; transform: translateX(60px); transition-delay: 0s; transition-duration: .3s; }
+.pres .kcard p { margin: 0; font-size: 14.5px; line-height: 1.35; color: var(--ink); }
+.pres .kcard small { display: block; margin-top: 5px; font-size: 11.5px; color: var(--muted); }
+.pres .khint { margin: 6px 4px; padding: 14px 16px; border: 1.5px dashed #c9d6df; border-radius: 14px; color: var(--muted); font-size: 14px; line-height: 1.4; }
+@media (prefers-reduced-motion: reduce) { .pres .kcard { transition: none; opacity: 1; transform: none; } .pres .kcard.out { opacity: 0; } .pres .pin, .pres .ocard { animation: none; } }
