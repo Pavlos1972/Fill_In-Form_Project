@@ -184,11 +184,26 @@
     for (var c = 0; c < clients.length; c++) files = files.concat(await F.clientDocuments(clients[c]));
     return { label: clients[0].parts.join(' \\ '), files: files };
   }
+  /* The client's subfolder for a kind of document, for "Upload from client folder" (Client Overview Studio 0.6): the connected folders are searched for the client, as for a Save, and the folder where that kind of
+     document is kept (or the client's folder) is returned so the file window can open in it. Reads only. Resolves { handle, label, several } or { reason: 'connect' | 'access' | 'names' | 'client' }. */
+  async function clientFolder(info, kind) {
+    await load();
+    var all = withPaths(), keys = Object.keys(all);
+    if (!F.enabled() || !keys.length) return { reason: 'connect' };
+    var live = {};
+    for (var i = 0; i < keys.length; i++) { if ((await F.permission(all[keys[i]].handle, true)) === 'granted') live[keys[i]] = all[keys[i]]; }
+    if (!Object.keys(live).length) return { reason: 'access' };
+    if (F.norm(info.sname) === '') return { reason: 'names' };
+    var clients = await F.findClients(live, info.sname, info.fname);
+    if (!clients.length) return { reason: 'client' };
+    var sub = await F.clientSubfolder(clients[0], kind);
+    return { handle: sub.handle, label: sub.parts.join(' \\ '), several: clients.length > 1 };
+  }
   function forget() { cache = {}; }
   function metaHTML(lastFolder) {
     var k = Object.keys(roots), line = !F.enabled() ? '' : k.length ? 'Folders connected: ' + k.map(function (x) { return LABEL[x]; }).join(', ') + '.' : 'Folders not connected: Save asks where to save. Click <b>Folders&hellip;</b> to connect them.';
     return (lastFolder ? '<div>Saved in <b>' + esc(lastFolder) + '</b></div>' : '') + (line ? '<div class="fnote">' + line + '</div>' : '');
   }
 
-  FF.foldersUI = { init: init, connect: connect, open: open, clientFiles: clientFiles, failed: failed, forget: forget, metaHTML: metaHTML, ask: ask, connected: function () { return Object.keys(roots); } };
+  FF.foldersUI = { init: init, connect: connect, open: open, clientFiles: clientFiles, clientFolder: clientFolder, failed: failed, forget: forget, metaHTML: metaHTML, ask: ask, connected: function () { return Object.keys(roots); } };
 })();

@@ -19,10 +19,10 @@ const FFJ = { app: 'wr-fact-find', schema: '5.4', f: { fname: { v: 'Test' }, sna
   const ov = watch(await ctx.newPage());
   await ov.goto('file://' + dir + '/overview.html'); await ov.waitForTimeout(400);
   ok(!(await ov.$('#buildBanner')), '1. no "Mixed versions" bar');
-  ok(await ov.evaluate(() => document.title) === 'Client Overview' && /Version 0\.5/.test(await ov.evaluate(() => document.querySelector('#verLine').textContent)), '1. the page says it is the Client Overview, version 0.5');
+  ok(await ov.evaluate(() => document.title) === 'Client Overview Studio' && /Version 0\.6/.test(await ov.evaluate(() => document.querySelector('#verLine').textContent)), '1. the page says it is the Client Overview, version 0.6');
   const nav = await ov.evaluate(() => [...document.querySelectorAll('#nav button')].map(x => x.textContent.replace(/\s+/g, ' ').trim()));
   ok(nav.length === 12 && nav[0] === 'Client details' && nav[6] === '6 Reduced quotes' && nav[11] === '11 Medical aid, will & short-term', '1. the menu: Client details and the eleven blocks in order: ' + nav.join(' | '));
-  ok(await ov.evaluate(() => document.querySelectorAll('.dot').length) === 11, '1. a dot beside each block');
+  ok(await ov.evaluate(() => document.querySelectorAll('.dot[data-dot]').length === 11 && document.querySelectorAll('#legend .dot').length === 4), '1. a dot beside each block, and four in the legend under the menu');
   await ov.screenshot({ path: out + '/release54-client.png' });
 
   /* ---- 2. from the Fact Find ---- */
@@ -38,7 +38,7 @@ const FFJ = { app: 'wr-fact-find', schema: '5.4', f: { fname: { v: 'Test' }, sna
   });
   await ff.click('#otherForms summary');
   const labels = await ff.evaluate(() => [...document.querySelectorAll('#otherForms .ofmenu a')].map(a => a.textContent.replace(/\s+/g, ' ').trim()));
-  ok(labels.join('|') === 'Risk Application ↗|Investment Application ↗|Client Overview ↗', '2. the Fact Find\'s Other forms menu lists the two applications and the Client Overview: ' + labels.join(' | '));
+  ok(labels.join('|') === 'Risk Application ↗|Investment Application ↗|Client Overview Studio ↗', '2. the Fact Find\'s Other forms menu lists the two applications and the Client Overview: ' + labels.join(' | '));
   const [ov2] = await Promise.all([ctx.waitForEvent('page'), ff.click('#linkOV')]);
   watch(ov2); await ov2.waitForLoadState(); await ov2.waitForTimeout(700);
   const filled = await ov2.evaluate(() => { const s = OV.app.state, B = s.blocks; return { h: [s.header.fname, s.header.sname, s.header.netIncome, s.header.grossIncome], url: location.search, pol: B.policies.items.map(i => i.insurer + '|' + i.premium + '|' + i.wr), inv: B.investments.items.map(i => i.provider + '|' + i.gross + '|' + i.wr), ff: s.factFind && s.factFind.file, kids: s.factFind && s.factFind.facts.children.length }; });

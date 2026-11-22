@@ -188,6 +188,8 @@
   }
 
   /* ---------- the lines of a quote or a policy ---------- */
+  /* A line the checks flag (it differs from the Fact Find): the problems about it, as one text for the hover and the amber mark. */
+  function lineFlag(id) { return ((last && last.problems) || []).filter(function (p) { return p.line === id; }).map(function (p) { return p.message; }).join(' '); }
   function lineHTML(cpath, c, l, i, isPolicy) {
     var p = cpath + '.lines.' + i, t = schema.lineTypesById[l.type] || schema.lineTypesById.other, tt = t.monthly;
     if (l.removed) return '<tr class="removed" data-row="' + p + '"><td colspan="10"><span class="gone">' + esc((l.label || t.l) + (l.name ? ' · ' + l.name + ' ' + (l.sname || '') : '') + (l.debt ? ' · ' + l.debt : '')) + ' removed.</span> <button type="button" class="lnk" data-undo="' + p + '">Undo</button></td></tr>';
@@ -203,7 +205,8 @@
       if (pid === 'ip' && l.type === 'debt' && calc.isNum(l.ip && l.ip.monthly) && l.ip.monthly > 0) s += '<small class="ip">Instalment Protector</small><small class="ced">To be ceded to the bank</small>';
       return '<td class="c">' + s + '</td>';
     }
-    return '<tr data-row="' + p + '" class="ln"><td class="need">' + stb(p) + need + '</td><td>' + inp(p + '.term', 'text', 'term', t.term || 'Term') + '</td>' + pillar('life', true, true) + pillar('sev', true, false) + pillar('lsd', true, true) + pillar('ip', false, true) +
+    var flag = lineFlag(l.id);
+    return '<tr data-row="' + p + '" class="ln' + (flag ? ' ffdiff' : '') + '"' + (flag ? ' title="' + esc(flag) + '"' : '') + '><td class="need">' + stb(p) + need + '</td><td>' + inp(p + '.term', 'text', 'term', t.term || 'Term') + '</td>' + pillar('life', true, true) + pillar('sev', true, false) + pillar('lsd', true, true) + pillar('ip', false, true) +
       (l.waiting === 'N/A' ? '<td class="c"><span class="na">N/A</span></td>' : '<td>' + inp(p + '.waiting', 'text', 'wait') + '</td>') + '<td class="c"><span class="a" data-aci="' + (isPolicy ? '' : c.id) + '">' + (isPolicy ? '' : calc.fmtPct(c.aci)) + '</span></td><td>' + inp(p + '.abi', 'pct') +
       '</td><td class="x"><button type="button" class="xbtn" data-del="' + p + '" title="Remove this line">&times;</button></td></tr>';
   }
@@ -275,7 +278,7 @@
     var note = b.id === 'shortfallQuote' && !calc.hasGroupRisk(state) ? '<p class="blue">A shortfall quote is only needed when the client has group risk (block 3). There is none yet.</p>' : '';
     var cards = live.map(function (q) { var i = list.indexOf(q); return quoteCard(q, i, b.id); }).join('');
     var removed = gone.map(function (q) { var i = list.indexOf(q); return '<p class="gone">' + esc(check.qLabel(q)) + ' removed. <button type="button" class="lnk" data-undo="blocks.' + b.id + '.quotes.' + i + '">Undo</button></p>'; }).join('');
-    return note + (cards || '<p class="empty-list">No ' + esc(b.one) + ' yet.</p>') + removed + '<button type="button" class="addrow big" data-addq="' + b.qkind + '">+ ' + (live.length ? 'Add another ' : 'Add new ') + esc(b.one) + '</button> <button type="button" class="addrow big" data-upq="' + b.id + '">Upload a ' + esc(b.one) + '&hellip;</button>';
+    return note + (cards || '<p class="empty-list">No ' + esc(b.one) + ' yet.</p>') + removed + '<button type="button" class="addrow big" data-addq="' + b.qkind + '">+ ' + (live.length ? 'Add another ' : 'Add new ') + esc(b.one) + '</button> <button type="button" class="addrow big" data-upc="' + b.id + '" title="Opens the client\'s own folder (the quotes folder where there is one): pick the document and the page reads it">Upload from client folder&hellip;</button> <button type="button" class="addrow big" data-upq="' + b.id + '">Upload from another folder&hellip;</button>';
   }
 
   /* ---------- block 1: current policies ---------- */
@@ -392,11 +395,11 @@
         '</td><td>' + inp(p + '.boostPct', 'pct') + '</td><td>' + inp(p + '.netInvested', 'money') + '</td><td>' + inp(p + '.aci', 'pct') + '</td><td class="x"><button type="button" class="xbtn" data-del="' + p + '" title="Remove">&times;</button></td></tr>';
     }).join('') || '<tr><td colspan="10" class="empty">No proposed investments yet.</td></tr>';
     return '<table class="ovt prop"><thead><tr><th>Investment type</th><th>Provider &amp; quote</th><th>Contribution</th><th>Lump sum</th><th>Monthly premium</th><th>Boost %</th><th>Net amount invested</th><th>ACI %</th><th></th></tr></thead><tbody>' + rows + '</tbody></table>' +
-      '<p class="foot">The boost and the net amount are read from the quote; they are not worked out here.</p><button type="button" class="addrow big" data-addp="1">+ Add a proposed investment</button>';
+      '<p class="foot">The boost and the net amount are read from the quote; they are not worked out here.</p><button type="button" class="addrow big" data-addp="1">+ Add a proposed investment</button> <button type="button" class="addrow big" data-upc="proposed" title="Opens the client\'s own folder: pick the quote and the page reads it">Upload from client folder&hellip;</button> <button type="button" class="addrow big" data-upq="proposed">Upload from another folder&hellip;</button>';
   }
   function goalsBlock() {
     var items = state.blocks.goals.items;
-    return items.map(function (it, i) {
+    return '<div class="adders"><button type="button" class="addrow big" data-upc="goals" title="Opens the client\'s own folder: pick the report and the page reads it">Upload from client folder&hellip;</button> <button type="button" class="addrow big" data-upq="goals">Upload from another folder&hellip;</button></div>' + items.map(function (it, i) {
       var p = 'blocks.goals.items.' + i, name = it.kind === 'rgar' ? 'Retirement Goal Analysis Report (RGAR)' : 'Education Goal Analysis Report (EGAR)';
       if (it.removed) return '<p class="gone">' + esc(name) + ' removed. <button type="button" class="lnk" data-undo="' + p + '">Undo</button></p>';
       return '<article class="qcard" data-row="' + p + '"><header><h3>' + esc(name) + '</h3>' + stb(p) + '<span class="grow"></span><button type="button" class="x" data-del="' + p + '">Remove</button></header><div class="grid qh">' +
@@ -423,7 +426,8 @@
   /* ---------- the screen ---------- */
   function drawNav() {
     var h = '<button type="button" data-block="' + CLIENT + '"' + (cur === CLIENT ? ' aria-current="true"' : '') + '><span>Client details</span></button><div class="sep">Blocks</div>';
-    h += schema.BLOCKS.map(function (b) { return '<button type="button" data-block="' + b.id + '"' + (b.id === cur ? ' aria-current="true"' : '') + '><span><i class="dot ' + (last.dots[b.id] || 'grey') + '" data-dot="' + b.id + '"></i>' + b.n + ' ' + esc(b.title) + '</span></button>'; }).join('');
+    h += schema.BLOCKS.map(function (b) { return '<button type="button" data-block="' + b.id + '"' + (b.id === cur ? ' aria-current="true"' : '') + ' title="' + esc(check.dotText(state, b.id, last.dots[b.id] || 'grey', last.problems)) + '"><span><i class="dot ' + (last.dots[b.id] || 'grey') + '" data-dot="' + b.id + '"></i>' + b.n + ' ' + esc(b.title) + '</span></button>'; }).join('');
+    h += '<div class="legend" id="legend"><div class="sep">The dots</div>' + check.LEGEND.map(function (l) { return '<div><i class="dot ' + l[0] + '"></i>' + (l[0] === 'na' ? 'Dashed: not needed (for example, no shortfall quote without group risk)' : { grey: 'Grey: nothing yet', amber: 'Amber: to check', green: 'Green: checked' }[l[0]]) + '</div>'; }).join('') + '</div>';
     $('#nav').innerHTML = h;
   }
   function drawMain() {
@@ -457,7 +461,7 @@
     last = check.run(state);
     var name = store.clientName(state), c = store.counts(state);
     $('#clientName').textContent = name || 'New client';
-    document.title = 'Client Overview' + (name ? ' - ' + name : '');
+    document.title = 'Client Overview Studio' + (name ? ' - ' + name : '');
     $('#saveState').textContent = (fileBase ? fileBase + ' · ' : '') + (dirty ? 'unsaved changes' : (lastSaved ? 'saved ' + lastSaved.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'no changes'));
     $('#sFilled').textContent = c.confirmed; $('#sVerify').textContent = c.check; $('#sEmpty').textContent = c.waiting;
     $('#btnAgree').hidden = !c.check;
@@ -474,7 +478,8 @@
 
   /* ---------- documents (stage 4) ---------- */
   var D = OV.docs, AI_KEY = 'wr-overview-read', pending = null, session = [];
-  function aiOn() { try { return localStorage.getItem(AI_KEY) === '1'; } catch (e) { return false; } }
+  var REASONS = { connect: 'Connect your client folders first (click Folders…).', access: 'Chrome has not given this page access to your client folders. Click Folders…, choose them again and Allow.', names: 'Fill in the client’s names first, so the folder can be found.', client: 'No folder for this client was found in your connected folders.' };
+  function aiOn() { try { return localStorage.getItem(AI_KEY) !== '0'; } catch (e) { return true; } }          // ON unless the adviser switched it off (Paul, 22 November: reading is the default)
   function aiSet(v) { try { localStorage.setItem(AI_KEY, v ? '1' : '0'); } catch (e) { /* kept for this visit only */ } }
   function aiKey() { var s = window.FF && FF.lookup && FF.lookup.getSettings ? FF.lookup.getSettings() : {}; return { apiKey: s.apiKey || '', model: s.model || (FF.lookup && FF.lookup.DEFAULT_MODEL) || '' }; }
   function toBase64(file) { return new Promise(function (res, rej) { var r = new FileReader(); r.onload = function () { res(String(r.result).split(',')[1] || ''); }; r.onerror = function () { rej(new Error('Could not read that file.')); }; r.readAsDataURL(file); }); }
@@ -487,9 +492,17 @@
       var r = D.applyQuote(state, block, data || { number: cls.number, date: cls.date }, name, { replaces: o.replaces, nameOnly: !data });
       res.msg = name + ': ' + (data ? 'read into a new ' + lower + '; every figure is amber until it is checked.' : 'a new ' + lower + ' was started from the number and date in the file name; type the figures from the document.');
       if (r.duplicate) { res.msg += ' A quote with this number is already there.'; res.warn = true; }
+      res.quote = r.quote;
+      if (data) { var rc = reconcile(r.quote); res.msg += rc.text; if (rc.diffs) res.warn = true; }
     } else if (block === 'cmp') {
       if (data) { var q = D.applyCmp(state, data, name); res.msg = q ? name + ': the change moment pay-out is filled in under ' + check.qLabel(q) + '.' : name + ': no quote with this number is here yet. Load the quote first.'; if (!q) res.warn = true; }
       else res.msg = name + ': recorded. Its table is filled in when reading is switched on.';
+    } else if (block === 'proposed') {
+      if (!data) res.msg = name + ': recorded. Use + Add a proposed investment and type it from the document (or switch reading on).';
+      else { var pr = D.applyProposed(state, data, name); res.msg = name + ': ' + (pr.matched ? 'filled into the ' + pr.item.type.toLowerCase() + ' of ' + (pr.item.provider || 'the Fact Find') + ' that the Fact Find asked for' : 'added as a new proposed investment') + '; amber until it is checked.'; if (!pr.matched) res.warn = true; }
+    } else if (block === 'goals') {
+      if (!data) res.msg = name + ': recorded. Type the figures from the report (or switch reading on).';
+      else { var gl = D.applyGoal(state, data, name); res.msg = name + ': the ' + (gl.item.kind === 'rgar' ? 'RGAR' : 'EGAR') + ' is filled in; amber until it is checked.' + (gl.wasRequested ? '' : ' The Fact Find said it was not requested: it is now marked requested.'); if (!gl.wasRequested) res.warn = true; }
     } else if (!data) {
       res.msg = name + ': recorded. Use the Upload button on the item it is for, and type its details (or switch reading on).';
     } else if (block === 'astute') {
@@ -517,12 +530,32 @@
     var get = read ? toBase64(file).then(function (b64) { toast('Reading ' + file.name + '…', 90000); return D.readWithClaude({ apiKey: key.apiKey, model: key.model, mediaType: file.type || 'application/pdf', base64: b64, block: block }); }).then(function (r) { return r.data; })
       .catch(function (e) { failure = e && e.message ? e.message : 'It could not be read.'; return null; }) : Promise.resolve(null);
     return get.then(function (data) {
+      if (data && D.isEmptyRead(block, data)) { failure = 'Claude read the document but found no figures in it (a scan it could not read, or not the kind of document it was said to be).'; data = null; }
       var r = put(file, block, cls, data, o);
       if (failure) { r.msg = file.name + ': ' + failure + ' It was recorded; type the figures from it.'; r.warn = true; } else if (note) { r.msg += note; r.warn = true; }
+      if (o.dir && r.quote && data) return readGuide(r.quote, o.dir).then(function (m) { if (m) { r.msg += ' ' + m.msg; if (m.warn) r.warn = true; } return r; });
       return r;
     });
   }
-  function blockChoices() { return [['fna', 'FNA quote'], ['shortfallQuote', 'Shortfall quote'], ['reduced', 'Reduced quote'], ['comparative', 'Comparative quote'], ['policies', 'Current policy schedule'], ['group', 'Group or fund statement'], ['investments', 'Investment statement'], ['astute', 'Astute report'], ['cmp', 'Change moment pay-out guide'], ['', 'Skip it']]; }
+  /* A quote read from the client's folder is compared with the Fact Find's rows the checks already know (each child by name and surname and her childcare amount; each debt by name, bank and instalment): what differs is flagged amber
+     (on the line, in the Checks and here); nothing the document says is changed to match. */
+  function reconcile(q) {
+    var facts = state.factFind && state.factFind.facts; if (!facts) return { text: '', diffs: 0 };
+    var where = check.qLabel(q), probs = check.run(state).problems.filter(function (p) { return (p.id === 'quote.children' || p.id === 'quote.debts') && p.where === where; });
+    var head = ' Compared with the Fact Find (' + (facts.children || []).length + ' children, ' + (facts.debts || []).length + ' debts): ';
+    return { diffs: probs.length, text: head + (probs.length ? probs.length + (probs.length === 1 ? ' difference is' : ' differences are') + ' flagged amber: ' + probs.slice(0, 3).map(function (p) { return p.message; }).join(' ') + (probs.length > 3 ? ' (more in the Checks)' : '') : 'everything matches.') };
+  }
+  /* The change moment pay-out guide of the same CP number, looked for beside the quote that was picked (only for a BrightRock quote that was read) and read the same way. Resolves { msg, warn } or null. */
+  function readGuide(q, dir) {
+    var num = String(q.number || '').replace(/\D/g, '');
+    if (!dir || !num || !/bright/i.test(q.insurer || '') || !aiOn() || !aiKey().apiKey || !(window.FF && FF.folders && FF.folders.findFiles)) return Promise.resolve(null);
+    return FF.folders.findFiles(dir, /\.(pdf|png|jpe?g)$/i).then(function (files) {
+      var hit = files.filter(function (f) { return /cmpo|change[ _-]?moment/i.test(f.name) && (f.name.match(/\d{6,12}/g) || []).indexOf(num) >= 0; })[0];
+      if (!hit) return { msg: 'No change moment pay-out guide for CP ' + q.number + ' was found beside it (upload it, or type the pay-out).', warn: true };
+      return hit.handle.getFile().then(function (f) { return intakeOne(f, { block: 'cmp' }); }).then(function (r) { return { msg: r.msg, warn: r.warn }; });
+    }, function () { return null; });
+  }
+  function blockChoices() { return [['fna', 'FNA quote'], ['shortfallQuote', 'Shortfall quote'], ['reduced', 'Reduced quote'], ['comparative', 'Comparative quote'], ['policies', 'Current policy schedule'], ['group', 'Group or fund statement'], ['investments', 'Investment statement'], ['proposed', 'Proposed investment'], ['goals', 'Goal analysis report'], ['astute', 'Astute report'], ['cmp', 'Change moment pay-out guide'], ['', 'Skip it']]; }
   /* Documents whose name does not say what they are: the adviser says, one by one. Resolves [{ file, block }] for the ones chosen. */
   function askBlocks(files) {
     return new Promise(function (resolve) {
@@ -588,6 +621,37 @@
       (docs.length ? '<div class="doclist">' + docs.map(function (d) { return '<div><b>' + esc(d.file) + '</b> <small>' + esc((D.BLOCK_LABEL[d.block] || d.block) + ', ' + (d.how === 'read' ? 'read' : 'recorded')) + '</small></div>'; }).join('') + '</div>' : '<div class="none">No documents loaded yet.</div>');
   }
 
+  /* "Upload from client folder": the client's own folder (the quotes folder where there is one) is found in the connected folders and the file window opens in it; the document picked is read and filled in. */
+  var CLIENT_KIND = { fna: 'quote', shortfallQuote: 'quote', reduced: 'quote', comparative: 'comparative', proposed: 'proposal', goals: 'goal' };
+  var FILE_TYPES = [{ description: 'Documents', accept: { 'application/pdf': ['.pdf'], 'image/png': ['.png'], 'image/jpeg': ['.jpg', '.jpeg'] } }];
+  function pickIn(handle) { return window.showOpenFilePicker({ startIn: handle, multiple: false, types: FILE_TYPES }).then(function (hs) { return hs[0].getFile(); }); }
+  /* The browser wants a fresh click to open its file window: when the search for the folder took too long, one more click is asked for. */
+  function askToChoose(label) {
+    return new Promise(function (resolve) {
+      var dlg = document.createElement('dialog'), done = false; dlg.className = 'fdlg';
+      dlg.innerHTML = '<h3>Choose the document</h3><p>The client’s folder <b>' + esc(label) + '</b> is ready. Click Choose to open it.</p><div class="fbtns"><button type="button" class="btn ghost small" data-no>Cancel</button><button type="button" class="btn small" data-yes>Choose&hellip;</button></div>';
+      document.body.appendChild(dlg);
+      function end(v) { if (done) return; done = true; dlg.close(); dlg.remove(); resolve(v); }
+      dlg.addEventListener('click', function (e) { if (e.target.closest('[data-yes]')) end(true); if (e.target.closest('[data-no]')) end(false); });
+      dlg.addEventListener('cancel', function (e) { e.preventDefault(); end(false); });
+      dlg.showModal();
+    });
+  }
+  function fromClientFolder(block) {
+    if (state.newer) return;
+    var FU = window.FF && FF.foldersUI;
+    if (!FU || !FU.clientFolder || typeof window.showOpenFilePicker !== 'function') { toast('This browser cannot open the client’s folder from here. Use “Upload from another folder…”.', 9000); return; }
+    toast('Looking for the client’s folder…', 30000);
+    FU.clientFolder({ sname: state.header.sname, fname: state.header.fname }, CLIENT_KIND[block]).then(function (res) {
+      if (res.reason) { toast((REASONS[res.reason] || 'Could not read the folder.') + ' You can use “Upload from another folder…” instead.', 10000); return null; }
+      var go = function (file) { if (file) { toast('Reading ' + file.name + '…', 90000); ingest([file], { block: block, dir: res.handle }); } };
+      return pickIn(res.handle).then(go, function (e) {
+        if (e && e.name === 'AbortError') { toast('Nothing was chosen.', 3000); return; }
+        return askToChoose(res.label).then(function (yes) { if (yes) return pickIn(res.handle).then(go, function (e2) { if (!(e2 && e2.name === 'AbortError')) toast('Could not open the file window: ' + (e2 && e2.message), 8000); }); });
+      });
+    }, function (e) { toast('Could not look through the folders: ' + (e && e.message), 8000); });
+  }
+
   /* ---------- events ---------- */
   function pathOf(attr) { return String(attr).split('|'); }
   function typed(el) {
@@ -610,10 +674,11 @@
     touch(); paintComputed(); paintStatuses();
   });
   $('#main').addEventListener('click', function (e) {
-    var t = e.target.closest('[data-accept],[data-addq],[data-addl],[data-addp],[data-del],[data-undo],[data-block],[data-upq],[data-replace],[data-upi],[data-addcmp],[data-delcmp],[data-addcmpchild],[data-delcmprow]'); if (!t) return;
+    var t = e.target.closest('[data-accept],[data-addq],[data-addl],[data-addp],[data-del],[data-undo],[data-block],[data-upq],[data-replace],[data-upi],[data-addcmp],[data-delcmp],[data-addcmpchild],[data-delcmprow],[data-upc]'); if (!t) return;
     if (t.hasAttribute('data-block')) { cur = t.getAttribute('data-block'); drawNav(); drawMain(); refreshChrome(); window.scrollTo({ top: 0 }); return; }
     if (state.newer) return;
     if (t.hasAttribute('data-accept')) { store.accept(state, t.getAttribute('data-accept')); touch(); paintStatuses(); return; }
+    if (t.hasAttribute('data-upc')) { fromClientFolder(t.getAttribute('data-upc')); return; }
     if (t.hasAttribute('data-upq')) { pending = { block: t.getAttribute('data-upq') }; $('#docOne').click(); return; }
     if (t.hasAttribute('data-replace')) { var rp = pathOf(t.getAttribute('data-replace')); pending = { block: rp[0], replaces: rp[1] }; $('#docOne').click(); return; }
     if (t.hasAttribute('data-upi')) { var ui = pathOf(t.getAttribute('data-upi')); pending = { block: ui[1], target: store.pathGet(state, ui[0]) }; $('#docOne').click(); return; }

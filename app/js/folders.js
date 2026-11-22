@@ -297,6 +297,39 @@
     return out;
   }
 
+  /* The folder of a client's own folder where a kind of document is kept, for "Upload from client folder" in the Client Overview Studio (0.6): the numbered standard folder whose name says so (quotes, goal analysis,
+     proposals), for comparative quotes the `Comparative Quotes` folder of a deal folder, else the client's folder itself. Only reads. kind: quote | comparative | goal | proposal.
+     Returns { handle, parts } (parts: the folder names from the connected folder down). */
+  var DOC_KIND = { quote: [/quote/], comparative: [/quote/], goal: [/goal|rgar|egar/, /analysis/], proposal: [/proposal/, /investment/, /quote/] };          // the names of the standard folders to look for, the best first
+  async function clientSubfolder(client, kind) {
+    var kids = await listDirs(client.handle), parts = client.parts;
+    async function comparative() {
+      for (var i = 0; i < kids.length; i++) {
+        if (isStandard(kids[i].name)) continue;
+        var q = (await listDirs(kids[i].handle)).filter(function (d) { return /comparative quotes/.test(norm(d.name)); })[0];
+        if (q) return { handle: q.handle, parts: parts.concat([kids[i].name, q.name]) };
+      }
+      return null;
+    }
+    if (kind === 'comparative') { var c = await comparative(); if (c) return c; }
+    var std = null, res = DOC_KIND[kind] || [];
+    for (var r = 0; r < res.length && !std; r++) std = kids.filter(function (k) { return isStandard(k.name) && res[r].test(norm(k.name)); })[0] || null;
+    if (std) return { handle: std.handle, parts: parts.concat([std.name]) };
+    if (kind === 'quote') { var c2 = await comparative(); if (c2) return c2; }
+    return { handle: client.handle, parts: parts };
+  }
+  /* The files in a folder, and in the folders one level inside it, whose names match (a regular expression on the name). Only reads. Returns [{ name, handle, rel }]. */
+  async function findFiles(dir, re) {
+    var out = [];
+    async function look(d, rel, deep) {
+      for await (var e of d.entries()) {
+        if (e[1].kind === 'file' && re.test(e[0])) out.push({ name: e[0], handle: e[1], rel: rel });
+        else if (e[1].kind === 'directory' && deep) await look(e[1], rel.concat([e[0]]), false);
+      }
+    }
+    await look(dir, [], true); return out;
+  }
+
   /* ---------- what the browser keeps: the two handles (IndexedDB) and the two paths the adviser typed (localStorage) ---------- */
   var DB = 'wr-folders', STORE = 'roots', PATHS = 'wr-folders-paths';
   function idb(fn) {
@@ -328,7 +361,7 @@
   return {
     MAX_PATH: MAX_PATH, SWAP: SWAP, RULES: RULES, ALIASES: ALIASES, norm: norm, tokens: tokens, clientFolderName: clientFolderName, parseClient: parseClient, clientMatches: clientMatches, letterOf: letterOf, letterFolder: letterFolder,
     isLetterFolder: isLetterFolder, isStandard: isStandard, nameIs: nameIs, insurerWords: insurerWords, productWords: productWords, numbersIn: numbersIn, hasWord: hasWord, scoreDeal: scoreDeal, chooseDeal: chooseDeal, pathCheck: pathCheck, tooLongText: tooLongText,
-    listDirs: listDirs, findClients: findClients, clientFromFile: clientFromFile, dirOfFile: dirOfFile, dealCandidates: dealCandidates, resolveTarget: resolveTarget, factFindCandidates: factFindCandidates, resolveFactFind: resolveFactFind, overviewCandidate: overviewCandidate, clientDocuments: clientDocuments, resolveOverview: resolveOverview, ensureOverview: ensureOverview, relOf: relOf, labelOf: labelOf, probeFile: probeFile, makeFile: makeFile, discardEmpty: discardEmpty,
+    listDirs: listDirs, clientSubfolder: clientSubfolder, findFiles: findFiles, findClients: findClients, clientFromFile: clientFromFile, dirOfFile: dirOfFile, dealCandidates: dealCandidates, resolveTarget: resolveTarget, factFindCandidates: factFindCandidates, resolveFactFind: resolveFactFind, overviewCandidate: overviewCandidate, clientDocuments: clientDocuments, resolveOverview: resolveOverview, ensureOverview: ensureOverview, relOf: relOf, labelOf: labelOf, probeFile: probeFile, makeFile: makeFile, discardEmpty: discardEmpty,
     saveHandle: saveHandle, loadHandle: loadHandle, getPaths: getPaths, setPath: setPath, permission: permission, enabled: enabled
   };
 });

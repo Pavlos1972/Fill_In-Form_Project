@@ -36,8 +36,10 @@ const POLICY = { insurer: 'Other Insurer', product: 'Test Protector', policyNo: 
   const calls = () => p.evaluate(() => window.__api.length);
   const reply = r => p.evaluate(r => { window.__reply = r; }, r);
 
-  /* ---- 1. reading is off to start with: a document is only recorded ---- */
-  ok(await p.evaluate(() => !document.querySelector('#aiSwitch').checked) && /Off: an uploaded document is only recorded/.test(await p.evaluate(() => document.querySelector('#aiNote').textContent)), '1. reading is OFF to start with, and the page says what that means');
+  /* ---- 1. reading is ON to start with; switched off, a document is only recorded ---- */
+  ok(await p.evaluate(() => document.querySelector('#aiSwitch').checked) && /no Anthropic key/.test(await p.evaluate(() => document.querySelector('#aiNote').textContent)), '1. reading is ON to start with (Paul\'s decision of 22 November), and with no key the card says so');
+  await p.uncheck('#aiSwitch'); await p.waitForTimeout(100);
+  ok(await p.evaluate(() => !document.querySelector('#aiSwitch').checked) && /Off: an uploaded document is only recorded/.test(await p.evaluate(() => document.querySelector('#aiNote').textContent)), '1. switched OFF by the adviser: a document is only recorded, and the page says what that means');
   await upload([file('BR FNA - 100000001 - R2900.00 - 19.11.26.pdf'), file('BR Reduced Quote - 100000003 - R1400.00 - 04.09.26.pdf'), file('notes.pdf')]);
   const dlgText = await p.evaluate(() => { const d = document.querySelector('dialog.fdlg[open]'); return d ? d.innerText : ''; });
   ok(/What are these documents\?/.test(dlgText) && /notes\.pdf/.test(dlgText) && !/BR FNA - 100000001|BR Reduced/.test(dlgText), '1. the one the page cannot sort asks what it is (the other two are sorted by their names)');
