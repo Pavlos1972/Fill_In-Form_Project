@@ -6,6 +6,16 @@ Written on 20 November 2026 by Chat 3 ("Fact Find Audio to Text Form - Chat 3"),
 
 `docs/HANDOVER-TO-CHAT-3.md` is **not replaced**: its sections 3 (saving into the client's folder), 4 (the routine, with the tool names), 6 (the changes page), 8 (open items) and 9 (the names clean-up record) are still true and are the detailed reference. This file carries what is new since, and everything else in short.
 
+## 0b. UPDATE of 22 November 2026, later the same day (Chat 3): Client Overview Studio 0.7 is BUILT and waits for Paul's "merge"
+
+After PR 91 (`2dc92a1`), PR 92 (`06239d4`) and the documentation-only PR 93 (`73ad7e7`; changes page at version 59), the Fix Skills chat relayed **Paul's second batch after using 0.6 on his own screen** (21 items, with his "GO": build all, report, merge only on his word, tell the Fix Skills chat any saved-file change), and Paul himself added one line mid-build (*Income portion* must read ***Income portion p.m.***). **Built, tested (919 unit tests; browser suite 1470 checks, 0 scripts failed) and pushed on the work branch; NOT merged, NOT installed.** What it is (details: `README.md` "Client Overview Studio 0.7" bullet, `docs/FORM-CHANGES.md`, `docs/PROJECT-CLIENT-OVERVIEW.md` section 11, `CLAUDE.md` section 0 first row):
+- **Screen:** See more / See less everywhere (folded by default); a quote's lines read from the document (no × column, no add buttons); % and R in every box; the ACI in the quote's own words (`aciText`, else `10% fixed`); child care waiting N/A; *Income portion p.m.*; the Checks panel one line per document read; Undo notices for about 10 seconds; block 11 *from Fact Find* with an upload only for the legacy plan.
+- **PDF:** white cover with a blue strip; red lines for no group benefits / no personal investments; pages with nothing to say left out with greyed tabs (`calc.pageShown`). **Presentation:** the same pages left out; white with the Wealth Revolution blue, orange accents and the logo.
+- **Saved file (contract revision f; layout still "0.1"; keys added only):** `aciText` (quote, policy), `factFind.facts.asked`, child `waiting` `"N/A"`: **the Fix Skills chat must be told with the release block** (the `client-overview-skill` writes the words of the ACI in `aciText` and the figure in `aci`).
+- **My readings for Paul to correct** are listed in `docs/PROJECT-CLIENT-OVERVIEW.md` section 11 (a quote with no lines keeps the add buttons; a policy keeps its add and remove; "asked in the Fact Find" for the shortfall quote is `bf_sf_req` / `sf_req`, for comparative quotes the standard lane `fna_req` / `sf_req` / `redq`; a just-read document opens its item).
+- **On "merge":** the usual routine (PR, Tests run on the exact commit, squash with `expectedHeadSha`, resync, publish run, ZIP, the FOR THE FIX SKILLS CHAT block).
+- **A name in the relayed message** (the real client whose overview Paul used) was NOT copied anywhere.
+
 ## 0a. UPDATE of 22 November 2026 (Chat 3, written after the sections below): read this first
 
 Everything from here down was true on 20 November. **Since then, on Paul's word, two more releases were built, tested, merged and published (the sections below still describe 5.3 and its routine, which are unchanged):**

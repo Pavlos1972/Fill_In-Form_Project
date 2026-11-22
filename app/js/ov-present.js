@@ -19,6 +19,7 @@
   var NA = function (v) { return v === 'N/A' || v === 'Not found'; };
   function A(v, cls) { return calc.isNum(v) ? '<span class="a' + (cls ? ' ' + cls : '') + '">' + calc.fmtR(v) + '</span>' : NA(v) ? '<span class="na">' + v + '</span>' : '<span class="none">&ndash;</span>'; }
   function PM(v) { return calc.isNum(v) ? '<span class="a pmv">' + calc.fmtR(v) + '</span> <small class="pm">p.m.</small>' : A(v); }
+  function AC(x) { var t = calc.fmtAci(x); return t ? '<span class="a aci">' + esc(t) + '</span>' : '<span class="none">&ndash;</span>'; }
   function PC(v) { return calc.isNum(v) ? '<span class="a">' + calc.fmtPct(v) + '</span>' : NA(v) ? '<span class="na">' + v + '</span>' : '<span class="none">&ndash;</span>'; }
   function td(inner, cls, pil, extra) { return '<td' + (cls ? ' class="' + cls + '"' : '') + (pil ? ' data-pil="' + pil + '"' : '') + (extra || '') + '>' + inner + '</td>'; }
   function th(text, pil, cls) { return '<th' + (cls ? ' class="' + cls + '"' : '') + (pil ? ' data-pil="' + pil + '"' : '') + '>' + esc(text).replace(/\n/g, '<br>') + '</th>'; }
@@ -48,14 +49,14 @@
   function lineRow(l, aci) {
     var isNA = function (k) { return l[k] === 'N/A'; };
     return '<tr data-keys="' + esc(P.lineKeys(l).join('|')) + '">' + needCell(l) + td(esc(l.term || ''), 'l') + pillCell(l, 'life', true) + pillCell(l, 'sev', false) + pillCell(l, 'lsd', true) + pillCell(l, 'ip', true) +
-      td(isNA('waiting') ? '<span class="na">N/A</span>' : esc(l.waiting || '-')) + td(PC(aci)) + td(PC(l.abi)) + '</tr>';
+      td(isNA('waiting') ? '<span class="na">N/A</span>' : esc(l.waiting || '-')) + td(aci ? AC(aci) : '<span class="none">&ndash;</span>') + td(PC(l.abi)) + '</tr>';
   }
-  var LINE_W = [19, 10, 11, 10, 11, 14, 9, 8, 8];
+  var LINE_W = [17, 9, 11, 9, 11, 13, 9, 13, 8];
   function linesHead(age) {
     return th('Need', '', 'l') + th('Term', '', 'l') + th('Life cover', 'life') + th('Severe illness', 'sev') + th('Lump sum disability' + ageText(age), 'lsd') + th('Income protector / sickness benefit' + ageText(age), 'ip') + th('Waiting period') + th('ACI') + th('ABI');
   }
   function linesTable(c, isPolicy, age) {
-    var lines = calc.activeLines(c), body = lines.map(function (l) { return lineRow(l, isPolicy ? null : c.aci); }).join('');
+    var lines = calc.activeLines(c), body = lines.map(function (l) { return lineRow(l, isPolicy ? null : c); }).join('');
     if (!isPolicy) {
       var tt = calc.totals(c);
       body += '<tr class="tot" data-keys="total-lump"><td class="l" colspan="2">Total lump sum</td>' + td(A(tt.life.lump), '', 'life') + td(A(tt.sev.lump), '', 'sev') + td(A(tt.lsd.lump), '', 'lsd') + td('', '', 'ip') + '<td colspan="3"></td></tr>' +
@@ -117,13 +118,13 @@
       var it = e.item, tt = calc.totals(it), lines = calc.activeLines(it), has = lines.length, bn = it.benefits || {}, notes = [bn.life, bn.lsd, bn.ip].filter(Boolean).join(' / ');
       var w = (lines.filter(function (l) { return l.waiting && l.waiting !== 'N/A'; })[0] || {}).waiting;
       return '<tr' + (has ? ' data-act="pol" data-i="' + i + '"' : '') + '>' + tickCell('<b>' + esc((it.insurer || 'Policy') + (it.policyNo ? '   ' + it.policyNo : '')) + '</b><small>' + esc([it.product, it.doc ? 'DOC ' + it.doc : '', notes].filter(Boolean).join('  |  ')) + '</small>', !!it.wr) +
-        td(has ? A(tt.life.lump) : A(null), '', 'life') + td(has ? A(tt.sev.lump) : A(null), '', 'sev') + td(has ? A(tt.lsd.lump) : A(null), '', 'lsd') + td(has ? PM(tt.ip.monthly) : A(null), '', 'ip') + td(esc(w || '-')) + td(PC(it.aci)) + td(PC(it.abi)) + td(A(it.premium)) + '</tr>';
+        td(has ? A(tt.life.lump) : A(null), '', 'life') + td(has ? A(tt.sev.lump) : A(null), '', 'sev') + td(has ? A(tt.lsd.lump) : A(null), '', 'lsd') + td(has ? PM(tt.ip.monthly) : A(null), '', 'ip') + td(esc(w || '-')) + td(AC(it)) + td(PC(it.abi)) + td(A(it.premium)) + '</tr>';
     }).join('');
     var tot = function (label, tt, prem, cls) { return '<tr class="' + cls + '"><td class="l">' + label + '</td>' + td(A(tt.life.lump), '', 'life') + td(A(tt.sev.lump), '', 'sev') + td(A(tt.lsd.lump), '', 'lsd') + td(PM(tt.ip.monthly), '', 'ip') + '<td></td><td></td><td></td>' + td(A(prem)) + '</tr>'; };
     if (pt.count.wr) rows += tot('Total: policies where we are the broker', pt.wr, pt.premium.wr, 'prem'); if (pt.count.other) rows += tot('Total: other brokers', pt.other, pt.premium.other, 'prem');
     rows += tot('Grand total (all policies)', pt.all, pt.premium.all, 'tot');
     return out + '<div class="pctl"><span class="lbl">Click a policy to see its lines</span><span class="sp"></span>' + pillBtns() + '</div>' +
-      tbl([27, 11, 10, 11, 12, 8, 6, 6, 9], th('Policy', '', 'l') + th('Life cover', 'life') + th('Severe illness', 'sev') + th('Lump sum disability' + ageH, 'lsd') + th('Income protector / sickness benefit' + ageH, 'ip') + th('Waiting period') + th('ACI') + th('ABI') + th('Premium'), rows);
+      tbl([25, 10, 9, 10, 11, 8, 12, 6, 9], th('Policy', '', 'l') + th('Life cover', 'life') + th('Severe illness', 'sev') + th('Lump sum disability' + ageH, 'lsd') + th('Income protector / sickness benefit' + ageH, 'ip') + th('Waiting period') + th('ACI') + th('ABI') + th('Premium'), rows);
   }
   function groupView(b) {
     var s = state(), items = calc.groupItems(s), pi = calc.personalInvestments(s), gt = calc.groupTotals(s), prem = 0, age = s.header.disabilityAge, out = title(b);
@@ -182,7 +183,7 @@
     return out + tbl([17, 24, 14, 8, 11, 26], th('Item', '', 'l') + th('Company & product', '', 'l') + th('Policy number', '', 'l') + th('Broker') + th('Premium') + th('Notes', '', 'l'),
       state().blocks.other.items.filter(function (i) { return !i.removed; }).map(function (i) {
         var nm = (schema.OTHER_KEYS.filter(function (k) { return k.key === i.key; })[0] || { l: i.key }).l, has = i.company || i.product || i.note;
-        return '<tr>' + td('<b>' + esc(nm) + '</b>', 'l') + td(esc([i.company, i.product].filter(Boolean).join('   ') || '-'), 'l') + td(esc(i.policyNo || '-'), 'l') + td(has ? '<b style="color:' + (i.wr ? '#4fcf86' : '#ff6b5e') + '">' + (i.wr ? '&#10003;' : '&#10005;') + '</b>' : '-', 'c') + td(A(i.premium)) + td(esc(i.note || ''), 'l') + '</tr>';
+        return '<tr>' + td('<b>' + esc(nm) + '</b>', 'l') + td(esc([i.company, i.product].filter(Boolean).join('   ') || '-'), 'l') + td(esc(i.policyNo || '-'), 'l') + td(has ? '<b style="color:' + (i.wr ? '#2d8a52' : '#c0392b') + '">' + (i.wr ? '&#10003;' : '&#10005;') + '</b>' : '-', 'c') + td(A(i.premium)) + td(esc(i.note || ''), 'l') + '</tr>';
       }).join(''));
   }
   var VIEWS = { policies: policiesView, fna: quotesView, group: groupView, shortfall: shortfallView, shortfallQuote: quotesView, reduced: quotesView, comparative: quotesView, investments: investmentsView, proposed: proposedView, goals: goalsView, other: otherView };
@@ -191,9 +192,9 @@
   function mapView() {
     var s = state(), f = P.mapFigures(s), cx = 620, cy = 310, rx = 490, ry = 240, nodes = '', lines = '', n = schema.BLOCKS.length;
     schema.BLOCKS.forEach(function (b, i) {
-      var a = (-90 + i * 360 / n) * Math.PI / 180, x = cx + rx * Math.cos(a), y = cy + ry * Math.sin(a), none = /^(None|Waiting|Not needed)/.test(f[b.id] || '');
+      var a = (-90 + i * 360 / n) * Math.PI / 180, x = cx + rx * Math.cos(a), y = cy + ry * Math.sin(a), none = /^(None|Waiting|Not needed|Not included)/.test(f[b.id] || ''), off = !calc.pageShown(s, b.id);
       lines += '<line x1="' + cx + '" y1="' + cy + '" x2="' + Math.round(x) + '" y2="' + Math.round(y) + '"/>';
-      nodes += '<button type="button" class="pnode' + (none ? ' empty' : '') + '" data-act="tab" data-tab="' + b.id + '" style="left:' + Math.round(x - 112) + 'px;top:' + Math.round(y - 40) + 'px"><b><i>' + b.n + '</i>' + esc(b.title) + '</b><span>' + esc(f[b.id] || '') + '</span></button>';
+      nodes += '<button type="button" class="pnode' + (none ? ' empty' : '') + (off ? ' off' : '') + '"' + (off ? ' disabled title="' + esc(calc.pageWhy(b.id)) + '"' : ' data-act="tab" data-tab="' + b.id + '"') + ' style="left:' + Math.round(x - 112) + 'px;top:' + Math.round(y - 40) + 'px"><b><i>' + b.n + '</i>' + esc(b.title) + '</b><span>' + esc(f[b.id] || '') + '</span></button>';
     });
     return '<svg viewBox="0 0 1240 620">' + lines + '</svg><div class="pcentre"><div class="nm">' + esc(schema.clientFull(s) || 'New client') + '</div><div class="ov">CLIENT OVERVIEW</div><div class="dt">' + esc(s.header.overviewDate || schema.todayDMY()) + '</div></div>' + nodes;
   }
@@ -203,7 +204,7 @@
   function render() {
     var sl = slide(), b = schema.blocksById[ps.tab];
     sl.className = 'pslide' + (ps.tab === 'map' ? ' pmap' : ''); sl.innerHTML = ps.tab === 'map' ? mapView() : VIEWS[ps.tab](b);
-    $('#pTabs').innerHTML = P.TABS.map(function (t, i) { return '<button type="button" class="ptab' + (P.ORDER[i] === ps.tab ? ' on' : '') + '" data-act="tab" data-tab="' + P.ORDER[i] + '">' + esc(t) + '</button>'; }).join('');
+    $('#pTabs').innerHTML = P.TABS.map(function (t, i) { var id = P.ORDER[i], off = id !== 'map' && !calc.pageShown(state(), id); return '<button type="button" class="ptab' + (id === ps.tab ? ' on' : '') + (off ? ' off' : '') + '"' + (off ? ' disabled title="' + esc(calc.pageWhy(id)) + '"' : ' data-act="tab" data-tab="' + id + '"') + '>' + esc(t) + '</button>'; }).join('');
     $('#pWho').textContent = (schema.clientFull(state()) || 'New client') + ' · Client Overview';
     paintHL(); paintPanel(); fit();
   }
@@ -247,6 +248,7 @@
   /* ---------- moving ---------- */
   function go(tab, qi, pol) {
     if (!schema.blocksById[tab] && tab !== 'map') return;
+    if (tab !== 'map' && !calc.pageShown(state(), tab)) return;                                    // a page that is left out cannot be opened (nor asked for by voice)
     if (tab === ps.tab && qi === undefined && pol === undefined) return;
     var same = tab === ps.tab;
     ps.tab = tab; ps.qi = qi !== undefined ? qi : (same ? ps.qi : 0); ps.pol = pol !== undefined ? pol : (same ? ps.pol : null); ps.sub = 'quote'; ps.pil = null; ps.rows = [];
@@ -270,7 +272,7 @@
     var miss = false;
     moves.forEach(function (m) {
       if (m.clear) { ps.pil = null; ps.rows = []; paintHL(); paintPanel(); }
-      else if (m.step) { var i = P.ORDER.indexOf(ps.tab) + m.step; if (i >= 0 && i < P.ORDER.length) go(P.ORDER[i]); }
+      else if (m.step) { var ord = P.shownOrder(state()), i = ord.indexOf(ps.tab) + m.step; if (i >= 0 && i < ord.length) go(ord[i]); }
       else if (m.tab) go(m.tab, m.qi, m.pol);
       else if (m.sub) { if (!setSub(m.sub)) miss = true; }
       else if (m.pil) { if (!setPil(m.pil, false)) miss = true; }
@@ -330,7 +332,7 @@
   /* ---------- the screen's chrome and the clicks ---------- */
   function build() {
     root = document.createElement('div'); root.className = 'pres'; root.id = 'pres'; root.hidden = true; root.setAttribute('role', 'dialog'); root.setAttribute('aria-label', 'Presentation');
-    root.innerHTML = '<div class="pbar"><div class="pwho" id="pWho"></div><div class="pvoice"><span class="pdot" id="pDot"></span><span id="pVoiceText"></span></div><div class="pbtns">' +
+    root.innerHTML = '<div class="pbar"><img class="plogo" src="assets/logo.png" alt="Wealth Revolution"><div class="pwho" id="pWho"></div><div class="pvoice"><span class="pdot" id="pDot"></span><span id="pVoiceText"></span></div><div class="pbtns">' +
       '<button type="button" class="pb" id="pBtnVoice" title="Follow your voice: only your microphone, only a fixed list of commands">Voice: Off</button><button type="button" class="pb" id="pBtnKp" data-act="kp" title="Load your approved key points (kept in this browser)">Key points&hellip;</button>' +
       '<button type="button" class="pb" id="pBtnClose" title="Back to the overview (Esc)">Close &#10005;</button></div></div><div class="ptabs" id="pTabs"></div><div class="pchoose" id="pChoose" hidden></div>' +
       '<div class="pmain"><div class="pstage" id="pStage"><div class="pslide" id="pSlide"></div></div><aside class="ppanel" id="pPanel"></aside></div><input type="file" id="pKpIn" accept=".json,application/json" hidden>';

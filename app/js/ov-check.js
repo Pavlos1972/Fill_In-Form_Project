@@ -9,6 +9,11 @@
     var n = q.number ? (/bright/i.test(q.insurer) ? 'CP ' : 'Quote ') + q.number : '';
     return [q.insurer, { fna: 'FNA', shortfall: 'shortfall quote', reduced: 'reduced quote', comparative: 'quote' }[q.kind], n].filter(Boolean).join(' ');
   }
+  /* The heading of a quote as the screen shows it: "BrightRock Reduced Quote CP 100000051". */
+  function qTitle(q) {
+    var n = q.number ? (/bright/i.test(q.insurer) ? 'CP ' : 'Quote ') + q.number : '';
+    return [q.insurer, { fna: 'FNA', shortfall: 'Shortfall Quote', reduced: 'Reduced Quote', comparative: 'Comparative Quote' }[q.kind], n].filter(Boolean).join(' ');
+  }
   function hasFigures(x) { return calc.activeLines(x).some(function (l) { return ['life', 'sev', 'lsd', 'ip'].some(function (p) { var c = l[p]; return c && typeof c === 'object' && Object.keys(c).some(function (k) { return isNum(c[k]) && c[k] !== 0; }); }); }); }
 
   function run(state) {
@@ -119,6 +124,36 @@
     }
     return { problems: out, dots: dots(state, out), byBlock: byBlock(out) };
   }
+  /* The Checks panel (Paul, 22 November): one line for each document read, e.g. "BrightRock FNA CP 100000031 checked", and one for its change moment pay-out, instead of the long list of every single check.
+     A line is checked (every row of the document checked, nothing flagged), to check (rows still amber, or something differs from the Fact Find or from Paul's standards) or waiting (nothing read or typed yet).
+     The documents are every quote and every item that a document filled (a schedule, a statement, a proposal, a report); an item that still only has the Fact Find's figures has no document yet. */
+  function docLines(state, problems) {
+    var out = [], B = state.blocks || {}, probs = problems || [];
+    function make(block, title, rows, own) {
+      var toCheck = rows.filter(function (r) { return r && (r.st === 'verify' || r.st === 'ff'); }).length, flagged = own.length, any = rows.some(function (r) { return r && (r.st === 'confirmed' || r.st === 'verify' || r.st === 'ff'); });
+      var st = toCheck || flagged ? 'tocheck' : (rows.some(function (r) { return r && r.st === 'confirmed'; }) ? 'checked' : 'waiting');
+      var text = st === 'checked' ? title + ' checked' : st === 'waiting' ? title + ': waiting for its figures' : title + ': ' + [toCheck ? toCheck + ' to check' : '', flagged ? flagged + (flagged === 1 ? ' difference' : ' differences') + ' flagged' : ''].filter(Boolean).join(', ');
+      out.push({ block: block, title: title, state: st, toCheck: toCheck, flagged: flagged, text: text, tip: own.map(function (p) { return p.message; }).join(' ') || (any ? '' : 'Nothing has been read or typed for this yet.') });
+    }
+    schema.QUOTE_KINDS.forEach(function (kind) {
+      var block = schema.blockOfQuote[kind];
+      calc.quotes(state, block).forEach(function (q) {
+        var where = qLabel(q), own = probs.filter(function (p) { return p.block === block && p.where === where; });
+        make(block, qTitle(q), [q].concat(calc.activeLines(q)), own.filter(function (p) { return p.id !== 'cmp.match'; }));
+        if (q.cmp) make(block, qTitle(q) + ' change moment pay-out', [q.cmp], own.filter(function (p) { return p.id === 'cmp.match'; }));
+      });
+    });
+    var named = { policies: function (i) { return [i.insurer || 'Policy', i.policyNo].filter(Boolean).join(' '); }, group: function (i) { return (schema.GROUP_KINDS[i.kind] || 'Group') + ' ' + (i.provider || ''); }, investments: function (i) { return [i.provider || 'Investment', i.product].filter(Boolean).join(' '); },
+      proposed: function (i) { return [i.type, i.provider, i.quote ? 'Quote ' + i.quote : ''].filter(Boolean).join(' '); }, goals: function (i) { return i.kind === 'rgar' ? 'Retirement Goal Analysis Report' : 'Education Goal Analysis Report'; } };
+    Object.keys(named).forEach(function (block) {
+      calc.active((B[block] || {}).items).forEach(function (it) {
+        var k = it.src && it.src.kind; if (!it.src || !it.src.file || k === 'factfind' || k === 'previous' || k === 'typed') return;
+        var title = named[block](it), where = block === 'policies' ? it.insurer : block === 'group' ? it.provider : block === 'investments' ? it.provider : it.provider;
+        make(block, title, [it].concat(calc.activeLines(it)), probs.filter(function (p) { return p.block === block && where && p.where === where; }));
+      });
+    });
+    return out;
+  }
   function byBlock(problems) { var m = {}; problems.forEach(function (p) { (m[p.block || '_'] = m[p.block || '_'] || []).push(p); }); return m; }
 
   /* The dot of every block. */
@@ -131,7 +166,8 @@
       if (b.id === 'group' && !list.length) { d[b.id] = 'grey'; return; }
       if (!list.length) { d[b.id] = 'grey'; return; }
       var rows = list.slice(); list.forEach(function (r) { (r.lines || []).forEach(function (l) { if (!l.removed) rows.push(l); }); });
-      var ver = rows.some(function (r) { return r.st === 'verify'; }), conf = rows.filter(function (r) { return r.st === 'confirmed'; }).length, wait = rows.filter(function (r) { return r.st === 'ff' || r.st === 'empty'; }).length;
+      var ver = rows.some(function (r) { return r.st === 'verify' || (b.id === 'other' && r.st === 'ff'); }),                 // block 11 follows the Fact Find and has no document to wait for: what it says is to be checked
+         conf = rows.filter(function (r) { return r.st === 'confirmed'; }).length, wait = rows.filter(function (r) { return r.st === 'ff' || (r.st === 'empty' && b.id !== 'other'); }).length;       // an item of block 11 with nothing in it has nothing to wait for
       if (b.id === 'other' && !conf && !ver && rows.every(function (r) { return r.st === 'empty'; })) d[b.id] = 'grey';
       else if (ver || amber) d[b.id] = 'amber';
       else if (conf && !wait) d[b.id] = 'green';
@@ -149,5 +185,5 @@
     if (dot === 'amber') return p.length ? 'To check: ' + p.length + (p.length === 1 ? ' thing is' : ' things are') + ' flagged. ' + [p[0].where, p[0].message].filter(Boolean).join(' ').slice(0, 140) : 'To check: some rows came from the Fact Find or from a document and are waiting for you to check them.';
     return id === 'shortfall' ? 'Nothing yet: the shortfall is worked out as soon as the FNA quote has figures.' : 'Nothing yet: waiting for a document, or for what you type.';
   }
-  return { run: run, dots: dots, qLabel: qLabel, dotText: dotText, LEGEND: LEGEND };
+  return { run: run, dots: dots, qLabel: qLabel, qTitle: qTitle, docLines: docLines, dotText: dotText, LEGEND: LEGEND };
 });

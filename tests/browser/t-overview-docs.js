@@ -26,7 +26,7 @@ const POLICY = { insurer: 'Other Insurer', product: 'Test Protector', policyNo: 
     };
   });
   const p = await ctx.newPage(); const errs = []; p.on('pageerror', e => errs.push(e.message)); p.on('dialog', d => d.accept());
-  await p.goto('file://' + dir + '/overview.html'); await p.waitForTimeout(500);
+  await p.goto('file://' + dir + '/overview.html'); await p.waitForTimeout(500); await p.evaluate(() => OV.app.openAll());          // the page starts folded (See more); this test is about what is inside
   await p.evaluate(t => OV.app.fillFactFindText(t, 'ff.json'), JSON.stringify(FFJ));
   const file = (name, text) => ({ name, mimeType: 'application/pdf', buffer: Buffer.from(text || '%PDF-1.4 fake') });
   const upload = async (files, sel) => { await p.setInputFiles(sel || '#docIn', files); await p.waitForTimeout(400); };
@@ -99,7 +99,7 @@ const POLICY = { insurer: 'Other Insurer', product: 'Test Protector', policyNo: 
   await upload([file('Other Insurer PS - 123456789.pdf')], '#docOne');
   s = await st(); const it = s.blocks.policies.items[0];
   ok(it.product === 'Test Protector' && it.policyNo === 'P-11' && it.premium === 1281.9 && it.lines.length === 2 && it.st === 'verify' && it.src.file === 'Other Insurer PS - 123456789.pdf' && s.blocks.policies.items.length === items0, '6. the schedule filled the details of the item it was for (amber, with its file) and added no item');
-  ok(/doc\.vs\.factfind|the document says R1,281\.90; the Fact Find has R1,200/.test(await p.evaluate(() => document.querySelector('#checks').innerText.replace(/\s+/g, ' '))) || /1,281\.90/.test(await p.evaluate(() => document.querySelector('#checks').innerText)), '6. the difference from the Fact Find is listed (the document wins)');
+  ok(/doc\.vs\.factfind|the document says R1,281\.90; the Fact Find has R1,200/.test(await p.evaluate(() => document.querySelector('#checks').textContent.replace(/\s+/g, ' '))) || /1,281\.90/.test(await p.evaluate(() => document.querySelector('#checks').textContent)), '6. the difference from the Fact Find is listed (the document wins)');
   await p.evaluate(p2 => { window.__reply = { status: 200, body: { content: [{ type: 'text', text: JSON.stringify(Object.assign({}, p2, { insurer: 'Nobody Assurance', policyNo: 'Z-9' })) }] } }; }, POLICY);
   await upload([file('Nobody Assurance Policy Schedule.pdf')]);
   ok(/not in the Fact Find/.test(await side()) && (await st()).blocks.policies.items.length === items0, '6. a schedule for an insurer that is not in the Fact Find is not guessed: it says to add it in the Fact Find first, and adds nothing');

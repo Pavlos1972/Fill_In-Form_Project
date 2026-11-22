@@ -17,9 +17,9 @@ const FFJ = { app: 'wr-fact-find', schema: '5.4', f: { fname: { v: 'Test' }, sna
 
   /* ---- 1. it opens whole ---- */
   const ov = watch(await ctx.newPage());
-  await ov.goto('file://' + dir + '/overview.html'); await ov.waitForTimeout(400);
+  await ov.goto('file://' + dir + '/overview.html'); await ov.waitForTimeout(400); await ov.evaluate(() => OV.app.openAll());          // the page starts folded (See more); this test is about what is inside
   ok(!(await ov.$('#buildBanner')), '1. no "Mixed versions" bar');
-  ok(await ov.evaluate(() => document.title) === 'Client Overview Studio' && /Version 0\.6/.test(await ov.evaluate(() => document.querySelector('#verLine').textContent)), '1. the page says it is the Client Overview, version 0.6');
+  ok(await ov.evaluate(() => document.title) === 'Client Overview Studio' && /Version 0\.7/.test(await ov.evaluate(() => document.querySelector('#verLine').textContent)), '1. the page says it is the Client Overview, version 0.6');
   const nav = await ov.evaluate(() => [...document.querySelectorAll('#nav button')].map(x => x.textContent.replace(/\s+/g, ' ').trim()));
   ok(nav.length === 12 && nav[0] === 'Client details' && nav[6] === '6 Reduced quotes' && nav[11] === '11 Medical aid, will & short-term', '1. the menu: Client details and the eleven blocks in order: ' + nav.join(' | '));
   ok(await ov.evaluate(() => document.querySelectorAll('.dot[data-dot]').length === 11 && document.querySelectorAll('#legend .dot').length === 4), '1. a dot beside each block, and four in the legend under the menu');
@@ -75,7 +75,7 @@ const FFJ = { app: 'wr-fact-find', schema: '5.4', f: { fname: { v: 'Test' }, sna
   ok(/Total income protected R40,000\s?p\.m\. N\/A R40,000\s?p\.m\. R40,000\s?p\.m\./.test(tot), '3. total income protected: R40,000 p.m. in each income-linked pillar, N/A for severe illness: ' + tot.slice(60, 160));
   ok(/Monthly premium.*R2,900/.test(tot), '3. the monthly premium is the bottom row');
   ok(await p.evaluate(() => document.querySelector('h3[data-titlefor]').textContent) === 'BrightRock FNA CP 100000001 · Non-smoker rates', '3. the title follows the CP number: ' + await p.evaluate(() => document.querySelector('h3[data-titlefor]').textContent));
-  ok(await p.evaluate(() => /debt/i.test(document.body.textContent) && [...document.querySelectorAll('[data-aci]')].every(e => e.textContent === '10%')), '3. the ACI shows on every line');
+  ok(await p.evaluate(() => /debt/i.test(document.body.textContent) && [...document.querySelectorAll('[data-aci]')].every(e => e.textContent === '10% fixed')), '3. the ACI shows on every line (a figure alone reads "10% fixed")');
   ok(!(await p.evaluate(() => document.querySelector('#checks').textContent.includes('net income'))), '3. a right FNA: no net-income check');
   await set(q0 + 'lines.1.life.monthly', '4000');
   ok(/Life cover protects R39,000 a month/.test(await p.evaluate(() => document.querySelector('#checks').textContent)), '3. a child\'s monthly figure that is not the Fact Find\'s: the checks say so');
@@ -100,10 +100,11 @@ const FFJ = { app: 'wr-fact-find', schema: '5.4', f: { fname: { v: 'Test' }, sna
   await p.evaluate(() => OV.app.go('fna')); await p.screenshot({ path: out + '/release54-fna.png', fullPage: true });
 
   /* ---- 5. remove and undo; save file and open it again; unsaved work offered back ---- */
-  await p.click('[data-del="blocks.fna.quotes.0.lines.1"]'); await p.waitForTimeout(100);
-  ok(/Child care.*removed/i.test(await p.evaluate(() => document.querySelector('tr.removed').textContent)) && /R3,400,000/.test(await p.evaluate(() => document.querySelector('[data-comp^="qtot"]').textContent.replace(/\s+/g, ''))), '5. a removed line is hidden and its figures leave the totals');
-  await p.click('[data-undo="blocks.fna.quotes.0.lines.1"]'); await p.waitForTimeout(100);
-  ok(/R3,900,000/.test(await p.evaluate(() => document.querySelector('[data-comp^="qtot"]').textContent.replace(/\s+/g, ''))), '5. Undo brings it back');
+  ok(await p.evaluate(() => !document.querySelector('.qcard table.lines .xbtn') && document.querySelectorAll('.qcard table.lines thead th').length === 9), '5. a quote\'s lines have no remove column (they come from the quote)');
+  await p.evaluate(() => { OV.store.setRemoved(OV.app.state, 'blocks.fna.quotes.0.lines.1', true); OV.app.redraw(); }); await p.waitForTimeout(100);
+  ok(/R3,400,000/.test(await p.evaluate(() => document.querySelector('[data-comp^="qtot"]').textContent.replace(/\s+/g, ''))), '5. a line that is marked removed (an older file) is left out of the totals');
+  await p.evaluate(() => { OV.store.setRemoved(OV.app.state, 'blocks.fna.quotes.0.lines.1', false); OV.app.redraw(); }); await p.waitForTimeout(100);
+  ok(/R3,900,000/.test(await p.evaluate(() => document.querySelector('[data-comp^="qtot"]').textContent.replace(/\s+/g, ''))), '5. and back in when it is not');
   p.on('dialog', d => d.accept());
   await p.click('[data-del="blocks.fna.quotes.0"]'); await p.waitForTimeout(100);
   ok(/removed/.test(await p.evaluate(() => document.querySelector('#main').textContent)) && !(await p.$('.qcard')), '5. a removed quote is hidden, with Undo');

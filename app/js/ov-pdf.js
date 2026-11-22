@@ -1,5 +1,5 @@
 /* Builds the Client Overview PDF (stage 3): the same eleven blocks, tables and figures as the screen (the figures come from ov-calc.js, the same code), in a fresh, simple look made to be read on a screen:
-   a blue cover with the client's name, then one page for each block; each page is A4 wide (landscape) and as tall as its content needs, so a quote's change moment pay-out and its comparison always stay on the same
+   a cover (a blue strip with the client's name on white, so the logo stands out), then one page for each block that has something to say (a page with nothing in it is left out and its tab is greyed); each page is A4 wide (landscape) and as tall as its content needs, so a quote's change moment pay-out and its comparison always stay on the same
    page as the quote. Every page has a row of tabs (Cover and one for each block, the current one highlighted), each tab a link to its page, and the PDF opens in single-page view, so the client moves by tabs and
    never has to scroll. Amounts never split over two lines. What is for Sitamah and Paul only (the checks, the amber statuses) is never printed. */
 (function () {
@@ -19,6 +19,7 @@
   var A = function (v) { return calc.isNum(v) ? calc.fmtR(v) : (v === 'N/A' || v === 'Not found' ? v : '-'); };
   var PM = function (v) { return calc.isNum(v) ? calc.fmtR(v) + ' p.m.' : A(v); };
   var PC = function (v) { return calc.isNum(v) ? calc.fmtPct(v) : (v === 'N/A' || v === 'Not found' ? v : '-'); };
+  var AC = function (x) { return calc.fmtAci(x) || '-'; };                                          // the ACI as the document words it, or "10% fixed"
   var right = function (s, extra) { return Object.assign({ content: t(s), styles: Object.assign({ halign: 'right' }, extra || {}) }); };
   var center = function (s, extra) { return { content: t(s), styles: Object.assign({ halign: 'center' }, extra || {}) }; };
 
@@ -32,15 +33,15 @@
   }
 
   /* ---------- the tab row ---------- */
-  function tabRow(doc, current, onBlue, measuring) {
+  function tabRow(doc, current, pages, measuring) {
     var w = CW / TABS.length;
     TABS.forEach(function (name, i) {
-      var x = M + i * w, on = i === current;
-      if (onBlue) doc.setFillColor.apply(doc, on ? [255, 255, 255] : [86, 190, 235]); else doc.setFillColor.apply(doc, on ? ACCENT : PALE);
+      var x = M + i * w, on = i === current, here = !pages || pages.no[i] > 0;
+      doc.setFillColor.apply(doc, on ? ACCENT : here ? PALE : [236, 238, 240]);
       doc.roundedRect(x + 0.4, TAB_Y, w - 0.8, TAB_H, 1.6, 1.6, 'F');
-      setText(doc, on ? (onBlue ? DEEP : [255, 255, 255]) : (onBlue ? [255, 255, 255] : DEEP), 7.5, on);
+      setText(doc, on ? [255, 255, 255] : here ? DEEP : [168, 174, 180], 7.5, on);
       doc.text(t(name), x + w / 2, TAB_Y + TAB_H / 2 + 1.1, { align: 'center' });
-      if (!measuring) doc.link(x + 0.4, TAB_Y, w - 0.8, TAB_H, { pageNumber: i + 1 });
+      if (!measuring && here) doc.link(x + 0.4, TAB_Y, w - 0.8, TAB_H, { pageNumber: pages ? pages.no[i] : i + 1 });
     });
   }
   function pageTitle(doc, text) { setText(doc, DEEP, FS.h1, true); doc.text(t(text), M, TOP + 6); return TOP + 14; }
@@ -52,15 +53,15 @@
   function empty(doc, y, text) { setText(doc, MUTED, 10.5, false); doc.text(t(text), M, y + 5); return y + 10; }
 
   /* ---------- the cover ---------- */
-  function cover(doc, state, H, measuring) {
-    doc.setFillColor(ACCENT[0], ACCENT[1], ACCENT[2]); doc.rect(0, 0, W, H, 'F');
-    tabRow(doc, 0, true, measuring);
-    var name = schema.clientFull(state) || 'New client', h = state.header, lg = FF.logo;
+  function cover(doc, state, H, measuring, pages) {
+    tabRow(doc, 0, pages, measuring);
+    var name = schema.clientFull(state) || 'New client', h = state.header, lg = FF.logo, top = H / 2 - 22, bottom = H / 2 + 33;
+    doc.setFillColor(ACCENT[0], ACCENT[1], ACCENT[2]); doc.rect(0, top, W, bottom - top, 'F');
     if (lg && lg.data) { try { doc.addImage(lg.data, 'PNG', M, H - 34, 40, 40 * lg.h / lg.w); } catch (e) { /* the logo is optional */ } }
     setText(doc, [255, 255, 255], FS.name, true); doc.text(t(name), W / 2, H / 2 - 4, { align: 'center' });
     setText(doc, [255, 255, 255], 20, false); doc.text('Your financial overview', W / 2, H / 2 + 12, { align: 'center' });
     setText(doc, [255, 255, 255], 12, false);
-    var bits = ['Prepared ' + (h.overviewDate || schema.todayDMY()), h.broker ? 'Broker: ' + h.broker : '', h.astuteDate ? 'Astute report: ' + h.astuteDate : ''].filter(Boolean).join('     ');
+    var bits = ['Prepared ' + (h.overviewDate || schema.todayDMY()), h.broker ? 'by Broker ' + h.broker : '', h.astuteDate ? 'Astute report: ' + h.astuteDate : ''].filter(Boolean).join('     ');
     doc.text(t(bits), W / 2, H / 2 + 26, { align: 'center' });
     return H;
   }
@@ -77,7 +78,7 @@
       return { content: '', ov: o, styles: { minCellHeight: tall } };
     };
     return [{ content: t(need), styles: { halign: 'left', fontStyle: 'bold', minCellHeight: tall } }, { content: t(l.term || ''), styles: { halign: 'left' } }, pill('life', true, true), pill('sev', true, false), pill('lsd', true, true), pill('ip', false, true),
-      isNA('waiting') ? right('N/A', { textColor: MUTED }) : right(l.waiting || '-'), right(PC(aci)), right(PC(l.abi))];
+      isNA('waiting') ? right('N/A', { textColor: MUTED }) : right(l.waiting || '-'), right(aci ? AC(aci) : '-'), right(PC(l.abi))];
   }
   /* The amounts of a BrightRock line are drawn by hand, in the cell: the lump sum, the monthly figure under it (in red) and what the monthly figure is called; an income protector amount ends in p.m., and a debt's carries the Instalment Protector note. */
   /* A green tick (we are the broker) or a red cross (another broker), drawn with lines: the standard PDF fonts have neither. */
@@ -96,7 +97,7 @@
     one(A(o.lump), FS.body, INK, false);
     if (o.monthly !== undefined) { one(A(o.monthly), FS.body, RED, false); one(o.label, FS.small, MUTED, false); }
   }
-  var LINES_W = [60, 34, 32, 28, 32, 34, 22, 15, 16];
+  var LINES_W = [54, 30, 32, 26, 31, 33, 20, 29, 18];
   function ageHead(age) { return age ? '\nAge ' + age : ''; }
   function linesHead(age) { return [['Need', 'Term', 'Life cover', 'Severe illness', 'Lump sum disability' + ageHead(age), 'Income protector / sickness benefit' + ageHead(age), 'Waiting period', 'ACI', 'ABI']]; }
   function totalRows(tt, premium, rates) {
@@ -106,7 +107,7 @@
     return rows;
   }
   function linesTable(doc, y, c, isPolicy, age) {
-    var lines = calc.activeLines(c), body = lines.map(function (l) { return lineCells(l, isPolicy ? null : c.aci); });
+    var lines = calc.activeLines(c), body = lines.map(function (l) { return lineCells(l, isPolicy ? null : c); });
     if (!isPolicy) body = body.concat(totalRows(calc.totals(c), c.premium, c.rates));
     if (!body.length) return y;
     return table(doc, y, { head: linesHead(age), body: body, colw: LINES_W, align: ['left', 'left'], draw: drawOv });
@@ -162,12 +163,12 @@
     };
     var rows = ps.map(function (e) {
       var tt = calc.totals(e.item), has = calc.activeLines(e.item).length, w = (calc.activeLines(e.item).filter(function (l) { return l.waiting && l.waiting !== 'N/A'; })[0] || {}).waiting;
-      return [tickCell(e), right(has ? A(tt.life.lump) : '-'), right(has ? A(tt.sev.lump) : '-'), right(has ? A(tt.lsd.lump) : '-'), right(has ? PM(tt.ip.monthly) : '-'), right(w || '-'), right(PC(e.item.aci)), right(PC(e.item.abi)), right(A(e.item.premium))];
+      return [tickCell(e), right(has ? A(tt.life.lump) : '-'), right(has ? A(tt.sev.lump) : '-'), right(has ? A(tt.lsd.lump) : '-'), right(has ? PM(tt.ip.monthly) : '-'), right(w || '-'), right(AC(e.item)), right(PC(e.item.abi)), right(A(e.item.premium))];
     });
     var tot = function (label, tt, prem, fill) { var f = function (s) { return right(s, { fontStyle: 'bold', fillColor: fill }); }; return [{ content: t(label), styles: { halign: 'left', fontStyle: 'bold', fillColor: fill } }, f(A(tt.life.lump)), f(A(tt.sev.lump)), f(A(tt.lsd.lump)), f(PM(tt.ip.monthly)), f(''), f(''), f(''), f(A(prem))]; };
     if (pt.count.wr) rows.push(tot('Total: policies where we are the broker', pt.wr, pt.premium.wr, BLUE)); if (pt.count.other) rows.push(tot('Total: other brokers', pt.other, pt.premium.other, BLUE));
     rows.push(tot('Grand total (all policies)', pt.all, pt.premium.all, ORANGE));
-    y = table(doc, y, { head: [['Policy', 'Life cover', 'Severe illness', 'Lump sum disability' + age, 'Income protector / sickness benefit' + age, 'Waiting period', 'ACI', 'ABI', 'Premium']], colw: [66, 28, 28, 30, 32, 22, 16, 16, 35], align: ['left'], body: rows, draw: drawOv });
+    y = table(doc, y, { head: [['Policy', 'Life cover', 'Severe illness', 'Lump sum disability' + age, 'Income protector / sickness benefit' + age, 'Waiting period', 'ACI', 'ABI', 'Premium']], colw: [60, 27, 26, 28, 31, 20, 28, 16, 37], align: ['left'], body: rows, draw: drawOv });
     ps.forEach(function (e) {
       var lines = calc.activeLines(e.item); if (!lines.length || (lines.length === 1 && lines[0].type === 'other' && !e.item.wr)) return;
       setText(doc, DEEP, FS.sub, true); doc.text(t((e.item.insurer || 'Policy') + (e.item.policyNo ? '   ' + e.item.policyNo : '') + (e.item.product ? '   ' + e.item.product : '')), M, y + 10);
@@ -179,18 +180,22 @@
   function groupPage(doc, state, b) {
     var y = pageTitle(doc, b.n + '. ' + b.title), items = calc.groupItems(state), pi = calc.personalInvestments(state), gt = calc.groupTotals(state), prem = 0, age = state.header.disabilityAge ? '\nAge ' + state.header.disabilityAge : '';
     var cell = function (g, p) { var c = g[p]; if (!c || !calc.isNum(c.amount)) return right(c && c.amount === 'Not found' ? 'Not found' : '-'); return right((p === 'ip' ? PM(c.amount) : A(c.amount)) + (c.endAge != null && c.endAge !== '' ? '\n' + (/^\d+$/.test(String(c.endAge)) ? 'To age ' + c.endAge : c.endAge) : '')); };
+    var red = function (text) { setText(doc, RED, 11, true); doc.text(t(text), M, y + 5); y += 11; };
+    if (!items.length) red('There are no group benefits in place.');
+    if (!items.length && !pi.count) { red('There are no personal investments in place.'); return y; }
     var rows = items.map(function (g) {
       var p2 = g.kind === 'risk' ? g.monthlyCost : (calc.isNum(g.employer) || calc.isNum(g.employee) ? calc.r2((g.employer || 0) + (g.employee || 0)) : g.contribTotal); if (calc.isNum(p2)) prem = calc.r2(prem + p2);
       var label = (schema.GROUP_KINDS[g.kind] || g.kind) + '   ' + (g.provider || '');
       if (g.kind === 'risk') return [{ content: t(label + (g.statementDate ? '\nStatement ' + g.statementDate : '') + (g.paidBy ? '  |  paid by ' + g.paidBy : '')), styles: { halign: 'left', fontStyle: 'bold' } }, cell(g, 'life'), cell(g, 'sev'), cell(g, 'lsd'), cell(g, 'ip'), right(g.ipWaiting || '-'), right(PC(g.aci)), right(PC(g.abi)), right(A(p2))];
       return [{ content: t(label + '\n' + (calc.isNum(g.value) ? 'Fund value ' + A(g.value) + '  |  ' : '') + (calc.isNum(g.employer) || calc.isNum(g.employee) ? 'employer ' + A(g.employer || 0) + ', employee ' + A(g.employee || 0) : 'POI needed')), styles: { halign: 'left', fontStyle: 'bold' } }, right('-'), right('-'), right('-'), right('-'), right('N/A'), right(PC(g.aci)), right('N/A'), right(A(p2))];
     });
-    if (!items.length && !pi.count) return empty(doc, y, 'No group benefits or personal investments.');
     prem = calc.r2(prem + pi.monthly);
-    rows.push([{ content: t('Personal investments\nThe total of the current investments (block 8)'), styles: { halign: 'left', fontStyle: 'bold' } }, right(pi.count ? A(pi.gross) : '-'), right(''), right(''), right(''), right('N/A'), right('N/A'), right('N/A'), right(pi.count ? A(pi.monthly) : '-')]);
-    var f = function (s) { return right(s, { fontStyle: 'bold', fillColor: ORANGE }); };
+    if (pi.count) rows.push([{ content: t('Personal investments\nThe total of the current investments (block 8)'), styles: { halign: 'left', fontStyle: 'bold' } }, right(A(pi.gross)), right(''), right(''), right(''), right('N/A'), right('N/A'), right('N/A'), right(A(pi.monthly))]);
+    var f = function (s2) { return right(s2, { fontStyle: 'bold', fillColor: ORANGE }); };
     rows.push([{ content: 'Total', styles: { halign: 'left', fontStyle: 'bold', fillColor: ORANGE } }, f(A(calc.r2(gt.life + pi.gross))), f(A(gt.sev)), f(A(gt.lsd)), f(PM(gt.ip)), f(''), f(''), f(''), f(A(prem))]);
-    return table(doc, y, { head: [['Item', 'Life cover', 'Severe illness', 'Lump sum disability' + age, 'Income protector / sickness benefit' + age, 'Waiting period', 'ACI', 'ABI', 'Total monthly premium']], colw: [66, 30, 28, 30, 32, 20, 14, 14, 39], align: ['left'], body: rows });
+    y = table(doc, y, { head: [['Item', 'Life cover', 'Severe illness', 'Lump sum disability' + age, 'Income protector / sickness benefit' + age, 'Waiting period', 'ACI', 'ABI', 'Total monthly premium']], colw: [66, 30, 28, 30, 32, 20, 14, 14, 39], align: ['left'], body: rows });
+    if (!pi.count) { y += 3; red('There are no personal investments in place.'); }
+    return y;
   }
   function shortfallPage(doc, state, b) {
     var y = pageTitle(doc, b.n + '. ' + b.title), s = calc.shortfall(state);
@@ -204,7 +209,7 @@
   }
   function investmentsPage(doc, state, b) {
     var y = pageTitle(doc, b.n + '. ' + b.title), items = calc.investments(state), pi = calc.personalInvestments(state);
-    if (!items.length) return empty(doc, y, 'No current investments.');
+    if (!items.length) return empty(doc, y, 'There are no current investments in place.');
     var rows = items.map(function (i) {
       var vs = i.valueSource || {}, src = vs.kind ? (vs.kind === 'astute' ? 'Astute report' : 'Investment schedule') + (vs.date ? '\n' + vs.date : '') : '-';
       return [{ content: t((i.provider || 'Investment') + '\n' + (i.product || '')), ov: { tick: !!i.wr }, styles: { halign: 'left', fontStyle: 'bold', cellPadding: { top: 2, bottom: 2, left: 9, right: 2 } } }, center(i.valueDate || '-'), center(src), right(A(i.gross)), right(A(i.penalty)),
@@ -237,24 +242,30 @@
   var PAGES = { policies: policiesPage, fna: quotesPage, group: groupPage, shortfall: shortfallPage, shortfallQuote: quotesPage, reduced: quotesPage, comparative: quotesPage, investments: investmentsPage, proposed: proposedPage, goals: goalsPage, other: otherPage };
 
   /* One page, drawn on a page of height H. Returns how far down the content reached (so the page can be made exactly that tall). */
-  function drawPage(doc, state, id, H, measuring) {
-    if (id === 'cover') return cover(doc, state, H, measuring);
+  function drawPage(doc, state, id, H, measuring, pages) {
+    if (id === 'cover') return cover(doc, state, H, measuring, pages);
     var b = schema.blocksById[id];
-    tabRow(doc, b.n, false, measuring);
+    tabRow(doc, b.n, pages, measuring);
     return PAGES[id](doc, state, b);
   }
+  /* The pages there are: the cover and every block whose page has something to say (ov-calc.js pageShown); no[i] is the page number of tab i, 0 for a page that is left out. */
+  function pagesOf(state) {
+    var ids = ['cover'].concat(schema.BLOCKS.filter(function (b) { return calc.pageShown(state, b.id); }).map(function (b) { return b.id; })), no = [], all = ['cover'].concat(schema.BLOCKS.map(function (b) { return b.id; }));
+    all.forEach(function (id) { no.push(ids.indexOf(id) + 1); });
+    return { ids: ids, no: no };
+  }
   function build(state) {
-    var jsPDF = window.jspdf.jsPDF, ids = ['cover'].concat(schema.BLOCKS.map(function (b) { return b.id; })), orient = function (h) { return h > W ? 'portrait' : 'landscape'; };
+    var jsPDF = window.jspdf.jsPDF, pages = pagesOf(state), ids = pages.ids, orient = function (h) { return h > W ? 'portrait' : 'landscape'; };
     var heights = ids.map(function (id) {
       if (id === 'cover') return MIN_H;
       var scratch = new jsPDF({ unit: 'mm', format: [W, 4000], orientation: 'portrait' });
-      return Math.max(MIN_H, Math.ceil(drawPage(scratch, state, id, 4000, true) + M));
+      return Math.max(MIN_H, Math.ceil(drawPage(scratch, state, id, 4000, true, pages) + M));
     });
     var doc = new jsPDF({ unit: 'mm', format: [W, heights[0]], orientation: orient(heights[0]) });
-    ids.forEach(function (id, i) { if (i) doc.addPage([W, heights[i]], orient(heights[i])); drawPage(doc, state, id, heights[i], false); });
+    ids.forEach(function (id, i) { if (i) doc.addPage([W, heights[i]], orient(heights[i])); drawPage(doc, state, id, heights[i], false, pages); });
     if (doc.setDisplayMode) doc.setDisplayMode('fullpage', 'single');
     if (doc.setProperties) doc.setProperties({ title: schema.fileName(state), subject: 'Client Overview', author: 'Wealth Revolution' });
     return doc;
   }
-  OV.pdf = { build: build, TABS: TABS, W: W, MIN_H: MIN_H };
+  OV.pdf = { build: build, pagesOf: pagesOf, TABS: TABS, W: W, MIN_H: MIN_H };
 })();

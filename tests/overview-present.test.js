@@ -14,14 +14,14 @@ const app = f => fs.readFileSync(path.join(__dirname, '..', 'app', f), 'utf8');
 
 const FFJ = () => ({
   app: 'wr-fact-find', schema: '5.4',
-  f: { fname: { v: 'Test' }, sname: { v: 'Client' }, net: { v: 'R 40 000.00' }, gross: { v: 'R 50 000.00' }, ip_age: { v: '65' }, date: { v: '20/11/2026' }, dd_cover: { v: 'R 500 000.00' } },
+  f: { fname: { v: 'Test' }, sname: { v: 'Client' }, net: { v: 'R 40 000.00' }, gross: { v: 'R 50 000.00' }, ip_age: { v: '65' }, date: { v: '20/11/2026' }, dd_cover: { v: 'R 500 000.00' }, bf_sf_req: { v: 'Request a quote' }, fna_req: { v: 'Request a quote' }, rgar_req: { v: 'Request a quote' } },     // asked for: a shortfall quote, a comparative quote, the RGAR (all eleven pages)
   l: {
     kids: [{ d: { name: 'Amy', sname: 'Client', cost: 'R 5 000.00' } }, { d: { name: 'Ben', sname: 'Client', cost: 'R 5 000.00' } }],
     debts: [{ d: { type: 'Home loan', prov: 'Test Bank', desc: 'Home loan', inst: 'R 12 000.00', bal: 'R 1 200 000.00', term: '180' } }, { d: { type: 'Vehicle finance', prov: 'Test Bank', desc: 'Car loan', inst: 'R 4 000.00', bal: 'R 200 000.00', term: '60' } },
       { d: { type: 'Credit card', prov: 'Test Bank', desc: 'Credit card', inst: 'R 1 500.00', bal: 'R 50 000.00', term: 'Max term?' } }],
     risk: [{ d: { prov: 'Other Insurer', spend: 'R 1 200.00', broker: 'Other broker' } }], grp: [{ d: { prov: 'Test Group', spend: '', broker: 'Other broker' } }],
     ret_ra: [{ d: { prov: 'Test RA Co', status: 'Current', val: 'R 50 000.00', contrib: 'R 600.00', broker: 'Paul K' } }],
-    bfred: [{ d: { req: 'Request a quote', type: 'Servicing', amt: 'R 1 400.00' } }], raq: [], invq: []
+    bfred: [{ d: { req: 'Request a quote', type: 'Servicing', amt: 'R 1 400.00' } }], raq: [{ d: { req: 'Request a quote', ins: 'Old Mutual', monthly: 'R 5 000.00', lump: '' } }], invq: []
   }
 });
 function sample() {
@@ -130,10 +130,38 @@ test('the map: a short figure for each block and never an income figure', () => 
   const s = sample(), f = pres.mapFigures(s);
   assert.deepStrictEqual(Object.keys(f), ['policies', 'fna', 'group', 'shortfall', 'shortfallQuote', 'reduced', 'comparative', 'investments', 'proposed', 'goals', 'other']);
   assert.match(f.policies, /polic/); assert.strictEqual(f.fna, 'R2,900 p.m.'); assert.match(f.reduced, /2 quotes · from R1,400 p.m./); assert.match(f.investments, /1 investment/);
-  assert.strictEqual(f.comparative, 'None yet');
+  assert.strictEqual(f.comparative, 'None yet'); assert.strictEqual(f.proposed, '1 proposal');
   assert.ok(!Object.values(f).some(v => /40,?000|50,?000|net income|gross/i.test(v)), 'no income on the map');
   assert.strictEqual(pres.short(1000000), 'R1m'); assert.strictEqual(pres.short(2450000), 'R2.5m'); assert.strictEqual(pres.short(80000), 'R80k'); assert.strictEqual(pres.short(2900), 'R2,900');
   const b = store.blank(); const e = pres.mapFigures(b); assert.strictEqual(e.policies, 'None yet'); assert.strictEqual(e.fna, 'Waiting'); assert.strictEqual(e.shortfall, 'Waiting');
+});
+
+test('a page that is left out (as in the PDF) cannot be asked for, is not in the closed list, and shows "Not included" on the map', () => {
+  const s = sample(); s.factFind.facts.asked = { sf: false, comparative: false }; s.blocks.proposed.items.forEach(i => { i.removed = true; }); s.blocks.goals.items.forEach(g => { g.requested = false; });
+  const L = pres.topics(s), navs = L.filter(t => t.dim === 'nav' && !t.specific).map(t => t.target.tab);
+  assert.deepStrictEqual(navs, ['policies', 'fna', 'group', 'shortfall', 'reduced', 'investments', 'other'], 'the seven pages that exist');
+  assert.strictEqual(pres.decide('let\'s talk about the goal analysis reports', L).status, 'unknown');
+  assert.strictEqual(pres.decide('go to the comparative quotes', L).status, 'unknown');
+  const f = pres.mapFigures(s);
+  ['shortfallQuote', 'comparative', 'proposed', 'goals'].forEach(id => assert.strictEqual(f[id], 'Not included', id));
+  assert.deepStrictEqual(pres.shownOrder(s), ['map', 'policies', 'fna', 'group', 'shortfall', 'reduced', 'investments', 'other'], 'next and back go from page to page that exists');
+  assert.deepStrictEqual(pres.shownOrder(sample()), pres.ORDER, 'all eleven pages and the map when everything is there');
+});
+
+test('the Presentation is white with the Wealth Revolution blue, orange accents and the logo; a left-out page has a grey tab and a grey node', () => {
+  const css = app('css/present.css'), js = app('js/ov-present.js');
+  assert.ok(/\.pres \{[^}]*background: #fff/.test(css), 'a white background');
+  assert.ok(!/background: #0f1318|#0f1318/.test(css), 'no black left');
+  assert.ok(/--wr: #27a8e0/.test(css) && /--or: #f0a050/.test(css), 'the blue of the PDF and the orange accent');
+  assert.ok(/\.ptab\.off/.test(css) && /\.pnode\.off/.test(css), 'grey tab and grey node');
+  assert.ok(/class="plogo" src="assets\/logo\.png"/.test(js) && /\.plogo/.test(css), 'the logo in the bar');
+  assert.ok(/disabled title=/.test(js) && /calc\.pageShown/.test(js), 'a left-out page cannot be opened');
+});
+
+test('the ACI is shown as the quote words it (or "10% fixed") in the Presentation too', () => {
+  const js = app('js/ov-present.js');
+  assert.ok(/calc\.fmtAci/.test(js) && /AC\(it\)/.test(js) && /lineRow\(l, isPolicy \? null : c\)/.test(js));
+  const q = { aci: 10 }; assert.strictEqual(calc.fmtAci(q), '10% fixed'); q.aciText = '7.5% + age rater'; assert.strictEqual(calc.fmtAci(q), '7.5% + age rater'); assert.strictEqual(calc.fmtAci({ aci: null }), '');
 });
 
 const KP = (pts, over) => JSON.stringify(Object.assign({ app: 'wr-keypoints', schema: '0.1', points: pts }, over || {}));
@@ -188,7 +216,7 @@ test('the page: a Present button, the stylesheet and the scripts in the right or
   assert.ok(/who/.test(ui) && /engine\.hear\(t, m && m\.who\)/.test(ui), 'every line goes to the engine with its speaker tag');
   assert.ok(/'wr-keypoints'/.test(ui) && !/wr-keypoints.*\.json/.test(ui), 'the library is kept in this browser only');
   assert.ok(!/<input(?![^>]*type="file")|<select|<textarea|contenteditable/i.test(ui.replace(/'<input type="file"[^']*'/g, '')) || /pKpIn/.test(ui), 'the only input is the hidden file chooser for the key points');
-  assert.strictEqual(require('../app/js/ov-schema.js').pageVersion, '0.6');
+  assert.strictEqual(require('../app/js/ov-schema.js').pageVersion, '0.7');
 });
 
 test('the Presentation reads the overview and never writes to it', () => {
