@@ -7,7 +7,7 @@
   else { root.OV = root.OV || {}; root.OV.docs = factory(root.FF.util, root.OV.schema, root.OV.calc, root.OV.store); }
 })(typeof self !== 'undefined' ? self : this, function (util, schema, calc, store) {
   var ENDPOINT = 'https://api.anthropic.com/v1/messages', API_VERSION = '2023-06-01';
-  var BLOCK_LABEL = { policies: 'Current policies', fna: 'FNA quote', group: 'Group benefits', shortfallQuote: 'Shortfall quote', reduced: 'Reduced quote', comparative: 'Comparative quote', investments: 'Current investments', astute: 'Astute report', cmp: 'Change moment pay-out guide' };
+  var BLOCK_LABEL = { policies: 'Current policies', fna: 'FNA quote', group: 'Group benefits', shortfallQuote: 'Shortfall quote', reduced: 'Reduced quote', comparative: 'Comparative quote', investments: 'Current investments', astute: 'Astute report', cmp: 'Change moment pay-out guide', proposed: 'Proposed investment', goals: 'Goal analysis report' };
   var QUOTE_OF = { fna: 'fna', shortfallQuote: 'shortfall', reduced: 'reduced', comparative: 'comparative' };
 
   /* ---------- sorting a document by its name ---------- */
@@ -19,11 +19,13 @@
     if ((m = /(\d{1,2})[.\/-](\d{1,2})[.\/-](\d{2}|\d{4})(?!\d)/.exec(n))) { var y = +m[3]; if (y < 100) y += 2000; date = two(+m[1]) + '/' + two(+m[2]) + '/' + y; }
     var block = null;
     if (/cmpo|change[ _-]?moment/.test(low)) block = 'cmp';
+    else if (/rgar|egar|goal[ _-]?analysis|goal[ _-]?report|retirement goal|education goal/.test(low)) block = 'goals';
     else if (/(^|[^a-z])fna([^a-z]|$)/.test(low)) block = 'fna';
     else if (/shortfall/.test(low)) block = 'shortfallQuote';
     else if (/reduced/.test(low)) block = 'reduced';
     else if (/astute/.test(low)) block = 'astute';
     else if (/group|funds ?at ?work|benefit statement|membership certificate|certificate/.test(low)) block = 'group';
+    else if (/(optimal|tax[ _-]?free|retirement annuity|endowment|unit trust|living annuity|investment).*(quote|proposal|illustration)|(quote|proposal|illustration).*(optimal|tax[ _-]?free|retirement annuity|endowment|living annuity)/.test(low)) block = 'proposed';
     else if (/(momentum|sanlam|discovery|liberty|old mutual|hollard|assupol|metropolitan|absa|bidvest|clientele).*(quote|proposal|illustration)|comparative/.test(low)) block = 'comparative';
     else if (/schedule|policy|(^|[^a-z])ps([^a-z]|$)/.test(low)) block = 'policies';
     else if (/investment|statement|(^|[^a-z])ra([^a-z]|$)|retirement annuity|tax.?free|endowment|unit trust|fund value/.test(low)) block = 'investments';
@@ -37,7 +39,7 @@
     '"life": { "lump": n, "monthly": n }, "sev": { "lump": n }, "lsd": { "lump": n, "monthly": n }, "ip": { "monthly": n }, "waiting": "text as printed", "abi": n }';
   var SPECS = {
     quote: 'This is an insurance quote (BrightRock or another insurer). Return { "insurer": "text", "number": "the quote or CP number as printed", "date": "dd/mm/yyyy", "rates": "e.g. Non-smoker rates", "aci": n (the yearly premium increase), "premium": n (the total monthly premium), ' +
-      '"disabilityAge": n (the age lump sum disability and the income protector run to), "lines": [ ' + LINE + ' ], "printedTotals": { "life": { "lump": n, "monthly": n }, "sev": { "lump": n }, "lsd": { "lump": n, "monthly": n }, "ip": { "monthly": n } } }. ' +
+      '"servicing": true | false (true when the quote is for a policy the client already has, a review or servicing quote; false for new business), "disabilityAge": n (the age lump sum disability and the income protector run to), "lines": [ ' + LINE + ' ], "printedTotals": { "life": { "lump": n, "monthly": n }, "sev": { "lump": n }, "lsd": { "lump": n, "monthly": n }, "ip": { "monthly": n } } }. ' +
       'Each need (household, each child, each debt, death-related needs, additional expense needs / dread) is one line; the monthly figure printed under a lump sum is "monthly". A child line has the child\'s name and surname; a debt line the debt\'s name. ' +
       'For a quote that does not list needs separately (other insurers), give one line of type "other" for each benefit with its label. printedTotals is only what the document itself prints as totals; leave it null if it prints none.',
     policy: 'This is a policy schedule. Return { "insurer": "text", "product": "text", "policyNo": "text", "doc": "dd/mm/yyyy (date of commencement)", "premium": n (monthly), "aci": n, "abi": n, "ipAge": n, "benefits": { "life": "short description as printed", "lsd": "...", "ip": "..." }, "lines": [ ' + LINE + ' ] }. ' +
@@ -47,9 +49,12 @@
       'Write "Not found" in endAge when the statement does not give the age a benefit ends.',
     investment: 'This is an investment or retirement annuity statement or schedule. Return { "provider": "text", "product": "text", "policyNo": "text", "valueDate": "dd/mm/yyyy", "valueKind": "schedule", "gross": n (fund value), "penalty": n (Section 14 transfer penalty), "returnRate": n (since inception), "aci": n (the yearly contribution increase; write "Not found" if the schedule does not give it), "monthly": n (the monthly premium or contribution) }.',
     astute: 'This is an Astute report. Return { "reportDate": "dd/mm/yyyy", "investments": [ { "provider": "text", "product": "text", "policyNo": "text", "gross": n, "monthly": n } ] } with every investment and retirement annuity in it.',
+    proposal: 'This is a quote or proposal for an investment (a retirement annuity, a tax-free investment, an endowment, unit trusts, a Section 14 or pension / provident fund transfer, a living annuity). Return { "provider": "text", "type": "Tax-free investment" | "Retirement annuity (RA)" | "Endowment" | "Unit trusts (open-ended)" | "Section 14 transfer" | "Pension / provident fund transfer", "number": "the quote number as printed", ' +
+      '"contribution": "lump" | "monthly" | "both" | "transfer", "lump": n (a lump sum), "monthly": n (the monthly premium), "boostPct": n (the boost or bonus on the contribution as a percentage, only if printed), "netInvested": n (the net amount invested after charges and boost, only if printed), "aci": n (the yearly contribution increase) }.',
+    goal: 'This is a Retirement Goal Analysis Report (RGAR) or an Education Goal Analysis Report (EGAR). Return { "kind": "rgar" | "egar", "note": "a short reason, only if the report says it could not be done or is not applicable, else null", "currentValuePm": n (the current value in rand a month, gross), "futureValuePm": n (the future value in rand a month, gross), "aci": n, "premium": n (the monthly premium) }.',
     cmp: 'This is a BrightRock change moment pay-out guide. Return { "number": "the CP number", "activationDate": "dd/mm/yyyy", "reason": "BrightRock\'s reason, only if it gives no pay-out, else null", "rows": [ { "key": "total" | "retirement" | "childcare" | "child", "name": "child first name", "sname": "child surname", "today": n, "projected": n, "payoutDate": "dd/mm/yyyy" or null } ] }.'
   };
-  var SPEC_OF = { fna: 'quote', shortfallQuote: 'quote', reduced: 'quote', comparative: 'quote', policies: 'policy', group: 'group', investments: 'investment', astute: 'astute', cmp: 'cmp' };
+  var SPEC_OF = { fna: 'quote', shortfallQuote: 'quote', reduced: 'quote', comparative: 'quote', policies: 'policy', group: 'group', investments: 'investment', astute: 'astute', cmp: 'cmp', proposed: 'proposal', goals: 'goal' };
   function promptFor(block, ctx) {
     return 'You read insurance documents for a South African financial adviser. ' + RULES + '\n\n' + SPECS[SPEC_OF[block]] + (ctx && ctx.clientNote ? '\n\n' + ctx.clientNote : '');
   }
@@ -127,6 +132,7 @@
     q.number = s(data.number) || ''; q.date = dmy(data.date); if (s(data.rates)) q.rates = s(data.rates);
     if (data.aci !== undefined) q.aci = n(data.aci);
     if (data.premium !== undefined && !o.nameOnly) q.premium = n(data.premium);
+    if (data.servicing === true || data.servicing === false) q.servicing = data.servicing;
     if (data.disabilityAge !== undefined && calc.isNum(n(data.disabilityAge))) q.disabilityAge = n(data.disabilityAge);
     if (read) q.lines = data.lines.map(function (l) { return line(l, src); });
     if (data.printedTotals && typeof data.printedTotals === 'object') q.printedTotals = pillarsOf(data.printedTotals);
@@ -194,6 +200,43 @@
     return q;
   }
 
-  return { classify: classify, promptFor: promptFor, parseReply: parseReply, readWithClaude: readWithClaude, applyQuote: applyQuote, applyPolicy: applyPolicy, applyGroup: applyGroup, applyInvestment: applyInvestment, applyAstute: applyAstute,
+  /* A proposed investment (block 9). A row from the Fact Find (the same provider, and the same type when the document says one) that no document has filled yet is filled in; otherwise a new row is added.
+     Returns { item, matched }. Nothing is checked here: everything is amber. */
+  function applyProposed(state, data, file) {
+    data = data || {}; var src = srcOf('proposal', file), items = state.blocks.proposed.items, who = calc.norm(s(data.provider) || '');
+    var type = null; schema.PROPOSED_TYPES.forEach(function (t) { if (calc.norm(t) === calc.norm(s(data.type) || '')) type = t; });
+    var hit = items.filter(function (i) {
+      var m = calc.norm(i.provider || ''); return !i.removed && (i.st === 'ff' || i.st === 'empty') && who && m && (m.indexOf(who) >= 0 || who.indexOf(m) >= 0) && (!type || i.type === type);
+    })[0] || null, it = hit || store.newProposed();
+    if (type) it.type = type; if (s(data.provider)) it.provider = s(data.provider); if (s(data.number)) it.quote = s(data.number);
+    ['lump', 'monthly', 'boostPct', 'netInvested', 'aci'].forEach(function (k) { if (data[k] !== undefined && data[k] !== null) it[k] = n(data[k]); });
+    if (['lump', 'monthly', 'both', 'transfer'].indexOf(data.contribution) >= 0) it.contribution = data.contribution;
+    else if (calc.isNum(it.lump) && calc.isNum(it.monthly) && it.lump && it.monthly) it.contribution = 'both'; else if (calc.isNum(it.lump) && it.lump) it.contribution = 'lump'; else if (calc.isNum(it.monthly) && it.monthly) it.contribution = 'monthly';
+    it.st = 'verify'; it.by = 'page'; it.src = src; if (!hit) items.push(it);
+    return { item: it, matched: !!hit };
+  }
+  /* A goal analysis report (block 10): the RGAR or the EGAR row (made when it is not there) gets the report's figures. Returns { item, wasRequested }. */
+  function applyGoal(state, data, file) {
+    data = data || {}; var src = srcOf('goal', file), kind = /egar|education/i.test(String(data.kind || '')) ? 'egar' : 'rgar', items = state.blocks.goals.items;
+    var it = items.filter(function (g) { return g.kind === kind && !g.removed; })[0], was = it ? !!it.requested : false;
+    if (!it) { it = { id: 'goal-' + kind, kind: kind, requested: true, note: '', currentValuePm: null, futureValuePm: null, aci: null, premium: null, st: 'empty', src: null, by: 'page', removed: false }; items.push(it); }
+    ['currentValuePm', 'futureValuePm', 'aci', 'premium'].forEach(function (k) { if (data[k] !== undefined && data[k] !== null) it[k] = n(data[k]); });
+    it.requested = true; if (s(data.note)) it.note = s(data.note); else if (!was) it.note = '';
+    it.st = 'verify'; it.by = 'page'; it.src = src; return { item: it, wasRequested: was };
+  }
+  /* What was read has nothing in it (a document that is not the kind said, a scan that could not be read): the caller says so and only records the document. */
+  function isEmptyRead(block, data) {
+    if (!data || typeof data !== 'object') return true;
+    var has = function (v) { return v !== undefined && v !== null && v !== '' && !(typeof v === 'number' && !isFinite(v)); };
+    var kind = SPEC_OF[block];
+    if (kind === 'quote') return !(data.lines && data.lines.length) && !has(data.premium);
+    if (kind === 'proposal') return !has(data.lump) && !has(data.monthly) && !has(data.netInvested);
+    if (kind === 'goal') return !has(data.currentValuePm) && !has(data.futureValuePm) && !has(data.premium);
+    if (kind === 'cmp') return !(data.rows && data.rows.length) && !has(data.reason);
+    if (kind === 'astute') return !(data.investments && data.investments.length);
+    return !Object.keys(data).some(function (k) { return has(data[k]) && typeof data[k] !== 'object'; }) && !Object.keys(data).some(function (k) { var v = data[k]; return v && typeof v === 'object' && Object.keys(v).some(function (j) { return has(v[j]); }); });
+  }
+
+  return { classify: classify, promptFor: promptFor, parseReply: parseReply, readWithClaude: readWithClaude, applyQuote: applyQuote, applyPolicy: applyPolicy, applyGroup: applyGroup, applyInvestment: applyInvestment, applyAstute: applyAstute, applyProposed: applyProposed, applyGoal: applyGoal, isEmptyRead: isEmptyRead,
     applyCmp: applyCmp, matchItem: matchItem, logDoc: logDoc, findQuoteByNumber: findQuoteByNumber, SPEC_OF: SPEC_OF, BLOCK_LABEL: BLOCK_LABEL, QUOTE_OF: QUOTE_OF, ENDPOINT: ENDPOINT };
 });

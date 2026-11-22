@@ -178,3 +178,26 @@ Paul saw and corrected the mock-ups ("I'm happy with everything") and asked for 
 - **Comparative quotes:** one whole-of-life line to start with (replaced when a document is read); the user adds "Other line" rows and describes them; no change to totals, PDF or Presentation (they already draw any line type).
 
 **Not certain:** seen only in my own screenshots, not on Paul's screen; **whether the carried-over rule is what Paul means by a review year** (for example whether last year's FNA should stay visible for comparison, or whether the Fact Find should be re-read first) is a guess to be corrected; the pay-out editor was tested with typed figures, not with a real "BR CMPO" guide; a BrightRock policy that came from an issued quote keeps the quote's pay-out only while the quote exists (a review drops it); the comparative quote's single starting line is my choice, and a quote that prints several amounts per benefit is typed with more lines.
+
+## 10. Paul's changes of 22 November (Client Overview Studio 0.6, on the work branch)
+
+Paul looked at the page on his screen and asked, through the Fix Skills chat: (1) the new name; (2) reading on by default (**this replaces his answer 2 of 21 November**, "off by default"); (3) three ways to fill blocks 2, 5, 6, 7, 9 and 10; (4) the menu dots explained, and the Shortfall dot green only when the FNA has figures. His note: "Today Paul's FNA upload filled nothing": with reading off, an upload was only recorded.
+
+| Part | Where |
+|---|---|
+| Name | `overview.html` (title, h1), `ov-ui.js` (the tab title), the Other forms link of the other three pages |
+| Reading | `ov-ui.js` `aiOn()` (on unless the stored switch is `0`); `ov-docs.js` new kinds `proposal` and `goal` (prompts, `applyProposed`, `applyGoal`, `isEmptyRead`, classification by file name, the quote's `servicing`) |
+| Client folder | `folders.js` `clientSubfolder` and `findFiles` (read only), `folders-ui.js` `clientFolder`, `ov-ui.js` `fromClientFolder`, `readGuide`, `reconcile`, the `data-upc` buttons |
+| Matching with the Fact Find | `ov-check.js`: the child by first name when the surname differs, the bank of a debt, a proposal against the Fact Find's request; `problems[].line`; `ov-ui.js` `lineFlag` (the amber mark and hover on the line) |
+| Dots | `ov-check.js` `dots`, `dotText`, `LEGEND`; `ov-ui.js` `drawNav` (hover text, the legend), `overview.css` |
+| Tests | `tests/overview-studio.test.js`, `tests/browser/t-overview-studio.js` (a real folder tree in the browser's private file system, the Anthropic call replaced by a stand-in that answers by kind of document) |
+
+**Decisions made while building (defaults for Paul to correct):**
+- **Where the file window opens:** the client's numbered folder whose name says *quote*, *goal* / *RGAR* / *EGAR* / *analysis* or *proposal* (then *investment*); for comparative quotes the deal folder's `Comparative Quotes`; else the client's folder. **I do not know the real folder names beyond those the code already used (`1. Overview`, `2. Fact Find`, `5. Astute`, `6. Policy Schedules`, `Comparative Quotes`): if Paul's quotes live in a folder with another name, tell me the name and it is one table in `folders.js` (`DOC_KIND`).**
+- **The pay-out guide is looked for only beside the quote that was picked** (the folder the file window opened in, and one level inside it), by "CMPO" or "change moment" in the name AND the same CP number as a digit run; only for a BrightRock quote that was read; if none is found the page says so.
+- **Reading "fills EVERY box"** is as good as the instructions in `ov-docs.js`; **the real Anthropic call has still never been made**, so what a real BrightRock FNA gives is untested. When a reading finds nothing the page says so and only records the document.
+- **The Fact Find comparison keeps the document's value and flags the difference** (it does not adopt the Fact Find's value), as Paul said: never silently overwrite.
+- **The browser may need one more click** to open its file window if finding the folder took long: a small "Choose" window then asks for it.
+- **"Client Overview" stays in the Presentation's centre and in the PDF** (the client-facing words); only the page's own heading, tab and menu links are Studio.
+
+**Not certain:** seen only in my own screenshots; the real file window opening in a real OneDrive folder (`startIn` with a connected folder handle) is untried here; the folder names above are a guess; the real reading quality is unknown.

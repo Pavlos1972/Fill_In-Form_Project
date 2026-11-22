@@ -142,9 +142,9 @@ test('the documents loaded are listed in the saved file (file names only), and c
   assert.deepStrictEqual(store.blank().documents, []);
 });
 
-test('only the name of a file is ever kept (no folder path), and no document is read unless the adviser has switched reading on', () => {
+test('only the name of a file is ever kept (no folder path); reading is ON by default (Paul, 22 November) but needs a key and can be switched off, and nothing is read while it is off', () => {
   const src = require('fs').readFileSync(require('path').join(__dirname, '..', 'app', 'js', 'ov-ui.js'), 'utf8');
-  assert.ok(/function aiOn\(\)[^}]*=== '1'/.test(src) && /var want = aiOn\(\), key = aiKey\(\), read = want && !!key\.apiKey/.test(src), 'reading needs the switch AND a key');
-  assert.ok(/getItem\(AI_KEY\) === '1'/.test(src) && !/setItem\(AI_KEY, '1'\)[^;]*;[^;]*init/.test(src), 'the switch starts off');
-  assert.ok(/window\.confirm\('Switch reading on\?/.test(src), 'switching it on asks first');
+  assert.ok(/function aiOn\(\)[^}]*!== '0'/.test(src) && /var want = aiOn\(\), key = aiKey\(\), read = want && !!key\.apiKey/.test(src), 'reading needs the switch AND a key');
+  assert.ok(/getItem\(AI_KEY\) !== '0'/.test(src) && /catch \(e\) \{ return true; \}/.test(src), 'the switch starts ON and is off only when the adviser switched it off');
+  assert.ok(/window\.confirm\('Switch reading on\?/.test(src), 'switching it on again asks first');
 });
