@@ -232,3 +232,17 @@ dialog#resultsDlg .docsess { max-height: 60vh; overflow: auto; }
 .ovw > .ovt tbody:last-of-type tr:last-child td { border-bottom: 0; }
 .qcard .ovw { margin: 8px 12px 12px; }
 .ovt tbody.dtl .qcard .ovw { margin: 8px 12px 12px; }
+/* round 4 (23 November): the ACI as short points, where a figure came from, the BrightRock email box, the folded Checks card */
+.ovt .aciu, .pols .aciu { margin: 0; padding-left: 14px; text-align: left; font-size: 12px; line-height: 1.25; }
+.ovt .aciu li, .pols .aciu li { margin: 0 0 1px; }
+.ovt small.via { display: block; color: var(--muted); font-size: 10.5px; line-height: 1.2; margin-top: 2px; text-align: right; }
+details.bre { margin: 10px 0 4px; border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; background: var(--surface); }
+details.bre summary { cursor: pointer; font-weight: 600; color: var(--accent); }
+details.bre textarea { width: 100%; box-sizing: border-box; margin: 8px 0; font: inherit; border: 1px solid var(--line); border-radius: 8px; padding: 8px; }
+details.bre .breMsg { margin-left: 8px; font-size: 13px; color: var(--ok); }
+details.bre .breMsg.bad { color: var(--warn); }
+details.chkall > summary { cursor: pointer; font-weight: 600; padding: 6px 2px; list-style-position: inside; }
+details.chkall[open] > summary { margin-bottom: 6px; }
+.ovt.pols .p-aci { width: 17%; } .ovt.pols .p-name { width: 16%; }                                            /* round 4: room for the ACI points; they never break in the middle of a word */
+.ovt .aciu { overflow-wrap: break-word; word-break: normal; hyphens: manual; }
+

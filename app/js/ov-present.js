@@ -46,7 +46,11 @@
   var NA = function (v) { return v === 'N/A' || v === 'Not found'; };
   function A(v, cls) { return calc.isNum(v) ? '<span class="a' + (cls ? ' ' + cls : '') + '">' + calc.fmtR(v) + '</span>' : NA(v) ? '<span class="na">' + v + '</span>' : '<span class="none">&ndash;</span>'; }
   function PM(v) { return calc.isNum(v) ? '<span class="a pmv">' + calc.fmtR(v) + '</span> <small class="pm">p.m.</small>' : A(v); }
-  function AC(x) { var t = calc.fmtAci(x); return t ? '<span class="a aci" title="' + esc(t) + '">' + esc(t) + '</span>' : '<span class="none">&ndash;</span>'; }
+  function AC(x) {
+    var t = calc.fmtAci(x), pts = calc.aciPoints(x); if (!t) return '<span class="none">&ndash;</span>';
+    if (pts.length === 1 && pts[0] === t) return '<span class="a aci" title="' + esc(t) + '">' + esc(t) + '</span>';
+    return '<span class="a aci pts" title="' + esc(t) + '"><ul>' + pts.map(function (p) { return '<li>' + esc(p) + '</li>'; }).join('') + '</ul></span>';          // 1 to 3 short points (round 4); the whole wording is the hover text
+  }
   function PC(v) { return calc.isNum(v) ? '<span class="a">' + calc.fmtPct(v) + '</span>' : NA(v) ? '<span class="na">' + v + '</span>' : '<span class="none">&ndash;</span>'; }
   function td(inner, cls, pil, extra) { return '<td' + (cls ? ' class="' + cls + '"' : '') + (pil ? ' data-pil="' + pil + '"' : '') + (extra || '') + '>' + inner + '</td>'; }
   function th(text, pil, cls) {
@@ -76,7 +80,7 @@
   /* ---------- the lines of a quote or a policy ---------- */
   function needCell(l) {
     var tp = schema.lineTypesById[l.type] || schema.lineTypesById.other, name = l.type === 'child' ? ((l.name || '') + ' ' + (l.sname || '')).trim() : l.type === 'debt' ? [l.debt, l.bank].filter(Boolean).join(' - ') : '';
-    var cov = l.type === 'debt' ? (l.accelerated === true ? '<small class="cov">Accelerated</small>' : l.accelerated === false ? '<small class="cov">Standalone</small>' : '') : '';
+    var cov = l.type !== 'other' ? (l.accelerated === true ? '<small class="cov">Accelerated</small>' : l.accelerated === false ? '<small class="cov">Standalone</small>' : '') : '';          // every need line, not only a debt (round 4)
     return td('<b>' + esc(l.type === 'other' ? (l.label || tp.l) : tp.l) + '</b>' + (name ? '<small>' + esc(name) + '</small>' : '') + cov, 'l');
   }
   function lineLabel(l) {

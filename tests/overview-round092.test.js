@@ -46,11 +46,11 @@ test('a figure the reading did not find says "Not found" in its box (never an em
   assert.ok(!by('debt').life.monthly || by('debt').life.monthly === 'Not found', 'the Fact Find\'s instalment is shown, not copied into the box');
 });
 
-test('an older line with an EMPTY box (read by 0.91 or before) is flagged "Empty", not ticked and not changed to Not found (the page cannot know what the quote had)', () => {
+test('an older line with an EMPTY box (read by 0.91 or before) is flagged "Empty" until the page fills it (0.93: from another quote of the same debt, else from the Fact Find, and says so)', () => {
   const s = withFF(), q = readFna(s, FULL); q.lines.filter(l => l.type === 'debt')[0].life.monthly = null; q.lines.forEach(l => { l.st = 'verify'; delete l.match; });
   const p = check.run(s).problems.filter(x => x.id === 'figures'); assert.strictEqual(p.length, 1); assert.match(p[0].short, /^Empty: monthly instalment \(Fact Find: R14,000\)\.$/);
-  check.settleAll(s); const debts = q.lines.filter(l => l.type === 'debt'); assert.strictEqual(debts[0].st, 'verify', 'the line with the empty box stays to check'); assert.strictEqual(debts[0].life.monthly, null);
-  assert.ok(debts.slice(1).every(l => l.st === 'confirmed'), 'the others, with every figure, are ticked');
+  check.settleAll(s); const debts = q.lines.filter(l => l.type === 'debt'); assert.strictEqual(debts[0].life.monthly, 14000, '0.93: the page fills it from the Fact Find (no other quote has it)'); assert.strictEqual(debts[0].via['life.monthly'], 'from the Fact Find');
+  assert.ok(debts.every(l => l.st === 'confirmed'), 'with every figure there, every debt line is ticked');
 });
 
 /* ---------- 6: dread ---------- */
@@ -113,7 +113,7 @@ test('a Follow-Up Summary Notes with nothing for the five covers is "Read: nothi
   assert.ok(/block === 'followup'\) \{ notice = 'Read: nothing new for these covers'; data = \{ items: \{\} \}/.test(ui), 'not an error');
   assert.ok(/failure \? 'Could not read it: ' \+ failure : notice/.test(ui), 'the real message is on the bar');
   assert.ok(/\.nav \.prog\.error \{ height: auto/.test(app('css/overview.css')), 'and it is shown in full');
-  assert.ok(/class="allchecks loadlog" open/.test(ui), 'the Checks panel shows what the last load said, open');
+  assert.ok(/class="allchecks loadlog"><summary>/.test(ui) && /<details class="chkall"/.test(ui), '0.93: what the last load said, and the whole Checks card, are folded (closed)');
 });
 
 const BLOCK11 = { ma: v('Medical aid'), n_ma: v('Test Health Scheme, Saver plan, R 1 800 per month. Paid by the employer.'), gap: v('Yes'), n_gap: v('Gap cover with Test Gap Co.'), will: v('Yes'), n_will: v('Will with Capital Legacy.'), sti: v('Yes'), n_sti: v('Test Short-term, R 2 539 p.m.') };
@@ -144,12 +144,12 @@ test('the reading is told: the income portion of every need, the debt\'s instalm
 /* ---------- 8: the Presentation ---------- */
 test('the Presentation\'s current policies table is roomy: its own class, taller rows, more padding, the ACI wording small and cut at four lines with the whole wording as the hover text', () => {
   const pr = app('js/ov-present.js'), css = app('css/present.css');
-  assert.ok(/tbl\(\[18, 13, 11, 13, 13, 7, 12, 5, 8\][^\n]*rows, 'pols'\)/.test(pr), 'the class and the wider ACI column'); assert.ok(/function AC\(x\)[^\n]*title="/.test(pr), 'the whole wording on hover');
+  assert.ok(/tbl\(\[18, 13, 11, 13, 13, 7, 12, 5, 8\][^\n]*rows, 'pols'\)/.test(pr), 'the class and the wider ACI column'); assert.ok(/function AC\(x\)[\s\S]{0,700}title="/.test(pr), 'the whole wording on hover');
   assert.ok(/\.pres \.ptbl\.pols td \{ padding: 15px 10px; height: 96px; \}/.test(css) && /\.pres \.ptbl\.pols \.a\.aci \{[^}]*font-size: 11\.5px[^}]*-webkit-line-clamp: 4/.test(css), 'padding, height and the small clamped ACI');
 });
 
 /* ---------- the contract ---------- */
 test('the contract: revision k, the page version 0.92, the layout still 0.1; no key added', () => {
-  assert.strictEqual(schema.pageVersion, '0.92'); assert.strictEqual(schema.version, '0.1');
+  assert.strictEqual(schema.pageVersion, '0.93'); assert.strictEqual(schema.version, '0.1');
   assert.ok(/Revision k/.test(fs.readFileSync(path.join(__dirname, '..', 'docs', 'OVERVIEW-DATA-CONTRACT.md'), 'utf8')), 'written in the contract');
 });

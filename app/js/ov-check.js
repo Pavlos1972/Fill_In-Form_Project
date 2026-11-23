@@ -223,8 +223,37 @@
   }
   /* Every quote already in the overview is brought up to the current rules (round 3, 23 November): a file saved, or a draft restored, by an older version gets its dread line without life cover, its income portions of 0, and its lines ticked by the quote
      (a quote read by 0.9 had them "to check"). Returns how many things changed. */
+  /* A debt's instalment the quote did not print (round 4, 23 November): the same debt has one instalment, so it is taken from the client's OTHER BrightRock quote of that debt (same name, abbreviations set aside), else from the Fact
+     Find's debt, and the line says where it came from (via). Only a line the page read from a quote, and only a box that is empty or "Not found". Returns how many were filled. */
+  var KIND_WORD = { fna: 'FNA quote', shortfall: 'shortfall quote', reduced: 'reduced quote' };
+  function fillInstalments(state) {
+    var n = 0, facts = state.factFind && state.factFind.facts, ffDebts = (facts && facts.debts) || [], all = [];
+    schema.QUOTE_KINDS.forEach(function (k) { calc.quotes(state, schema.blockOfQuote[k]).forEach(function (q) { if (q.kind !== 'comparative' && /bright/i.test(q.insurer || '')) all.push(q); }); });
+    all.forEach(function (q) {
+      var lines = calc.activeLines(q), ffOf = {};
+      calc.matchDebts(lines, ffDebts).pairs.forEach(function (p) { ffOf[p.line.id] = p.ff; });
+      lines.forEach(function (l) {
+        if (l.type !== 'debt' || !l.src || l.src.kind !== 'quote' || !l.life || typeof l.life !== 'object') return;
+        var m = l.life.monthly; if (calc.isNum(m) || !(m === null || m === undefined || m === '' || m === 'Not found')) return;
+        var cands = [];
+        all.forEach(function (o) {
+          if (o === q) return;
+          calc.activeLines(o).forEach(function (x) { if (x.type === 'debt' && x.life && calc.isNum(x.life.monthly) && x.debt && l.debt && calc.sameDebtName(x.debt, l.debt)) cands.push({ v: x.life.monthly, lump: x.life.lump, o: o }); });
+        });
+        var pick = null, distinct = cands.map(function (c) { return c.v; }).filter(function (v, i, a) { return a.indexOf(v) === i; });
+        if (distinct.length === 1) pick = cands[0];
+        else if (cands.length) pick = cands.filter(function (c) { return calc.isNum(c.lump) && calc.isNum(l.life.lump) && Math.abs(c.lump - l.life.lump) < 1; })[0] || null;
+        var v = null, from = '';
+        if (pick) { v = pick.v; from = 'from the ' + (KIND_WORD[pick.o.kind] || 'other quote') + (pick.o.number ? ' CP ' + pick.o.number : ''); }
+        else if (ffOf[l.id] && calc.isNum(ffOf[l.id].inst)) { v = ffOf[l.id].inst; from = 'from the Fact Find'; }
+        if (v == null) return;
+        l.life.monthly = v; l.via = l.via || {}; l.via['life.monthly'] = from; n++;
+      });
+    });
+    return n;
+  }
   function settleAll(state) {
-    var n = 0;
+    var n = fillInstalments(state);
     schema.QUOTE_KINDS.forEach(function (kind) {
       calc.quotes(state, schema.blockOfQuote[kind]).forEach(function (q) {
         (q.lines || []).forEach(function (l) { n += calc.settleLine(l); });
@@ -267,5 +296,5 @@
     if (dot === 'amber') return p.length ? 'To check: ' + p.length + (p.length === 1 ? ' thing is' : ' things are') + ' flagged. ' + [p[0].where, p[0].message].filter(Boolean).join(' ').slice(0, 140) : 'To check: some rows came from the Fact Find or from a document and are waiting for you to check them.';
     return id === 'shortfall' ? 'Nothing yet: the shortfall is worked out as soon as the FNA quote has figures.' : 'Nothing yet: waiting for a document, or for what you type.';
   }
-  return { run: run, dots: dots, qLabel: qLabel, qTitle: qTitle, docLines: docLines, autoMatch: autoMatch, settleAll: settleAll, NOTE_IDS: NOTE_IDS, dotText: dotText, emptyNotes: emptyNotes, LEGEND: LEGEND };
+  return { run: run, dots: dots, qLabel: qLabel, qTitle: qTitle, docLines: docLines, autoMatch: autoMatch, settleAll: settleAll, fillInstalments: fillInstalments, NOTE_IDS: NOTE_IDS, dotText: dotText, emptyNotes: emptyNotes, LEGEND: LEGEND };
 });
