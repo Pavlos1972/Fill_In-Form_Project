@@ -45,8 +45,9 @@
       'EVERY line has its own "abi": the annual benefit increase (annual base increase) of that need, as a number. BrightRock prints it for each need, or once for the whole quote: when it is printed once, copy it onto every line it covers (and also give it as "abi" of the quote). ' +
       'When the quote prints no annual benefit increase for a line, write "Not found" in that line\'s "abi", never null. Severe illness has an amount only on the lines where the quote gives one (the additional expense needs line); leave it null on the others. ' +
       'For a quote that does not list needs separately (other insurers), give one line of type "other" for each benefit with its label. printedTotals is only what the document itself prints as totals; leave it null if it prints none.',
-    policy: 'This is a policy schedule. Return { "insurer": "text", "product": "text", "policyNo": "text", "doc": "dd/mm/yyyy (date of commencement)", "premium": n (monthly), "aci": n, "aciText": "the yearly premium increase exactly as the schedule words it, or null when it only gives a figure", "abi": n, "ipAge": n, "benefits": { "life": "short description as printed", "lsd": "...", "ip": "..." }, "lines": [ ' + LINE + ' ] }. ' +
-      'Give one line for each benefit or need with its amounts; use type "other" for a benefit that is not a need.',
+    policy: 'This is a policy schedule from ANY insurer. Return { "insurer": "text", "product": "text", "policyNo": "text", "doc": "dd/mm/yyyy (date of commencement)", "premium": n (monthly), "aci": n, "aciText": "the yearly premium increase exactly as the schedule words it, or null when it only gives a figure", "abi": n, "ipAge": n, "benefits": { "life": "short description as printed", "lsd": "...", "ip": "..." }, "lines": [ ' + LINE + ' ] }. ' +
+      'The need-by-need lines (types household, child, debt, death, dread) belong ONLY to a BrightRock policy: for a BrightRock policy give one line for each need. For EVERY OTHER insurer (Liberty, Discovery, Old Mutual, Momentum, Sanlam, Hollard ...) a policy is ONE row with its benefits: give exactly ONE line of type "other", labelled with the product name, whose "life", "sev", "lsd" and "ip" cells hold the amounts of that policy\'s benefits (the lump sums, and the income protector a month). ' +
+      'NEVER use the types household, child, debt, death or dread for a policy that is not BrightRock, whatever the schedule lists.',
     group: 'This is a group risk benefit statement or a pension / provident fund statement. Return { "provider": "text", "statementDate": "dd/mm/yyyy", "basis": "e.g. 1.5 x insurance salary", "paidBy": "employer" | "employee" | "both" | null, "monthlyCost": n, "ipWaiting": "text", "aci": n, "abi": n, ' +
       '"life": { "amount": n, "endAge": "age or Whole of life as printed" }, "sev": { "amount": n, "endAge": "..." }, "lsd": { "amount": n, "endAge": "..." }, "ip": { "amount": n (a month), "endAge": "..." }, "value": n (fund value), "employer": n (a month), "employee": n (a month) }. ' +
       'Write "Not found" in endAge when the statement does not give the age a benefit ends.',
@@ -134,6 +135,12 @@
     state.documents = state.documents || []; state.documents.push({ id: store.uid('d'), file: String(file || ''), block: block, how: how, at: new Date().toISOString() });
   }
   function qkey(num) { return String(num == null ? '' : num).replace(/\D/g, ''); }
+  /* The quote of this block with this number (the digits are compared), not removed. quoteRead: it holds figures from a document (not only the Fact Find's lines). */
+  function quoteIn(state, block, num) {
+    var k = qkey(num); if (!k) return null;
+    return calc.quotes(state, block).filter(function (x) { return qkey(x.number) === k; })[0] || null;
+  }
+  function quoteRead(q) { return calc.activeLines(q).some(function (l) { return l.st === 'verify' || l.st === 'confirmed'; }); }
   function findQuoteByNumber(state, num) {
     var k = qkey(num), hit = null; if (!k) return null;
     calc.allQuotes(state).forEach(function (q) { if (qkey(q.number) === k) hit = q; });
@@ -169,6 +176,13 @@
     if (data.printedTotals && typeof data.printedTotals === 'object') q.printedTotals = pillarsOf(data.printedTotals);
     q.st = 'verify'; q.by = 'page'; q.src = src; q.status = 'pending';
     if (o.replaces) { var old = store.findQuote(state, o.replaces); if (old) { old.removed = true; old.replacedBy = q.id; q.replaces = old.id; } }
+    var same = o.replaces ? null : quoteIn(state, block, q.number);                                         // the same number in the same block (not the quote that is being replaced): ONE quote, never two (Paul, 23 November)
+    if (same) {
+      if (!read && quoteRead(same)) return { quote: same, read: false, duplicate: same, merged: 'kept' };   // only a name and a number: what was read is never replaced by it
+      var keep = { id: same.id, status: same.status, policyNo: same.policyNo, startDate: same.startDate, cmp: same.cmp, replaces: same.replaces, replacedBy: same.replacedBy };
+      Object.keys(same).forEach(function (k) { delete same[k]; }); Object.assign(same, q, keep);
+      return { quote: same, read: read, duplicate: same, merged: 'again' };
+    }
     var dup = findQuoteByNumber(state, q.number);                                                           // a quote with this number (not removed) is already there: the caller says so
     state.blocks[schema.blockOfQuote[kind]].quotes.push(q);
     return { quote: q, read: read, duplicate: dup || null };
@@ -196,6 +210,7 @@
     if (data.ipAge !== undefined && calc.isNum(n(data.ipAge))) item.ipAge = n(data.ipAge);
     if (data.benefits && typeof data.benefits === 'object') { item.benefits = item.benefits || {}; ['life', 'lsd', 'ip'].forEach(function (k) { if (s(data.benefits[k])) item.benefits[k] = s(data.benefits[k]); }); }
     if (data.lines && data.lines.length) item.lines = data.lines.map(function (l) { return line(l, src); });
+    store.flattenPolicyLines(item);                                                                         // the need-by-need lines are for a BrightRock policy only: any other insurer's policy is one row with its benefits
     item.st = 'verify'; item.by = 'page'; item.src = src; return item;
   }
   /* The legacy protection plan of block 11 (the only item there that takes a document): read like a policy schedule, put in the item's own boxes. */
@@ -284,5 +299,5 @@
   }
 
   return { classify: classify, promptFor: promptFor, parseReply: parseReply, readWithClaude: readWithClaude, applyQuote: applyQuote, enrich: enrich, factNote: factNote, applyPolicy: applyPolicy, applyOther: applyOther, applyGroup: applyGroup, applyInvestment: applyInvestment, applyAstute: applyAstute, applyProposed: applyProposed, applyGoal: applyGoal, isEmptyRead: isEmptyRead,
-    applyCmp: applyCmp, matchItem: matchItem, logDoc: logDoc, findQuoteByNumber: findQuoteByNumber, SPEC_OF: SPEC_OF, BLOCK_LABEL: BLOCK_LABEL, QUOTE_OF: QUOTE_OF, ENDPOINT: ENDPOINT };
+    applyCmp: applyCmp, matchItem: matchItem, logDoc: logDoc, findQuoteByNumber: findQuoteByNumber, quoteIn: quoteIn, quoteRead: quoteRead, SPEC_OF: SPEC_OF, BLOCK_LABEL: BLOCK_LABEL, QUOTE_OF: QUOTE_OF, ENDPOINT: ENDPOINT };
 });

@@ -32,6 +32,7 @@
 .dot.amber { background: #e0a800; border-color: #e0a800; }
 .dot.grey { background: var(--line); border-color: var(--muted); }
 .dot.na { background: transparent; border-style: dashed; }
+.dot.red { background: var(--bad); border-color: var(--bad); }
 
 /* notes */
 .blue { background: var(--accent-soft); color: var(--accent); border: 1px solid var(--brand); border-radius: 6px; padding: 8px 12px; margin: 0 0 14px; font-size: 13px; }
@@ -42,7 +43,7 @@
 .lnk { background: none; border: 0; color: var(--accent); text-decoration: underline; cursor: pointer; font: inherit; padding: 0 4px; }
 
 /* a quote, a policy, a group item: one card each */
-.qcard { border: 1px solid var(--line); border-radius: 10px; margin: 16px 0; background: var(--surface); overflow: hidden; }
+.qcard { border: 1px solid var(--line); border-radius: 16px; margin: 16px 0; background: var(--surface); overflow: hidden; }
 .qcard > header { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; padding: 9px 14px; background: var(--surface-2); border-bottom: 1px solid var(--line); }
 .qcard h3 { font-size: 15px; font-weight: 650; }
 .qcard .grow { flex: 1 1 auto; }
@@ -174,7 +175,7 @@ dialog#restoreDraft .grow { flex: 1; }
 .checks details.allchecks > summary { cursor: pointer; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
 
 /* Studio 0.8 (Paul's third batch): the bar under a block's name while a document is downloaded and read */
-.nav button { flex-wrap: wrap; }
+.nav button { flex-wrap: wrap; row-gap: 1px; }
 .nav .prog { flex: 1 0 100%; position: relative; height: 15px; margin: 5px 0 1px; border-radius: 4px; background: var(--line); overflow: hidden; font-size: 10.5px; line-height: 15px; }
 .nav .prog[hidden] { display: none; }
 .nav .prog i { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: var(--brand); transition: width .35s linear; }
@@ -205,3 +206,22 @@ dialog#resultsDlg .docsess { max-height: 60vh; overflow: auto; }
 
 /* Studio 0.8: accelerated or standalone, under a debt's name */
 .ovt .accsel select { width: 100%; font-size: 11.5px; padding: 1px 2px; margin-top: 2px; color: var(--muted, #646e76); }
+
+/* Studio 0.9 (Paul, 23 November): a block that was checked says what it found, under its name in the menu; a red dot means checked, nothing there */
+.nav button small.navnote { flex: 1 0 100%; display: block; padding: 2px 0 0 20px; font-size: 11px; line-height: 1.3; font-weight: 400; color: var(--muted); text-align: left; white-space: normal; }
+.nav button small.navnote[hidden] { display: none; }
+.nav button small.navnote.red { color: var(--bad); font-weight: 600; }
+.nav button small.navnote.part { color: var(--warn); font-weight: 600; }
+.nav button small.navnote.na { font-style: italic; }
+.nav .prog.checking i { background: var(--brand); }
+.nav .prog.checked i { background: var(--ok); }
+.nav .prog.checked em { color: #fff; font-weight: 600; }
+
+/* Studio 0.9: every table of the entry screen has rounded corners like the Presentation's (16px); the wrapper clips the table and carries the outer line */
+.ovw { border: 1px solid var(--line); border-radius: 16px; overflow: hidden; background: var(--surface); margin: 0; }
+.ovw > .ovt tr > :first-child { border-left: 0; }
+.ovw > .ovt tr > :last-child { border-right: 0; }
+.ovw > .ovt thead tr:first-child th { border-top: 0; }
+.ovw > .ovt tbody:last-of-type tr:last-child td { border-bottom: 0; }
+.qcard .ovw { margin: 8px 12px 12px; }
+.ovt tbody.dtl .qcard .ovw { margin: 8px 12px 12px; }

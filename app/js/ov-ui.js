@@ -97,7 +97,9 @@
     r.onload = function () {
       try {
         state = store.fromJSON(r.result); fileHandle = handle || null; lastFolder = null; fileBase = file.name.replace(/\.json$/i, ''); dirty = false; onDisk = true; cur = CLIENT; progClear(); rememberHandle(handle || null); saveDraft(); redraw();
-        toast(state.newer ? 'Opened ' + file.name + ' read-only: it was made by a newer version.' : 'Opened ' + file.name, state.newer ? 7000 : 3500);
+        var tidy = [state.dups ? state.dups + (state.dups === 1 ? ' extra copy of a quote was' : ' extra copies of a quote were') + ' removed (each quote is kept once)' : '', state.flattened ? state.flattened + (state.flattened === 1 ? ' policy of another insurer was' : ' policies of other insurers were') + ' put into one row with its benefits' : ''].filter(Boolean).join('; ');
+        if (tidy) { dirty = true; onDisk = false; saveDraft(); refreshChrome(); }
+        toast(state.newer ? 'Opened ' + file.name + ' read-only: it was made by a newer version.' : 'Opened ' + file.name + (tidy ? '. ' + tidy.charAt(0).toUpperCase() + tidy.slice(1) + '; save to keep it.' : ''), state.newer ? 7000 : tidy ? 9000 : 3500);
       } catch (e) { toast(e.message || 'Could not open that file.', 6000); }
     };
     r.readAsText(file);
@@ -111,7 +113,7 @@
   /* Fill from Fact Find: the client's saved Fact Find (or the one on screen, through the hand-over) is read, never changed. */
   function fillFactFind(text, name, quiet) {
     try {
-      var rep = store.fillFromFactFind(state, text, name); touch(); redraw();
+      var rep = store.fillFromFactFind(state, text, name); touch(); redraw(); checkPass();
       var bits = [];
       if (rep.added) bits.push(rep.added + (rep.added === 1 ? ' item' : ' items') + ' added');
       if (rep.updated) bits.push(rep.updated + ' brought up to date');
@@ -231,14 +233,15 @@
   }
   /* The lines of a quote come only from the quote (read from the document): no remove column and no add buttons. A quote with nothing in it yet (a quote started by hand) may still be given its lines. A policy keeps both. */
   function linesTable(cpath, c, isPolicy) {
-    var ages = (c.disabilityAge || c.ipAge || (state.header.disabilityAge)) || '', age = ages ? 'Age ' + ages : '', cols = isPolicy ? 10 : 9;
-    var head = '<thead><tr><th class="need">Need</th><th>Term</th><th>Life cover</th><th>Severe illness</th><th>Lump sum disability<small>' + esc(age) + '</small></th><th>Income protector / sickness benefit<small>' + esc(age) + '</small></th><th>Waiting period</th><th>ACI</th><th>ABI</th>' + (isPolicy ? '<th></th>' : '') + '</tr></thead>';
+    var ages = (c.disabilityAge || c.ipAge || (state.header.disabilityAge)) || '', age = ages ? 'Age ' + ages : '', cols = isPolicy ? 10 : 9, flat = isPolicy && !!String(c.insurer || '').trim() && !store.isBright(c.insurer);
+    var head = '<thead><tr><th class="need">' + (flat ? 'Benefits' : 'Need') + '</th><th>Term</th><th>Life cover</th><th>Severe illness</th><th>Lump sum disability<small>' + esc(age) + '</small></th><th>Income protector / sickness benefit<small>' + esc(age) + '</small></th><th>Waiting period</th><th>ACI</th><th>ABI</th>' + (isPolicy ? '<th></th>' : '') + '</tr></thead>';
     var body = (c.lines || []).map(function (l, i) { return lineHTML(cpath, c, l, i, isPolicy); }).join('') || '<tr><td colspan="' + cols + '" class="empty">No lines yet.</td></tr>';
     var bare = !calc.activeLines(c).length;
-    var types = isPolicy || bare ? (isPolicy || c.kind === 'comparative' ? ['other', 'household', 'child', 'debt', 'death', 'dread'] : ['household', 'child', 'debt', 'death', 'dread', 'other']).map(function (t) { return '<button type="button" class="addrow" data-addl="' + cpath + '|' + t + '">+ ' + esc(schema.lineTypesById[t].l) + '</button>'; }).join('') : '';
+    var kinds = flat ? ['other'] : (isPolicy || c.kind === 'comparative' ? ['other', 'household', 'child', 'debt', 'death', 'dread'] : ['household', 'child', 'debt', 'death', 'dread', 'other']);          // the need-by-need lines are for a BrightRock policy only
+    var types = isPolicy || bare ? kinds.map(function (t) { return '<button type="button" class="addrow" data-addl="' + cpath + '|' + t + '">+ ' + esc(flat ? 'A benefit' : schema.lineTypesById[t].l) + '</button>'; }).join('') : '';
     var ced = (c.lines || []).some(function (l) { return !l.removed && l.type === 'debt' && calc.isNum(l.ip && l.ip.monthly) && l.ip.monthly > 0; });
-    return '<table class="ovt lines' + (isPolicy ? '' : ' qlines') + '"><colgroup><col class="c-need"><col class="c-term"><col class="c-life"><col class="c-sev"><col class="c-lsd"><col class="c-ip"><col class="c-wait"><col class="c-aci"><col class="c-abi">' + (isPolicy ? '<col class="c-x">' : '') + '</colgroup>' + head + '<tbody>' + body + '</tbody>' +
-      (isPolicy ? '' : '<tbody data-comp="qtot|' + c.id + '">' + compHTML('qtot', c.id) + '</tbody>') + '</table>' +
+    return '<div class="ovw"><table class="ovt lines' + (isPolicy ? '' : ' qlines') + '"><colgroup><col class="c-need"><col class="c-term"><col class="c-life"><col class="c-sev"><col class="c-lsd"><col class="c-ip"><col class="c-wait"><col class="c-aci"><col class="c-abi">' + (isPolicy ? '<col class="c-x">' : '') + '</colgroup>' + head + '<tbody>' + body + '</tbody>' +
+      (isPolicy ? '' : '<tbody data-comp="qtot|' + c.id + '">' + compHTML('qtot', c.id) + '</tbody>') + '</table></div>' +
       (ced ? '<p class="foot">Instalment Protector: if the client is retrenched, the insurer pays each debt\'s instalment straight to the bank, for a period set by the insurer\'s rules.</p>' : '') + (types ? '<div class="adders">' + (isPolicy ? '' : '<small class="foot">Nothing was read into this quote yet: upload it, or add its lines by hand.</small> ') + types + '</div>' : '');
   }
 
@@ -263,11 +266,11 @@
   }
   function compareHTML(q) {
     var c = calc.compare(state, q), rows = [['What you have now', c.now, false], ['This quote', c.quote, false], ['Difference', c.diff, true]];
-    return '<table class="ovt cmp"><thead><tr><th></th><th>Life cover</th><th>Severe illness</th><th>Lump sum disability</th><th>Income protector <small>p.m.</small></th><th>Monthly premium</th></tr></thead><tbody>' +
+    return '<div class="ovw"><table class="ovt cmp"><thead><tr><th></th><th>Life cover</th><th>Severe illness</th><th>Lump sum disability</th><th>Income protector <small>p.m.</small></th><th>Monthly premium</th></tr></thead><tbody>' +
       rows.map(function (r) {
         var f = function (v) { return r[2] ? '<span class="a ' + (v > 0.004 ? 'up' : v < -0.004 ? 'down' : '') + '">' + calc.fmtDiff(v) + '</span>' : amt(v); };
         return '<tr class="' + (r[2] ? 'diff' : '') + '"><td>' + r[0] + '</td><td class="c">' + f(r[1].life) + '</td><td class="c">' + f(r[1].sev) + '</td><td class="c">' + f(r[1].lsd) + '</td><td class="c">' + f(r[1].ip) + '</td><td class="c">' + f(r[1].premium) + '</td></tr>';
-      }).join('') + '</tbody></table>' + (c.nowCount ? '' : '<p class="foot">There are no current policies yet, so "what you have now" is nothing.</p>');
+      }).join('') + '</tbody></table></div>' + (c.nowCount ? '' : '<p class="foot">There are no current policies yet, so "what you have now" is nothing.</p>');
   }
   function cmpHTML(o, p) {
     var m = o.cmp, bright = /bright/i.test(o.insurer || '');
@@ -275,11 +278,11 @@
     var lbl = { total: 'Total for all your needs', retirement: 'Your retirement needs', childcare: 'Your childcare needs' };
     var rows = (m.rows || []).map(function (r, i) {
       var rp = p + '.cmp.rows.' + i, nm = r.key === 'child' ? '<div class="two">' + inp(rp + '.name', 'text', '', 'Name') + inp(rp + '.sname', 'text', '', 'Surname') + '</div>' : '<b>' + esc(lbl[r.key] || r.key) + '</b>';
-      return '<tr data-row="' + rp + '"><td>' + nm + '</td><td class="c">' + inp(rp + '.today', 'money') + '</td><td class="c">' + inp(rp + '.projected', 'money') + '</td><td class="c">' + inp(rp + '.payoutDate', 'date') + '</td><td class="x"><button type="button" class="xbtn" data-delcmprow="' + p + '|' + i + '" title="Remove this row">&times;</button></td></tr>';
+      return '<tr data-row="' + rp + '"><td>' + nm + '</td><td class="c">' + inp(rp + '.today', 'money') + '</td><td class="c">' + inp(rp + '.projected', 'money') + '</td><td class="c">' + inp(rp + '.payoutDate', 'date') + '</td></tr>';
     }).join('');
     return '<h4>Your change moment pay-out <button type="button" class="lnk" data-delcmp="' + p + '">Remove</button></h4>' +
-      '<table class="ovt cmp payout"><thead><tr><th></th><th>Today</th><th>Projected value at your change moment date</th><th>Pay-out date</th><th></th></tr></thead><tbody>' + (rows || '<tr><td colspan="5" class="empty">No rows: the insurer gave no pay-out.</td></tr>') + '</tbody></table>' +
-      '<div class="adders"><button type="button" class="addrow" data-addcmpchild="' + p + '">+ A child row</button></div>' +
+      '<div class="ovw"><table class="ovt cmp payout"><thead><tr><th></th><th>Today</th><th>Projected value at your change moment date</th><th>Pay-out date</th></tr></thead><tbody>' + (rows || '<tr><td colspan="4" class="empty">No rows: the insurer gave no pay-out.</td></tr>') + '</tbody></table></div>' +
+      '<p class="foot">The rows come from the change moment pay-out guide (BR CMPO) of this quote: a new or replacement quote brings a new table.</p>' +
       '<div class="grid qh">' + lab('CP number of the guide', inp(p + '.cmp.number', 'text')) + lab('Change moment date', inp(p + '.cmp.activationDate', 'date')) + lab('If the insurer gave no pay-out, why', inp(p + '.cmp.reason', 'text'), 'wide') + '</div>' +
       (m.st === 'verify' ? '<p class="foot">Read from ' + esc((m.src && m.src.file) || 'a document') + ': check the figures.</p>' : '');
   }
@@ -330,8 +333,8 @@
       var at = state.blocks.policies.items.indexOf(e.item);
       return '<tbody data-comp="polrow|' + i + '">' + policyRow(e, i) + '</tbody>' + (at >= 0 && isOpen(e.item.id) ? '<tbody class="dtl"><tr><td colspan="9">' + policyCard(e.item, at) + '</td></tr></tbody>' : '');
     }).join('') || '<tbody><tr><td colspan="9" class="empty">No policies in the Fact Find yet.</td></tr></tbody>';
-    return '<table class="ovt pols"><colgroup><col class="p-name"><col><col><col><col><col class="p-w"><col class="p-aci"><col class="p-s"><col></colgroup><thead><tr><th>Policy</th><th>Life cover</th><th>Severe illness</th><th>Lump sum disability' + age + '</th><th>Income protector / sickness benefit' + age + '</th><th>Waiting period</th><th>ACI</th><th>ABI</th><th>Premium</th></tr></thead>' + rows +
-      '<tbody data-comp="poltot|">' + policyTots() + '</tbody></table>';
+    return '<div class="ovw"><table class="ovt pols"><colgroup><col class="p-name"><col><col><col><col><col class="p-w"><col class="p-aci"><col class="p-s"><col></colgroup><thead><tr><th>Policy</th><th>Life cover</th><th>Severe illness</th><th>Lump sum disability' + age + '</th><th>Income protector / sickness benefit' + age + '</th><th>Waiting period</th><th>ACI</th><th>ABI</th><th>Premium</th></tr></thead>' + rows +
+      '<tbody data-comp="poltot|">' + policyTots() + '</tbody></table></div>';
   }
   function policyCard(it, i) {
     var p = 'blocks.policies.items.' + i;
@@ -343,7 +346,7 @@
       lab('Cession', sel(p + '.cession', [{ id: 'true', l: 'Ceded' }, { id: 'false', l: 'Not ceded' }], 'tri')) + '</div>' + linesTable(p, it, true) + (it.cmp || (it.wr && /bright/i.test(it.insurer || '')) ? '<div class="under">' + cmpHTML(it, p) + '</div>' : '') + '</article>';
   }
   function policiesBlock() {
-    return '<p class="blue">Current policies are added and removed in the Fact Find; this page follows it. Each row\'s <b>See more</b> opens that policy\'s whole detail (from its schedule) directly under it.</p>' + policyTable();
+    return '<p class="blue">Current policies are added and removed in the Fact Find; this page follows it. Each row\'s <b>See more</b> opens that policy\'s whole detail (from its schedule) directly under it. A BrightRock policy shows its needs line by line; a policy of any other insurer is one row with its benefits.</p>' + policyTable();
   }
 
   /* ---------- block 3: group benefits and personal investments ---------- */
@@ -360,9 +363,9 @@
         '</td><td class="c"><span class="na">N/A</span></td><td class="c">' + pctShow(g.aci) + '</td><td class="c"><span class="na">N/A</span></td><td class="c">' + (calc.isNum(prem) ? '<span class="a">' + R(prem) + '</span>' : amt(null)) + '</td></tr>';
     }).join('');
     totalPrem = calc.r2(totalPrem + pi.monthly);
-    return '<table class="ovt grp"><colgroup><col class="p-name"><col><col><col><col><col class="p-w"><col class="p-s"><col class="p-s"><col></colgroup><thead><tr><th>Item</th><th>Life cover</th><th>Severe illness</th><th>Lump sum disability' + age + '</th><th>Income protector / sickness benefit' + age + '</th><th>Waiting period</th><th>ACI</th><th>ABI</th><th>Total monthly premium</th></tr></thead><tbody>' + (rows || '<tr><td colspan="9" class="empty">Nothing in the Fact Find yet.</td></tr>') +
+    return '<div class="ovw"><table class="ovt grp"><colgroup><col class="p-name"><col><col><col><col><col class="p-w"><col class="p-s"><col class="p-s"><col></colgroup><thead><tr><th>Item</th><th>Life cover</th><th>Severe illness</th><th>Lump sum disability' + age + '</th><th>Income protector / sickness benefit' + age + '</th><th>Waiting period</th><th>ACI</th><th>ABI</th><th>Total monthly premium</th></tr></thead><tbody>' + (rows || '<tr><td colspan="9" class="empty">Nothing in the Fact Find yet.</td></tr>') +
       '<tr class="pol"><td><b>Personal investments</b><small class="d">The total of Current investments (' + pi.count + (pi.count === 1 ? ' investment' : ' investments') + ')</small></td><td class="c">' + (pi.count ? amt(pi.gross) : amt(null)) + '</td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"><span class="na">N/A</span></td><td class="c"><span class="na">N/A</span></td><td class="c"><span class="na">N/A</span></td><td class="c">' + (pi.count ? '<span class="a">' + R(pi.monthly) + '</span>' : amt(null)) + '</td></tr>' +
-      '<tr class="tot grand"><td>Total</td><td class="c">' + amt(calc.r2(gt.life + pi.gross)) + '</td><td class="c">' + amt(gt.sev) + '</td><td class="c">' + amt(gt.lsd) + '</td><td class="c">' + pm(gt.ip) + '</td><td colspan="3"></td><td class="c"><span class="a">' + R(totalPrem) + '</span></td></tr></tbody></table>';
+      '<tr class="tot grand"><td>Total</td><td class="c">' + amt(calc.r2(gt.life + pi.gross)) + '</td><td class="c">' + amt(gt.sev) + '</td><td class="c">' + amt(gt.lsd) + '</td><td class="c">' + pm(gt.ip) + '</td><td colspan="3"></td><td class="c"><span class="a">' + R(totalPrem) + '</span></td></tr></tbody></table></div>';
   }
   function groupCard(it, i) {
     var p = 'blocks.group.items.' + i, body;
@@ -387,10 +390,10 @@
     var s = calc.shortfall(state);
     if (!s.has) return '<p class="empty-list">There is no FNA quote yet. The shortfall is the FNA less what the client already has through group benefits and personal investments.</p>';
     var rows = [['life', 'Life cover', R], ['sev', 'Severe illness', R], ['lsd', 'Lump sum disability', R], ['ip', 'Income protector (R p.m.)', R]];
-    return '<table class="ovt sf"><thead><tr><th></th><th>FNA</th><th>Less group benefits</th><th>Less personal investments</th><th>Shortfall</th></tr></thead><tbody>' + rows.map(function (r) {
+    return '<div class="ovw"><table class="ovt sf"><thead><tr><th></th><th>FNA</th><th>Less group benefits</th><th>Less personal investments</th><th>Shortfall</th></tr></thead><tbody>' + rows.map(function (r) {
       var pi = r[0] === 'life' ? s.pi.gross : null;
       return '<tr><td>' + r[1] + '</td><td class="c">' + amt(s.fna[r[0]]) + '</td><td class="c">' + (s.group[r[0]] ? amt(s.group[r[0]]) : '<span class="none">none</span>') + '</td><td class="c">' + (pi ? amt(pi) : '<span class="none">none</span>') + '</td><td class="c"><b class="a">' + R(s.short[r[0]]) + '</b></td></tr>';
-    }).join('') + '</tbody></table><p class="foot">Worked out from ' + esc(check.qLabel(s.quote)) + '. Personal investments (current investments, retirement annuities included) reduce the life cover shortfall only.</p>';
+    }).join('') + '</tbody></table></div><p class="foot">Worked out from ' + esc(check.qLabel(s.quote)) + '. Personal investments (current investments, retirement annuities included) reduce the life cover shortfall only.</p>';
   }
   function shortfallBlock() { return '<div data-comp="sf|">' + shortfallHTML() + '</div>'; }
 
@@ -409,8 +412,8 @@
     var rows = items.map(function (i, n) {
       return '<tbody data-comp="invrow|' + n + '">' + invRow(i, n) + '</tbody>' + (isOpen(i.id) ? '<tbody class="dtl"><tr><td colspan="9">' + invCard(i, state.blocks.investments.items.indexOf(i)) + '</td></tr></tbody>' : '');
     }).join('') || '<tbody><tr><td colspan="9" class="empty">No investments in the Fact Find yet.</td></tr></tbody>';
-    return '<table class="ovt inv"><colgroup><col class="p-name"><col class="p-w"><col><col><col><col><col class="p-s"><col class="p-s"><col></colgroup><thead><tr><th>Investment</th><th>Values at</th><th>Source</th><th>Gross fund value</th><th>Penalties</th><th>Net fund value</th><th>Rate of return</th><th>ACI</th><th>Premium</th></tr></thead>' + rows +
-      '<tbody data-comp="invtot|">' + invTots() + '</tbody></table>';
+    return '<div class="ovw"><table class="ovt inv"><colgroup><col class="p-name"><col class="p-w"><col><col><col><col><col class="p-s"><col class="p-s"><col></colgroup><thead><tr><th>Investment</th><th>Values at</th><th>Source</th><th>Gross fund value</th><th>Penalties</th><th>Net fund value</th><th>Rate of return</th><th>ACI</th><th>Premium</th></tr></thead>' + rows +
+      '<tbody data-comp="invtot|">' + invTots() + '</tbody></table></div>';
   }
   function invCard(it, i) {
     var p = 'blocks.investments.items.' + i; if (!it.valueSource) it.valueSource = { kind: null, date: null, file: null };
@@ -443,7 +446,7 @@
       if (it.removed) return fresh(p) ? '<tbody data-notice="' + p + '"><tr class="removed"><td colspan="8"><span class="gone">' + esc(it.type) + ' removed.</span> <button type="button" class="lnk" data-undo="' + p + '">Undo</button></td></tr></tbody>' : '';
       return '<tbody data-comp="proprow|' + i + '">' + proposedRow(it, i) + '</tbody>' + (isOpen(it.id) ? '<tbody class="dtl"><tr><td colspan="8">' + proposedCard(it, i) + '</td></tr></tbody>' : '');
     }).join('') + (any ? '' : '<tbody><tr><td colspan="8" class="empty">No proposed investments yet.</td></tr></tbody>');
-    return '<table class="ovt prop"><colgroup><col class="q-type"><col class="q-prov"><col class="q-contrib"><col><col><col class="p-s"><col><col class="p-s"></colgroup><thead><tr><th>Investment type</th><th>Provider &amp; quote</th><th>Contribution</th><th>Lump sum</th><th>Monthly premium</th><th>Boost %</th><th>Net amount invested</th><th>ACI %</th></tr></thead>' + rows + '</table>' +
+    return '<div class="ovw"><table class="ovt prop"><colgroup><col class="q-type"><col class="q-prov"><col class="q-contrib"><col><col><col class="p-s"><col><col class="p-s"></colgroup><thead><tr><th>Investment type</th><th>Provider &amp; quote</th><th>Contribution</th><th>Lump sum</th><th>Monthly premium</th><th>Boost %</th><th>Net amount invested</th><th>ACI %</th></tr></thead>' + rows + '</table></div>' +
       '<p class="foot">The boost and the net amount are read from the quote; they are not worked out here.</p><div class="blockacts"><button type="button" class="addrow big" data-upc="proposed" title="Opens the client\'s own folder: pick the quote and the page reads it. If the folder is not found, the normal file window opens.">Upload from client folder&hellip;</button> <button type="button" class="lnk small" data-addp="1">type in by hand</button></div>';
   }
   function goalsBlock() {
@@ -477,8 +480,8 @@
   /* ---------- the screen ---------- */
   function drawNav() {
     var h = '<button type="button" data-block="' + CLIENT + '"' + (cur === CLIENT ? ' aria-current="true"' : '') + '><span>Client details</span></button><div class="sep">Blocks</div>';
-    h += schema.BLOCKS.map(function (b) { return '<button type="button" data-block="' + b.id + '"' + (b.id === cur ? ' aria-current="true"' : '') + ' title="' + esc(check.dotText(state, b.id, last.dots[b.id] || 'grey', last.problems)) + '"><span><i class="dot ' + (last.dots[b.id] || 'grey') + '" data-dot="' + b.id + '"></i>' + esc(b.title) + '</span>' + progHTML(b.id) + '</button>'; }).join('');
-    h += '<div class="legend" id="legend"><div class="sep">The dots</div>' + check.LEGEND.map(function (l) { return '<div><i class="dot ' + l[0] + '"></i>' + (l[0] === 'na' ? 'Dashed: not needed (for example, no shortfall quote without group risk)' : { grey: 'Grey: nothing yet', amber: 'Amber: to check', green: 'Green: checked' }[l[0]]) + '</div>'; }).join('') + '</div>';
+    h += schema.BLOCKS.map(function (b) { return '<button type="button" data-block="' + b.id + '"' + (b.id === cur ? ' aria-current="true"' : '') + ' title="' + esc(check.dotText(state, b.id, last.dots[b.id] || 'grey', last.problems, (last.notes || {})[b.id])) + '"><span><i class="dot ' + (last.dots[b.id] || 'grey') + '" data-dot="' + b.id + '"></i>' + esc(b.title) + '</span>' + progHTML(b.id) + noteHTML(b.id) + '</button>'; }).join('');
+    h += '<div class="legend" id="legend"><div class="sep">The dots</div>' + check.LEGEND.map(function (l) { return '<div><i class="dot ' + l[0] + '"></i>' + (l[0] === 'na' ? 'Dashed: not needed (for example, no shortfall quote without group risk)' : { grey: 'Grey: nothing yet', amber: 'Amber: to check', green: 'Green: checked', red: 'Red: checked, nothing there' }[l[0]]) + '</div>'; }).join('') + '</div>';
     $('#nav').innerHTML = h;
   }
   /* The page before and the page after this one, skipping a page that does not apply (no shortfall quote page without group risk). */
@@ -496,7 +499,7 @@
     paintStatuses();
     if (toTop) $('#main').scrollTop = 0; else { $('#main').scrollTop = keepTop; window.scrollTo(0, keepY); }
   }
-  function redraw() { last = check.run(state); drawNav(); drawMain(true); refreshChrome(); }
+  function redraw() { last = check.run(state, { ran: ran }); drawNav(); drawMain(true); refreshChrome(); }
   function paintComputed() {
     document.querySelectorAll('[data-comp]').forEach(function (el) { var q = el.getAttribute('data-comp').split('|'); el.innerHTML = compHTML(q[0], q[1]); });
     document.querySelectorAll('[data-aci]').forEach(function (el) { var q = el.getAttribute('data-aci') && store.findQuote(state, el.getAttribute('data-aci')); el.textContent = q ? (calc.fmtAci(q) || '\u2013') : ''; });
@@ -511,7 +514,7 @@
     document.querySelectorAll('[data-titlefor]').forEach(function (el) { var q = store.pathGet(state, el.getAttribute('data-titlefor')); if (q) el.textContent = check.qTitle(q) + (q.date ? ' \u00b7 ' + q.date : '') + (q.rates ? ' \u00b7 ' + q.rates : ''); });
     document.querySelectorAll('[data-tickfor]').forEach(function (el) { var o = store.pathGet(state, el.getAttribute('data-tickfor')); if (o) { el.className = o.wr ? 'tick' : 'cross'; el.innerHTML = o.wr ? '&#10003;' : '&#10007;'; } });
   }
-  /* One line for each document read ("BrightRock FNA CP 127687903 checked") and one for its change moment pay-out; every individual check is still there, folded, one click away. */
+  /* One line for each document read ("BrightRock FNA CP 100000031 checked") and one for its change moment pay-out; every individual check is still there, folded, one click away. */
   function drawChecks() {
     var h = '', p = last.problems, lines = check.docLines(state, p);
     lines.forEach(function (l) {
@@ -523,7 +526,7 @@
     $('#checks').innerHTML = h;
   }
   function refreshChrome() {
-    last = check.run(state);
+    last = check.run(state, { ran: ran });
     var name = store.clientName(state), c = store.counts(state);
     $('#clientName').textContent = name || 'New client';
     document.title = 'Client Overview Studio' + (name ? ' - ' + name : '');
@@ -531,7 +534,7 @@
     $('#sFilled').textContent = c.confirmed; $('#sVerify').textContent = c.check; $('#sEmpty').textContent = c.waiting;
     $('#btnAgree').hidden = !c.check;
     $('#verLine').textContent = 'Version ' + schema.pageVersion + ', ' + schema.released;
-    schema.BLOCKS.forEach(function (b) { var d = document.querySelector('[data-dot="' + b.id + '"]'); if (d) d.className = 'dot ' + (last.dots[b.id] || 'grey'); });
+    paintDots();
     drawChecks(); drawMeta(); paintWhy();
   }
   function paintWhy() {
@@ -583,7 +586,45 @@
     p.pct = 100; p.st = p.errs ? 'error' : p.recorded ? 'recorded' : 'done';
     p.text = p.errs ? 'Could not read it: see the message' : p.recorded ? 'Recorded, not read (add your key in Settings)' : 'Downloaded and populated'; paintProg(id);
   }
-  function progClear() { prog = {}; if (progT) { clearInterval(progT); progT = null; } document.querySelectorAll('[data-prog]').forEach(function (el) { el.hidden = true; }); }
+  function progClear() { prog = {}; ran = false; checkTimers.forEach(clearTimeout); checkTimers = []; if (progT) { clearInterval(progT); progT = null; } document.querySelectorAll('[data-prog]').forEach(function (el) { el.hidden = true; }); }
+
+  /* ---------- what a block says when it was checked and nothing is there, and the check that runs on EVERY block (Paul, 23 November) ---------- */
+  var ran = false, checkTimers = [], STAGGER = 110;                                                       // ran: the page has looked through a folder or a document, or run its checks, in this visit
+  function noteOf(id) { return ((last && last.notes) || {})[id] || null; }
+  function busy(id) { var p = prog[id]; return !!p && (p.st === 'reading' || p.st === 'checking'); }
+  function noteHTML(id) { var n = busy(id) ? null : noteOf(id); return '<small class="navnote' + (n ? ' ' + n.kind : '') + '" data-note="' + id + '"' + (n ? '' : ' hidden') + '>' + esc(n ? n.text : '') + '</small>'; }
+  /* The dot, its hover text and the comment under the name of every block, brought up to date without drawing the menu again. */
+  function paintDots() {
+    schema.BLOCKS.forEach(function (b) {
+      var d = document.querySelector('[data-dot="' + b.id + '"]'), n = busy(b.id) ? null : noteOf(b.id), el = document.querySelector('[data-note="' + b.id + '"]'), btn = d && d.closest('button');
+      if (d) d.className = 'dot ' + (last.dots[b.id] || 'grey');
+      if (btn) btn.title = check.dotText(state, b.id, last.dots[b.id] || 'grey', last.problems, noteOf(b.id));
+      if (el) { el.hidden = !n; el.className = 'navnote' + (n ? ' ' + n.kind : ''); el.textContent = n ? n.text : ''; }
+    });
+  }
+  /* Every block runs its check, one after the other, with a bar under its name while it looks (not only the blocks a document was read for); then the bar goes and the block says what it found: its dot, and, where nothing is there,
+     the comment under its name. A block that shows a document read keeps that bar. Resolves when the last block has finished. */
+  function checkPass() {
+    checkTimers.forEach(clearTimeout); checkTimers = []; ran = true; last = check.run(state, { ran: ran }); paintDots();
+    var ids = schema.BLOCKS.map(function (b) { return b.id; }).filter(function (id) { var p = prog[id]; return !(p && (p.st === 'reading' || p.st === 'done' || p.st === 'recorded' || p.st === 'error')); });
+    return new Promise(function (resolve) {
+      if (!ids.length) { resolve(); return; }
+      var left = ids.length, at = function (ms, fn) { checkTimers.push(setTimeout(fn, ms)); };
+      ids.forEach(function (id, i) {
+        var t0 = i * STAGGER, step = function (pct) { if (prog[id] && prog[id].st === 'checking') { prog[id].pct = pct; paintProg(id); } };
+        at(t0, function () { prog[id] = { pct: 8, busy: 0, errs: 0, recorded: 0, st: 'checking', text: 'Checking…' }; paintProg(id); paintDots(); });
+        at(t0 + 150, function () { step(45); }); at(t0 + 300, function () { step(80); });
+        at(t0 + 450, function () {
+          last = check.run(state, { ran: ran }); var n = noteOf(id), d = last.dots[id];
+          if (n && n.all) delete prog[id];
+          else prog[id] = { pct: 100, busy: 0, errs: 0, recorded: 0, st: 'checked', text: d === 'green' ? 'Checked' : d === 'amber' ? 'Checked: to look at' : d === 'na' ? 'Not needed' : n ? n.text : 'Checked: waiting for a document' };
+          paintProg(id); var el = document.querySelector('[data-prog="' + id + '"]'); if (el && !prog[id]) el.hidden = true;
+          paintDots(); if (--left === 0) resolve();
+          at(t0 + 450 + 1800, function () { if (prog[id] && prog[id].st === 'checked') { delete prog[id]; var e2 = document.querySelector('[data-prog="' + id + '"]'); if (e2) e2.hidden = true; } });
+        });
+      });
+    });
+  }
 
   /* ---------- Settings: the Anthropic key (the same one the Fact Find keeps) and the reading switch ---------- */
   function keyTail(k) { return k && k.length > 8 ? '…' + k.slice(-4) : ''; }
@@ -614,7 +655,9 @@
       var r = D.applyQuote(state, block, data || { number: cls.number, date: cls.date }, name, { replaces: o.replaces, nameOnly: !data });
       if (o.replaces) { var oq = store.findQuote(state, o.replaces), ol = state.blocks[block].quotes; if (oq && ol.indexOf(oq) >= 0) markRemoved('blocks.' + block + '.quotes.' + ol.indexOf(oq)); }          // the quote that was replaced can be brought back for a few seconds
       res.msg = name + ': ' + (data ? 'read into a new ' + lower + '.' : 'a new ' + lower + ' was started from the number and date in the file name; type the figures from the document.');
-      if (r.duplicate) { res.msg += ' A quote with this number is already there.'; res.warn = true; }
+      if (r.merged === 'kept') { res.msg = name + ': the quote with this number is already there with its figures read, so nothing was changed (no second copy).'; res.dupe = true; }
+      else if (r.merged === 'again') { res.msg = name + ': this quote (' + (r.quote.number ? (/bright/i.test(r.quote.insurer) ? 'CP ' : 'Quote ') + r.quote.number : 'no number') + ') was already there: it was read again into the same quote, so there is still only one.'; res.dupe = true; }
+      else if (r.duplicate) { res.msg += ' A quote with this number is already there.'; res.warn = true; }
       res.quote = r.quote; openSet[r.quote.id] = true;
       if (data) {
         var rc = reconcile(r.quote), nm = check.autoMatch(state, r.quote);
@@ -661,6 +704,10 @@
     var cls = D.classify(file.name), block = o.block || (cls && cls.block);
     if (!block) return Promise.resolve({ unknown: true, file: file });
     cls = cls || { number: '', date: '' };
+    if (D.QUOTE_OF[block] && !o.replaces && cls.number) {                                                    // its number says it is a quote that is already loaded and read: it is not read (or paid for) twice
+      var have = D.quoteIn(state, block, cls.number);
+      if (have && D.quoteRead(have)) return Promise.resolve({ msg: file.name + ': already loaded as ' + check.qTitle(have) + '; not read again (to read it again, use Replace quote on it).', dupe: true });
+    }
     var want = aiOn(), key = aiKey(), read = want && !!key.apiKey, failure = '', nb = navBlockOf(block, o.quote), ctx = D.QUOTE_OF[block] && block !== 'comparative' ? { clientNote: D.factNote(state) } : undefined;
     progStart(nb); progStep(nb, 12, 'Downloading the document…');
     var get = read ? toBase64(file).then(function (b64) { progStep(nb, 28, 'Reading the document…'); return D.readWithClaude({ apiKey: key.apiKey, model: key.model, mediaType: file.type || 'application/pdf', base64: b64, block: block, ctx: ctx }); }).then(function (r) { return r.data; })
@@ -733,13 +780,13 @@
   }
   /* Documents, one after the other (each may be read by Claude, which takes a moment): QUOTES FIRST, then the pay-out guides (a guide needs its quote), then the ones the adviser had to sort. */
   function ingest(files, o) {
-    o = Object.assign({}, o || {}); files = [].slice.call(files); unmatchedGuides = {}; o.guides = {};
-    var unknown = [], count = 0, warns = 0, log = []; lastLog = log;
+    o = Object.assign({}, o || {}); files = uniqueFiles([].slice.call(files)); unmatchedGuides = {}; o.guides = {};
+    var unknown = [], count = 0, warns = 0, log = [], same = 0; lastLog = log;
     var isGuide = function (f) { var c = D.classify(f.name); return o.block === 'cmp' || (!o.block && c && c.block === 'cmp'); };
     function one(f, oo) {
       var num = (D.classify(f.name) || {}).number;
       if (oo.block === 'cmp' || (!oo.block && isGuide(f))) { if (num && o.guides[num]) { count++; return Promise.resolve(); } }          // its quote has read it already
-      return intakeOne(f, oo).then(function (r) { if (r.unknown) { unknown.push(f); return; } if (r.skip) return; count++; if (r.warn) warns++; log.push({ msg: r.msg, warn: !!r.warn }); });
+      return intakeOne(f, oo).then(function (r) { if (r.unknown) { unknown.push(f); return; } if (r.skip) return; if (r.dupe) same++; else count++; if (r.warn) warns++; log.push({ msg: r.msg, warn: !!r.warn }); });
     }
     function chain(list, mk) { return list.reduce(function (p, f) { return p.then(function () { return one(f, mk(f)); }); }, Promise.resolve()); }
     return chain(files.filter(function (f) { return !isGuide(f); }), function () { return o; })
@@ -752,11 +799,16 @@
             .then(function () { return chain(last2.map(function (x) { return x.file; }), function () { return Object.assign({}, o, { block: 'cmp' }); }); });
         });
       }).then(function () {
-        touch(); redraw();
+        touch(); redraw(); checkPass();
         if (count && aiOn() && !aiKey().apiKey) toastLink(count + (count === 1 ? ' document was' : ' documents were') + ' recorded, not read: reading needs your Anthropic key.', 'Add the key in Settings', openSettings, 20000);
-        else toast(count ? count + (count === 1 ? ' document' : ' documents') + ' loaded' + (warns ? ', ' + warns + ' to look at' : '') + '.' : 'Nothing was loaded.', 7000);
+        else toast((count ? count + (count === 1 ? ' document' : ' documents') + ' loaded' + (warns ? ', ' + warns + ' to look at' : '') + '.' : same ? 'Nothing new was loaded.' : 'Nothing was loaded.') + (same ? ' ' + same + (same === 1 ? ' was' : ' were') + ' already there (each quote is kept once).' : ''), 7000);
         if (warns || log.length > 1) showResults(log);
       });
+  }
+  /* The same file seen twice (a client folder found in two places, a copy in two folders) is listed and read ONCE: the first one stays. */
+  function uniqueFiles(list) {
+    var seen = {};
+    return list.filter(function (f) { var k = String((f && f.name) || '').toLowerCase().replace(/\s+/g, ' ').trim(); if (seen[k]) return false; seen[k] = 1; return true; });
   }
   function pickList(res) {
     return new Promise(function (resolve) {
@@ -784,6 +836,7 @@
     function normal(why) { toast((why ? why + ' ' : '') + 'The normal file window is opening instead.', 8000); $('#docIn').click(); }
     FU.clientFiles({ sname: state.header.sname, fname: state.header.fname }).then(function (res) {
       if (res.reason) { normal(REASONS[res.reason] || 'The folder could not be read.'); return; }
+      res.files = uniqueFiles(res.files);
       if (!res.files.length) { normal('No documents were found in ' + res.label + '.'); return; }
       $('#toast').hidden = true;
       pickList(res).then(function (picked) {
@@ -857,7 +910,7 @@
     touch(); paintComputed(); paintStatuses();
   });
   $('#main').addEventListener('click', function (e) {
-    var t = e.target.closest('[data-see],[data-accept],[data-addq],[data-addl],[data-addp],[data-del],[data-undo],[data-block],[data-replace],[data-upi],[data-addcmp],[data-delcmp],[data-addcmpchild],[data-delcmprow],[data-upc]'); if (!t) return;
+    var t = e.target.closest('[data-see],[data-accept],[data-addq],[data-addl],[data-addp],[data-del],[data-undo],[data-block],[data-replace],[data-upi],[data-addcmp],[data-delcmp],[data-upc]'); if (!t) return;
     if (t.hasAttribute('data-block')) { cur = t.getAttribute('data-block'); drawNav(); drawMain(true); refreshChrome(); window.scrollTo({ top: 0 }); return; }
     if (t.hasAttribute('data-see')) { var sk = t.getAttribute('data-see'); openSet[sk] = !isOpen(sk); drawMain(); return; }
     if (state.newer) return;
@@ -867,8 +920,6 @@
     if (t.hasAttribute('data-upi')) { var ui = pathOf(t.getAttribute('data-upi')); pending = { block: ui[1], target: store.pathGet(state, ui[0]) }; $('#docOne').click(); return; }
     if (t.hasAttribute('data-addcmp')) { store.addCmp(state, t.getAttribute('data-addcmp')); touch(); drawMain(); return; }
     if (t.hasAttribute('data-delcmp')) { if (!window.confirm('Remove this change moment pay-out table?')) return; store.removeCmp(state, t.getAttribute('data-delcmp')); touch(); drawMain(); return; }
-    if (t.hasAttribute('data-addcmpchild')) { store.addCmpChild(state, t.getAttribute('data-addcmpchild')); touch(); drawMain(); return; }
-    if (t.hasAttribute('data-delcmprow')) { var dr = pathOf(t.getAttribute('data-delcmprow')); store.removeCmpRow(state, dr[0], +dr[1]); touch(); drawMain(); return; }
     if (t.hasAttribute('data-addq')) { var nq = store.addQuote(state, t.getAttribute('data-addq')); openSet[nq.id] = true; touch(); drawMain(); var cards = document.querySelectorAll('.qcard'); if (cards.length) cards[cards.length - 1].scrollIntoView({ block: 'start' }); return; }
     if (t.hasAttribute('data-addp')) { var np = store.newProposed(); state.blocks.proposed.items.push(np); openSet[np.id] = true; touch(); drawMain(); return; }
     if (t.hasAttribute('data-addl')) { var q = pathOf(t.getAttribute('data-addl')); store.addLine(state, q[0], q[1]); touch(); drawMain(); return; }
@@ -895,6 +946,7 @@
   $('#btnLoad').addEventListener('click', chooseFactFind);
   $('#btnReadFolder').addEventListener('click', loadFromClientFolder);
   $('#btnSettings').addEventListener('click', openSettings);
+  $('#btnCheck').addEventListener('click', function () { checkPass(); });
   $('#docIn').addEventListener('change', function (e) { var fs = [].slice.call(e.target.files); e.target.value = ''; if (fs.length) ingest(fs, {}); });
   $('#docOne').addEventListener('change', function (e) { var f = e.target.files[0], o = pending || {}; e.target.value = ''; pending = null; if (f) ingest([f], o); });
   /* the More menu closes after a click on one of its buttons, on a click outside it and on Escape; the toast's link opens Settings */
@@ -913,7 +965,7 @@
   state = store.blank();
   if (restored) draftHold = true; else rememberHandle(null);
   window.OV.app = { get state() { return state; }, makePdf: makePdf, ingest: ingest, redraw: redraw, setState: function (s) { state = s; redraw(); }, fillFactFindText: function (t, n) { var rep = store.fillFromFactFind(state, t, n); touch(); redraw(); return rep; }, go: function (b) { cur = b; drawNav(); drawMain(true); refreshChrome(); },
-    openAll: function (yes) { openDefault = yes !== false; openSet = {}; drawMain(); }, isOpen: isOpen, aiOn: aiOn, lastLog: function () { return lastLog.slice(); } };           // every item open (or folded) at once: for the tests of the older layout; the page itself starts folded
+    openAll: function (yes) { openDefault = yes !== false; openSet = {}; drawMain(); }, isOpen: isOpen, aiOn: aiOn, lastLog: function () { return lastLog.slice(); }, checkPass: checkPass, get last() { return last; }, uniqueFiles: uniqueFiles };           // every item open (or folded) at once: for the tests of the older layout; the page itself starts folded
   redraw();
   var HO = null, HF = window.FF && FF.handover;
   if (HF) { HF.bindMenu(document); HO = HF.wants(window) ? HF.peek() : null; HF.stripFlag(window); }

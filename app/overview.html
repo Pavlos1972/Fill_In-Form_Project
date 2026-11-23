@@ -11,7 +11,7 @@
   body { margin: 0; font: 14px/1.45 system-ui, "Segoe UI", sans-serif; padding-inline: 16px; padding-block: 14px 40px; }
 </style>
 <link rel="stylesheet" href="css/app.css?v=20261121a">
-<link rel="stylesheet" href="css/overview.css?v=20261123c">
+<link rel="stylesheet" href="css/overview.css?v=20261123d">
 <link rel="stylesheet" href="css/folders.css?v=20261118c">
 <link rel="stylesheet" href="css/present.css?v=20261123d">
 </head>
@@ -44,9 +44,10 @@
       <button class="btn small" id="btnSave" type="button">Save</button>
       <button class="btn small" id="btnReadFolder" type="button" title="Open the client&#39;s folder, list what it holds, and read and sort what you tick (the quotes first, then their change moment pay-out guides). If the folder is not found, the normal file window opens.">Load from client folder&hellip;</button>
       <details class="otherforms" id="moreMenu">
-        <summary class="btn ghost small" title="Fill from Fact Find, Folders, New review year, Save as, Settings">More &#9662;</summary>
+        <summary class="btn ghost small" title="Fill from Fact Find, Check all blocks, Folders, New review year, Save as, Settings">More &#9662;</summary>
         <div class="ofmenu">
           <button class="btn ghost small" id="btnLoad" type="button" title="Fill the overview from the client&#39;s saved Fact Find file">Fill from Fact Find&hellip;</button>
+          <button class="btn ghost small" id="btnCheck" type="button" title="Every block looks again at what it holds and says what it found: a red dot means checked, nothing there">Check all blocks</button>
           <button class="btn ghost small" id="btnFolders" type="button" title="Connect your New Business and Client Files folders, so Save goes straight into the client&#39;s 1. Overview folder">Folders&hellip;</button>
           <button class="btn ghost small" id="btnReview" type="button" title="Start next year's review from this overview: the client, policies, group benefits, investments and other cover carry over to be checked; the quotes start empty. This overview is not changed, so save it first.">New review year&hellip;</button>
           <button class="btn ghost small" id="btnSaveAs" type="button">Save as&hellip;</button>
@@ -89,19 +90,19 @@
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jspdf.plugin.autotable.min.js"></script>
 <script src="js/util.js?v=20261118b"></script>
-<script src="js/ov-schema.js?v=20261123a"></script>
+<script src="js/ov-schema.js?v=20261123b"></script>
 <script src="js/ov-calc.js?v=20261123b"></script>
-<script src="js/ov-store.js?v=20261123d"></script>
-<script src="js/ov-check.js?v=20261123b"></script>
+<script src="js/ov-store.js?v=20261123e"></script>
+<script src="js/ov-check.js?v=20261123c"></script>
 <script src="js/ov-pres.js?v=20261123d"></script>
 <script src="js/lookup.js?v=20261029c"></script>
-<script src="js/ov-docs.js?v=20261123c"></script>
+<script src="js/ov-docs.js?v=20261123d"></script>
 <script src="assets/logo.js?v=20261018p"></script>
 <script src="js/ov-pdf.js?v=20261123c"></script>
 <script src="js/folders.js?v=20261122a"></script>
 <script src="js/folders-ui.js?v=20261123c"></script>
 <script src="js/handover.js?v=20261120a"></script>
-<script src="js/ov-ui.js?v=20261123c"></script>
+<script src="js/ov-ui.js?v=20261123d"></script>
 <script src="js/ov-present.js?v=20261123d"></script>
 <script>/* copy check: see js/build.js */(function(){var d=document,u=[].map.call(d.querySelectorAll('script[src],link[href]'),function(e){return e.src||e.href}),m=(d.querySelector('meta[name="wr-build"]')||{}).content||'';if(window.FF&&FF.build&&FF.build.run){FF.build.run(u,location.href,m);return}var b=d.createElement('div');b.id='buildBanner';b.setAttribute('role','alert');b.style.cssText='position:fixed;top:0;left:0;right:0;z-index:99999;background:#b00020;color:#fff;padding:10px 16px;font:600 14px/1.4 sans-serif';b.textContent='Mixed versions: this copy of the Fact Find is not complete (js/build.js is missing), so do not use it for a client. Ask for it to be installed again.';d.body.appendChild(b)})();</script>
 </body>

@@ -115,8 +115,6 @@
   }
   function addCmp(state, path) { var o = pathGet(state, path); if (!o || typeof o !== 'object' || o.cmp) return null; o.cmp = newCmp(state, o); return o.cmp; }
   function removeCmp(state, path) { var o = pathGet(state, path); if (!o || !o.cmp) return false; o.cmp = null; return true; }
-  function addCmpChild(state, path) { var o = pathGet(state, path); if (!o || !o.cmp) return null; var r = { key: 'child', name: '', sname: '', today: null, projected: null, payoutDate: null }; o.cmp.rows.push(r); return r; }
-  function removeCmpRow(state, path, i) { var o = pathGet(state, path); if (!o || !o.cmp || !o.cmp.rows[i]) return false; o.cmp.rows.splice(i, 1); return true; }
 
   /* ---------- a review year (stage 6) ---------- */
   /* The next year's overview, started from this one. The client, the policies (an issued quote of ours becomes a policy), the group benefits, the investments, the goal reports asked for and the other cover are carried over,
@@ -316,7 +314,7 @@
   }
   function toJSON(state) {
     state.modified = new Date().toISOString(); state.computed = computed(state);
-    var out = Object.assign({}, state._extra || {}, state); delete out._extra; delete out.newer;
+    var out = Object.assign({}, state._extra || {}, state); delete out._extra; delete out.newer; delete out.dups; delete out.flattened;
     return JSON.stringify(out, null, 2);
   }
   var KNOWN = { app: 1, schema: 1, created: 1, modified: 1, header: 1, factFind: 1, documents: 1, settings: 1, blocks: 1, computed: 1 };
@@ -347,10 +345,50 @@
       else s.blocks[b].items = (src.items || []).map(normRow);
     });
     var order = schema.OTHER_KEYS.map(function (k) { return k.key; }); s.blocks.other.items.sort(function (a, b) { return order.indexOf(a.key) - order.indexOf(b.key); });
+    s.dups = dedupeQuotes(s);                                                                                  // not saved: how many extra copies of a quote were dropped on opening (the screen says so)
+    s.flattened = 0; s.blocks.policies.items.forEach(function (it) { if (flattenPolicyLines(it)) s.flattened++; });
     Object.keys(j).forEach(function (k) { if (!KNOWN[k]) other[k] = j[k]; });
     if (Object.keys(other).length) s._extra = other;
     if (parseFloat(j.schema) > parseFloat(schema.version)) s.newer = true;
     return s;
+  }
+
+  /* ---------- one quote once, and a policy of another insurer as one row (Paul, 23 November) ---------- */
+  var NEED_TYPES = { household: 1, child: 1, debt: 1, death: 1, dread: 1 };
+  function isBright(name) { return /bright/i.test(String(name == null ? '' : name)); }
+  function numKey(v) { return String(v == null ? '' : v).replace(/\D/g, ''); }
+  /* The need-by-need lines (household, child care, debts, death-related needs, additional expense needs) belong only to a BrightRock policy that is in force. A policy of any other insurer is ONE row with its benefits:
+     its need lines become ONE line of type "other" (each benefit added up from the lines it was on; the label is the product). Nothing is invented; a policy with no insurer yet is left alone. Returns true when it changed anything. */
+  function flattenPolicyLines(item) {
+    if (!item || !str(item.insurer) || isBright(item.insurer) || !Array.isArray(item.lines)) return false;
+    var needs = item.lines.filter(function (l) { return l && !l.removed && NEED_TYPES[l.type]; });
+    if (!needs.length) return false;
+    var one = newLine('other', { label: str(item.product) || 'Policy benefits' }), tot = calc.sumLines(needs), first = needs[0], any = function (p, k) { return needs.some(function (l) { var c = l[p]; return c && typeof c === 'object' && calc.isNum(c[k]); }); };
+    schema.PILLARS.forEach(function (p) { p.keys.forEach(function (k) { one[p.id][k] = any(p.id, k) ? tot[p.id][k] : null; }); });
+    var term = needs.map(function (l) { return str(l.term); }).filter(Boolean)[0], wait = needs.map(function (l) { return str(l.waiting); }).filter(function (w) { return w && w !== 'N/A'; })[0], abi = needs.map(function (l) { return l.abi; }).filter(calc.isNum)[0];
+    one.term = term || null; one.waiting = wait || null; one.abi = abi === undefined ? null : abi;
+    one.st = first.st || 'verify'; one.by = first.by || 'page'; one.src = first.src || null;
+    var at = item.lines.indexOf(first), rest = item.lines.filter(function (l) { return !(l && NEED_TYPES[l.type]); });
+    rest.splice(Math.min(at, rest.length), 0, one); item.lines = rest;
+    return true;
+  }
+  /* A quote that is in a block twice (the same number: a document read twice, a folder listing the same file twice) is kept ONCE: the copy with the change moment pay-out, else with more lines, else the first one.
+     The extra copy is dropped from the file; a "replaced by" link to it is pointed at the copy that stays. Returns how many copies were dropped. */
+  function dedupeQuotes(state) {
+    var dropped = 0, score = function (q) { return (q.cmp ? 1000 : 0) + calc.activeLines(q).filter(function (l) { return l.st !== 'ff' && l.st !== 'empty'; }).length * 10 + calc.activeLines(q).length + (q.st === 'confirmed' ? 5 : 0) + (q.policyNo ? 3 : 0); };
+    schema.QUOTE_KINDS.forEach(function (k) {
+      var b = state.blocks[schema.blockOfQuote[k]], at = {}, keep = [];
+      (b.quotes || []).forEach(function (q) {
+        var key = q.removed ? '' : numKey(q.number);
+        if (!key) { keep.push(q); return; }
+        if (at[key] === undefined) { at[key] = keep.length; keep.push(q); return; }
+        var cur = keep[at[key]], win = score(q) > score(cur) ? q : cur, lose = win === q ? cur : q;
+        keep[at[key]] = win; dropped++;
+        (b.quotes || []).forEach(function (x) { if (x.replacedBy === lose.id) x.replacedBy = win.id; });
+      });
+      b.quotes = keep;
+    });
+    return dropped;
   }
 
   /* ---------- how far the overview is ---------- */
@@ -366,6 +404,6 @@
   }
 
   return { blank: blank, uid: uid, parseCell: parseCell, setPath: setPath, pathGet: pathGet, accept: accept, acceptAll: acceptAll, walkRows: walkRows, newLine: newLine, newQuote: newQuote, addQuote: addQuote, findQuote: findQuote,
-    setRemoved: setRemoved, newCmp: newCmp, addCmp: addCmp, removeCmp: removeCmp, addCmpChild: addCmpChild, removeCmpRow: removeCmpRow, startReview: startReview, addLine: addLine, addItem: addItem, newProposed: newProposed, factsFrom: factsFrom, diffFacts: diffFacts, syncBlocks: syncBlocks, fillFromFactFind: fillFromFactFind, fileName: fileName,
-    clientName: clientName, computed: computed, toJSON: toJSON, fromJSON: fromJSON, rows: rows, counts: counts, ffKeyFor: ffKeyFor, APP_ID: APP_ID };
+    setRemoved: setRemoved, newCmp: newCmp, addCmp: addCmp, removeCmp: removeCmp, startReview: startReview, addLine: addLine, addItem: addItem, newProposed: newProposed, factsFrom: factsFrom, diffFacts: diffFacts, syncBlocks: syncBlocks, fillFromFactFind: fillFromFactFind, fileName: fileName,
+    clientName: clientName, computed: computed, dedupeQuotes: dedupeQuotes, flattenPolicyLines: flattenPolicyLines, isBright: isBright, toJSON: toJSON, fromJSON: fromJSON, rows: rows, counts: counts, ffKeyFor: ffKeyFor, APP_ID: APP_ID };
 });
