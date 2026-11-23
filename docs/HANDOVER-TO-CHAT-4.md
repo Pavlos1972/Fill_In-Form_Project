@@ -6,9 +6,13 @@ Written on 20 November 2026 by Chat 3 ("Fact Find Audio to Text Form - Chat 3"),
 
 `docs/HANDOVER-TO-CHAT-3.md` is **not replaced**: its sections 3 (saving into the client's folder), 4 (the routine, with the tool names), 6 (the changes page), 8 (open items) and 9 (the names clean-up record) are still true and are the detailed reference. This file carries what is new since, and everything else in short.
 
+## 0s. UPDATE of 23 November 2026, evening (Chat 3): the changes page is at version 66
+
+Paul said "Update the changes page" after the 0.94 merge and install. **Version 66** adds the section `h-studio94` (PR 104), PR 104 in the history list, the status line through PR 104 (`main · commit df12bf7`; 0.94 installed at 18:40; run 97 failed at the deploy step, fresh run 98 published), the tiles 1,003 / 1,759, "Nothing is waiting for your merge" under "What is left", the skill item through 0.94 (display only) and a new first line in "Worth a quick look". Version 65's "0.94 built, waiting for merge" is corrected. I could not open the published page. Working copy: `fact-find-changes.html` in the session scratchpad (= version 66; the version 65 copy is `fact-find-changes-65.html`). **Nothing is waiting for Paul's merge; the work branch holds only documentation notes (install records) after PR 104.**
+
 ## 0r. UPDATE of 23 November 2026, 18:42 (Fix Skills chat, relayed; nothing to do)
 
-**Client Overview Studio 0.94 is installed on Paul's laptop** (18:40, from main `df12bf7`; backup *WR Fact Find - backup before 0.94 - 23 Nov 2026 (Studio 0.93).zip*, copy *WR Fact Find - latest 23 Nov 2026 (Studio 0.94).zip*; 5 files changed; all 61 app files byte-identical to main; page 0.94). Not live until Paul confirms on his own screen. **Display only, so no skill change:** `client-overview-skill` 20261123-1604 (revision l) stays on Paul's account. The Fix Skills chat's FORM-RELEASES and log are updated. **The changes page (version 65) still says 0.94 is built and waiting for merge: on Paul's next "Update the changes page" it must say 0.94 is merged (PR 104, `df12bf7`) and installed (18:40).**
+**Client Overview Studio 0.94 is installed on Paul's laptop** (18:40, from main `df12bf7`; backup *WR Fact Find - backup before 0.94 - 23 Nov 2026 (Studio 0.93).zip*, copy *WR Fact Find - latest 23 Nov 2026 (Studio 0.94).zip*; 5 files changed; all 61 app files byte-identical to main; page 0.94). Not live until Paul confirms on his own screen. **Display only, so no skill change:** `client-overview-skill` 20261123-1604 (revision l) stays on Paul's account. The Fix Skills chat's FORM-RELEASES and log are updated. **(The changes page said 0.94 was waiting for merge until version 66, which corrects it: see 0s.)**
 
 ## 0q. UPDATE of 23 November 2026, evening (Chat 3): Client Overview Studio 0.94 (the Progress card leads to the rows) is MERGED as PR 104 (`df12bf7`) and published; not yet installed
 
