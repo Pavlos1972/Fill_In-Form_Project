@@ -7,7 +7,7 @@
   var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
   var DRAFT_KEY = 'wr-overview-draft', CLIENT = '_client';
 
-  var openSet = {}, openDefault = false, recent = {}, checksOpen = false, NOTICE_MS = 10000;      // See more (the items that are open) and the removed notices: only for this visit, never in the saved file
+  var openSet = {}, openDefault = false, recent = {}, checksOpen = false, checksInner = false, NOTICE_MS = 10000;      // See more (the items that are open) and the removed notices: only for this visit, never in the saved file
   var state, cur = CLIENT, fileHandle = null, ffHandle = null, forceNormal = false, lastFolder = null, fileBase = '', dirty = false, onDisk = true, lastSaved = null, toastTimer = null, draftHold = false, last = { problems: [], dots: {}, byBlock: {} };
 
   /* ---------- drafts, saving and opening (the Fact Find's way: a safety copy in the browser while work is unsaved, removed once a file is saved and read back) ---------- */
@@ -113,7 +113,7 @@
   /* Fill from Fact Find: the client's saved Fact Find (or the one on screen, through the hand-over) is read, never changed. */
   function fillFactFind(text, name, quiet) {
     try {
-      var rep = store.fillFromFactFind(state, text, name); check.settleAll(state); touch(); redraw(); checkPass(); readFactNotes();
+      checksOpen = false; checksInner = false; var rep = store.fillFromFactFind(state, text, name); check.settleAll(state); touch(); redraw(); checkPass(); readFactNotes();
       var bits = [];
       if (rep.added) bits.push(rep.added + (rep.added === 1 ? ' item' : ' items') + ' added');
       if (rep.updated) bits.push(rep.updated + ' brought up to date');
@@ -162,7 +162,14 @@
   function markRemoved(path) { recent[path] = Date.now(); setTimeout(sweepNotices, NOTICE_MS + 150); }
   function isOpen(key) { return openSet[key] === undefined ? openDefault : !!openSet[key]; }                 // folded unless the adviser (or a document just read) opened it
   function seeBtn(key) { var o = isOpen(key); return '<button type="button" class="see' + (o ? ' open' : '') + '" data-see="' + esc(key) + '" aria-expanded="' + o + '">' + (o ? 'See less' : 'See more') + '</button>'; }
-  function aciShow(x) { var t = calc.fmtAci(x); return t ? '<span class="aci">' + esc(t) + '</span>' : '<span class="none">&ndash;</span>'; }
+  /* The ACI as 1 to 3 short points (round 4): the whole wording is the hover text. */
+  function aciHTML(x) {
+    var pts = calc.aciPoints(x), full = calc.fmtAci(x); if (!pts.length) return '';
+    return pts.length > 1 || pts[0] !== full ? '<ul class="aciu" title="' + esc(full) + '">' + pts.map(function (p) { return '<li>' + esc(p) + '</li>'; }).join('') + '</ul>' : esc(full);
+  }
+  function aciShow(x) { var h = aciHTML(x); return h ? '<span class="aci">' + h + '</span>' : '<span class="none">&ndash;</span>'; }
+  function viaNote(l, pid) { var t = l.via && l.via[pid + '.monthly']; return t ? '<small class="via">' + esc(t) + '</small>' : ''; }                    // where a figure the quote did not print came from
+  function taLines(path, rows) { var v = store.pathGet(state, path); return '<textarea data-p="' + path + '" data-k="lines" rows="' + (rows || 3) + '" placeholder="One short point on each line (up to three)"' + (state.newer ? ' disabled' : '') + '>' + esc(Array.isArray(v) ? v.join('\n') : (v || '')) + '</textarea>'; }
   function inp(path, kind, cls, ph) {
     var v = store.pathGet(state, path), ro = state.newer ? ' disabled' : '';
     return '<input type="text" data-p="' + path + '" data-k="' + kind + '" class="' + (cls || '') + (kind === 'money' || kind === 'pct' || kind === 'num' ? ' amt' : '') + (v === 'N/A' || v === 'Not found' ? ' isna' : '') + '" value="' + esc(dispIn(v, kind)) + '"' +
@@ -221,13 +228,13 @@
       if (l[pid] === 'N/A') return '<td class="c"><span class="na">N/A</span></td>';
       var s = '';
       if (hasLump) s += inp(p + '.' + pid + '.lump', 'money');
-      if (hasMonthly) s += inp(p + '.' + pid + '.monthly', 'money') + (pid === 'ip' ? '<small class="pm">p.m.</small>' : '<small class="sm">' + esc(tt) + '</small>');
+      if (hasMonthly) s += inp(p + '.' + pid + '.monthly', 'money') + (pid === 'ip' ? '<small class="pm">p.m.</small>' : '<small class="sm">' + esc(tt) + '</small>') + viaNote(l, pid);
       if (pid === 'ip' && l.type === 'debt' && calc.isNum(l.ip && l.ip.monthly) && l.ip.monthly > 0) s += '<small class="ip">Instalment Protector</small><small class="ced">To be ceded to the bank</small>';
       return '<td class="c">' + s + '</td>';
     }
     var flag = lineFlag(l.id);
     return '<tr data-row="' + p + '" class="ln' + (flag ? ' ffdiff' : '') + '"' + (flag ? ' title="' + esc(flag) + '"' : '') + '><td class="need">' + stb(p) + need + '<small class="why" data-why="' + l.id + '">' + esc(lineWhy(l.id)) + '</small></td><td>' + inp(p + '.term', 'text', 'term', t.term || 'Term') + '</td>' + pillar('life', true, true) + pillar('sev', true, false) + pillar('lsd', true, true) + pillar('ip', false, true) +
-      (l.waiting === 'N/A' ? '<td class="c"><span class="na">N/A</span></td>' : '<td>' + inp(p + '.waiting', 'text', 'wait') + '</td>') + '<td class="c"><span class="aci" data-aci="' + (isPolicy ? '' : c.id) + '">' + (isPolicy ? '' : esc(calc.fmtAci(c) || '\u2013')) + '</span></td><td>' + inp(p + '.abi', 'pct') + '</td>' +
+      (l.waiting === 'N/A' ? '<td class="c"><span class="na">N/A</span></td>' : '<td>' + inp(p + '.waiting', 'text', 'wait') + '</td>') + '<td class="c"><span class="aci" data-aci="' + (isPolicy ? '' : c.id) + '">' + (isPolicy ? '' : (aciHTML(c) || '\u2013')) + '</span></td><td>' + inp(p + '.abi', 'pct') + '</td>' +
       (isPolicy ? '<td class="x"><button type="button" class="xbtn" data-del="' + p + '" title="Remove this line">&times;</button></td>' : '') + '</tr>';
   }
   /* The lines of a quote come only from the quote (read from the document): no remove column and no add buttons. A quote with nothing in it yet (a quote started by hand) may still be given its lines. A policy keeps both. */
@@ -295,11 +302,11 @@
     return '<article class="qcard" data-row="' + p + '">' + head +
       '<div class="grid qh">' + lab('Insurer', inp(p + '.insurer', 'text', '', 'e.g. BrightRock')) + lab(/bright/i.test(q.insurer) ? 'CP number' : 'Quote number', inp(p + '.number', 'text')) + lab('Quote date', inp(p + '.date', 'date')) +
       lab('Rates', inp(p + '.rates', 'text')) + lab('Kind of quote', boolSel(p + '.servicing', 'Servicing', 'New business')) + lab('Status', sel(p + '.status', schema.STATUS, 'text', false)) +
-      lab('Disability to age', sel(p + '.disabilityAge', [{ id: 65, l: '65' }, { id: 70, l: '70' }], 'num')) + lab('ACI (%)', inp(p + '.aci', 'pct')) + lab('ACI as the quote words it', inp(p + '.aciText', 'text', '', 'e.g. 7.5% + age rater')) + lab('Monthly premium (R)', inp(p + '.premium', 'money')) +
+      lab('Disability to age', sel(p + '.disabilityAge', [{ id: 65, l: '65' }, { id: 70, l: '70' }], 'num')) + lab('ACI (%)', inp(p + '.aci', 'pct')) + lab('ACI as the quote words it', inp(p + '.aciText', 'text', '', 'e.g. 7.5% + age rater')) + lab('ACI in short points', taLines(p + '.aciPoints')) + lab('Monthly premium (R)', inp(p + '.premium', 'money')) +
       (q.status === 'accepted' ? lab('Policy number', inp(p + '.policyNo', 'text')) + lab('Start date', inp(p + '.startDate', 'date')) : '') + '</div>' +
       (q.status === 'accepted' && q.policyNo && q.startDate ? '<p class="blue">This quote has been issued as a policy, so it is also shown under Current policies as a current policy of ours.</p>' : '') +
       (q.status === 'accepted' && !(q.policyNo && q.startDate) ? '<p class="blue">Accepted. When the insurer has issued the policy, type its policy number and start date above: the quote then moves to Current policies as a current policy of ours.</p>' : '') +
-      (q.kind === 'comparative' ? '<p class="blue">This is what the other insurer\'s quote prints, read from the document: often one whole-of-life amount for each benefit. The four benefit columns, the totals and the comparison follow it.</p>' : '') + linesTable(p, q, false) + '<div class="under">' + cmpHTML(q, p) + '<h4>Compared with what you have now</h4><div data-comp="cmp|' + q.id + '">' + compareHTML(q) + '</div></div></article>';
+      (q.kind === 'comparative' ? '<p class="blue">This is what the other insurer\'s quote prints, read from the document: often one whole-of-life amount for each benefit. The four benefit columns, the totals and the comparison follow it.</p>' : '') + linesTable(p, q, false) + breBox(q) + '<div class="under">' + cmpHTML(q, p) + '<h4>Compared with what you have now</h4><div data-comp="cmp|' + q.id + '">' + compareHTML(q) + '</div></div></article>';
   }
   function quotesBlock(b) {
     var list = (state.blocks[b.id].quotes || []), live = list.filter(function (q) { return !q.removed; }), gone = list.filter(function (q) { return q.removed; });
@@ -340,7 +347,7 @@
     return '<article class="qcard" data-row="' + p + '"><header><span class="' + (it.wr ? 'tick' : 'cross') + '">' + (it.wr ? '&#10003;' : '&#10007;') + '</span><h3>' + esc(it.insurer || 'Policy') + (it.policyNo ? ' · ' + esc(it.policyNo) : '') + '</h3>' + stb(p) +
       '<span class="grow"></span><span class="src">' + (it.wr ? 'We are the broker' : 'Another broker: ' + esc(it.broker || '')) + '</span><button type="button" class="x" data-upi="' + p + '|policies">Upload policy schedule&hellip;</button></header><div class="grid qh">' +
       lab('Insurer', inp(p + '.insurer', 'text')) + lab('Product', inp(p + '.product', 'text')) + lab('Policy number', inp(p + '.policyNo', 'text')) + lab('Date of commencement', inp(p + '.doc', 'date')) + lab('Monthly premium (R)', inp(p + '.premium', 'money')) +
-      lab('ACI (%)', inp(p + '.aci', 'pct')) + lab('ACI as the schedule words it', inp(p + '.aciText', 'text', '', 'e.g. 7.5% + age rater')) + lab('ABI (%)', inp(p + '.abi', 'pct')) + lab('Disability to age', sel(p + '.ipAge', [{ id: 65, l: '65' }, { id: 70, l: '70' }], 'num')) +
+      lab('ACI (%)', inp(p + '.aci', 'pct')) + lab('ACI as the schedule words it', inp(p + '.aciText', 'text', '', 'e.g. 7.5% + age rater')) + lab('ACI in short points', taLines(p + '.aciPoints')) + lab('ABI (%)', inp(p + '.abi', 'pct')) + lab('Disability to age', sel(p + '.ipAge', [{ id: 65, l: '65' }, { id: 70, l: '70' }], 'num')) +
       lab('Life cover description', inp(p + '.benefits.life', 'text', '', 'e.g. Whole of life')) + lab('Severe illness description', inp(p + '.benefits.sev', 'text', '', 'e.g. Living Lifestyle Plus, standalone')) + lab('Lump sum disability description', inp(p + '.benefits.lsd', 'text', '', 'e.g. Absolute Protector Plus, OOD, to age 65')) + lab('Income protector description', inp(p + '.benefits.ip', 'text', '', 'e.g. after 24 months, to age 65')) +
       lab('Cession', sel(p + '.cession', [{ id: 'true', l: 'Ceded' }, { id: 'false', l: 'Not ceded' }], 'tri')) + '</div>' + linesTable(p, it, true) + (it.cmp || (it.wr && /bright/i.test(it.insurer || '')) ? '<div class="under">' + cmpHTML(it, p) + '</div>' : '') + '</article>';
   }
@@ -517,7 +524,7 @@
   var fitT = null;
   function paintComputed() {
     document.querySelectorAll('[data-comp]').forEach(function (el) { var q = el.getAttribute('data-comp').split('|'); el.innerHTML = compHTML(q[0], q[1]); });
-    document.querySelectorAll('[data-aci]').forEach(function (el) { var q = el.getAttribute('data-aci') && store.findQuote(state, el.getAttribute('data-aci')); el.textContent = q ? (calc.fmtAci(q) || '\u2013') : ''; });
+    document.querySelectorAll('[data-aci]').forEach(function (el) { var q = el.getAttribute('data-aci') && store.findQuote(state, el.getAttribute('data-aci')); el.innerHTML = q ? (aciHTML(q) || '\u2013') : ''; });
     fitTables();
   }
   function paintStatuses() {
@@ -539,9 +546,11 @@
     if (!lines.length && !p.length) h = '<div class="ok">&#10003; Nothing to look at.</div>';
     else if (!lines.length) h = '<div class="none">No document has been read yet.</div>';
     var warned = lastLog.filter(function (x) { return x.warn; });
-    if (warned.length) h += '<details class="allchecks loadlog" open><summary>What the last load said: ' + warned.length + ' to look at</summary>' + warned.map(function (x) { return '<div class="amber">' + esc(x.msg) + '</div>'; }).join('') + '</details>';
-    if (p.length) h += '<details class="allchecks"' + (checksOpen ? ' open' : '') + '><summary>All ' + p.length + (p.length === 1 ? ' individual check' : ' individual checks') + '</summary>' + p.map(function (x) { return '<button type="button" class="amber" data-jump="' + (x.block || CLIENT) + '"><b>' + esc(x.where) + '</b> ' + esc(x.message) + '</button>'; }).join('') + '</details>';
-    $('#checks').innerHTML = h;
+    var look = lines.filter(function (l) { return l.state === 'tocheck'; }).length + warned.length;
+    if (warned.length) h += '<details class="allchecks loadlog"><summary>What the last load said: ' + warned.length + ' to look at</summary>' + warned.map(function (x) { return '<div class="amber">' + esc(x.msg) + '</div>'; }).join('') + '</details>';
+    if (p.length) h += '<details class="allchecks"' + (checksInner ? ' open' : '') + '><summary>All ' + p.length + (p.length === 1 ? ' individual check' : ' individual checks') + '</summary>' + p.map(function (x) { return '<button type="button" class="amber" data-jump="' + (x.block || CLIENT) + '"><b>' + esc(x.where) + '</b> ' + esc(x.message) + '</button>'; }).join('') + '</details>';
+    /* The whole list is folded (Paul, 23 November: he does not want to see it open); it is closed again after every load, fill and check. */
+    $('#checks').innerHTML = '<details class="chkall"' + (checksOpen ? ' open' : '') + '><summary>' + (look ? look + (look === 1 ? ' thing' : ' things') + ' to look at' : (lines.length ? 'All checked' : 'Nothing read yet')) + '</summary>' + h + '</details>';
   }
   function refreshChrome() {
     last = check.run(state, runOpts());
@@ -622,7 +631,7 @@
   }
   function beginSearch(ids, text) {
     if (!ids) searchedAll = true;                                                                        // a single block's upload does not search the whole folder: the other blocks keep what they said
-    ids = ids || allIds(); loading++; checkTimers.forEach(clearTimeout); checkTimers = [];
+    ids = ids || allIds(); loading++; checkTimers.forEach(clearTimeout); checkTimers = []; checksOpen = false; checksInner = false;
     ids.forEach(function (id) { delete finished[id]; if (prog[id] && !prog[id].busy) delete prog[id]; });
     setBar(ids, 'waiting', text || 'Waiting to search the client folder', 0); last = check.run(state, runOpts()); paintDots();
   }
@@ -693,7 +702,7 @@
   }
   /* What a document becomes in the overview. data: what was read (null: only recorded). */
   function put(file, block, cls, data, o) {
-    var name = file.name, res = { msg: '' }, lower = (D.BLOCK_LABEL[block] || block).toLowerCase();
+    var name = file.name, res = { msg: '' }, lower = (D.BLOCK_LABEL[block] || block).toLowerCase(), astuteSet = block === 'astute' ? D.setAstuteDate(state, data, cls.date) : null;                   // the Astute report's date goes into Client details, whether or not an investment matches
     if (D.QUOTE_OF[block]) {
       var r = D.applyQuote(state, block, data || { number: cls.number, date: cls.date }, name, { replaces: o.replaces, nameOnly: !data });
       if (o.replaces) { var oq = store.findQuote(state, o.replaces), ol = state.blocks[block].quotes; if (oq && ol.indexOf(oq) >= 0) markRemoved('blocks.' + block + '.quotes.' + ol.indexOf(oq)); }          // the quote that was replaced can be brought back for a few seconds
@@ -725,6 +734,12 @@
         var fu = D.applyFollowUp(state, data, name, cls.date), nameOf2 = function (k) { return (schema.OTHER_KEYS.filter(function (x) { return x.key === k; })[0] || { l: k }).l.toLowerCase(); };
         res.msg = name + ': ' + (fu.filled.length ? 'progress added to the note of ' + fu.filled.map(nameOf2).join(', ') + ' (Summary Notes' + (fu.date ? ' ' + D.dm(fu.date) : '') + '); amber until it is checked.' : 'nothing new for medical aid, gap cover, will, legacy plan or short-term.');
       }
+    } else if (block === 'bremail') {
+      if (!data) res.msg = name + ': a BrightRock email, recorded, not read (reading needs your Anthropic key).';
+      else {
+        var be = D.applyBrEmail(state, data, name, { date: cls.date, quote: o.quote }); be.filled.forEach(function (x) { check.autoMatch(state, x); openSet[x.id] = true; }); res.filled = be.filled.length;
+        res.msg = name + ': ' + (be.filled.length ? 'the death-related income portion was filled into ' + be.filled.map(check.qTitle).join(', ') : 'no death-related income portion was filled in (the quotes have it already, or none is named)') + (be.unmatched.length ? '; the email names ' + be.unmatched.join(', ') + ', which is not a quote that is loaded' : '') + '.'; if (!be.filled.length) res.warn = true;
+      }
     } else if (!data) {
       res.msg = name + ': recorded. Use the Upload button on the item it is for, and type its details (or switch reading on in Settings).';
     } else if (block === 'other') {
@@ -732,7 +747,7 @@
       else { D.applyOther(state, o.target, data, name); openSet[o.target.id] = true; res.msg = name + ': the legacy protection plan is filled in; amber until it is checked.'; }
     } else if (block === 'astute') {
       var a = D.applyAstute(state, data, name);
-      res.msg = name + ': Astute values filled in for ' + a.filled + (a.filled === 1 ? ' investment' : ' investments') + (a.unmatched.length ? '; not in the Fact Find: ' + a.unmatched.join(', ') + '.' : '.'); if (a.unmatched.length) res.warn = true;
+      res.msg = name + ': Astute values filled in for ' + a.filled + (a.filled === 1 ? ' investment' : ' investments') + (a.unmatched.length ? '; not in the Fact Find: ' + a.unmatched.join(', ') + '.' : '.') + (astuteSet ? ' The Astute report date ' + astuteSet + ' was filled into Client details.' : ''); if (a.unmatched.length) res.warn = true;
     } else {
       var item = o.target || D.matchItem(listOf(block), data, nameOf(block));
       if (item && item.ambiguous) { res.msg = name + ': more than one item could be this one (' + item.ambiguous.map(function (x) { return (x.insurer || x.provider || 'item') + (x.policyNo ? ' ' + x.policyNo : '') + (calc.isNum(x.premium) ? ' R' + x.premium : ''); }).join(', ') + '). Use the Upload button on the right item.'; res.warn = true; }
@@ -750,9 +765,10 @@
      Resolves { msg, warn } or { unknown: true, file }. A BrightRock quote that was read gets its change moment pay-out by itself (the guide "BR CMPO - <CP number>" is looked for and read). */
   function intakeOne(file, o) {
     o = o || {};
-    var cls = D.classify(file.name), block = o.block || (cls && cls.block);
+    var cls = D.classify(file.name, o.dirs && o.dirs[String(file.name).toLowerCase()]), block = o.block || (cls && cls.block);
     if (!block) return Promise.resolve({ unknown: true, file: file });
     cls = cls || { number: '', date: '' };
+    if (block === 'bremail') return intakeEmail(file, o, cls);
     if (D.QUOTE_OF[block] && !o.replaces && cls.number) {                                                    // its number says it is a quote that is already loaded and read: it is not read (or paid for) twice
       var have = D.quoteIn(state, block, cls.number);
       if (have && D.quoteRead(have)) {                                                                       // not read again, but not forgotten: it is checked again by the current rules and its bar says so
@@ -845,6 +861,57 @@
       if (filled.length) { touch(); redraw(); }
     }).catch(fail).then(function () { notesBusy = false; refreshChrome(); });
   }
+
+  /* A BrightRock e-mail found in the client's folder (or forced into a block): its text is read after the quotes, and the death-related income portion it states goes into the quote it names (round 4, 23 November).
+     A text e-mail (.eml, .msg, .txt) that does not mention the CP number of a quote that is loaded is left alone and not sent anywhere. */
+  function intakeEmail(file, o, cls) {
+    var key = aiKey(), read = aiOn() && !!key.apiKey, bq = D.brightQuotes(state), isText = /\.(eml|msg|txt|html?)$/i.test(file.name), failure = '';
+    var nbs = bq.map(function (q) { return schema.blockOfQuote[q.kind]; }).filter(function (v, i, a) { return a.indexOf(v) === i; });
+    if (!bq.length) return Promise.resolve({ msg: file.name + ': a BrightRock email, but no BrightRock quote is loaded yet, so it was not read.', warn: !!o.block });
+    var textP = isText ? (/\.msg$/i.test(file.name) ? file.arrayBuffer().then(function (b) { return D.msgText(new Uint8Array(b)); }) : file.text().then(D.emailText)) : Promise.resolve(null);
+    return textP.then(function (t) {
+      if (isText && !o.block) {                                                                                // found by the listing: only an e-mail that names the CP number of a quote that is here
+        var nums = bq.map(function (q) { return String(q.number || '').replace(/\D/g, ''); }).filter(Boolean);
+        if (!nums.some(function (n) { return new RegExp('(^|\\D)' + n + '(\\D|$)').test(t || ''); })) return { skip: true };
+      }
+      nbs.forEach(function (nb) { progStart(nb); progStep(nb, 15, 'Reading the BrightRock email…'); });
+      var end = function (how, text) { nbs.forEach(function (nb) { progEnd(nb, how, text); }); };
+      if (!read) { end('recorded'); D.logDoc(state, file.name, 'bremail', 'name'); return { msg: file.name + ': a BrightRock email, recorded, not read (reading needs your Anthropic key).', warn: true }; }
+      var call = isText ? D.readWithClaude({ apiKey: key.apiKey, model: key.model, block: 'bremail', text: t, textLabel: 'THE E-MAIL' })
+        : toBase64(file).then(function (b64) { return D.readWithClaude({ apiKey: key.apiKey, model: key.model, mediaType: file.type || 'application/pdf', base64: b64, block: 'bremail' }); });
+      return Promise.resolve(call).then(function (r) { return r.data; }).catch(function (e) { failure = e && e.message ? e.message : 'It could not be read.'; return null; }).then(function (data) {
+        if (data && D.isEmptyRead('bremail', data)) { failure = 'it gives no death-related income portion for a quote.'; data = null; }
+        var r = put(file, 'bremail', cls, data, o);
+        if (failure) { r.msg = file.name + ': ' + failure; r.warn = true; }
+        end(failure ? 'error' : 'done', failure ? 'Email: ' + failure : (r.filled ? 'Email read: income portion filled' : 'Email read: nothing new'));
+        return r;
+      });
+    });
+  }
+  /* "Paste BrightRock email" on a quote: the text pasted in is read for the CP numbers it names, and the death-related income portion goes into the death-related line (the quote it was pasted into takes an unnumbered figure). */
+  var breText = {};
+  function readPastedEmail(qid) {
+    var q = store.findQuote(state, qid), txt = String(breText[qid] || '').trim();
+    function say(t, bad) { var m = document.querySelector('[data-bre-msg="' + qid + '"]'); if (m) { m.textContent = t; m.className = 'breMsg' + (bad ? ' bad' : ''); } }
+    if (!q) return Promise.resolve();
+    if (!txt) { say('Paste the email first.', true); return Promise.resolve(); }
+    var key = aiKey();
+    if (!aiOn() || !key.apiKey) { toastLink('Reading the email needs your Anthropic key.', 'Add the key in Settings', openSettings, 20000); say('Reading needs your key (More → Settings).', true); return Promise.resolve(); }
+    var nb = schema.blockOfQuote[q.kind]; progStart(nb); progStep(nb, 30, 'Reading the BrightRock email…'); say('Reading…');
+    return Promise.resolve().then(function () { return D.readWithClaude({ apiKey: key.apiKey, model: key.model, block: 'bremail', text: D.emailText(txt), textLabel: 'THE E-MAIL' }); }).then(function (r) {
+      if (D.isEmptyRead('bremail', r.data)) { progEnd(nb, 'done', 'Email read: no income portion in it'); say('The email gives no death-related income portion.', true); return; }
+      var a = D.applyBrEmail(state, r.data, 'pasted email', { quote: q });
+      a.filled.forEach(function (x) { check.autoMatch(state, x); openSet[x.id] = true; }); check.settleAll(state); D.logDoc(state, 'pasted BrightRock email', 'bremail', 'read');
+      lastLog.push({ msg: 'The pasted BrightRock email: ' + (a.filled.length ? 'the death-related income portion was filled into ' + a.filled.map(check.qTitle).join(', ') + '.' : 'nothing new' + (a.unmatched.length ? '; it names ' + a.unmatched.join(', ') + ', which is not a quote that is loaded' : '') + '.'), warn: !a.filled.length });
+      touch(); redraw(); progEnd(nb, 'done', a.filled.length ? 'Email read: income portion filled' : 'Email read: nothing new');
+      say(a.filled.length ? 'Filled into the death-related line' + (a.filled.length > 1 ? ' of ' + a.filled.length + ' quotes' : '') + '.' : (a.unmatched.length ? 'The email names ' + a.unmatched.join(', ') + ', which is not a quote that is loaded here.' : 'Nothing new: the quote has the figure already.'), !a.filled.length);
+    }).catch(function (e) { progEnd(nb, 'error', 'Could not read the email: ' + (e && e.message || 'an error')); say('Could not read it: ' + (e && e.message || 'an error'), true); });
+  }
+  function breBox(q) {
+    if (state.newer || q.kind === 'comparative' || !/bright/i.test(q.insurer || '')) return '';
+    return '<details class="bre"><summary>Paste BrightRock email</summary><p class="sub">Paste the email BrightRock sent about this quote (the death-related income portion is often only there). It is read for CP ' + esc(q.number || '') + ', and the figure goes into the death-related line.</p>' +
+      '<textarea rows="6" placeholder="Paste the BrightRock email here…" data-bre-text="' + q.id + '">' + esc(breText[q.id] || '') + '</textarea><div class="fbtns"><button type="button" class="btn small" data-bre-read="' + q.id + '">Read it</button> <span class="breMsg" data-bre-msg="' + q.id + '"></span></div></details>';
+  }
   /* Documents, one after the other (each may be read by Claude, which takes a moment): QUOTES FIRST, then the pay-out guides (a guide needs its quote), then the ones the adviser had to sort. */
   function ingest(files, o) {
     o = Object.assign({}, o || {}); files = uniqueFiles([].slice.call(files)); unmatchedGuides = {}; o.guides = {};
@@ -852,14 +919,16 @@
     if (o.counted) delete o.counted; else beginSearch(o.block ? [navBlockOf(o.block)].filter(Boolean) : null, o.block ? 'Waiting for the document' : 'Waiting for the documents');          // a load that started with the folder search has counted already
     var ended = false, finish = function () { if (ended) return; ended = true; return endSearch(); };
     var isGuide = function (f) { var c = D.classify(f.name); return o.block === 'cmp' || (!o.block && c && c.block === 'cmp'); };
+    var isEmail = function (f) { var c = D.classify(f.name, o.dirs && o.dirs[String(f.name).toLowerCase()]); return o.block === 'bremail' || (!o.block && c && c.block === 'bremail'); };
     function one(f, oo) {
       var num = (D.classify(f.name) || {}).number;
       if (oo.block === 'cmp' || (!oo.block && isGuide(f))) { if (num && o.guides[num]) { count++; return Promise.resolve(); } }          // its quote has read it already
       return intakeOne(f, oo).then(function (r) { if (r.unknown) { unknown.push(f); return; } if (r.skip) return; if (r.dupe) same++; else count++; if (r.warn) warns++; log.push({ msg: r.msg, warn: !!r.warn }); });
     }
     function chain(list, mk) { return list.reduce(function (p, f) { return p.then(function () { return one(f, mk(f)); }); }, Promise.resolve()); }
-    return chain(files.filter(function (f) { return !isGuide(f); }), function () { return o; })
+    return chain(files.filter(function (f) { return !isGuide(f) && !isEmail(f); }), function () { return o; })
       .then(function () { return chain(files.filter(isGuide), function () { return o; }); })
+      .then(function () { return chain(files.filter(isEmail), function () { return o; }); })
       .then(function () {
         if (!unknown.length) return null;
         return askBlocks(unknown).then(function (picked) {
@@ -892,7 +961,7 @@
     return new Promise(function (resolve) {
       var dlg = document.createElement('dialog'), done = false; dlg.className = 'fdlg';
       dlg.innerHTML = '<h3>Documents in ' + esc(res.label) + '</h3><p>Choose what to load into the overview. Ones the page can sort by their name are ticked; the others will ask you what they are. The quotes are read first, then their change moment pay-out guides.</p><div class="flist">' + res.files.map(function (f, i) {
-        var c = D.classify(f.name);
+        var c = D.classify(f.name, (f.rel || []).join(' \\ '));
         return '<label><input type="checkbox" data-i="' + i + '"' + (c && (c.block !== 'followup' || f === tickFu) ? ' checked' : '') + '><span>' + esc(f.rel.concat([f.name]).join(' \\ ')) + (c ? ' <i>(' + esc(c.label) + ')</i>' : '') + '</span></label>';
       }).join('') + '</div><div class="fbtns"><button type="button" class="btn ghost small" data-no>Cancel</button><button type="button" class="btn small" data-yes>Load the ticked ones</button></div>';
       document.body.appendChild(dlg);
@@ -920,7 +989,7 @@
       $('#toast').hidden = true; searching();
       pickList(res).then(function (picked) {
         if (!picked.length) { abandonSearch(); return; }
-        Promise.all(picked.map(function (f) { return f.handle.getFile(); })).then(function (fs) { ingest(fs, { pool: res.files, counted: true }); }, function (e) { abandonSearch(); toast('Could not open a file: ' + (e && e.message), 8000); });
+        Promise.all(picked.map(function (f) { return f.handle.getFile(); })).then(function (fs) { var dirs = {}; res.files.forEach(function (f) { dirs[String(f.name).toLowerCase()] = (f.rel || []).join(' \\ '); }); ingest(fs, { pool: res.files, counted: true, dirs: dirs }); }, function (e) { abandonSearch(); toast('Could not open a file: ' + (e && e.message), 8000); });
       });
     }, function (e) { normal('Could not look through the folders (' + (e && e.message) + ').'); });
   }
@@ -1011,7 +1080,7 @@
   });
   $('#nav').addEventListener('click', function (e) { var b = e.target.closest('[data-block]'); if (b) { cur = b.getAttribute('data-block'); drawNav(); drawMain(true); refreshChrome(); } });
   $('#checks').addEventListener('click', function (e) { var b = e.target.closest('[data-jump]'); if (b) { cur = b.getAttribute('data-jump'); drawNav(); drawMain(true); refreshChrome(); } });
-  $('#checks').addEventListener('toggle', function (e) { if (e.target && e.target.matches && e.target.matches('details.allchecks')) checksOpen = e.target.open; }, true);
+  $('#checks').addEventListener('toggle', function (e) { if (e.target && e.target.matches && e.target.matches('details')) { if (e.target.matches('.chkall')) checksOpen = e.target.open; else if (e.target.matches('details.allchecks')) checksInner = e.target.open; } }, true);
   $('#btnAgree').addEventListener('click', function () { var n = store.acceptAll(state); touch(); redraw(); toast(n + (n === 1 ? ' row' : ' rows') + ' marked as checked.'); });
   $('#btnSave').addEventListener('click', function () { saveJson(false); });
   $('#btnSaveAs').addEventListener('click', function () { saveJson(true); });
@@ -1025,7 +1094,9 @@
   $('#btnLoad').addEventListener('click', chooseFactFind);
   $('#btnReadFolder').addEventListener('click', loadFromClientFolder);
   $('#btnSettings').addEventListener('click', openSettings);
-  $('#btnCheck').addEventListener('click', function () { check.settleAll(state); checkPass({ explicit: true }); });
+  $('#btnCheck').addEventListener('click', function () { checksOpen = false; checksInner = false; check.settleAll(state); checkPass({ explicit: true }); });
+  $('#main').addEventListener('input', function (e) { var t = e.target; if (t && t.getAttribute && t.getAttribute('data-bre-text')) breText[t.getAttribute('data-bre-text')] = t.value; });
+  $('#main').addEventListener('click', function (e) { var b = e.target.closest && e.target.closest('[data-bre-read]'); if (b) readPastedEmail(b.getAttribute('data-bre-read')); });
   $('#docIn').addEventListener('change', function (e) { var fs = [].slice.call(e.target.files); e.target.value = ''; if (fs.length) ingest(fs, {}); });
   $('#docOne').addEventListener('change', function (e) { var f = e.target.files[0], o = pending || {}; e.target.value = ''; pending = null; if (f) ingest([f], o); });
   /* the More menu closes after a click on one of its buttons, on a click outside it and on Escape; the toast's link opens Settings */

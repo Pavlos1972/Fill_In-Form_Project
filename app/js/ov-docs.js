@@ -7,18 +7,19 @@
   else { root.OV = root.OV || {}; root.OV.docs = factory(root.FF.util, root.OV.schema, root.OV.calc, root.OV.store); }
 })(typeof self !== 'undefined' ? self : this, function (util, schema, calc, store) {
   var ENDPOINT = 'https://api.anthropic.com/v1/messages', API_VERSION = '2023-06-01';
-  var BLOCK_LABEL = { followup: 'Follow-Up Summary Notes', policies: 'Current policies', fna: 'FNA quote', group: 'Group benefits', shortfallQuote: 'Shortfall quote', reduced: 'Reduced quote', comparative: 'Comparative quote', investments: 'Current investments', astute: 'Astute report', cmp: 'Change moment pay-out guide', proposed: 'Proposed investment', goals: 'Goal analysis report', other: 'Legacy protection plan' };
+  var BLOCK_LABEL = { followup: 'Follow-Up Summary Notes', policies: 'Current policies', fna: 'FNA quote', group: 'Group benefits', shortfallQuote: 'Shortfall quote', reduced: 'Reduced quote', comparative: 'Comparative quote', investments: 'Current investments', astute: 'Astute report', cmp: 'Change moment pay-out guide', proposed: 'Proposed investment', goals: 'Goal analysis report', other: 'Legacy protection plan', bremail: 'BrightRock email' };
   var QUOTE_OF = { fna: 'fna', shortfallQuote: 'shortfall', reduced: 'reduced', comparative: 'comparative' };
 
   /* ---------- sorting a document by its name ---------- */
   function two(n) { return (n < 10 ? '0' : '') + n; }
   /* The block a file belongs to, and what its name says: the quote number (6 to 12 digits), the date (dd.mm.yy). Returns null when the name does not say. */
-  function classify(fileName) {
+  function classify(fileName, dirPath) {
     var n = String(fileName == null ? '' : fileName).replace(/\.[A-Za-z0-9]{2,5}$/, ''), low = n.toLowerCase(), m, date = '', number = '';
     if ((m = /(\d{6,12})/.exec(n))) number = m[1];
     if ((m = /(\d{1,2})[.\/-](\d{1,2})[.\/-](\d{2}|\d{4})(?!\d)/.exec(n))) { var y = +m[3]; if (y < 100) y += 2000; date = two(+m[1]) + '/' + two(+m[2]) + '/' + y; }
     var block = null;
-    if (/cmpo|change[ _-]?moment/.test(low)) block = 'cmp';
+    if (/\.(eml|msg)$/i.test(String(fileName)) || (/\.txt$/i.test(String(fileName)) && /e-?mail|brightrock|\d{6,}/.test(low)) || /e-?mail/.test(low)) block = 'bremail';              // BrightRock's e-mail with the figures a quote does not print (round 4)
+    else if (/cmpo|change[ _-]?moment/.test(low)) block = 'cmp';
     else if (/follow[ _-]?up|summary[ _-]?notes/.test(low)) block = 'followup';                           // the Follow-Up Appointment Summary Notes of a later meeting (2. Fact Find folder)
     else if (/rgar|egar|goal[ _-]?analysis|goal[ _-]?report|retirement goal|education goal/.test(low)) block = 'goals';
     else if (/(^|[^a-z])fna([^a-z]|$)/.test(low)) block = 'fna';
@@ -29,7 +30,12 @@
     else if (/(optimal|tax[ _-]?free|retirement annuity|endowment|unit trust|living annuity|investment).*(quote|proposal|illustration)|(quote|proposal|illustration).*(optimal|tax[ _-]?free|retirement annuity|endowment|living annuity)/.test(low)) block = 'proposed';
     else if (/(momentum|sanlam|discovery|liberty|old mutual|hollard|assupol|metropolitan|absa|bidvest|clientele).*(quote|proposal|illustration)|comparative/.test(low)) block = 'comparative';
     else if (/schedule|policy|(^|[^a-z])ps([^a-z]|$)/.test(low)) block = 'policies';
+    else if (/(liberty|momentum|sanlam|discovery|old mutual|hollard|assupol|metropolitan|clientele|bidvest|generali|santam).*(protector|lifestyle|life plan|life cover|plan|cover|benefit)/.test(low)) block = 'policies';          // an insurer's product name
     else if (/investment|statement|(^|[^a-z])ra([^a-z]|$)|retirement annuity|tax.?free|endowment|unit trust|fund value/.test(low)) block = 'investments';
+    if (!block && dirPath) {                                                                                 // the name does not say: the folder it sits in does (6. Policy Schedules, the Astute folder)
+      var dl = String(dirPath).toLowerCase();
+      if (/polic(y|ies)[ _-]*schedule|(^|[^a-z])schedules?([^a-z]|$)/.test(dl)) block = 'policies'; else if (/astute/.test(dl)) block = 'astute';
+    }
     return block ? { block: block, number: number, date: date, label: BLOCK_LABEL[block] } : null;
   }
 
@@ -43,12 +49,14 @@
       '"abi": n (only when the quote prints ONE annual benefit increase for the whole quote), "servicing": true | false (true when the quote is for a policy the client already has, a review or servicing quote; false for new business), "disabilityAge": n (the age lump sum disability and the income protector run to), "lines": [ ' + LINE + ' ], "printedTotals": { "life": { "lump": n, "monthly": n }, "sev": { "lump": n }, "lsd": { "lump": n, "monthly": n }, "ip": { "monthly": n } } }. ' +
       'Each need (household, each child, each debt, death-related needs, additional expense needs / dread) is one line; the monthly figure printed under a lump sum is "monthly". A child line has the child\'s name and surname; a debt line the debt\'s name and the bank. ' +
       'For a household, child or death-related line give the lump sum in life.lump and, in life.monthly, the INCOME PORTION p.m. printed with it (0 when the lump sum is 0). For a debt line give the debt cover in life.lump and the debt\'s MONTHLY INSTALMENT in life.monthly. The additional expense needs (dread) line has ONLY a severe illness amount, in sev.lump: leave its life cover empty. ' +
+      'A debt line has ONE instalment: give it in life.monthly AND, when the quote prints it, in lsd.monthly too (the same figure). For another insurer\'s quote whose ACI wording is long, also give "aciPoints": ONE to THREE very short points (at most 40 characters each); never a paragraph. ' +
       'Never copy a figure from anywhere but the quote; write null for a figure the quote does not print. ' +
       'A debt line says whether its debt cover is ACCELERATED ("accelerated": true: it is paid out of, and reduces, the life cover) or STANDALONE ("accelerated": false: a separate benefit on top of the life cover); when the quote does not say, write null. ' +
       'EVERY line has its own "abi": the annual benefit increase (annual base increase) of that need, as a number. BrightRock prints it for each need, or once for the whole quote: when it is printed once, copy it onto every line it covers (and also give it as "abi" of the quote). ' +
       'When the quote prints no annual benefit increase for a line, write "Not found" in that line\'s "abi", never null. Severe illness has an amount only on the lines where the quote gives one (the additional expense needs line); leave it null on the others. ' +
       'For a quote that does not list needs separately (other insurers), give one line of type "other" for each benefit with its label. printedTotals is only what the document itself prints as totals; leave it null if it prints none.',
     policy: 'This is a policy schedule from ANY insurer. Return { "insurer": "text", "product": "text", "policyNo": "text", "doc": "dd/mm/yyyy (date of commencement)", "premium": n (monthly), "aci": n, "aciText": "the yearly premium increase exactly as the schedule words it, or null when it only gives a figure", "abi": n, "ipAge": n, "benefits": { "life": "...", "sev": "...", "lsd": "...", "ip": "..." }, "lines": [ ' + LINE + ' ] }. ' +
+      '"aciPoints" is the yearly premium increase in ONE to THREE very short points, at most 40 characters each, the gist only (for example "Reviewed yearly after year 1", "Extra cover priced pro rata"); NEVER a paragraph; null when the schedule only gives a percentage. ' +
       'The four "benefits" are a very short description of each benefit, read from the schedule, for ANY insurer: ONE or TWO short lines each (about 60 characters), no amounts, null for a benefit the policy does not have. ' +
       'Life cover: whole of life or term, and to what age. Severe illness: the product name and type (for example Living Lifestyle Plus), standalone or accelerated, a top-up and an extended option if there are any, whole of life. ' +
       'Lump sum disability: the product name (for example Absolute Protector Plus), OOD (own occupation) or AOD/OD, accelerated or standalone, to what age (for example 65). ' +
@@ -65,12 +73,14 @@
     goal: 'This is a Retirement Goal Analysis Report (RGAR) or an Education Goal Analysis Report (EGAR). Return { "kind": "rgar" | "egar", "note": "a short reason, only if the report says it could not be done or is not applicable, else null", "currentValuePm": n (the current value in rand a month, gross), "futureValuePm": n (the future value in rand a month, gross), "aci": n, "premium": n (the monthly premium) }.',
     ffnotes: 'These are the notes a South African financial adviser typed on a Fact Find about a client\'s medical aid, gap cover, will (the legacy protection plan may be mentioned there) and short-term insurance. Return { "items": { "medical": { "company": "text", "product": "text", "premium": n (a month) }, "gap": { ... }, "will": { ... }, "legacy": { ... }, "shortterm": { ... } } }. ' +
       'Copy ONLY what the notes say about each cover (the company or insurer, the product or plan, the monthly premium as a number); write null for anything they do not say, and leave a cover out when the notes say nothing about it. Never guess.',
+    bremail: 'This is an e-mail from BrightRock (or a copy of one) about quotes it prepared for a client. Return { "quotes": [ { "number": "the CP or quote number the e-mail names for that quote, as printed", "kind": "fna" | "shortfall" | "reduced" | null, "deathIncomePortion": n (the income portion per month of the death-related needs of THAT quote, a plain number), "note": "text or null" } ] }. ' +
+      'Give one entry for every quote the e-mail states a death-related income portion for; copy the figure exactly as the e-mail states it; write null when the e-mail does not give it for a quote; never work anything out and never guess.',
     followup: 'These are Follow-Up Appointment Summary Notes written after a later meeting with a client of a South African financial adviser. Return { "date": "dd/mm/yyyy (the date of the meeting or of the notes)", "items": { "medical": "...", "gap": "...", "will": "...", "legacy": "...", "shortterm": "..." } }. ' +
       'Each item is ONE short sentence (up to about 160 characters) saying what has progressed or is still outstanding for that cover since the Fact Find, in the notes\' own words, for example: Capital Legacy to call to amend the will; everything sent to Cameron, feedback awaited; short-term R 2,539 p.m. split. ' +
       'medical = medical aid, gap = gap cover, will = the will, legacy = the legacy protection plan, shortterm = short-term insurance. Write null for an item the notes say nothing about. Never guess, never copy anything that is not about that item.',
     cmp: 'This is a BrightRock change moment pay-out guide. Return { "number": "the CP number", "activationDate": "dd/mm/yyyy", "reason": "BrightRock\'s reason, only if it gives no pay-out, else null", "rows": [ { "key": "total" | "retirement" | "childcare" | "child", "name": "child first name", "sname": "child surname", "today": n, "projected": n, "payoutDate": "dd/mm/yyyy" or null } ] }.'
   };
-  var SPEC_OF = { fna: 'quote', shortfallQuote: 'quote', reduced: 'quote', comparative: 'quote', policies: 'policy', group: 'group', investments: 'investment', astute: 'astute', cmp: 'cmp', proposed: 'proposal', goals: 'goal', other: 'policy', followup: 'followup', ffnotes: 'ffnotes' };
+  var SPEC_OF = { fna: 'quote', shortfallQuote: 'quote', reduced: 'quote', comparative: 'quote', policies: 'policy', group: 'group', investments: 'investment', astute: 'astute', cmp: 'cmp', proposed: 'proposal', goals: 'goal', other: 'policy', followup: 'followup', ffnotes: 'ffnotes', bremail: 'bremail' };
   /* What the Fact Find says about the client's debts and children, for the reading of a quote (the quote often prints no bank or the debt's name): Claude is asked to name each debt line from it. '' when there is nothing. */
   function factNote(state) {
     var f = state && state.factFind && state.factFind.facts; if (!f) return '';
@@ -103,7 +113,7 @@
     if (!SPEC_OF[o.block]) return Promise.reject(new Error('That kind of document cannot be read here.'));
     var kind = /^image\//.test(o.mediaType) ? 'image' : 'document';
     var content = o.base64 ? [{ type: kind, source: { type: 'base64', media_type: o.mediaType || 'application/pdf', data: o.base64 } }, { type: 'text', text: promptFor(o.block, o.ctx) }]
-      : [{ type: 'text', text: promptFor(o.block, o.ctx) + (o.text ? '\n\nTHE NOTES:\n' + o.text : '') }];                    // the Fact Find's notes are sent as text, no document
+      : [{ type: 'text', text: promptFor(o.block, o.ctx) + (o.text ? '\n\n' + (o.textLabel || 'THE NOTES') + ':\n' + o.text : '') }];                    // the Fact Find's notes are sent as text, no document
     var body = { model: o.model, max_tokens: 8000, messages: [{ role: 'user', content: content }] };
     return doFetch(ENDPOINT, { method: 'POST', headers: { 'content-type': 'application/json', 'x-api-key': o.apiKey, 'anthropic-version': API_VERSION, 'anthropic-dangerous-direct-browser-access': 'true' }, body: JSON.stringify(body) }).then(function (res) {
       return res.json().catch(function () { return {}; }).then(function (j) {
@@ -185,6 +195,7 @@
     q.number = s(data.number) || ''; q.date = dmy(data.date); if (s(data.rates)) q.rates = s(data.rates);
     if (data.aci !== undefined) q.aci = n(data.aci);
     if (s(data.aciText)) q.aciText = s(data.aciText);
+    if (Array.isArray(data.aciPoints)) { var qp = data.aciPoints.map(s).filter(Boolean).slice(0, 3); if (qp.length) q.aciPoints = qp; }
     if (data.premium !== undefined && !o.nameOnly) q.premium = n(data.premium);
     if (data.servicing === true || data.servicing === false) q.servicing = data.servicing;
     if (data.disabilityAge !== undefined && calc.isNum(n(data.disabilityAge))) q.disabilityAge = n(data.disabilityAge);
@@ -225,6 +236,7 @@
     if (dmy(data.doc)) item.doc = dmy(data.doc);
     ['premium', 'aci', 'abi'].forEach(function (k) { if (data[k] !== undefined && data[k] !== null) item[k] = n(data[k]); });
     if (s(data.aciText)) item.aciText = s(data.aciText);
+    if (Array.isArray(data.aciPoints)) { var ip = data.aciPoints.map(s).filter(Boolean).slice(0, 3); if (ip.length) item.aciPoints = ip; }
     if (data.ipAge !== undefined && calc.isNum(n(data.ipAge))) item.ipAge = n(data.ipAge);
     if (data.benefits && typeof data.benefits === 'object') { item.benefits = item.benefits || {}; ['life', 'sev', 'lsd', 'ip'].forEach(function (k) { if (s(data.benefits[k])) item.benefits[k] = s(data.benefits[k]); }); }
     if (data.lines && data.lines.length) item.lines = data.lines.map(function (l) { return line(l, src); });
@@ -268,6 +280,86 @@
       if (did) out.push(it.key);
     });
     return out;
+  }
+
+  /* ---------- the BrightRock e-mail (round 4, 23 November) ---------- */
+  /* The death-related income portion of a BrightRock quote is often only in BrightRock's e-mail. The page takes the e-mail as a saved file (.eml, .msg, .txt, or a PDF) found in the client's folder, or as text pasted into a quote.
+     Only the text of that one e-mail is sent to Claude, which is asked for the CP numbers it names and the death-related income portion of each. */
+  function decodeQP(t) {
+    return String(t).replace(/=\r?\n/g, '').replace(/(=[0-9A-Fa-f]{2})+/g, function (m) {
+      try { return decodeURIComponent(m.replace(/=/g, '%')); } catch (e) { return m.replace(/=([0-9A-Fa-f]{2})/g, function (x, h) { return String.fromCharCode(parseInt(h, 16)); }); }
+    });
+  }
+  function b64text(t) {
+    try { var bin = atob(String(t).replace(/[^A-Za-z0-9+\/=]/g, '')); try { return decodeURIComponent(escape(bin)); } catch (e) { return bin; } } catch (e) { return ''; }
+  }
+  function stripHtml(h) {
+    return String(h).replace(/<(script|style)[\s\S]*?<\/\1>/gi, ' ').replace(/<br\s*\/?>|<\/(p|div|tr|li|h\d)>/gi, '\n').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/gi, ' ').replace(/&amp;/gi, '&').replace(/&lt;/gi, '<').replace(/&gt;/gi, '>')
+      .replace(/&#(\d+);/g, function (m, c) { return String.fromCharCode(+c); }).replace(/[ \t]+/g, ' ').replace(/\n\s*\n+/g, '\n');
+  }
+  function mimePart(raw) {
+    var i = raw.search(/\r?\n\r?\n/), head = i < 0 ? '' : raw.slice(0, i), body = i < 0 ? raw : raw.slice(i).replace(/^\r?\n\r?\n/, '');
+    var hdr = head.replace(/\r?\n[ \t]+/g, ' '), type = ((/^content-type:\s*([^;\r\n]+)/im.exec(hdr) || [])[1] || '').trim().toLowerCase(), enc = ((/^content-transfer-encoding:\s*(\S+)/im.exec(hdr) || [])[1] || '').toLowerCase(), bnd = (/boundary="?([^";\r\n]+)"?/i.exec(hdr) || [])[1];
+    if (/^multipart\//.test(type) && bnd) return body.split('--' + bnd).slice(1).filter(function (p) { return !/^--/.test(p.trim()); }).map(mimePart).filter(Boolean).join('\n');
+    if (type && !/^text\//.test(type)) return '';
+    var t = enc === 'quoted-printable' ? decodeQP(body) : enc === 'base64' ? b64text(body) : body;
+    return /html/.test(type) ? stripHtml(t) : t;
+  }
+  /* The readable text of an e-mail saved as text (.eml, .txt) or pasted: headers kept as Subject / From / Date, MIME parts decoded (quoted-printable, base64), HTML turned into text. At most 60,000 characters. */
+  function emailText(raw) {
+    raw = String(raw == null ? '' : raw);
+    var isMime = /^(received|from|subject|date|mime-version|content-type|message-id|to):/im.test(raw.slice(0, 3000)), out;
+    if (isMime) {
+      var cut = raw.search(/\r?\n\r?\n/), head = (cut < 0 ? raw : raw.slice(0, cut)).replace(/\r?\n[ \t]+/g, ' '), hv = function (h) { var m = new RegExp('^' + h + ':\\s*(.+)$', 'im').exec(head); return m ? m[1].trim() : ''; };
+      out = ['Subject: ' + hv('subject'), 'From: ' + hv('from'), 'Date: ' + hv('date'), '', mimePart(raw)].join('\n');
+    } else out = /<\/?(html|body|div|p|br)[\s>]/i.test(raw) ? stripHtml(raw) : raw;
+    out = out.replace(/\r/g, '').replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
+    return out.length > 60000 ? out.slice(0, 60000) : out;
+  }
+  /* The readable text of an Outlook message (.msg: a compound file that keeps the text as UTF-16 or 8-bit strings): the runs of readable characters, once each. At most 60,000 characters. bytes: a Uint8Array. */
+  function msgText(bytes) {
+    var out = [], seen = {}, n = bytes.length, i, run = '', add = function (t) { t = t.replace(/[ \t]+/g, ' ').trim(); if (t.replace(/\s/g, '').length >= 6 && !seen[t]) { seen[t] = 1; out.push(t); } };
+    for (i = 0; i + 1 < n; i += 2) {
+      var c = bytes[i] | (bytes[i + 1] << 8);
+      if ((c >= 32 && c < 127) || c === 9 || c === 10 || c === 13 || (c >= 160 && c <= 255) || c === 0x2018 || c === 0x2019 || c === 0x201C || c === 0x201D || c === 0x2013 || c === 0x2014 || c === 0x20AC) run += String.fromCharCode(c);
+      else { add(run); run = ''; }
+    }
+    add(run); run = '';
+    for (i = 0; i < n; i++) { var b = bytes[i]; if ((b >= 32 && b < 127) || b === 10 || b === 13 || b === 9) run += String.fromCharCode(b); else { if (run.length >= 12) add(run); run = ''; } }
+    if (run.length >= 12) add(run);
+    var text = out.join('\n');
+    return text.length > 60000 ? text.slice(0, 60000) : text;
+  }
+  function brightQuotes(state) { return calc.allQuotes(state).filter(function (q) { return q.kind !== 'comparative' && /bright/i.test(q.insurer || ''); }); }
+  /* What the e-mail said goes into the death-related line of the quote it names (by CP number; an unnumbered figure goes to the quote the e-mail was pasted into): the income portion p.m., only where the quote printed none; a figure a quote
+     printed, or a person typed, is never replaced. The line says where the figure came from (via). Returns { filled: [quotes], unmatched: [numbers], nofigure }. */
+  function applyBrEmail(state, data, file, o) {
+    o = o || {};
+    var res = { filled: [], unmatched: [], nofigure: 0 }, list = data && Array.isArray(data.quotes) ? data.quotes : [], date = o.date || today(), all = brightQuotes(state);
+    list.forEach(function (e) {
+      if (!e || typeof e !== 'object') return;
+      var v = n(e.deathIncomePortion); if (!calc.isNum(v)) { res.nofigure++; return; }
+      var num = qkey(e.number), qs = num ? all.filter(function (q) { return qkey(q.number) === num; }) : [];
+      if (!qs.length && o.quote && (!num || list.length === 1)) qs = [o.quote];
+      if (!qs.length) { res.unmatched.push(num || 'a quote'); return; }
+      qs.forEach(function (q) {
+        var line = calc.activeLines(q).filter(function (l) { return l.type === 'death'; })[0];
+        if (!line) { res.unmatched.push((num || q.number || 'a quote') + ' (no death-related line)'); return; }
+        var cur = line.life && typeof line.life === 'object' ? line.life.monthly : null;
+        if (calc.isNum(cur)) return;                                                                          // the quote printed it, or a person typed it: kept
+        if (!line.life || typeof line.life !== 'object') line.life = { lump: null, monthly: null };
+        line.life.monthly = v; line.via = line.via || {}; line.via['life.monthly'] = 'from the BrightRock email' + (date ? ' ' + dm(date) : '');
+        if (res.filled.indexOf(q) < 0) res.filled.push(q);
+      });
+    });
+    return res;
+  }
+  /* The date of an Astute report goes into the overview's header (Client details: Astute report date): the date the report says, else the date in its file name; a later one replaces an earlier one. Returns the date set, or null. */
+  function setAstuteDate(state, data, nameDate) {
+    var d = dmy(data && data.reportDate) || nameDate || null; if (!d) return null;
+    var key = function (v) { var m = /(\d{1,2})\D(\d{1,2})\D(\d{2,4})/.exec(String(v || '')); return m ? (+m[3]) * 10000 + (+m[2]) * 100 + (+m[1]) : 0; };
+    if (state.header.astuteDate && key(state.header.astuteDate) >= key(d)) return null;
+    state.header.astuteDate = d; return d;
   }
   /* "dd/mm/yyyy" as "dd/mm" for the source tag of a note. */
   function dm(v) { var m = /^(\d{1,2})\/(\d{1,2})\/\d{2,4}$/.exec(String(v || '')); return m ? two(+m[1]) + '/' + two(+m[2]) : String(v || ''); }
@@ -346,10 +438,11 @@
     if (kind === 'cmp') return !(data.rows && data.rows.length) && !has(data.reason);
     if (kind === 'ffnotes') return !(data.items && typeof data.items === 'object' && Object.keys(data.items).some(function (k) { var d = data.items[k]; return d && typeof d === 'object' && (has(d.company) || has(d.product) || has(d.premium)); }));
     if (kind === 'followup') return !(data.items && typeof data.items === 'object' && Object.keys(data.items).some(function (k) { return has(data.items[k]); }));
-    if (kind === 'astute') return !(data.investments && data.investments.length);
+    if (kind === 'astute') return !(data.investments && data.investments.length) && !has(data.reportDate);
+    if (kind === 'bremail') return !(data.quotes && data.quotes.some && data.quotes.some(function (e) { return e && calc.isNum(n(e.deathIncomePortion)); }));
     return !Object.keys(data).some(function (k) { return has(data[k]) && typeof data[k] !== 'object'; }) && !Object.keys(data).some(function (k) { var v = data[k]; return v && typeof v === 'object' && Object.keys(v).some(function (j) { return has(v[j]); }); });
   }
 
-  return { classify: classify, promptFor: promptFor, parseReply: parseReply, readWithClaude: readWithClaude, applyQuote: applyQuote, enrich: enrich, factNote: factNote, applyPolicy: applyPolicy, applyOther: applyOther, applyFollowUp: applyFollowUp, dm: dm, factNotesText: factNotesText, applyNotesRead: applyNotesRead, applyGroup: applyGroup, applyInvestment: applyInvestment, applyAstute: applyAstute, applyProposed: applyProposed, applyGoal: applyGoal, isEmptyRead: isEmptyRead,
+  return { classify: classify, promptFor: promptFor, parseReply: parseReply, readWithClaude: readWithClaude, applyQuote: applyQuote, enrich: enrich, factNote: factNote, applyPolicy: applyPolicy, applyOther: applyOther, applyFollowUp: applyFollowUp, dm: dm, factNotesText: factNotesText, applyNotesRead: applyNotesRead, emailText: emailText, msgText: msgText, applyBrEmail: applyBrEmail, setAstuteDate: setAstuteDate, brightQuotes: brightQuotes, applyGroup: applyGroup, applyInvestment: applyInvestment, applyAstute: applyAstute, applyProposed: applyProposed, applyGoal: applyGoal, isEmptyRead: isEmptyRead,
     applyCmp: applyCmp, matchItem: matchItem, logDoc: logDoc, findQuoteByNumber: findQuoteByNumber, quoteIn: quoteIn, quoteRead: quoteRead, SPEC_OF: SPEC_OF, BLOCK_LABEL: BLOCK_LABEL, QUOTE_OF: QUOTE_OF, ENDPOINT: ENDPOINT };
 });

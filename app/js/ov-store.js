@@ -37,6 +37,7 @@
     var t = str(text);
     if (kind === 'money' || kind === 'pct' || kind === 'num') return parseNum(t);
     if (kind === 'date') { if (t === '') return null; var d = util.parseDate(t); return d ? util.formatDate(d) : t; }
+    if (kind === 'lines') { var ls = String(text == null ? '' : text).split(/\r?\n+/).map(function (x) { return x.trim(); }).filter(Boolean).slice(0, 3); return ls.length ? ls : null; }          // the ACI in short points: one per line, up to three
     if (kind === 'bool') return text === true || text === 'true' || text === 'on' || text === '1';
     if (kind === 'tri') return t === '' ? null : (text === true || t === 'true');
     return t === '' ? null : t;
@@ -49,6 +50,7 @@
     for (var i = 0; i < parts.length - 1; i++) { o = o[parts[i]]; if (o == null) return undefined; if (typeof o === 'object' && !Array.isArray(o) && Object.prototype.hasOwnProperty.call(o, 'st')) owner = o; }
     var last = parts[parts.length - 1];
     o[last] = val;
+    if (parts.length >= 3) { var ln = pathGet(state, parts.slice(0, -2).join('.')); if (ln && ln.via && typeof ln.via === 'object') delete ln.via[parts.slice(-2).join('.')]; }          // a figure somebody types is no longer "from the FNA quote" or "from the email"
     if (owner) { owner.st = 'confirmed'; owner.by = 'person'; delete owner.match; }                          // a person's typing is a person's check: the page's automatic match is over
     return val;
   }
@@ -303,6 +305,12 @@
       var pick = pickOf(it.key);
       if (it.st !== 'ff' && it.st !== 'empty') {                                                               // a later update (the Summary Notes) was added: the Fact Find's part stays in front of it
         if (it.src && it.src.kind === 'followup' && pick.note && !/\(Fact Find/.test(it.note || '')) it.note = pick.note + ' · ' + (it.note || '');
+        /* Round 4 (23 November): whatever the item's status (to check, confirmed, carried over from last year's overview by New review year), a box that is still EMPTY gets the Fact Find's answer; what is written there is never touched.
+           Last year's note (carried over, with no Fact Find tag) gets this year's Fact Find part in front. */
+        var filled = false;
+        ['company', 'product', 'premium', 'note'].forEach(function (k) { var cur = it[k]; if ((cur == null || String(cur).trim() === '') && pick[k] != null && pick[k] !== '') { it[k] = pick[k]; filled = true; } });
+        if (it.src && it.src.kind === 'previous' && pick.note && it.note && !/\(Fact Find/.test(it.note)) { it.note = pick.note + ' · ' + it.note; filled = true; }
+        if (filled) { rep.updated++; if (it.st === 'confirmed') { it.st = 'ff'; it.by = 'page'; it.src = src; } }
         return;
       }
       var prev = JSON.stringify(it);

@@ -41,8 +41,39 @@
   function settleLine(l) {
     var n = 0; if (!l || typeof l !== 'object') return 0;
     if (l.type === 'dread' && l.life !== 'N/A') { l.life = 'N/A'; n++; }
+    if (l.type === 'debt' && l.lsd && typeof l.lsd === 'object' && l.life && typeof l.life === 'object' && isNum(l.life.monthly) && (l.lsd.monthly === null || l.lsd.monthly === undefined || l.lsd.monthly === '' || l.lsd.monthly === 'Not found')) {
+      l.lsd.monthly = l.life.monthly; n++;                                                                       // round 4 (23 November): the debt's instalment is one figure; the Lump sum disability box is never left empty beside it
+    }
     if ((l.type === 'household' || l.type === 'child' || l.type === 'death') && l.life && typeof l.life === 'object' && l.life.lump === 0 && (l.life.monthly === null || l.life.monthly === undefined || l.life.monthly === '')) { l.life.monthly = 0; n++; }
     return n;
+  }
+  /* The ACI in short points (round 4, 23 November): another insurer's ACI wording can be a whole paragraph. Every screen shows 1 to 3 short points and keeps the whole wording for the hover text and the policy card. The points are the
+     ones the reading gave (aciPoints); for an older file they are cut from the wording: its first sentences or clauses, each at most 56 characters. A short wording ("7.5% + age rater", "10% fixed") is its own single point. */
+  function cutWords(t, n) { t = String(t == null ? '' : t).replace(/\s+/g, ' ').trim(); if (t.length <= n) return t; var c = t.slice(0, n - 1), i = c.lastIndexOf(' '); if (i > n * 0.5) c = c.slice(0, i); return c.replace(/[ ,;:.\-]+$/, '') + '\u2026'; }
+  function aciPoints(x) {
+    var full = fmtAci(x); if (!full) return [];
+    var own = x && Array.isArray(x.aciPoints) ? x.aciPoints.map(function (p) { return cutWords(p, 60); }).filter(Boolean).slice(0, 3) : [];
+    if (own.length) return own;
+    if (full.length <= 38) return [full];
+    var parts = full.split(/\s*(?:\r?\n|[;\u2022]|\.\s+(?=[A-Za-z0-9])|\s-\s)\s*/).map(function (p) { return p.trim(); }).filter(function (p) { return p.length > 2; });
+    if (parts.length < 2) parts = full.split(/\s*,\s+/).map(function (p) { return p.trim(); }).filter(function (p) { return p.length > 2; });
+    if (parts.length < 2 && full.length <= 90) return [full];                                               // one clause of a normal length stays whole
+    return (parts.length ? parts : [full]).slice(0, 3).map(function (p) { return cutWords(p, 56); });
+  }
+  /* Debt names that mean the same thing (round 4): "FNB Rev Credit" and "Revolving credit" are one debt. A name is lower-cased, its abbreviations are spelled out (rev, cc, veh, fin, pers, hl, od, mtg), bank names are dropped, and two
+     names match when their words are the same or all the words of one are in the other. */
+  var DEBT_WORDS = { rev: 'revolving', revolv: 'revolving', revolve: 'revolving', cc: 'credit card', crd: 'credit', cr: 'credit', veh: 'vehicle', fin: 'finance', pers: 'personal', hl: 'home loan', od: 'overdraft', ovd: 'overdraft', ln: 'loan',
+    mtg: 'home loan', mortgage: 'home loan', bond: 'home loan', acc: '', account: '', facility: '', fnb: '', absa: '', nedbank: '', capitec: '', investec: '', tyme: '', tymebank: '', wesbank: '', mfc: '', std: '', standard: '', bank: '',
+    first: '', national: '', discovery: '', african: '', bidvest: '' };
+  function debtWords(s) {
+    var out = [];
+    norm(s).split(' ').forEach(function (w) { if (!w) return; var m = Object.prototype.hasOwnProperty.call(DEBT_WORDS, w) ? DEBT_WORDS[w] : w; m.split(' ').forEach(function (x) { if (x && out.indexOf(x) < 0) out.push(x); }); });
+    return out;
+  }
+  function sameDebtName(a, b) {
+    var x = debtWords(a), y = debtWords(b); if (!x.length || !y.length) return false;
+    var sub = function (p, q) { return p.every(function (w) { return q.indexOf(w) >= 0; }); };
+    return sub(x, y) || sub(y, x);
   }
   function activeLines(x) { return active(x && x.lines); }
   function emptyTotals() { return { life: { lump: 0, monthly: 0 }, sev: { lump: 0 }, lsd: { lump: 0, monthly: 0 }, ip: { monthly: 0 } }; }
@@ -136,10 +167,19 @@
         same = [byBal || byInst || same[0]];
       }
       var l = same[0] || debts.filter(function (x) { var nd = norm(x.debt); return !used[x.id] && nd.length > 2 && keys.some(function (k) { return k.length > 2 && (nd.indexOf(k) >= 0 || k.indexOf(nd) >= 0); }); })[0];
+      var near = function (a, b) { return isNum(a) && isNum(b) && b > 0 && Math.abs(a - b) < 1; };
+      if (!l) {                                                                                           // the same debt under another spelling (FNB Rev Credit = Revolving credit): abbreviations and bank names set aside
+        var cands = debts.filter(function (x) { return !used[x.id] && x.debt && [d.desc, d.type, d.prov + ' ' + d.type].some(function (k) { return sameDebtName(k, x.debt); }); });
+        l = cands.filter(function (x) { return near(lineVal(x, 'life', 'lump'), d.bal); })[0] || cands.filter(function (x) { return near(lineVal(x, 'life', 'monthly'), d.inst); })[0] || cands[0];
+      }
       if (!l) l = debts.filter(function (x) {                                                           // a line with no name (or another one) but the same instalment, or the same balance as its lump sum
-        var m = lineVal(x, 'life', 'monthly'), g = lineVal(x, 'life', 'lump');
-        return !used[x.id] && !norm(x.debt) && ((isNum(m) && isNum(d.inst) && d.inst > 0 && Math.abs(m - d.inst) < 1) || (isNum(g) && isNum(d.bal) && d.bal > 0 && Math.abs(g - d.bal) < 1));
+        return !used[x.id] && !norm(x.debt) && (near(lineVal(x, 'life', 'monthly'), d.inst) || near(lineVal(x, 'life', 'lump'), d.bal));
       })[0];
+      if (!l) {                                                                                           // same amounts, whatever the names say (the quote's name wins): the balance and the instalment both, else the balance, else the one line with this instalment
+        var open = debts.filter(function (x) { return !used[x.id]; }), byBoth = open.filter(function (x) { return near(lineVal(x, 'life', 'lump'), d.bal) && near(lineVal(x, 'life', 'monthly'), d.inst); }),
+          byBal = open.filter(function (x) { return near(lineVal(x, 'life', 'lump'), d.bal); }), byInst = open.filter(function (x) { return near(lineVal(x, 'life', 'monthly'), d.inst); });
+        l = byBoth[0] || byBal[0] || (byInst.length === 1 ? byInst[0] : null);
+      }
       if (!l) { missing.push(d); return; }
       used[l.id] = 1; pairs.push({ line: l, ff: d });
     });
@@ -161,7 +201,7 @@
   var PAGE_WHY = { shortfallQuote: 'Left out: there is no group risk, or no shortfall quote was asked for.', comparative: 'Left out: no comparative quote was asked for in the Fact Find.', proposed: 'Left out: there are no proposed investments.', goals: 'Left out: no goal analysis report was asked for.' };
   function pageWhy(id) { return PAGE_WHY[id] || ''; }
 
-  return { settleLine: settleLine, isNum: isNum, r2: r2, norm: norm, fmtR: fmtR, fmtPct: fmtPct, fmtAci: fmtAci, matchChildren: matchChildren, matchDebts: matchDebts, pageShown: pageShown, pageWhy: pageWhy, fmtDiff: fmtDiff, show: show, lineVal: lineVal, active: active, activeLines: activeLines, totals: totals, sumLines: sumLines,
+  return { settleLine: settleLine, aciPoints: aciPoints, sameDebtName: sameDebtName, isNum: isNum, r2: r2, norm: norm, fmtR: fmtR, fmtPct: fmtPct, fmtAci: fmtAci, matchChildren: matchChildren, matchDebts: matchDebts, pageShown: pageShown, pageWhy: pageWhy, fmtDiff: fmtDiff, show: show, lineVal: lineVal, active: active, activeLines: activeLines, totals: totals, sumLines: sumLines,
     quotes: quotes, allQuotes: allQuotes, policies: policies, policyTotals: policyTotals, groupItems: groupItems, hasGroupRisk: hasGroupRisk, groupTotals: groupTotals, investments: investments,
     personalInvestments: personalInvestments, shortfall: shortfall, compare: compare, pillars: pillarOfBlock };
 });

@@ -19,7 +19,7 @@
   var A = function (v) { return calc.isNum(v) ? calc.fmtR(v) : (v === 'N/A' || v === 'Not found' ? v : '-'); };
   var PM = function (v) { return calc.isNum(v) ? calc.fmtR(v) + ' p.m.' : A(v); };
   var PC = function (v) { return calc.isNum(v) ? calc.fmtPct(v) : (v === 'N/A' || v === 'Not found' ? v : '-'); };
-  var AC = function (x) { return calc.fmtAci(x) || '-'; };                                          // the ACI as the document words it, or "10% fixed"
+  var AC = function (x) { var p = calc.aciPoints(x); return !p.length ? '-' : (p.length === 1 && p[0] === calc.fmtAci(x) ? p[0] : p.map(function (t) { return '- ' + t; }).join('\n')); };          // the ACI as 1 to 3 short points (round 4), or the short wording itself                                          // the ACI as the document words it, or "10% fixed"
   var right = function (s, extra) { return Object.assign({ content: t(s), styles: Object.assign({ halign: 'right' }, extra || {}) }); };
   var center = function (s, extra) { return { content: t(s), styles: Object.assign({ halign: 'center' }, extra || {}) }; };
 

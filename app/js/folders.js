@@ -279,7 +279,8 @@
   /* The documents the Client Overview can use, found in a client's folder (stage 4): the files of `6. Policy Schedules`, of `5. Astute` (and of its latest year folder) and of any `Comparative Quotes` folder one level down
      (the quote folders). Only reads. Returns [{ name, rel: [folder names], handle }]. */
   async function clientDocuments(client) {
-    var out = [], isDoc = function (n) { return /\.(pdf|png|jpe?g)$/i.test(n); };
+    var out = [], isMail = function (n) { return /\.(eml|msg)$/i.test(n) || (/\.txt$/i.test(n) && /e-?mail|brightrock|\d{6,}/i.test(n)); }, isDoc = function (n) { return /\.(pdf|png|jpe?g)$/i.test(n) || isMail(n); };                      // e-mails (BrightRock's, with the figures a quote does not print) are listed too
+    for await (var re of client.handle.entries()) if (re[1].kind === 'file' && isMail(re[0])) out.push({ name: re[0], rel: [], handle: re[1] });          // an e-mail saved in the client's own folder
     async function files(dir, rel) { for await (var e of dir.entries()) if (e[1].kind === 'file' && isDoc(e[0])) out.push({ name: e[0], rel: rel, handle: e[1] }); }
     var kids = await listDirs(client.handle);
     for (var i = 0; i < kids.length; i++) {
@@ -294,7 +295,7 @@
         await fu(k.handle, [k.name]);
         var fyears = (await listDirs(k.handle)).filter(function (y) { return RULES.year.test(norm(y.name)); });
         for (var fy = 0; fy < fyears.length; fy++) await fu(fyears[fy].handle, [k.name, fyears[fy].name]);
-      } else if (isStandard(k.name) && /quote|goal|rgar|egar|proposal|analysis/.test(nk)) await files(k.handle, [k.name]);          // the quotes (and their change moment pay-out guides), the goal analysis reports and the proposals
+      } else if (isStandard(k.name) && /quote|goal|rgar|egar|proposal|analysis|e-?mail|correspondence/.test(nk)) await files(k.handle, [k.name]);          // the quotes (and their change moment pay-out guides), the goal analysis reports and the proposals
       else if (!isStandard(k.name)) {
         var inner = await listDirs(k.handle);
         for (var j = 0; j < inner.length; j++) if (/comparative quotes/.test(norm(inner[j].name))) await files(inner[j].handle, [k.name, inner[j].name]);

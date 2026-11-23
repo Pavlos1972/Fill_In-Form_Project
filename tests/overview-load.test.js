@@ -130,15 +130,15 @@ test('the page: one load button, a More menu, Settings, no Documents panel, no b
 
 test('quotes are read before their pay-out guides in a bulk load; a guide is looked for by itself for each BrightRock quote; none found and an unmatched guide are said once', () => {
   const ui = app('js/ov-ui.js');
-  assert.ok(/chain\(files\.filter\(function \(f\) \{ return !isGuide\(f\); \}\)/.test(ui) && /chain\(files\.filter\(isGuide\)/.test(ui), 'the guides come after the quotes');
+  assert.ok(/chain\(files\.filter\(function \(f\) \{ return !isGuide\(f\) && !isEmail\(f\); \}\)/.test(ui) && /chain\(files\.filter\(isGuide\)/.test(ui) && /chain\(files\.filter\(isEmail\)/.test(ui), 'the guides come after the quotes, the BrightRock e-mails after the guides');
   assert.ok(/function autoGuide\(q, o\)/.test(ui) && /q\.kind === 'comparative' \|\| !\/bright\/i\.test\(q\.insurer/.test(ui) && /No change moment pay-out guide found for CP /.test(ui), 'every BrightRock quote but a comparative one looks for its guide: "No change moment pay-out guide found for CP <n>" when there is none');
   assert.ok(/unmatchedGuides\[num\]/.test(ui) && /matches no quote that is loaded/.test(ui) && /res\.skip = true/.test(ui), 'a guide that matches no quote is listed once');
-  assert.ok(/guideIn\(pool, num\)/.test(ui) && /ingest\(fs, \{ pool: res\.files, counted: true \}\)/.test(ui), 'the guide is looked for in the files of the client\'s folder that were listed, beside the quote, or in the quotes folder');
+  assert.ok(/guideIn\(pool, num\)/.test(ui) && /ingest\(fs, \{ pool: res\.files, counted: true, dirs: dirs \}\)/.test(ui), 'the guide is looked for in the files of the client\'s folder that were listed, beside the quote, or in the quotes folder');
   const F = app('js/folders.js'); assert.ok(/quote\|goal\|rgar\|egar\|proposal\|analysis/.test(F), 'the listing of the client\'s folder now includes the quotes, goal and proposals folders (where the guides are)');
 });
 
 test('the contract: revision g, the page version 0.92, the layout still 0.1; new keys are only the line\'s match', () => {
-  assert.strictEqual(schema.pageVersion, '0.92'); assert.strictEqual(schema.version, '0.1');
+  assert.strictEqual(schema.pageVersion, '0.93'); assert.strictEqual(schema.version, '0.1');
   const s = filled(), q = read(s, [{ type: 'child', name: 'Amy', sname: 'Client', life: { lump: 1, monthly: 5000 } }]); check.autoMatch(s, q);
   const j = JSON.parse(store.toJSON(s)); assert.strictEqual(j.blocks.fna.quotes[0].lines[0].match, 'factfind');
   assert.ok(/Revision g/.test(fs.readFileSync(path.join(__dirname, '..', 'docs', 'OVERVIEW-DATA-CONTRACT.md'), 'utf8')), 'written in the contract');
