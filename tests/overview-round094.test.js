@@ -52,13 +52,13 @@ test('with nothing to check, or nothing waiting, there is nothing to go to', () 
   const t = withFF(); store.acceptAll(t); assert.strictEqual(store.counts(t).check, 0); assert.deepStrictEqual(store.pendingRows(t, 'check'), []);
 });
 
-test('the page: "to check" and "waiting" are buttons the page answers (a click and Enter or Space), the version is 0.94 and the saved file gains no key', () => {
+test('the page: "to check" and "waiting" are buttons the page answers (a click and Enter or Space), the version is 0.95 and the saved file gains no key', () => {
   const html = app('overview.html'), ui = app('js/ov-ui.js');
   assert.ok(/<div class="sbtn" id="sVerifyBox" role="button" tabindex="0"[^>]*><b id="sVerify">0<\/b><span>to check<\/span><\/div>/.test(html), '"to check" is a button');
   assert.ok(/<div class="sbtn" id="sEmptyBox" role="button" tabindex="0"[^>]*><b id="sEmpty">0<\/b><span>waiting<\/span><\/div>/.test(html), '"waiting" is a button');
   assert.ok(/<div><b id="sFilled">0<\/b><span>checked<\/span><\/div>/.test(html), '"checked" stays plain');
   assert.ok(/\['sVerifyBox', 'check'\], \['sEmptyBox', 'waiting'\]/.test(ui) && /goPending/.test(ui) && /e\.key === 'Enter' \|\| e\.key === ' '/.test(ui), 'a click and the keyboard both go');
   assert.ok(/store\.pendingRows\(state, kind\)/.test(ui) && /openSet\[next\.owner\.id\] = true/.test(ui), 'the page asks the store and opens the quote or policy that holds the row');
-  assert.strictEqual(schema.pageVersion, '0.94'); assert.strictEqual(schema.version, '0.1');
+  assert.strictEqual(schema.pageVersion, '0.95'); assert.strictEqual(schema.version, '0.1');
   assert.ok(/\.qcard\.flash/.test(app('css/overview.css')), 'a card flashes like a row');
 });

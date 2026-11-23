@@ -12,6 +12,9 @@
   var root = null, open = false, kp = null, kpNote = '', prevOverflow = '', fsOff = 0;
 
   function state() { return OV.app.state; }
+  /* The View buttons (0.95): the same button as the entry screen's, larger; one that cannot open its file is hidden here (nothing greyed in front of a client). */
+  function vp(path) { return OV.view && path ? OV.view.button(state(), path, 'pres') : ''; }
+  function idxOf(block, list, o) { var i = state().blocks[block][list].indexOf(o); return i >= 0 ? 'blocks.' + block + '.' + list + '.' + i : ''; }
   function loadKP() { try { var j = JSON.parse(localStorage.getItem(KP_KEY) || 'null'); return j && Array.isArray(j.points) ? j : null; } catch (e) { return null; } }
   function saveKP(o) { try { if (o) localStorage.setItem(KP_KEY, JSON.stringify(o)); else localStorage.removeItem(KP_KEY); } catch (e) { /* kept for this visit only */ } kp = o; }
 
@@ -144,7 +147,7 @@
     var cur = Math.min(ps.qi, qs.length - 1), q = qs[cur], hasCmp = !!q.cmp, sub = ps.sub === 'cmp' && !hasCmp ? 'quote' : ps.sub;
     var chips = qs.length > 1 ? '<span class="sp"></span><span class="pchips">' + qs.map(function (x, i) { return '<button type="button" class="pchip' + (i === cur ? ' on' : '') + '" data-act="q" data-i="' + i + '">' + esc((x.insurer || 'Quote') + (x.number ? ' ' + x.number : '')) + '</button>'; }).join('') + '</span>' : '';
     var subs = [['quote', 'The quote']].concat(hasCmp ? [['cmp', 'Your change moment pay-out']] : [], [['cmpr', 'Compared with what you have now']]);
-    var out = head(b, sub !== 'cmp' ? hb(true) : '') + quoteHead(q, chips);
+    var qpath = idxOf(b.id, 'quotes', q), out = head(b, sub !== 'cmp' ? hb(true) : '') + quoteHead(q, (sub === 'cmp' ? vp(qpath && qpath + '.cmp') : vp(qpath)) + chips);
     out += tools('<span class="psubs">' + subs.map(function (s) { return '<button type="button" class="psub' + (s[0] === sub ? ' on' : '') + '" data-act="sub" data-s="' + s[0] + '">' + s[1] + '</button>'; }).join('') + '</span>');
     if (sub === 'cmp') return out + cmpView(q);
     if (sub === 'cmpr') return out + compareView(q);
@@ -160,13 +163,13 @@
     if (!ps0.length) return head(b) + empty('No current policies.');
     var one = ps.pol != null ? ps0[ps.pol] : null;
     if (one) {
-      var it = one.item;
-      return head(b, hb(true)) + '<div class="qhead"><button type="button" class="pchip back" data-act="polall">&larr; All policies</button><span class="qinfo">' + esc([it.insurer || 'Policy', it.policyNo, it.product, it.doc ? 'DOC ' + it.doc : ''].filter(Boolean).join('   |   ')) + '</span></div>' + linesTable(it, true, it.ipAge || age) + (it.cmp ? '<div class="qhead"><span class="qinfo">Your change moment pay-out</span></div>' + cmpView(it) : '');
+      var it = one.item, ppath = idxOf('policies', 'items', it);
+      return head(b, hb(true)) + '<div class="qhead"><button type="button" class="pchip back" data-act="polall">&larr; All policies</button><span class="qinfo">' + esc([it.insurer || 'Policy', it.policyNo, it.product, it.doc ? 'DOC ' + it.doc : ''].filter(Boolean).join('   |   ')) + '</span>' + vp(ppath) + '</div>' + linesTable(it, true, it.ipAge || age) + (it.cmp ? '<div class="qhead"><span class="qinfo">Your change moment pay-out</span>' + vp(ppath && ppath + '.cmp') + '</div>' + cmpView(it) : '');
     }
     var ageH = ageText(age), rows = ps0.map(function (e, i) {
       var it = e.item, tt = calc.totals(it), lines = calc.activeLines(it), has = lines.length, bn = it.benefits || {}, bd = function (k) { return bn[k] ? '<small class="bdesc">' + esc(bn[k]) + '</small>' : ''; };
       var w = (lines.filter(function (l) { return l.waiting && l.waiting !== 'N/A'; })[0] || {}).waiting;
-      return '<tr' + (has ? ' data-act="pol" data-i="' + i + '"' : '') + '>' + tickCell('<b>' + esc((it.insurer || 'Policy') + (it.policyNo ? ' ' + it.policyNo : '')) + '</b><small>' + esc([it.product, it.doc ? 'DOC ' + it.doc : ''].filter(Boolean).join('  |  ')) + '</small>', !!it.wr) +
+      return '<tr' + (has ? ' data-act="pol" data-i="' + i + '"' : '') + '>' + tickCell('<b>' + esc((it.insurer || 'Policy') + (it.policyNo ? ' ' + it.policyNo : '')) + '</b><small>' + esc([it.product, it.doc ? 'DOC ' + it.doc : ''].filter(Boolean).join('  |  ')) + '</small>' + vp(idxOf('policies', 'items', it)), !!it.wr) +
         td((has ? A(tt.life.lump) : A(null)) + bd('life'), '', 'life') + td((has ? A(tt.sev.lump) : A(null)) + bd('sev'), '', 'sev') + td((has ? A(tt.lsd.lump) : A(null)) + bd('lsd'), '', 'lsd') + td((has ? PM(tt.ip.monthly) : A(null)) + bd('ip'), '', 'ip') + td(esc(w || '-')) + td(AC(it), '', 'aci') + td(PC(it.abi), '', 'abi') + td(A(it.premium)) + '</tr>';
     }).join('');
     var tot = function (label, tt, prem, cls) { return '<tr class="' + cls + '"><td class="l">' + label + '</td>' + td(A(tt.life.lump), '', 'life') + td(A(tt.sev.lump), '', 'sev') + td(A(tt.lsd.lump), '', 'lsd') + td(PM(tt.ip.monthly), '', 'ip') + '<td></td>' + td('', '', 'aci') + td('', '', 'abi') + td(A(prem)) + '</tr>'; };
@@ -186,8 +189,8 @@
     var rows = items.map(function (g) {
       var p2 = g.kind === 'risk' ? g.monthlyCost : (calc.isNum(g.employer) || calc.isNum(g.employee) ? calc.r2((g.employer || 0) + (g.employee || 0)) : g.contribTotal); if (calc.isNum(p2)) prem = calc.r2(prem + p2);
       var label = (schema.GROUP_KINDS[g.kind] || g.kind) + '   ' + (g.provider || '');
-      if (g.kind === 'risk') return '<tr><td class="l"><b>' + esc(label) + '</b><small>' + esc([g.statementDate ? 'Statement ' + g.statementDate : '', g.paidBy ? 'paid by ' + g.paidBy : ''].filter(Boolean).join('  |  ')) + '</small></td>' + cell(g, 'life') + cell(g, 'sev') + cell(g, 'lsd') + cell(g, 'ip') + td(esc(g.ipWaiting || '-')) + td(PC(g.aci), '', 'aci') + td(PC(g.abi), '', 'abi') + td(A(p2)) + '</tr>';
-      return '<tr><td class="l"><b>' + esc(label) + '</b><small>' + esc((calc.isNum(g.value) ? 'Fund value ' + calc.fmtR(g.value) + '  |  ' : '') + (calc.isNum(g.employer) || calc.isNum(g.employee) ? 'employer ' + calc.fmtR(g.employer || 0) + ', employee ' + calc.fmtR(g.employee || 0) : 'POI needed')) + '</small></td>' +
+      if (g.kind === 'risk') return '<tr><td class="l"><b>' + esc(label) + '</b><small>' + esc([g.statementDate ? 'Statement ' + g.statementDate : '', g.paidBy ? 'paid by ' + g.paidBy : ''].filter(Boolean).join('  |  ')) + '</small>' + vp(idxOf('group', 'items', g)) + '</td>' + cell(g, 'life') + cell(g, 'sev') + cell(g, 'lsd') + cell(g, 'ip') + td(esc(g.ipWaiting || '-')) + td(PC(g.aci), '', 'aci') + td(PC(g.abi), '', 'abi') + td(A(p2)) + '</tr>';
+      return '<tr><td class="l"><b>' + esc(label) + '</b><small>' + esc((calc.isNum(g.value) ? 'Fund value ' + calc.fmtR(g.value) + '  |  ' : '') + (calc.isNum(g.employer) || calc.isNum(g.employee) ? 'employer ' + calc.fmtR(g.employer || 0) + ', employee ' + calc.fmtR(g.employee || 0) : 'POI needed')) + '</small>' + vp(idxOf('group', 'items', g)) + '</td>' +
         td('<span class="none">&ndash;</span>', '', 'life') + td('<span class="none">&ndash;</span>', '', 'sev') + td('<span class="none">&ndash;</span>', '', 'lsd') + td('<span class="none">&ndash;</span>', '', 'ip') + td('<span class="na">N/A</span>') + td(PC(g.aci), '', 'aci') + td('<span class="na">N/A</span>', '', 'abi') + td(A(p2)) + '</tr>';
     }).join('');
     prem = calc.r2(prem + pi.monthly);
@@ -212,7 +215,7 @@
     if (!items.length) return head(b) + empty('No current investments.');
     var rows = items.map(function (i) {
       var vs = i.valueSource || {}, src = vs.kind ? (vs.kind === 'astute' ? 'Astute report' : 'Investment schedule') + (vs.date ? '<small>' + esc(vs.date) + '</small>' : '') : '-';
-      return '<tr>' + tickCell('<b>' + esc(i.provider || 'Investment') + '</b><small>' + esc(i.product || '') + '</small>', !!i.wr) + td(esc(i.valueDate || '-'), 'c') + td(src, 'c') + td(A(i.gross)) + td(A(i.penalty)) + td(calc.isNum(i.gross) ? A(calc.r2(i.gross - (calc.isNum(i.penalty) ? i.penalty : 0))) : A(null)) + td(PC(i.returnRate)) + td(PC(i.aci)) + td(A(i.monthly)) + '</tr>';
+      return '<tr>' + tickCell('<b>' + esc(i.provider || 'Investment') + '</b><small>' + esc(i.product || '') + '</small>' + vp(idxOf('investments', 'items', i)), !!i.wr) + td(esc(i.valueDate || '-'), 'c') + td(src, 'c') + td(A(i.gross)) + td(A(i.penalty)) + td(calc.isNum(i.gross) ? A(calc.r2(i.gross - (calc.isNum(i.penalty) ? i.penalty : 0))) : A(null)) + td(PC(i.returnRate)) + td(PC(i.aci)) + td(A(i.monthly)) + '</tr>';
     }).join('');
     rows += '<tr class="tot"><td class="l">Total investments</td><td></td><td></td>' + td(A(pi.gross)) + td(A(pi.penalty)) + td(A(pi.net)) + '<td></td><td></td>' + td(A(pi.monthly)) + '</tr>';
     return head(b) + tbl([21, 9, 14, 12, 10, 12, 8, 6, 8], th('Investment', '', 'l') + th('Values at') + th('Source') + th('Gross fund value') + th('Penalties') + th('Net fund value') + th('Rate of return') + th('ACI') + th('Premium'), rows);
@@ -221,13 +224,13 @@
     var items = calc.active(state().blocks.proposed.items);
     if (!items.length) return head(b) + empty('No proposed investments.');
     return head(b) + tbl([17, 20, 14, 11, 11, 7, 13, 7], th('Investment type', '', 'l') + th('Provider & quote', '', 'l') + th('Contribution', '', 'l') + th('Lump sum') + th('Monthly premium') + th('Boost') + th('Net amount invested') + th('ACI'),
-      items.map(function (i) { return '<tr>' + td('<b>' + esc(i.type) + '</b>', 'l') + td(esc([i.provider, i.quote ? 'Quote ' + i.quote : ''].filter(Boolean).join('   ')), 'l') + td(esc(schema.contributionLabel[i.contribution] || ''), 'l') + td(A(i.lump)) + td(A(i.monthly)) + td(PC(i.boostPct)) + td(A(i.netInvested)) + td(PC(i.aci)) + '</tr>'; }).join(''));
+      items.map(function (i) { return '<tr>' + td('<b>' + esc(i.type) + '</b>' + vp(idxOf('proposed', 'items', i)), 'l') + td(esc([i.provider, i.quote ? 'Quote ' + i.quote : ''].filter(Boolean).join('   ')), 'l') + td(esc(schema.contributionLabel[i.contribution] || ''), 'l') + td(A(i.lump)) + td(A(i.monthly)) + td(PC(i.boostPct)) + td(A(i.netInvested)) + td(PC(i.aci)) + '</tr>'; }).join(''));
   }
   function goalsView(b) {
     var items = calc.active(state().blocks.goals.items);
     if (!items.length) return head(b) + empty('No goal analysis reports.');
     return head(b) + tbl([27, 9, 21, 12, 12, 6, 13], th('Report', '', 'l') + th('Requested') + th('Note', '', 'l') + th('Current value (R p.m. gross)') + th('Future value (R p.m. gross)') + th('ACI') + th('Premium'),
-      items.map(function (i) { return '<tr>' + td('<b>' + esc(i.kind === 'rgar' ? 'Retirement Goal Analysis Report (RGAR)' : 'Education Goal Analysis Report (EGAR)') + '</b>', 'l') + td(i.requested ? 'Yes' : 'No', 'c') + td(esc(i.note || ''), 'l') + td(A(i.currentValuePm)) + td(A(i.futureValuePm)) + td(PC(i.aci)) + td(A(i.premium)) + '</tr>'; }).join(''));
+      items.map(function (i) { return '<tr>' + td('<b>' + esc(i.kind === 'rgar' ? 'Retirement Goal Analysis Report (RGAR)' : 'Education Goal Analysis Report (EGAR)') + '</b>' + vp(idxOf('goals', 'items', i)), 'l') + td(i.requested ? 'Yes' : 'No', 'c') + td(esc(i.note || ''), 'l') + td(A(i.currentValuePm)) + td(A(i.futureValuePm)) + td(PC(i.aci)) + td(A(i.premium)) + '</tr>'; }).join(''));
   }
   var OTHER_ICON = { medical: 'medical', gap: 'medical', will: 'will', legacy: 'policies', shortterm: 'home' }, OTHER_SAY = { medical: 'medical', will: 'will', shortterm: 'shortterm' };
   function otherView(b) {
@@ -236,7 +239,7 @@
       var rows = [i.company || i.product ? '<p><span>Company</span>' + esc([i.company, i.product].filter(Boolean).join('   ')) + '</p>' : '', i.policyNo ? '<p><span>Policy number</span>' + esc(i.policyNo) + '</p>' : '',
         calc.isNum(i.premium) ? '<p><span>Premium</span>' + A(i.premium) + '</p>' : '', has ? '<p><span>Broker</span><b class="' + (i.wr ? 'yes' : 'no') + '">' + (i.wr ? '&#10003; Wealth Revolution' : '&#10005; Another broker') + '</b></p>' : '',
         i.note && !fromFF ? '<p><span>Notes</span>' + esc(i.note) + '</p>' : ''].join('');
-      return '<div class="ocard" style="--i:' + n + '"><div class="oh"><span class="pico">' + ico(OTHER_ICON[i.key] || 'other') + '</span><b>' + esc(nm) + '</b></div>' + (say ? '<p class="osay">' + esc(say) + '</p>' : '') + (rows ? '<div class="orows">' + rows + '</div>' : '') + '</div>';
+      return '<div class="ocard" style="--i:' + n + '"><div class="oh"><span class="pico">' + ico(OTHER_ICON[i.key] || 'other') + '</span><b>' + esc(nm) + '</b></div>' + (i.key === 'legacy' ? vp(idxOf('other', 'items', i)) : '') + (say ? '<p class="osay">' + esc(say) + '</p>' : '') + (rows ? '<div class="orows">' + rows + '</div>' : '') + '</div>';
     }).join('');
     return head(b) + '<div class="ocards">' + cards + '</div>';
   }
@@ -263,7 +266,7 @@
       return '<button type="button" class="ptab' + (cur ? ' on' : '') + (on ? '' : ' off') + '"' + (on ? ' data-act="tab" data-tab="' + t.id + '"' : ' disabled title="Nothing to show here for this client."') + '>' + esc(t.l) + '</button>';
     }).join('');
     $('#pWho').innerHTML = '<b>' + esc(schema.clientFull(st) || 'New client') + '</b><small>Client Overview \u00b7 Presentation \u00b7 ' + esc(st.header.overviewDate || schema.todayDMY()) + '</small>';
-    syncButtons(); paintHL(); paintPanel(); paintState(); fit();
+    syncButtons(); paintHL(); paintPanel(); paintState(); if (OV.view) OV.view.paint(); fit();
   }
   /* The key-points column is there on a quote or a policy that has the pills, while the switch is on (the library, or the placeholder cards until it is found). */
   function panelOn() { var c = context(), sl = slide(); return ps.tab !== 'map' && ps.keys && !!(c && c.insurer) && !!(sl && sl.querySelector('.pbtn:not([hidden])')); }
@@ -402,6 +405,8 @@
       '<div class="pmain" id="pMain"><div class="pstage" id="pStage"><div class="pslide" id="pSlide"></div></div><aside class="ppanel" id="pPanel" hidden></aside></div>';
     document.body.appendChild(root);
     root.addEventListener('click', function (ev) {
+      var vw = ev.target.closest('[data-vw]');                                                       // a View button: the document opens inside the page (a click on it never opens the row behind it)
+      if (vw) { ev.preventDefault(); ev.stopPropagation(); if (OV.view) OV.view.open(vw.getAttribute('data-vw'), vw, 'pres'); return; }
       var tr = ev.target.closest('tr[data-keys]'), el = ev.target.closest('[data-act]'), hd = ev.target.closest('th[data-pil]'), act = el && el.getAttribute('data-act');
       if (ev.target.closest('#pBtnClose')) { close(); return; }
       if (ev.target.closest('#pBtnFull')) { toggleFs(); return; }

@@ -212,11 +212,31 @@
     }
     return null;
   }
-  function forget() { cache = {}; }
+  /* The client's files for the View buttons (Client Overview Studio 0.95): the connected folders are searched for the client, as for a Save, and every PDF and picture under the client's folder is listed. Reads only; kept for the visit
+     (forgetIndex or a new client starts again). The browser is asked for a folder's permission only when ask is true (a click is behind it). Resolves { label, files: [{ name, rel, handle }] } or { reason: 'connect' | 'access' | 'names' | 'client' }. */
+  var idxCache = {};
+  async function clientIndex(info, ask) {
+    await load();
+    var all = withPaths(), keys = Object.keys(all);
+    if (!F.enabled() || !keys.length) return { reason: 'connect' };
+    var live = {};
+    for (var i = 0; i < keys.length; i++) { if ((await F.permission(all[keys[i]].handle, !!ask)) === 'granted') live[keys[i]] = all[keys[i]]; }
+    if (!Object.keys(live).length) return { reason: 'access' };
+    if (F.norm(info.sname) === '') return { reason: 'names' };
+    var key = F.norm(info.sname) + '|' + F.norm(info.fname);
+    if (idxCache[key]) return idxCache[key];
+    var clients = await F.findClients(live, info.sname, info.fname);
+    if (!clients.length) return { reason: 'client' };
+    var files = [];
+    for (var c = 0; c < clients.length; c++) files = files.concat(await F.viewableFiles(clients[c]));
+    return (idxCache[key] = { label: clients[0].parts.join(' \\ '), files: files });
+  }
+  function forgetIndex() { idxCache = {}; }
+  function forget() { cache = {}; idxCache = {}; }
   function metaHTML(lastFolder) {
     var k = Object.keys(roots), line = !F.enabled() ? '' : k.length ? 'Folders connected: ' + k.map(function (x) { return LABEL[x]; }).join(', ') + '.' : 'Folders not connected: Save asks where to save. Click <b>Folders&hellip;</b> to connect them.';
     return (lastFolder ? '<div>Saved in <b>' + esc(lastFolder) + '</b></div>' : '') + (line ? '<div class="fnote">' + line + '</div>' : '');
   }
 
-  FF.foldersUI = { init: init, connect: connect, open: open, clientFiles: clientFiles, clientFolder: clientFolder, rootFile: rootFile, failed: failed, forget: forget, metaHTML: metaHTML, ask: ask, connected: function () { return Object.keys(roots); } };
+  FF.foldersUI = { init: init, connect: connect, open: open, clientFiles: clientFiles, clientFolder: clientFolder, clientIndex: clientIndex, forgetIndex: forgetIndex, rootFile: rootFile, failed: failed, forget: forget, metaHTML: metaHTML, ask: ask, connected: function () { return Object.keys(roots); } };
 })();

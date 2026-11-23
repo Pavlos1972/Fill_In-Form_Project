@@ -337,6 +337,20 @@
     await look(dir, [], true); return out;
   }
 
+  /* Every PDF and picture in a client's folder and in the folders inside it (the View buttons of the Client Overview Studio 0.95 find a document here by its file name, number or insurer). Only reads; at most `depth` levels down
+     (default 4) and `cap` entries looked at (default 4000), so a huge folder cannot hold the page up. Returns [{ name, rel: [folder names below the client's folder], handle }]. */
+  async function viewableFiles(client, lim) {
+    lim = lim || {}; var maxDepth = lim.depth || 4, cap = lim.cap || 4000, out = [], seen = 0;
+    async function look(dir, rel, depth) {
+      for await (var e of dir.entries()) {
+        if (++seen > cap) return;
+        if (e[1].kind === 'file') { if (/\.(pdf|png|jpe?g)$/i.test(e[0])) out.push({ name: e[0], rel: rel, handle: e[1] }); }
+        else if (e[1].kind === 'directory' && depth < maxDepth) await look(e[1], rel.concat([e[0]]), depth + 1);
+      }
+    }
+    await look(client.handle, [], 0); return out;
+  }
+
   /* ---------- what the browser keeps: the two handles (IndexedDB) and the two paths the adviser typed (localStorage) ---------- */
   var DB = 'wr-folders', STORE = 'roots', PATHS = 'wr-folders-paths';
   function idb(fn) {
@@ -368,7 +382,7 @@
   return {
     MAX_PATH: MAX_PATH, SWAP: SWAP, RULES: RULES, ALIASES: ALIASES, norm: norm, tokens: tokens, clientFolderName: clientFolderName, parseClient: parseClient, clientMatches: clientMatches, letterOf: letterOf, letterFolder: letterFolder,
     isLetterFolder: isLetterFolder, isStandard: isStandard, nameIs: nameIs, insurerWords: insurerWords, productWords: productWords, numbersIn: numbersIn, hasWord: hasWord, scoreDeal: scoreDeal, chooseDeal: chooseDeal, pathCheck: pathCheck, tooLongText: tooLongText,
-    listDirs: listDirs, clientSubfolder: clientSubfolder, findFiles: findFiles, findClients: findClients, clientFromFile: clientFromFile, dirOfFile: dirOfFile, dealCandidates: dealCandidates, resolveTarget: resolveTarget, factFindCandidates: factFindCandidates, resolveFactFind: resolveFactFind, overviewCandidate: overviewCandidate, clientDocuments: clientDocuments, resolveOverview: resolveOverview, ensureOverview: ensureOverview, relOf: relOf, labelOf: labelOf, probeFile: probeFile, makeFile: makeFile, discardEmpty: discardEmpty,
+    listDirs: listDirs, clientSubfolder: clientSubfolder, findFiles: findFiles, viewableFiles: viewableFiles, findClients: findClients, clientFromFile: clientFromFile, dirOfFile: dirOfFile, dealCandidates: dealCandidates, resolveTarget: resolveTarget, factFindCandidates: factFindCandidates, resolveFactFind: resolveFactFind, overviewCandidate: overviewCandidate, clientDocuments: clientDocuments, resolveOverview: resolveOverview, ensureOverview: ensureOverview, relOf: relOf, labelOf: labelOf, probeFile: probeFile, makeFile: makeFile, discardEmpty: discardEmpty,
     saveHandle: saveHandle, loadHandle: loadHandle, getPaths: getPaths, setPath: setPath, permission: permission, enabled: enabled
   };
 });
