@@ -8,11 +8,12 @@ Written on 20 November 2026 by Chat 3 ("Fact Find Audio to Text Form - Chat 3"),
 
 ## 0f. UPDATE of 23 November 2026 (Chat 3): Client Overview Studio 0.9 is BUILT and waits for Paul's own "merge" (not merged, not installed)
 
-Paul used 0.8 on a real client (23/11 08:55) and the Fix Skills chat relayed his round ("make these changes, then show him ... Do not merge until Paul says so"). **Built on the work branch, tested (952 unit tests, 1,624 browser checks), pushed; the five screenshots he asked for were sent (invented client).** What it is:
+Paul used 0.8 on a real client (23/11 08:55) and the Fix Skills chat relayed his round ("make these changes, then show him ... Do not merge until Paul says so"). **Built on the work branch, tested (953 unit tests, 1,638 browser checks), pushed; the five screenshots he asked for were sent (invented client).** What it is:
 - **Every block checks and reports.** `check.emptyNotes` + the red dot + a comment under the block's name; **More ▾ → Check all blocks**; after Load from client folder and Fill from Fact Find every block shows a *Checking…* bar one after the other (`checkPass`). Red = a wholly empty block; one of group benefits / personal investments missing is only a comment (my reading). The FNA and the reduced quotes can only be red after the page has looked (`ran`).
 - **A policy of another insurer is ONE `other` line** (prompt, `store.flattenPolicyLines` on reading and on opening a file, *Benefits* / *+ A benefit* on the screen).
 - **A quote is kept once by CP number** (`uniqueFiles`, skip of an already read quote before the Anthropic call, the same CP goes into the same quote, `store.dedupeQuotes` on opening).
 - **The change moment pay-out table has no x and no "+ A child row"**; **every table is rounded 16px** (`.ovw`).
+- **Full screen for the Presentation (added to the round, 23 November 09:14):** `#pBtnFull` next to Close (`requestFullscreen()` on the Presentation element; *Exit full screen* while on; the first Esc leaves it and the next closes; Close leaves it too) and `#btnPresentFull` (*Present full screen*) on the overview; screen only.
 - **Saved file: no key added (contract revision i).** For the Fix Skills chat: a skill that fills block 1 writes ONE `other` line for a policy that is not BrightRock; a quote is never written twice; pay-out rows come only from the guide.
 - **After Paul's own "merge":** the routine (CLAUDE.md section 4), the ZIP, and the FOR THE FIX SKILLS CHAT block. **Not certain:** all seen only in my own screenshots; the two causes (the policy prompt giving BrightRock line types to every insurer; the same file listed and read twice) are readings of the code, not seen on his real files.
 

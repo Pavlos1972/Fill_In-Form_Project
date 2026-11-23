@@ -1,7 +1,7 @@
 /* The Client Overview Studio 0.9 on the real page (Paul's round of 23 November): every block checks and reports (a bar while it looks, then its dot and, where nothing is there, a comment under its name and a RED dot), a policy of another
    insurer is ONE row with its benefits, each quote is kept ONCE (the same file listed twice, the same CP read from two files, an opened file that holds a copy), the change moment pay-out table has no x and no "+ A child row", and every
    table of the entry screen is rounded (16px). The Anthropic call is a stand-in that answers by what is in the document (no document leaves the machine). Invented client ("Round, Nina"): no real client data.
-   Screenshots (deviceScaleFactor 2) go to the out folder: r09-menu, r09-policies, r09-fna-header-closed / -open, r09-payout, r09-reduced. */
+   Screenshots (deviceScaleFactor 2) go to the out folder: r09-menu, r09-policies, r09-fna-header-closed / -open, r09-payout, r09-reduced, r09-fullscreen. */
 const { chromium } = require(process.argv[2] + '/playwright');
 const http = require('http'), fs = require('fs'), path = require('path');
 const dir = process.argv[3], out = process.argv[4];
@@ -147,6 +147,42 @@ srv.listen(0, async () => {
   const menu = await p.evaluate(() => [...document.querySelectorAll('#nav button[data-block]')].map(b => b.textContent.trim().replace(/\s+/g, ' ') + ' [' + (b.querySelector('.dot') ? b.querySelector('.dot').className.replace('dot ', '') : '') + ']'));
   console.log('menu: ' + menu.join(' | '));
   await clean(); await p.locator('#nav').screenshot({ path: out + '/r09-menu.png' });
+  /* ---- 8. full screen: Paul presents in Microsoft Teams and the client must not see Chrome's tabs, address bar or bookmarks ---- */
+  await p.setViewportSize({ width: 1920, height: 1080 }); await p.waitForTimeout(200);
+  const fs = () => p.evaluate(() => ({ el: document.fullscreenElement ? document.fullscreenElement.id : null, btn: document.querySelector('#pBtnFull').textContent, open: OV.present.isOpen, rect: (r => [Math.round(r.left), Math.round(r.top), Math.round(r.width), Math.round(r.height)])(document.querySelector('#pres').getBoundingClientRect()), win: [innerWidth, innerHeight] }));
+  ok(await p.evaluate(() => { const b = document.querySelector('#btnPresentFull'); return b.checkVisibility() && /Present full screen/.test(b.textContent) && document.querySelector('#btnPresent').checkVisibility(); }), '8. the overview has Present and Present full screen');
+  await p.click('#btnPresent'); await p.waitForTimeout(500);
+  let f = await fs();
+  ok(f.open && f.el === null && f.btn === 'Full screen', '8. Present opens the Presentation as before, not in full screen: ' + JSON.stringify(f));
+  ok(await p.evaluate(() => [...document.querySelectorAll('#pres .pbar button')].map(b => b.id).join() === 'pBtnFull,pBtnClose' && !document.querySelector('#pBtnFull').hidden), '8. the Presentation\'s top bar has Full screen next to Close');
+  await p.click('#pBtnFull'); await p.waitForTimeout(600); f = await fs();
+  ok(f.el === 'pres' && f.btn === 'Exit full screen' && f.rect[0] === 0 && f.rect[1] === 0 && f.rect[2] === f.win[0] && f.rect[3] === f.win[1], '8. Full screen puts the Presentation itself in the browser\'s full-screen mode, edge to edge, and the button says Exit full screen: ' + JSON.stringify(f));
+  /* everything keeps working in full screen */
+  await p.evaluate(() => OV.present.go('fna')); await p.waitForTimeout(300);
+  await p.click('#pres .ptab[data-tab="policies"]'); await p.waitForTimeout(250);
+  ok(await p.evaluate(() => OV.present.ps.tab) === 'policies' && (await fs()).el === 'pres', '8. in full screen a tab click moves to its page and stays in full screen');
+  await p.click('#pres .ptab[data-tab="fna"]'); await p.waitForTimeout(300);
+  await p.click('#pres th[data-pil]'); await p.waitForTimeout(250);
+  ok(await p.evaluate(() => !!OV.present.ps.pil && !!document.querySelector('#pres .hl, #pres [data-pil].on, #pres th.hl, #pres td.hl')), '8. in full screen a column click highlights the column');
+  const sw0 = await p.evaluate(() => { const s = document.querySelector('#pres [data-act="keys"]'); return s ? s.getAttribute('aria-checked') : null; });
+  if (sw0 !== null) { await p.click('#pres [data-act="keys"]'); await p.waitForTimeout(200); ok(await p.evaluate(() => document.querySelector('#pres [data-act="keys"]').getAttribute('aria-checked')) !== sw0, '8. in full screen the Key points switch turns on and off'); await p.click('#pres [data-act="keys"]'); await p.waitForTimeout(200); }
+  else ok(true, '8. (the Key points switch is not on this page)');
+  ok(await p.evaluate(() => { const st = document.querySelector('#pStage').getBoundingClientRect(), sl = document.querySelector('#pSlide').getBoundingClientRect(); return sl.width > 200 && sl.left >= st.left - 1 && sl.right <= st.right + 1 && sl.bottom <= st.bottom + 1 && document.querySelector('#pStage').scrollHeight <= document.querySelector('#pStage').clientHeight + 1; }), '8. in full screen the page is drawn to fit the whole monitor and does not scroll');
+  await p.evaluate(() => document.querySelector('#toast').hidden = true);
+  await p.screenshot({ path: out + '/r09-fullscreen.png' });
+  /* Esc leaves full screen first; the next Esc closes the Presentation */
+  await p.keyboard.press('Escape'); await p.waitForTimeout(500); f = await fs();
+  ok(f.el === null && f.open && f.btn === 'Full screen', '8. the first Esc leaves full screen and the Presentation stays open: ' + JSON.stringify(f));
+  await p.keyboard.press('Escape'); await p.waitForTimeout(300);
+  ok(!(await p.evaluate(() => OV.present.isOpen)), '8. the next Esc closes the Presentation');
+  /* the same button leaves it too, and Present full screen goes straight in */
+  await p.click('#btnPresentFull'); await p.waitForTimeout(600); f = await fs();
+  ok(f.open && f.el === 'pres' && f.btn === 'Exit full screen', '8. Present full screen opens the Presentation in full screen at once: ' + JSON.stringify(f));
+  await p.click('#pBtnFull'); await p.waitForTimeout(500); f = await fs();
+  ok(f.open && f.el === null && f.btn === 'Full screen', '8. the same button (Exit full screen) leaves full screen and the Presentation stays open');
+  await p.click('#pBtnFull'); await p.waitForTimeout(500); await p.click('#pBtnClose'); await p.waitForTimeout(500);
+  ok(await p.evaluate(() => !OV.present.isOpen && !document.fullscreenElement && document.querySelector('#pres').hidden), '8. Close in full screen closes the Presentation and leaves full screen too (the overview is not left in full screen)');
+  ok(await p.evaluate(() => document.querySelector('#btnPresentFull').checkVisibility()), '8. the overview is back with its buttons');
   ok(!errs.length, '7. no script errors' + (errs.length ? ': ' + errs[0] : ''));
   await b.close(); srv.close(); console.log(bad ? bad + ' FAILED' : 'ALL PASSED'); process.exit(bad ? 1 : 0);
 });

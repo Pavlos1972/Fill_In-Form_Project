@@ -207,3 +207,17 @@ test('every table of the entry screen is inside a rounded wrapper (16px): lines,
   assert.ok(tables >= 8 && tables === wrapped, 'every <table class="ovt"> is wrapped: ' + tables + ' tables, ' + wrapped + ' wrapped');
   assert.match(css, /\.ovw \{ border: 1px solid var\(--line\); border-radius: 16px; overflow: hidden;/); assert.match(css, /\.qcard \{ border: 1px solid var\(--line\); border-radius: 16px;/);
 });
+
+/* ---------- 6. full screen for the Presentation (Paul presents in Microsoft Teams and the client must not see Chrome's tabs, address bar or bookmarks) ---------- */
+test('the Presentation has a Full screen button next to Close, Present full screen on the overview, Esc and Close leave full screen', () => {
+  const html = app('overview.html'), js = app('js/ov-present.js'), css = app('css/present.css');
+  assert.match(html, /id="btnPresent"/); assert.match(html, /id="btnPresentFull"[^>]*>Present full screen</);
+  assert.match(js, /id="pBtnFull"[^>]*>Full screen<\/button>' \+\s*'<button type="button" class="pb" id="pBtnClose"/, 'Full screen sits next to Close');
+  assert.match(js, /root\.requestFullscreen \? root\.requestFullscreen\(\) : root\.webkitRequestFullscreen\(\)/, 'the Fullscreen API on the Presentation element itself');
+  assert.match(js, /document\.exitFullscreen/); assert.match(js, /'Exit full screen' : 'Full screen'/);
+  assert.match(js, /\['fullscreenchange', 'webkitfullscreenchange'\]/);
+  assert.match(js, /if \(fsEl\(\)\) exitFs\(\);[^\n]*\n\s*else if \(Date\.now\(\) - fsOff > 400\) close\(\);/, 'the first Esc leaves full screen, the next closes');
+  assert.match(js, /exitFs\(\); open = false; root\.hidden = true;/, 'closing leaves full screen too');
+  assert.match(js, /if \(wantFull === true\) enterFs\(\)/, 'Present full screen goes in at once, inside the click');
+  assert.match(css, /\.pres:fullscreen \{ width: 100vw; height: 100vh; background: #fff; \}/);
+});

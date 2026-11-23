@@ -16,7 +16,7 @@ The version is `version` in `app/js/schema.js` (the Fact Find), `app/js/sr-schem
 - **A policy of an insurer other than BrightRock is ONE row with its benefits:** one line of type `other` (label = the product) whose `life`, `sev`, `lsd` and `ip` cells hold the benefits; the need-by-need line types (`household`, `child`, `debt`, `death`, `dread`) belong only to a BrightRock policy in force. A file that holds need lines on another insurer's policy is converted when the page opens it (the lines are added up per benefit into one `other` line; the totals do not change).
 - **A quote is in its block once per number** (the digits of `number` are compared): a second reading of the same CP goes into the same quote (its `id`, `status`, `policyNo`, `startDate` and `cmp` are kept); a file that holds the same quote twice opens with one (the copy with the pay-out, else with more lines, stays).
 - **The change moment pay-out's rows come only from the guide:** the page no longer adds or removes a row by hand (`cmp.rows` is unchanged in layout).
-- **Screen only, not saved:** the red dot (*checked, nothing there*) and the comment under a block's name in the menu; every table is rounded (16px).
+- **Screen only, not saved:** the red dot (*checked, nothing there*) and the comment under a block's name in the menu; every table is rounded (16px); **the Presentation's Full screen button (next to Close) and the overview's Present full screen button** (the browser's full-screen mode: Esc leaves it, then closes the Presentation).
 
 ## Client Overview Studio 0.8: 22 November 2026, third batch (display, reading and one new key in the Overview's saved file; Fact Find 5.4, Risk Application 1.6 and Investment Application 1.5 keep their numbers)
 
