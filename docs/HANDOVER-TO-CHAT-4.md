@@ -8,7 +8,7 @@ Written on 20 November 2026 by Chat 3 ("Fact Find Audio to Text Form - Chat 3"),
 
 ## 0g. UPDATE of 23 November 2026, later (Chat 3): `main`'s history was cleaned of two real quote numbers (on Paul's word)
 
-Five commits of `main` (PR 94 to PR 98) were rewritten and force-pushed with `main` and the work branch; the trees are unchanged (the app, the ZIP and the install are not affected). **New hashes: PR 94 `9b1f10c`, PR 95 `ca913a7`, PR 96 `d5becab`, PR 97 `d473ff3`, PR 98 `e5b6295`; everything up to PR 93 (`73ad7e7`) keeps its hash.** The details, the backup bundle's SHA-256 and what a rewrite cannot remove (GitHub's `refs/pull/*`; the Support ticket #5027370 needs an addendum) are in the History clean-up row of CLAUDE.md section 0. **The changes page (version 61) still shows the old hashes `0e576da` and `00b50cf` until it is next updated on Paul's word.**
+Five commits of `main` (PR 94 to PR 98) were rewritten and force-pushed with `main` and the work branch; the trees are unchanged (the app, the ZIP and the install are not affected). **New hashes: PR 94 `9b1f10c`, PR 95 `ca913a7`, PR 96 `d5becab`, PR 97 `d473ff3`, PR 98 `e5b6295`; everything up to PR 93 (`73ad7e7`) keeps its hash.** The details, the backup bundle's SHA-256 and what a rewrite cannot remove (GitHub's `refs/pull/*`; the Support ticket #5027370 needs an addendum) are in the History clean-up row of CLAUDE.md section 0. **The changes page was updated on Paul's word to version 62 (section `h-quotenum`, the new hashes, PR 98 and PR 99, the Support-addendum item); the Support ticket #5027370 still needs the addendum (Paul or the Fix Skills chat).**
 
 ## 0f. UPDATE of 23 November 2026 (Chat 3): Client Overview Studio 0.9 is MERGED as PR 97 (`d473ff3`) and published (not installed)
 
