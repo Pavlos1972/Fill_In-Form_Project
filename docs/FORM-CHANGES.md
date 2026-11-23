@@ -18,7 +18,8 @@ The version is `version` in `app/js/schema.js` (the Fact Find), `app/js/sr-schem
 - **A debt line has ONE instalment: `lsd.monthly` = `life.monthly`.** A debt's instalment the quote does not print is taken from the client's other BrightRock quote of the same debt, else from the Fact Find; the same debt is recognised by its name (abbreviations and bank names set aside) or its balance / instalment.
 - **The death-related income portion** comes from the quote or from BrightRock's e-mail (document role `bremail`: a `.eml`, `.msg`, `.txt` or PDF that names the CP number, or text pasted into the quote); `documents[].block` may be `"bremail"`.
 - **`header.astuteDate`** is filled from the Astute report (its date, else the date in its file name). **Block 11:** a box that is still empty is filled from the Fact Find whatever the item's status.
-- Screen only: the ACI as short points (entry screen, PDF, Presentation); the folder a file sits in tells what it is; the Checks card is folded.
+- **`accelerated` (`true` / `false` / `null`) is now on EVERY need line** (household, child, debt, death-related, additional expense), as BrightRock prints it (*HOUSEHOLD (Standalone)*, ...); until 0.92 only a debt line had it; no new key; a skill that reads a BrightRock quote or schedule writes it on every need line (`null` when the document does not say).
+- Screen only: the ACI as short points (entry screen, PDF, Presentation); the Accelerated / Standalone tag on every need line (entry screen choice, PDF, Presentation); the folder a file sits in tells what it is; the Checks card is folded.
 
 ## Client Overview Studio 0.92: 23 November 2026, Paul's third round after he tested 0.91 on a real client (display and reading; NO key added to the Overview's saved file; Fact Find 5.4, Risk Application 1.6 and Investment Application 1.5 keep their numbers)
 

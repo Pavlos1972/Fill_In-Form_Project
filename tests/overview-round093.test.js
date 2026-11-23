@@ -162,6 +162,24 @@ test('the Checks card is folded: one closed details with a count; closed again a
   assert.ok(/to look at'/.test(ui) && /'All checked'/.test(ui) && /'Nothing read yet'/.test(ui), 'the summary says how many things to look at');
 });
 
+/* ---------- 11: every need line says Accelerated or Standalone ---------- */
+test('every need line (household, child, debt, death-related, additional expense) says Accelerated or Standalone like a debt: read from the quote, kept when a file opens, in the BrightRock policy lines too, on the entry screen, the PDF and the Presentation', () => {
+  ['household', 'child', 'debt', 'death', 'dread'].forEach(t => assert.strictEqual(store.newLine(t).accelerated, null, t + ' starts unknown')); assert.strictEqual(store.newLine('other').accelerated, undefined, 'another insurer\'s benefit line has none');
+  const s = withFF(), q = quote(s, 'fna', '100000081', [{ type: 'household', accelerated: false, life: { lump: 800000, monthly: 5000 }, abi: 5 }, { type: 'child', name: 'Zoe', sname: 'Test', accelerated: 'Standalone', life: { lump: 100000, monthly: 500 }, abi: 5 },
+    { type: 'death', life: { lump: 300000 }, abi: 5 }, { type: 'dread', accelerated: 'Accelerated', sev: { lump: 500000 }, abi: 5 }, Object.assign(HOME(9000), { accelerated: true })]);
+  const by = t => q.lines.filter(l => l.type === t)[0];
+  assert.strictEqual(by('household').accelerated, false); assert.strictEqual(by('child').accelerated, false, '"Standalone" in words'); assert.strictEqual(by('death').accelerated, null, 'the quote does not say: unknown, no tag');
+  assert.strictEqual(by('dread').accelerated, true, '"Accelerated" in words'); assert.strictEqual(by('debt').accelerated, true);
+  const back = store.fromJSON(store.toJSON(s)).blocks.fna.quotes[0]; assert.deepStrictEqual(back.lines.map(l => l.accelerated), q.lines.map(l => l.accelerated), 'kept when the file opens');
+  const old = JSON.parse(store.toJSON(s)); old.blocks.fna.quotes[0].lines.forEach(l => { delete l.accelerated; }); assert.ok(store.fromJSON(JSON.stringify(old)).blocks.fna.quotes[0].lines.every(l => l.accelerated === null), 'an older file: unknown');
+  const item = s.blocks.policies.items[0]; docs.applyPolicy(s, item, { insurer: 'BrightRock', policyNo: 'P1', lines: [{ type: 'household', accelerated: false, life: { lump: 500000, monthly: 3000 } }, { type: 'death', accelerated: true, life: { lump: 100000, monthly: 900 } }] }, 'sched.pdf');
+  assert.deepStrictEqual(item.lines.map(l => l.accelerated), [false, true], 'our BrightRock policies too');
+  assert.match(docs.promptFor('fna'), /EVERY need line \(household, each child, each debt, death-related needs, additional expense needs \/ dread\) says whether its cover is ACCELERATED/); assert.match(docs.promptFor('fna'), /HOUSEHOLD \(Standalone\), CHILD CARE - name \(Standalone\), DEATH RELATED NEEDS \(WOL - Standalone\)/);
+  const ui = app('js/ov-ui.js'), pdf = app('js/ov-pdf.js'), pr = app('js/ov-present.js');
+  assert.ok(/l\.type === 'household' \|\| l\.type === 'child' \|\| l\.type === 'death' \|\| l\.type === 'dread'\) need \+= '<div class="accsel">' \+ sel\(p \+ '\.accelerated'/.test(ui), 'the entry screen: a choice under every need');
+  assert.ok(/if \(l\.type !== 'other'\) need \+= l\.accelerated === true \? '\\nAccelerated' : l\.accelerated === false \? '\\nStandalone'/.test(pdf), 'the PDF'); assert.ok(/var cov = l\.type !== 'other' \? \(l\.accelerated === true/.test(pr), 'the Presentation');
+});
+
 /* ---------- the contract ---------- */
 test('the contract: revision l, the page version 0.93, the layout still 0.1; new keys are only aciPoints (policy, quote) and via (line)', () => {
   assert.strictEqual(schema.pageVersion, '0.93'); assert.strictEqual(schema.version, '0.1');

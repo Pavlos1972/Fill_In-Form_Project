@@ -80,7 +80,7 @@
   /* ---------- the lines of a quote or a policy ---------- */
   function needCell(l) {
     var tp = schema.lineTypesById[l.type] || schema.lineTypesById.other, name = l.type === 'child' ? ((l.name || '') + ' ' + (l.sname || '')).trim() : l.type === 'debt' ? [l.debt, l.bank].filter(Boolean).join(' - ') : '';
-    var cov = l.type === 'debt' ? (l.accelerated === true ? '<small class="cov">Accelerated</small>' : l.accelerated === false ? '<small class="cov">Standalone</small>' : '') : '';
+    var cov = l.type !== 'other' ? (l.accelerated === true ? '<small class="cov">Accelerated</small>' : l.accelerated === false ? '<small class="cov">Standalone</small>' : '') : '';          // every need line, not only a debt (round 4)
     return td('<b>' + esc(l.type === 'other' ? (l.label || tp.l) : tp.l) + '</b>' + (name ? '<small>' + esc(name) + '</small>' : '') + cov, 'l');
   }
   function lineLabel(l) {

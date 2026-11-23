@@ -4,7 +4,7 @@
    block 11 gets the Fact Find's answers also in a review year, the ACI is 3 short points (entry screen and Presentation), the Checks card is folded. The Anthropic call is a stand-in. Invented client ("Round, Rita").
    Screenshots (deviceScaleFactor 2): r4-fna, r4-paste, r4-policies, r4-pres-policies, r4-block11. */
 const { chromium } = require(process.argv[2] + '/playwright');
-const http = require('http'), fs = require('fs'), path = require('path');
+const http = require('http'), fs = require('fs'), path = require('path'), cp = require('child_process');
 const dir = process.argv[3], out = process.argv[4];
 const types = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.png': 'image/png' };
 const srv = http.createServer((q, r) => { const u = decodeURIComponent(q.url.split('?')[0]); const f = path.join(dir, u === '/' ? 'index.html' : u); fs.readFile(f, (e, d) => { if (e) { r.writeHead(404); return r.end(); } r.writeHead(200, { 'content-type': types[path.extname(f)] || 'application/octet-stream' }); r.end(d); }); });
@@ -25,7 +25,7 @@ const FFJ = { app: 'wr-fact-find', schema: '5.4', f: { fname: v('Rita'), sname: 
 const LONG_ACI = 'The premium is reviewed every year on the policy anniversary. Cover for children is priced pro rata from the second year; waiver of premium is not indexed. Further wording follows here and continues.';
 const debtL = (name, lump, monthly) => ({ type: 'debt', debt: name, life: { lump, monthly }, lsd: { lump, monthly: null }, abi: 0 });
 const READ = {
-  FNA91: { insurer: 'BrightRock', number: '100000091', date: '19/11/2026', rates: 'Non-smoker rates', aci: 7.5, premium: 2900, abi: 5, servicing: false, disabilityAge: 65, lines: [debtL('Home loan', 900000, 9000), debtL('Revolving credit', 72000, 1873), { type: 'death', life: { lump: 300000 }, abi: 5 }] },
+  FNA91: { insurer: 'BrightRock', number: '100000091', date: '19/11/2026', rates: 'Non-smoker rates', aci: 7.5, premium: 2900, abi: 5, servicing: false, disabilityAge: 65, lines: [{ type: 'household', accelerated: false, life: { lump: 800000, monthly: 5000 }, abi: 5 }, Object.assign(debtL('Home loan', 900000, 9000), { accelerated: true }), debtL('Revolving credit', 72000, 1873), { type: 'death', accelerated: false, life: { lump: 300000 }, abi: 5 }] },
   SF92: { insurer: 'BrightRock', number: '100000092', date: '19/11/2026', rates: 'Non-smoker rates', aci: 7.5, premium: 1900, abi: 5, servicing: false, disabilityAge: 65, lines: [debtL('Home loan', 700000, null), { type: 'death', life: { lump: 200000 }, abi: 5 }] },
   RED93: { insurer: 'BrightRock', number: '100000093', date: '19/11/2026', rates: 'Non-smoker rates', aci: 7.5, premium: 1500, abi: 5, servicing: false, disabilityAge: 65, lines: [debtL('Home loan', 800000, null), debtL('FNB Rev Credit', 72000, null), { type: 'death', life: { lump: 100000 }, abi: 5 }] },
   LIB: { insurer: 'Liberty', product: 'Liberty Life Plan', policyNo: 'L-900', premium: 1371.68, aciText: LONG_ACI, aciPoints: ['Reviewed yearly after year 1', 'Extra cover priced pro rata', 'Waiver of premium not indexed'],
@@ -131,6 +131,8 @@ srv.listen(0, async () => {
   const fl = await p.evaluate(() => { const rows = [...document.querySelectorAll('#main .ovt tbody tr.ln')], debt = rows.filter(r => /Debt/.test(r.cells[0].textContent)); return { n: debt.length, lsd: debt.map(r => r.cells[4].querySelector('input[data-p$=".lsd.monthly"]').value), life: debt.map(r => r.cells[2].querySelector('input[data-p$=".life.monthly"]').value), bre: !!document.querySelector('details.bre') }; });
   ok(fl.n === 2 && fl.lsd.join() === fl.life.join() && fl.lsd.every(x => /R/.test(x)), '2. on the screen the Lump sum disability instalment of each debt equals its Life cover instalment: ' + fl.life.join(' / ') + ' | ' + fl.lsd.join(' / '));
   ok(fl.bre, '3. a BrightRock quote has a Paste BrightRock email box');
+  const acc = await p.evaluate(() => [...document.querySelectorAll('#main tr.ln')].map(r => { const s = r.querySelector('select[data-p$=".accelerated"]'); return r.cells[0].querySelector('b').textContent.trim() + ':' + (s ? s.value : '-'); }));
+  ok(acc.indexOf('Household needs:false') >= 0 && acc.indexOf('Death-related needs:false') >= 0 && acc.indexOf('Debt:true') >= 0 && acc.indexOf('Debt:') >= 0, '11. every need line has its Accelerated / Standalone choice on the entry screen (Standalone for household and death-related, Accelerated for one debt, blank where the quote does not say): ' + acc.join(' | '));
   await p.evaluate(() => document.querySelector('#main .ovt').scrollIntoView()); await p.waitForTimeout(150);
   await p.screenshot({ path: out + '/r4-fna.png', fullPage: false });
 
@@ -158,9 +160,14 @@ srv.listen(0, async () => {
   const pr = await p.evaluate(() => { const t = document.querySelector('#pres .ptbl.pols'), a = t && t.querySelector('.a.aci.pts'), td = a && a.closest('td'); const rows = [...t.querySelectorAll('tbody tr')].map(tr => Math.round(tr.getBoundingClientRect().height)), r = a && a.getBoundingClientRect(), tr = td && td.getBoundingClientRect(); return a ? { li: a.querySelectorAll('li').length, title: a.title, rows, inside: r.left >= tr.left - 0.5 && r.right <= tr.right + 0.5 && r.bottom <= tr.bottom + 0.5, txt: a.textContent } : null; });
   ok(pr && pr.li === 3 && /^The premium is reviewed/.test(pr.title) && pr.inside && Math.max.apply(null, pr.rows) <= 140, '1. the Presentation shows the three points inside the cell, the row not stretched (' + (pr && pr.rows.join(' ')) + ' px): ' + (pr && pr.txt));
   await p.screenshot({ path: out + '/r4-pres-policies.png' });
+  await p.evaluate(() => OV.present.go('fna')); await p.waitForTimeout(600);
+  const cov = await p.evaluate(() => [...document.querySelectorAll('#pres small.cov')].map(e => e.textContent));
+  ok(cov.filter(t => t === 'Standalone').length >= 2 && cov.filter(t => t === 'Accelerated').length >= 1, '11. the Presentation tags every need line: ' + cov.join(', '));
+  await p.screenshot({ path: out + '/r4-pres-fna.png' });
   await p.click('#pBtnClose'); await p.waitForTimeout(300);
-  const pdfText = await p.evaluate(() => { const d = OV.app.makePdf(); return d.output('datauristring').length; });
-  ok(pdfText > 1000, '1. the PDF is made with the points (a smoke test)');
+  const bytes = await p.evaluate(() => Array.from(new Uint8Array(OV.app.makePdf().output('arraybuffer')))); const pdfFile = out + '/r4-overview.pdf'; fs.writeFileSync(pdfFile, Buffer.from(bytes));
+  const ptxt = cp.execFileSync('pdftotext', ['-layout', pdfFile, '-']).toString();
+  ok((ptxt.match(/Standalone/g) || []).length >= 2 && /Accelerated/.test(ptxt) && /- Reviewed/.test(ptxt) && /- Extra cover/.test(ptxt), '1, 11. the PDF has the ACI points and the Accelerated / Standalone tag of the need lines');
 
   /* ---- 8. block 11 on the screen ---- */
   await p.evaluate(() => OV.app.go('other')); await p.waitForTimeout(300); await quiet();

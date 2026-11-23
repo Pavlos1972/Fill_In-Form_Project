@@ -224,6 +224,7 @@
     if (l.type === 'child') need = '<b>Child care</b><div class="two">' + inp(p + '.name', 'text', '', 'Name') + inp(p + '.sname', 'text', '', 'Surname') + '</div>';
     else if (l.type === 'debt') need = '<b>Debt</b><div class="two">' + inp(p + '.debt', 'text', '', 'Debt') + inp(p + '.bank', 'text', '', 'Bank') + '</div><div class="accsel">' + sel(p + '.accelerated', [{ id: 'true', l: 'Accelerated' }, { id: 'false', l: 'Standalone' }], 'tri') + '</div>';
     else if (l.type === 'other') need = inp(p + '.label', 'text', '', 'Description');
+    if (l.type === 'household' || l.type === 'child' || l.type === 'death' || l.type === 'dread') need += '<div class="accsel">' + sel(p + '.accelerated', [{ id: 'true', l: 'Accelerated' }, { id: 'false', l: 'Standalone' }], 'tri') + '</div>';          // every need line says Accelerated or Standalone, like a debt
     function pillar(pid, hasLump, hasMonthly) {
       if (l[pid] === 'N/A') return '<td class="c"><span class="na">N/A</span></td>';
       var s = '';

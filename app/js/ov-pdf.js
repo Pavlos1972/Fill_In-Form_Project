@@ -68,10 +68,11 @@
 
   /* ---------- the lines of a quote or a policy ---------- */
   function lineCells(l, aci) {
-    var tp = schema.lineTypesById[l.type] || schema.lineTypesById.other, need = l.type === 'child' ? 'Child care\n' + ((l.name || '') + ' ' + (l.sname || '')).trim() : l.type === 'debt' ? 'Debt\n' + [l.debt, l.bank].filter(Boolean).join(' - ') + (l.accelerated === true ? '\nAccelerated' : l.accelerated === false ? '\nStandalone' : '') : l.type === 'other' ? (l.label || '') : tp.l;
+    var tp = schema.lineTypesById[l.type] || schema.lineTypesById.other, need = l.type === 'child' ? 'Child care\n' + ((l.name || '') + ' ' + (l.sname || '')).trim() : l.type === 'debt' ? 'Debt\n' + [l.debt, l.bank].filter(Boolean).join(' - ') : l.type === 'other' ? (l.label || '') : tp.l;
+    if (l.type !== 'other') need += l.accelerated === true ? '\nAccelerated' : l.accelerated === false ? '\nStandalone' : '';                  // every need line says Accelerated or Standalone (round 4)
     var isNA = function (p) { return l[p] === 'N/A'; };
     var hasIP = l.type === 'debt' && calc.isNum(l.ip && l.ip.monthly) && l.ip.monthly > 0, any = !isNA('life') || !isNA('lsd');
-    var tall = any ? (hasIP ? 22 : 17) : 9; if (l.type === 'debt' && (l.accelerated === true || l.accelerated === false)) tall = Math.max(tall, 17);           // the name, the bank and Accelerated / Standalone
+    var tall = any ? (hasIP ? 22 : 17) : 9; if (l.type !== 'other' && (l.accelerated === true || l.accelerated === false)) tall = Math.max(tall, 17);           // the name, the bank and Accelerated / Standalone
     var pill = function (p, lump, monthly) {
       if (isNA(p)) return right('N/A', { textColor: MUTED });
       var o = { p: p, lump: lump ? calc.lineVal(l, p, 'lump') : undefined, monthly: monthly ? calc.lineVal(l, p, 'monthly') : undefined, label: tp.monthly, protector: p === 'ip' && hasIP };
