@@ -6,6 +6,9 @@
   var $ = function (s) { return document.querySelector(s); };
   var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
   var DRAFT_KEY = 'wr-overview-draft', CLIENT = '_client';
+  /* The View buttons (0.95): a document-backed item's button, or nothing where it has no document; painted after every draw so a greyed one says why. */
+  function vb(path) { return OV.view ? OV.view.button(state, path, 'studio') : ''; }
+  function paintView() { if (OV.view) OV.view.paint(); }
 
   var openSet = {}, openDefault = false, recent = {}, checksOpen = false, checksInner = false, NOTICE_MS = 10000;      // See more (the items that are open) and the removed notices: only for this visit, never in the saved file
   var state, cur = CLIENT, fileHandle = null, ffHandle = null, forceNormal = false, lastFolder = null, fileBase = '', dirty = false, onDisk = true, lastSaved = null, toastTimer = null, draftHold = false, last = { problems: [], dots: {}, byBlock: {} };
@@ -287,7 +290,7 @@
       var rp = p + '.cmp.rows.' + i, nm = r.key === 'child' ? '<div class="two">' + inp(rp + '.name', 'text', '', 'Name') + inp(rp + '.sname', 'text', '', 'Surname') + '</div>' : '<b>' + esc(lbl[r.key] || r.key) + '</b>';
       return '<tr data-row="' + rp + '"><td>' + nm + '</td><td class="c">' + inp(rp + '.today', 'money') + '</td><td class="c">' + inp(rp + '.projected', 'money') + '</td><td class="c">' + inp(rp + '.payoutDate', 'date') + '</td></tr>';
     }).join('');
-    return '<h4>Your change moment pay-out <button type="button" class="lnk" data-delcmp="' + p + '">Remove</button></h4>' +
+    return '<h4>Your change moment pay-out ' + vb(p + '.cmp') + ' <button type="button" class="lnk" data-delcmp="' + p + '">Remove</button></h4>' +
       '<div class="ovw"><table class="ovt cmp payout"><thead><tr><th></th><th>Today</th><th>Projected value at your change moment date</th><th>Pay-out date</th></tr></thead><tbody>' + (rows || '<tr><td colspan="4" class="empty">No rows: the insurer gave no pay-out.</td></tr>') + '</tbody></table></div>' +
       '<p class="foot">The rows come from the change moment pay-out guide (BR CMPO) of this quote: a new or replacement quote brings a new table.</p>' +
       '<div class="grid qh">' + lab('CP number of the guide', inp(p + '.cmp.number', 'text')) + lab('Change moment date', inp(p + '.cmp.activationDate', 'date')) + lab('If the insurer gave no pay-out, why', inp(p + '.cmp.reason', 'text'), 'wide') + '</div>' +
@@ -297,7 +300,7 @@
   /* ---------- quotes ---------- */
   function quoteCard(q, i, bid) {
     var p = 'blocks.' + bid + '.quotes.' + i, title = check.qTitle(q) + (q.date ? ' · ' + q.date : '') + (q.rates ? ' · ' + q.rates : ''), open = isOpen(q.id);
-    var head = '<header><span class="statusbadge s-' + esc(q.status) + '" data-statusfor="' + p + '">' + esc(schema.statusLabel[q.status]) + '</span><h3 data-titlefor="' + p + '">' + esc(title) + '</h3>' + stb(p) +
+    var head = '<header><span class="statusbadge s-' + esc(q.status) + '" data-statusfor="' + p + '">' + esc(schema.statusLabel[q.status]) + '</span><h3 data-titlefor="' + p + '">' + esc(title) + '</h3>' + stb(p) + vb(p) +
       '<span class="grow"></span>' + (open ? '<button type="button" class="x" data-replace="' + bid + '|' + q.id + '">Replace quote&hellip;</button><button type="button" class="x" data-del="' + p + '">Remove quote</button>' : '') + seeBtn(q.id) + '</header>';
     if (!open) return '<article class="qcard folded" data-row="' + p + '">' + head + '</article>';
     return '<article class="qcard" data-row="' + p + '">' + head +
@@ -322,7 +325,7 @@
   function policyRow(e, idx) {
     var it = e.item, t = calc.totals(it), has = calc.activeLines(it).length, tick = it.wr ? '<span class="tick">&#10003;</span>' : '<span class="cross">&#10007;</span>', w = (calc.activeLines(it).filter(function (l) { return l.waiting && l.waiting !== 'N/A'; })[0] || {}).waiting;
     var b = it.benefits || {}, bd = function (k) { return b[k] ? '<small class="d bd">' + esc(b[k]) + '</small>' : ''; }, at = state.blocks.policies.items.indexOf(it), p = 'blocks.policies.items.' + at;
-    return '<tr class="pol"' + (at >= 0 ? ' data-row="' + p + '"' : '') + '><td>' + (at >= 0 ? stb(p) : '') + tick + ' <b>' + esc(it.insurer || 'Policy') + '</b>' + (it.policyNo ? ' <small>' + esc(it.policyNo) + '</small>' : '') + '<small class="d">' + esc([it.product, it.doc ? 'DOC ' + it.doc : ''].filter(Boolean).join(' · ')) + (e.derived ? ' · from the accepted quote' : '') + '</small>' + (at >= 0 ? seeBtn(it.id) : '') + '</td>' +
+    return '<tr class="pol"' + (at >= 0 ? ' data-row="' + p + '"' : '') + '><td>' + (at >= 0 ? stb(p) : '') + tick + ' <b>' + esc(it.insurer || 'Policy') + '</b>' + (it.policyNo ? ' <small>' + esc(it.policyNo) + '</small>' : '') + '<small class="d">' + esc([it.product, it.doc ? 'DOC ' + it.doc : ''].filter(Boolean).join(' · ')) + (e.derived ? ' · from the accepted quote' : '') + '</small>' + (at >= 0 ? '<span class="dvrow">' + vb(p) + seeBtn(it.id) + '</span>' : '') + '</td>' +
       '<td class="c">' + (has ? amt(t.life.lump) : amt(null)) + bd('life') + '</td><td class="c">' + (has ? amt(t.sev.lump) : amt(null)) + bd('sev') + '</td><td class="c">' + (has ? amt(t.lsd.lump) : amt(null)) + bd('lsd') + '</td><td class="c">' + (has ? pm(t.ip.monthly) : amt(null)) + bd('ip') + '</td>' +
       '<td class="c">' + esc(w || '') + '</td><td class="c">' + aciShow(it) + '</td><td class="c">' + pctShow(it.abi) + '</td><td class="c">' + (calc.isNum(it.premium) ? '<span class="a">' + R(it.premium) + '</span>' : amt(null)) + '</td></tr>';
   }
@@ -345,7 +348,7 @@
   }
   function policyCard(it, i) {
     var p = 'blocks.policies.items.' + i;
-    return '<article class="qcard" data-row="' + p + '"><header><span class="' + (it.wr ? 'tick' : 'cross') + '">' + (it.wr ? '&#10003;' : '&#10007;') + '</span><h3>' + esc(it.insurer || 'Policy') + (it.policyNo ? ' · ' + esc(it.policyNo) : '') + '</h3>' + stb(p) +
+    return '<article class="qcard" data-row="' + p + '"><header><span class="' + (it.wr ? 'tick' : 'cross') + '">' + (it.wr ? '&#10003;' : '&#10007;') + '</span><h3>' + esc(it.insurer || 'Policy') + (it.policyNo ? ' · ' + esc(it.policyNo) : '') + '</h3>' + stb(p) + vb(p) +
       '<span class="grow"></span><span class="src">' + (it.wr ? 'We are the broker' : 'Another broker: ' + esc(it.broker || '')) + '</span><button type="button" class="x" data-upi="' + p + '|policies">Upload policy schedule&hellip;</button></header><div class="grid qh">' +
       lab('Insurer', inp(p + '.insurer', 'text')) + lab('Product', inp(p + '.product', 'text')) + lab('Policy number', inp(p + '.policyNo', 'text')) + lab('Date of commencement', inp(p + '.doc', 'date')) + lab('Monthly premium (R)', inp(p + '.premium', 'money')) +
       lab('ACI (%)', inp(p + '.aci', 'pct')) + lab('ACI as the schedule words it', inp(p + '.aciText', 'text', '', 'e.g. 7.5% + age rater')) + lab('ACI in short points', taLines(p + '.aciPoints')) + lab('ABI (%)', inp(p + '.abi', 'pct')) + lab('Disability to age', sel(p + '.ipAge', [{ id: 65, l: '65' }, { id: 70, l: '70' }], 'num')) +
@@ -384,7 +387,7 @@
       body = '<div class="grid qh">' + lab('Provider', inp(p + '.provider', 'text')) + lab('Fund value (R)', inp(p + '.value', 'money')) + lab('Employer contribution (R p.m.)', inp(p + '.employer', 'money')) + lab('Employee contribution (R p.m.)', inp(p + '.employee', 'money')) +
         lab('Annual contribution increase (%)', inp(p + '.aci', 'pct')) + lab('Note', inp(p + '.note', 'text', '', 'e.g. POI needed')) + '</div>';
     }
-    return '<article class="qcard" data-row="' + p + '"><header><h3>' + esc(schema.GROUP_KINDS[it.kind] || it.kind) + ' · ' + esc(it.provider || '') + '</h3>' + stb(p) + '<span class="grow"></span><button type="button" class="x" data-upi="' + p + '|group">Upload statement&hellip;</button></header>' + body + '</article>';
+    return '<article class="qcard" data-row="' + p + '"><header><h3>' + esc(schema.GROUP_KINDS[it.kind] || it.kind) + ' · ' + esc(it.provider || '') + '</h3>' + stb(p) + vb(p) + '<span class="grow"></span><button type="button" class="x" data-upi="' + p + '|group">Upload statement&hellip;</button></header>' + body + '</article>';
   }
   function groupBlock() {
     var items = state.blocks.group.items;
@@ -407,7 +410,7 @@
   /* ---------- block 8: current investments ---------- */
   function invRow(i, idx) {
     var vs = i.valueSource || {}, srcTxt = vs.kind ? (vs.kind === 'astute' ? 'Astute report' : 'Investment schedule') + (vs.date ? ' ' + vs.date : '') : '', at = state.blocks.investments.items.indexOf(i), p = 'blocks.investments.items.' + at;
-    return '<tr class="pol" data-row="' + p + '"><td>' + stb(p) + (i.wr ? '<span class="tick">&#10003;</span>' : '<span class="cross">&#10007;</span>') + ' <b>' + esc(i.provider || 'Investment') + '</b><small class="d">' + esc(i.product || '') + '</small>' + seeBtn(i.id) + '</td><td class="c">' + esc(i.valueDate || '') + '</td><td class="c">' + esc(srcTxt) + '</td><td class="c">' + amt(i.gross) +
+    return '<tr class="pol" data-row="' + p + '"><td>' + stb(p) + (i.wr ? '<span class="tick">&#10003;</span>' : '<span class="cross">&#10007;</span>') + ' <b>' + esc(i.provider || 'Investment') + '</b><small class="d">' + esc(i.product || '') + '</small><span class="dvrow">' + vb(p) + seeBtn(i.id) + '</span></td><td class="c">' + esc(i.valueDate || '') + '</td><td class="c">' + esc(srcTxt) + '</td><td class="c">' + amt(i.gross) +
       '</td><td class="c">' + amt(i.penalty) + '</td><td class="c">' + (calc.isNum(i.gross) ? amt(calc.r2(i.gross - (calc.isNum(i.penalty) ? i.penalty : 0))) : amt(null)) + '</td><td class="c">' + pctShow(i.returnRate) + '</td><td class="c">' + pctShow(i.aci) + '</td><td class="c">' + (calc.isNum(i.monthly) ? '<span class="a">' + R(i.monthly) + '</span>' : amt(null)) + '</td></tr>';
   }
   function invTots() {
@@ -424,7 +427,7 @@
   }
   function invCard(it, i) {
     var p = 'blocks.investments.items.' + i; if (!it.valueSource) it.valueSource = { kind: null, date: null, file: null };
-    return '<article class="qcard" data-row="' + p + '"><header><span class="' + (it.wr ? 'tick' : 'cross') + '">' + (it.wr ? '&#10003;' : '&#10007;') + '</span><h3>' + esc(it.provider || 'Investment') + ' · ' + esc(it.product || '') + '</h3>' + stb(p) + '<span class="grow"></span><button type="button" class="x" data-upi="' + p + '|investments">Upload statement&hellip;</button></header><div class="grid qh">' +
+    return '<article class="qcard" data-row="' + p + '"><header><span class="' + (it.wr ? 'tick' : 'cross') + '">' + (it.wr ? '&#10003;' : '&#10007;') + '</span><h3>' + esc(it.provider || 'Investment') + ' · ' + esc(it.product || '') + '</h3>' + stb(p) + vb(p) + '<span class="grow"></span><button type="button" class="x" data-upi="' + p + '|investments">Upload statement&hellip;</button></header><div class="grid qh">' +
       lab('Provider', inp(p + '.provider', 'text')) + lab('Product', inp(p + '.product', 'text')) + lab('Policy number', inp(p + '.policyNo', 'text')) + lab('Values at (date)', inp(p + '.valueDate', 'date')) +
       lab('Source', sel(p + '.valueSource.kind', [{ id: 'schedule', l: 'Investment schedule' }, { id: 'astute', l: 'Astute report' }], 'text')) + lab('Source date', inp(p + '.valueSource.date', 'date')) + lab('Source file', inp(p + '.valueSource.file', 'text')) +
       lab('Gross fund value (R)', inp(p + '.gross', 'money')) + lab('Section 14 transfer penalty (R)', inp(p + '.penalty', 'money')) + lab('Rate of return (%)', inp(p + '.returnRate', 'pct')) +
@@ -437,12 +440,12 @@
   /* ---------- blocks 9, 10, 11 ---------- */
   function proposedRow(it, i) {
     var p = 'blocks.proposed.items.' + i;
-    return '<tr class="pol" data-row="' + p + '"><td>' + stb(p) + '<b>' + esc(it.type) + '</b>' + seeBtn(it.id) + '</td><td>' + esc([it.provider, it.quote ? 'Quote ' + it.quote : ''].filter(Boolean).join('   ')) + '</td><td>' + esc(schema.contributionLabel[it.contribution] || '') + '</td><td class="c">' + amt(it.lump) + '</td><td class="c">' + amt(it.monthly) +
+    return '<tr class="pol" data-row="' + p + '"><td>' + stb(p) + '<b>' + esc(it.type) + '</b><span class="dvrow">' + vb(p) + seeBtn(it.id) + '</span></td><td>' + esc([it.provider, it.quote ? 'Quote ' + it.quote : ''].filter(Boolean).join('   ')) + '</td><td>' + esc(schema.contributionLabel[it.contribution] || '') + '</td><td class="c">' + amt(it.lump) + '</td><td class="c">' + amt(it.monthly) +
       '</td><td class="c">' + pctShow(it.boostPct) + '</td><td class="c">' + amt(it.netInvested) + '</td><td class="c">' + pctShow(it.aci) + '</td></tr>';
   }
   function proposedCard(it, i) {
     var p = 'blocks.proposed.items.' + i;
-    return '<article class="qcard" data-row="' + p + '"><header><h3>' + esc(it.type) + ' · ' + esc(it.provider || '') + '</h3>' + stb(p) + '<span class="grow"></span><button type="button" class="x" data-del="' + p + '" title="Remove">Remove</button></header><div class="grid qh">' +
+    return '<article class="qcard" data-row="' + p + '"><header><h3>' + esc(it.type) + ' · ' + esc(it.provider || '') + '</h3>' + stb(p) + vb(p) + '<span class="grow"></span><button type="button" class="x" data-del="' + p + '" title="Remove">Remove</button></header><div class="grid qh">' +
       lab('Investment type', sel(p + '.type', schema.PROPOSED_TYPES, 'text', false)) + lab('Provider', inp(p + '.provider', 'text')) + lab('Quote number', inp(p + '.quote', 'text')) + lab('Contribution', sel(p + '.contribution', schema.CONTRIBUTIONS, 'text', false)) +
       lab('Lump sum (R)', inp(p + '.lump', 'money')) + lab('Monthly premium (R)', inp(p + '.monthly', 'money')) + lab('Boost (%)', inp(p + '.boostPct', 'pct')) + lab('Net amount invested (R)', inp(p + '.netInvested', 'money')) + lab('ACI (%)', inp(p + '.aci', 'pct')) + '</div></article>';
   }
@@ -461,7 +464,7 @@
     return '<div class="adders"><button type="button" class="addrow big" data-upc="goals" title="Opens the client\'s own folder: pick the report and the page reads it">Upload from client folder&hellip;</button></div>' + (items.map(function (it, i) {
       var p = 'blocks.goals.items.' + i, name = it.kind === 'rgar' ? 'Retirement Goal Analysis Report (RGAR)' : 'Education Goal Analysis Report (EGAR)', open = isOpen(it.id);
       if (it.removed) return fresh(p) ? '<p class="gone" data-notice="' + p + '">' + esc(name) + ' removed. <button type="button" class="lnk" data-undo="' + p + '">Undo</button></p>' : '';
-      var head = '<header><h3>' + esc(name) + '</h3>' + stb(p) + '<span class="grow"></span>' + (open ? '<button type="button" class="x" data-del="' + p + '">Remove</button>' : '') + seeBtn(it.id) + '</header>';
+      var head = '<header><h3>' + esc(name) + '</h3>' + stb(p) + vb(p) + '<span class="grow"></span>' + (open ? '<button type="button" class="x" data-del="' + p + '">Remove</button>' : '') + seeBtn(it.id) + '</header>';
       if (!open) return '<article class="qcard folded" data-row="' + p + '">' + head + '</article>';
       return '<article class="qcard" data-row="' + p + '">' + head + '<div class="grid qh">' +
         lab('Requested', boolSel(p + '.requested', 'Requested', 'Not requested')) + lab('Note', inp(p + '.note', 'text', '', 'Client did not request for at this time')) + lab('Current value (R p.m. gross)', inp(p + '.currentValuePm', 'money')) +
@@ -476,7 +479,7 @@
     return '<p class="blue">Each cover is filled from what the Fact Find asked and answered (company, product, broker, premium and the Fact Find\'s own notes). <b>Load from client folder</b> then reads the client\'s newest Follow-Up Appointment Summary Notes in <b>2. Fact Find</b> (after the Fact Find) and adds what has progressed to the note. Every part of a note says where it came from: <i>(Fact Find dd/mm)</i> or <i>(Summary Notes dd/mm)</i>. When reading is on, the company, product and premium that those notes mention are read out of them too. Click <b>from Fact Find</b> on an item when it has been checked. Only the legacy protection plan takes a schedule.</p>' +
       state.blocks.other.items.map(function (it, i) {
         var p = 'blocks.other.items.' + i, nm = (schema.OTHER_KEYS.filter(function (k) { return k.key === it.key; })[0] || { l: it.key }).l;
-        return '<article class="qcard" data-row="' + p + '"><header><span class="' + (it.wr ? 'tick' : 'cross') + '" data-tickfor="' + p + '">' + (it.wr ? '&#10003;' : '&#10007;') + '</span><h3>' + esc(nm) + '</h3>' + stb(p) + (it.key === 'legacy' ? '<span class="grow"></span><button type="button" class="x" data-upi="' + p + '|other">Upload policy schedule&hellip;</button>' : '') + '</header><div class="grid qh">' +
+        return '<article class="qcard" data-row="' + p + '"><header><span class="' + (it.wr ? 'tick' : 'cross') + '" data-tickfor="' + p + '">' + (it.wr ? '&#10003;' : '&#10007;') + '</span><h3>' + esc(nm) + '</h3>' + stb(p) + (it.key === 'legacy' ? vb(p) + '<span class="grow"></span><button type="button" class="x" data-upi="' + p + '|other">Upload policy schedule&hellip;</button>' : '') + '</header><div class="grid qh">' +
           lab('Company', inp(p + '.company', 'text')) + lab('Product', inp(p + '.product', 'text')) + lab('Policy number', inp(p + '.policyNo', 'text')) + lab('Broker', boolSel(p + '.wr', 'We are the broker', 'Another broker')) + lab('Premium (R p.m.)', inp(p + '.premium', 'money')) + lab('Note', area(p + '.note', 3), 'wide') + '</div></article>';
       }).join('');
   }
@@ -507,7 +510,7 @@
     var keepTop = $('#main').scrollTop, keepY = window.scrollY, title = pageName(cur);
     $('#main').innerHTML = (state.newer ? '<p class="bad-note">This file was made by a newer version of the Overview, so it is open read-only: nothing can be changed or saved here.</p>' : '') +
       '<header><h2>' + esc(title) + '</h2></header>' + blockHTML(cur) + pagerHTML();
-    paintStatuses(); fitTables();
+    paintStatuses(); fitTables(); paintView();
     if (toTop) $('#main').scrollTop = 0; else { $('#main').scrollTop = keepTop; window.scrollTo(0, keepY); }
   }
   function redraw() { last = check.run(state, runOpts()); drawNav(); drawMain(true); refreshChrome(); }
@@ -526,7 +529,7 @@
   function paintComputed() {
     document.querySelectorAll('[data-comp]').forEach(function (el) { var q = el.getAttribute('data-comp').split('|'); el.innerHTML = compHTML(q[0], q[1]); });
     document.querySelectorAll('[data-aci]').forEach(function (el) { var q = el.getAttribute('data-aci') && store.findQuote(state, el.getAttribute('data-aci')); el.innerHTML = q ? (aciHTML(q) || '\u2013') : ''; });
-    fitTables();
+    fitTables(); paintView();
   }
   function paintStatuses() {
     document.querySelectorAll('[data-row]').forEach(function (el) {
@@ -1088,6 +1091,10 @@
     if (el.tagName === 'INPUT') { el.value = dispIn(v, k); el.classList.toggle('isna', v === 'N/A' || v === 'Not found'); }
     touch(); paintComputed(); paintStatuses();
   });
+  $('#main').addEventListener('click', function (e) {                                                      // a View button opens the document inside the page (also in a read-only file)
+    var vbn = e.target.closest && e.target.closest('[data-vw]'); if (!vbn) return;
+    e.preventDefault(); e.stopPropagation(); if (!vbn.disabled && OV.view) OV.view.open(vbn.getAttribute('data-vw'), vbn, 'studio');
+  }, true);
   $('#main').addEventListener('click', function (e) {
     var t = e.target.closest('[data-see],[data-accept],[data-addq],[data-addl],[data-addp],[data-del],[data-undo],[data-block],[data-replace],[data-upi],[data-addcmp],[data-delcmp],[data-upc]'); if (!t) return;
     if (t.hasAttribute('data-block')) { cur = t.getAttribute('data-block'); drawNav(); drawMain(true); refreshChrome(); window.scrollTo({ top: 0 }); return; }
@@ -1122,7 +1129,7 @@
   $('#btnSaveAs').addEventListener('click', function () { saveJson(true); });
   $('#btnPdf').addEventListener('click', savePdf);
   $('#btnPreview').addEventListener('click', previewPdf);
-  $('#btnFolders').addEventListener('click', function () { FF.foldersUI.connect().then(drawMeta); });
+  $('#btnFolders').addEventListener('click', function () { FF.foldersUI.connect().then(function () { drawMeta(); if (OV.view) { OV.view.forget(); OV.view.paint(); } }); });
   if (window.FF && FF.foldersUI) FF.foldersUI.init(drawMeta);
   $('#btnNew').addEventListener('click', newOverview);
   $('#btnReview').addEventListener('click', newReview);

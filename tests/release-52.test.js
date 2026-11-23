@@ -35,8 +35,8 @@ test('the scripts the Fact Find loads: folders.js and folders-ui.js before ui.js
   assert.ok(h.indexOf('js/folders.js') < h.indexOf('js/folders-ui.js') && h.indexOf('js/folders-ui.js') < h.indexOf('js/ui.js'));
   assert.ok(h.includes('css/folders.css'));
   assert.ok(h.indexOf('id="btnOpen"') < h.indexOf('id="btnFolders"') && h.indexOf('id="btnFolders"') < h.indexOf('class="grp mid"'), 'Folders… sits with Settings, New and Open…');
-  ['folders.js', 'folders-ui.js', 'ui.js', 'build.js', 'schema.js'].forEach(f => assert.match(h, new RegExp('js/' + f.replace('.', '\\.') + '\\?v=(?:20261118d|20261120a|20261121a|20261122a|20261123c)'), f));
-  ['short-risk.html', 'capture-sheet.html'].forEach(f => ['folders.js', 'folders-ui.js', 'build.js'].forEach(x => assert.match(app(f), new RegExp('js/' + x.replace('.', '\\.') + '\\?v=(?:20261118d|20261120a|20261121a|20261122a|20261123c)'), f + ' ' + x)));
+  ['folders.js', 'folders-ui.js', 'ui.js', 'build.js', 'schema.js'].forEach(f => assert.match(h, new RegExp('js/' + f.replace('.', '\\.') + '\\?v=(?:20261118d|20261120a|20261121a|20261122a|20261123c|20261124d)'), f));
+  ['short-risk.html', 'capture-sheet.html'].forEach(f => ['folders.js', 'folders-ui.js', 'build.js'].forEach(x => assert.match(app(f), new RegExp('js/' + x.replace('.', '\\.') + '\\?v=(?:20261118d|20261120a|20261121a|20261122a|20261123c|20261124d)'), f + ' ' + x)));
 });
 
 test('only the Fact Find\'s .json and PDF look for the client\'s folder: Save as…, the voice log and the questionnaire-style extras do not', () => {

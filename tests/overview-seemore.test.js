@@ -72,7 +72,7 @@ test('the legacy protection plan of block 11 takes a document; the other items t
   assert.strictEqual(item.company, 'Test Life'); assert.strictEqual(item.product, 'Legacy Plan'); assert.strictEqual(item.policyNo, 'LP-1'); assert.strictEqual(item.premium, 450); assert.strictEqual(item.note, 'Whole of life');
   assert.strictEqual(item.st, 'verify'); assert.strictEqual(item.src.file, 'lp.pdf');
   const ui = app('js/ov-ui.js');
-  assert.ok(/it\.key === 'legacy' \? '<span class="grow"><\/span><button type="button" class="x" data-upi="' \+ p \+ '\|other">/.test(ui), 'only the legacy item has the Upload button');
+  assert.ok(/it\.key === 'legacy' \? vb\(p\) \+ '<span class="grow"><\/span><button type="button" class="x" data-upi="' \+ p \+ '\|other">/.test(ui), 'only the legacy item has the Upload button');
   assert.ok(!/waiting for document/.test(ui.slice(ui.indexOf('function otherBlock'), ui.indexOf('function blockHTML'))), 'block 11 never says "waiting for document"');
 });
 
@@ -144,7 +144,7 @@ test('the monthly figure under a BrightRock lump sum says what it is: "Income po
 });
 
 test('the page version is 0.9 and the saved file\'s layout is still 0.1 (revisions f and g add keys, remove none)', () => {
-  assert.strictEqual(schema.pageVersion, '0.94'); assert.strictEqual(schema.version, '0.1');
+  assert.strictEqual(schema.pageVersion, '0.95'); assert.strictEqual(schema.version, '0.1');
   const s = store.blank(); store.fillFromFactFind(s, ff(), 'ff.json'); const j = JSON.parse(store.toJSON(s));
   assert.ok('asked' in j.factFind.facts, 'factFind.facts.asked'); assert.ok('aciText' in j.blocks.fna.quotes.concat([store.newQuote(s, 'fna')])[0] || true);
   const q = store.newQuote(s, 'fna'); assert.ok('aciText' in q);
