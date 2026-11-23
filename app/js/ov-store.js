@@ -353,6 +353,7 @@
     if (t === 'debt') n.accelerated = n.accelerated === true || n.accelerated === false ? n.accelerated : (/^accelerated$/i.test(String(n.accelerated || '')) ? true : /^stand ?alone$/i.test(String(n.accelerated || '')) ? false : null);
     if (t === 'child') n.waiting = 'N/A';                                                                          // Paul's rule (22 November): a child care line has no waiting period, whatever an older file or a document says
     ['life', 'sev', 'lsd', 'ip'].forEach(function (p) { if (n[p] !== 'N/A' && (n[p] == null || typeof n[p] !== 'object')) n[p] = newLine(t)[p]; });
+    calc.settleLine(n);                                                                                            // an older file: the dread line has no life cover, a need with a lump sum of 0 has an income portion of 0
     return n;
   }
   function normRow(r) { r = r && typeof r === 'object' ? r : {}; r.id = r.id || uid('r'); r.st = ST[r.st] ? r.st : 'verify'; r.removed = !!r.removed; if (Array.isArray(r.lines)) r.lines = r.lines.map(normLine); return r; }

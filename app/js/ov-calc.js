@@ -37,6 +37,13 @@
     var v = c[k]; return v === undefined ? null : v;
   }
   function active(list) { return (list || []).filter(function (x) { return x && !x.removed; }); }
+  /* Two rules about a need line that hold whoever wrote it (Paul, 23 November): the additional expense (dread) line has no life cover cell (N/A), and a need whose lump sum is 0 has an income portion of 0. Returns how many things changed. */
+  function settleLine(l) {
+    var n = 0; if (!l || typeof l !== 'object') return 0;
+    if (l.type === 'dread' && l.life !== 'N/A') { l.life = 'N/A'; n++; }
+    if ((l.type === 'household' || l.type === 'child' || l.type === 'death') && l.life && typeof l.life === 'object' && l.life.lump === 0 && (l.life.monthly === null || l.life.monthly === undefined || l.life.monthly === '')) { l.life.monthly = 0; n++; }
+    return n;
+  }
   function activeLines(x) { return active(x && x.lines); }
   function emptyTotals() { return { life: { lump: 0, monthly: 0 }, sev: { lump: 0 }, lsd: { lump: 0, monthly: 0 }, ip: { monthly: 0 } }; }
   function sumLines(lines) {
@@ -123,7 +130,12 @@
     var debts = lines.filter(function (l) { return l.type === 'debt'; }), used = {}, pairs = [], missing = [];
     (ffDebts || []).forEach(function (d) {
       var keys = [norm(d.desc), norm(d.type), norm(d.prov + ' ' + d.type)].filter(Boolean);
-      var l = debts.filter(function (x) { return !used[x.id] && keys.indexOf(norm(x.debt)) >= 0; })[0] || debts.filter(function (x) { var nd = norm(x.debt); return !used[x.id] && nd.length > 2 && keys.some(function (k) { return k.length > 2 && (nd.indexOf(k) >= 0 || k.indexOf(nd) >= 0); }); })[0];
+      var same = debts.filter(function (x) { return !used[x.id] && keys.indexOf(norm(x.debt)) >= 0; });
+      if (same.length > 1) {                                                                              // two debts with the same name (two vehicle loans): the one whose debt cover is this debt's balance, then the one whose instalment is this debt's
+        var byBal = same.filter(function (x) { var g = lineVal(x, 'life', 'lump'); return isNum(g) && isNum(d.bal) && d.bal > 0 && Math.abs(g - d.bal) < 1; })[0], byInst = same.filter(function (x) { var m = lineVal(x, 'life', 'monthly'); return isNum(m) && isNum(d.inst) && d.inst > 0 && Math.abs(m - d.inst) < 1; })[0];
+        same = [byBal || byInst || same[0]];
+      }
+      var l = same[0] || debts.filter(function (x) { var nd = norm(x.debt); return !used[x.id] && nd.length > 2 && keys.some(function (k) { return k.length > 2 && (nd.indexOf(k) >= 0 || k.indexOf(nd) >= 0); }); })[0];
       if (!l) l = debts.filter(function (x) {                                                           // a line with no name (or another one) but the same instalment, or the same balance as its lump sum
         var m = lineVal(x, 'life', 'monthly'), g = lineVal(x, 'life', 'lump');
         return !used[x.id] && !norm(x.debt) && ((isNum(m) && isNum(d.inst) && d.inst > 0 && Math.abs(m - d.inst) < 1) || (isNum(g) && isNum(d.bal) && d.bal > 0 && Math.abs(g - d.bal) < 1));
@@ -149,7 +161,7 @@
   var PAGE_WHY = { shortfallQuote: 'Left out: there is no group risk, or no shortfall quote was asked for.', comparative: 'Left out: no comparative quote was asked for in the Fact Find.', proposed: 'Left out: there are no proposed investments.', goals: 'Left out: no goal analysis report was asked for.' };
   function pageWhy(id) { return PAGE_WHY[id] || ''; }
 
-  return { isNum: isNum, r2: r2, norm: norm, fmtR: fmtR, fmtPct: fmtPct, fmtAci: fmtAci, matchChildren: matchChildren, matchDebts: matchDebts, pageShown: pageShown, pageWhy: pageWhy, fmtDiff: fmtDiff, show: show, lineVal: lineVal, active: active, activeLines: activeLines, totals: totals, sumLines: sumLines,
+  return { settleLine: settleLine, isNum: isNum, r2: r2, norm: norm, fmtR: fmtR, fmtPct: fmtPct, fmtAci: fmtAci, matchChildren: matchChildren, matchDebts: matchDebts, pageShown: pageShown, pageWhy: pageWhy, fmtDiff: fmtDiff, show: show, lineVal: lineVal, active: active, activeLines: activeLines, totals: totals, sumLines: sumLines,
     quotes: quotes, allQuotes: allQuotes, policies: policies, policyTotals: policyTotals, groupItems: groupItems, hasGroupRisk: hasGroupRisk, groupTotals: groupTotals, investments: investments,
     personalInvestments: personalInvestments, shortfall: shortfall, compare: compare, pillars: pillarOfBlock };
 });

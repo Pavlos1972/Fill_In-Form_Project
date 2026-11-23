@@ -42,6 +42,8 @@
     quote: 'This is an insurance quote (BrightRock or another insurer). Return { "insurer": "text", "number": "the quote or CP number as printed", "date": "dd/mm/yyyy", "rates": "e.g. Non-smoker rates", "aci": n (the yearly premium increase as a number), "aciText": "the yearly premium increase EXACTLY as the quote words it, for example 7.5% + age rater, or CPI + 2%; null when the quote only gives a figure", "premium": n (the total monthly premium), ' +
       '"abi": n (only when the quote prints ONE annual benefit increase for the whole quote), "servicing": true | false (true when the quote is for a policy the client already has, a review or servicing quote; false for new business), "disabilityAge": n (the age lump sum disability and the income protector run to), "lines": [ ' + LINE + ' ], "printedTotals": { "life": { "lump": n, "monthly": n }, "sev": { "lump": n }, "lsd": { "lump": n, "monthly": n }, "ip": { "monthly": n } } }. ' +
       'Each need (household, each child, each debt, death-related needs, additional expense needs / dread) is one line; the monthly figure printed under a lump sum is "monthly". A child line has the child\'s name and surname; a debt line the debt\'s name and the bank. ' +
+      'For a household, child or death-related line give the lump sum in life.lump and, in life.monthly, the INCOME PORTION p.m. printed with it (0 when the lump sum is 0). For a debt line give the debt cover in life.lump and the debt\'s MONTHLY INSTALMENT in life.monthly. The additional expense needs (dread) line has ONLY a severe illness amount, in sev.lump: leave its life cover empty. ' +
+      'Never copy a figure from anywhere but the quote; write null for a figure the quote does not print. ' +
       'A debt line says whether its debt cover is ACCELERATED ("accelerated": true: it is paid out of, and reduces, the life cover) or STANDALONE ("accelerated": false: a separate benefit on top of the life cover); when the quote does not say, write null. ' +
       'EVERY line has its own "abi": the annual benefit increase (annual base increase) of that need, as a number. BrightRock prints it for each need, or once for the whole quote: when it is printed once, copy it onto every line it covers (and also give it as "abi" of the quote). ' +
       'When the quote prints no annual benefit increase for a line, write "Not found" in that line\'s "abi", never null. Severe illness has an amount only on the lines where the quote gives one (the additional expense needs line); leave it null on the others. ' +
@@ -61,12 +63,14 @@
     proposal: 'This is a quote or proposal for an investment (a retirement annuity, a tax-free investment, an endowment, unit trusts, a Section 14 or pension / provident fund transfer, a living annuity). Return { "provider": "text", "type": "Tax-free investment" | "Retirement annuity (RA)" | "Endowment" | "Unit trusts (open-ended)" | "Section 14 transfer" | "Pension / provident fund transfer", "number": "the quote number as printed", ' +
       '"contribution": "lump" | "monthly" | "both" | "transfer", "lump": n (a lump sum), "monthly": n (the monthly premium), "boostPct": n (the boost or bonus on the contribution as a percentage, only if printed), "netInvested": n (the net amount invested after charges and boost, only if printed), "aci": n (the yearly contribution increase) }.',
     goal: 'This is a Retirement Goal Analysis Report (RGAR) or an Education Goal Analysis Report (EGAR). Return { "kind": "rgar" | "egar", "note": "a short reason, only if the report says it could not be done or is not applicable, else null", "currentValuePm": n (the current value in rand a month, gross), "futureValuePm": n (the future value in rand a month, gross), "aci": n, "premium": n (the monthly premium) }.',
+    ffnotes: 'These are the notes a South African financial adviser typed on a Fact Find about a client\'s medical aid, gap cover, will (the legacy protection plan may be mentioned there) and short-term insurance. Return { "items": { "medical": { "company": "text", "product": "text", "premium": n (a month) }, "gap": { ... }, "will": { ... }, "legacy": { ... }, "shortterm": { ... } } }. ' +
+      'Copy ONLY what the notes say about each cover (the company or insurer, the product or plan, the monthly premium as a number); write null for anything they do not say, and leave a cover out when the notes say nothing about it. Never guess.',
     followup: 'These are Follow-Up Appointment Summary Notes written after a later meeting with a client of a South African financial adviser. Return { "date": "dd/mm/yyyy (the date of the meeting or of the notes)", "items": { "medical": "...", "gap": "...", "will": "...", "legacy": "...", "shortterm": "..." } }. ' +
       'Each item is ONE short sentence (up to about 160 characters) saying what has progressed or is still outstanding for that cover since the Fact Find, in the notes\' own words, for example: Capital Legacy to call to amend the will; everything sent to Cameron, feedback awaited; short-term R 2,539 p.m. split. ' +
       'medical = medical aid, gap = gap cover, will = the will, legacy = the legacy protection plan, shortterm = short-term insurance. Write null for an item the notes say nothing about. Never guess, never copy anything that is not about that item.',
     cmp: 'This is a BrightRock change moment pay-out guide. Return { "number": "the CP number", "activationDate": "dd/mm/yyyy", "reason": "BrightRock\'s reason, only if it gives no pay-out, else null", "rows": [ { "key": "total" | "retirement" | "childcare" | "child", "name": "child first name", "sname": "child surname", "today": n, "projected": n, "payoutDate": "dd/mm/yyyy" or null } ] }.'
   };
-  var SPEC_OF = { fna: 'quote', shortfallQuote: 'quote', reduced: 'quote', comparative: 'quote', policies: 'policy', group: 'group', investments: 'investment', astute: 'astute', cmp: 'cmp', proposed: 'proposal', goals: 'goal', other: 'policy', followup: 'followup' };
+  var SPEC_OF = { fna: 'quote', shortfallQuote: 'quote', reduced: 'quote', comparative: 'quote', policies: 'policy', group: 'group', investments: 'investment', astute: 'astute', cmp: 'cmp', proposed: 'proposal', goals: 'goal', other: 'policy', followup: 'followup', ffnotes: 'ffnotes' };
   /* What the Fact Find says about the client's debts and children, for the reading of a quote (the quote often prints no bank or the debt's name): Claude is asked to name each debt line from it. '' when there is nothing. */
   function factNote(state) {
     var f = state && state.factFind && state.factFind.facts; if (!f) return '';
@@ -98,7 +102,9 @@
     if (!o.apiKey) return Promise.reject(new Error('Add your Anthropic API key in the Fact Find\'s Settings first.'));
     if (!SPEC_OF[o.block]) return Promise.reject(new Error('That kind of document cannot be read here.'));
     var kind = /^image\//.test(o.mediaType) ? 'image' : 'document';
-    var body = { model: o.model, max_tokens: 8000, messages: [{ role: 'user', content: [{ type: kind, source: { type: 'base64', media_type: o.mediaType || 'application/pdf', data: o.base64 } }, { type: 'text', text: promptFor(o.block, o.ctx) }] }] };
+    var content = o.base64 ? [{ type: kind, source: { type: 'base64', media_type: o.mediaType || 'application/pdf', data: o.base64 } }, { type: 'text', text: promptFor(o.block, o.ctx) }]
+      : [{ type: 'text', text: promptFor(o.block, o.ctx) + (o.text ? '\n\nTHE NOTES:\n' + o.text : '') }];                    // the Fact Find's notes are sent as text, no document
+    var body = { model: o.model, max_tokens: 8000, messages: [{ role: 'user', content: content }] };
     return doFetch(ENDPOINT, { method: 'POST', headers: { 'content-type': 'application/json', 'x-api-key': o.apiKey, 'anthropic-version': API_VERSION, 'anthropic-dangerous-direct-browser-access': 'true' }, body: JSON.stringify(body) }).then(function (res) {
       return res.json().catch(function () { return {}; }).then(function (j) {
         if (!res.ok) throw new Error(friendly(res.status, j));
@@ -132,7 +138,11 @@
     else if (out.waiting !== 'N/A' && s(l.waiting)) out.waiting = s(l.waiting);
     var hasAbi = function (v) { return v !== undefined && v !== null && v !== ''; };
     if (hasAbi(l.abi)) out.abi = n(l.abi); else if (hasAbi(o.abi)) out.abi = n(o.abi); else if (o.quote) out.abi = 'Not found';        // a quote's line always has an ABI; one the quote does not print says so
-    if (o.quote && out.sev !== 'N/A' && !calc.isNum(out.sev.lump)) out.sev = 'N/A';                          // severe illness is N/A on every line except where the quote has an amount
+    if (o.quote && t !== 'dread' && out.sev !== 'N/A' && !calc.isNum(out.sev.lump)) out.sev = 'N/A';          // severe illness is N/A on every line except where the quote has an amount (the additional expense line IS that amount)
+    if (o.quote && t !== 'other') {                                                                          // a BrightRock need line: the figures the quote has to give are there, or the box says "Not found" (Paul, 23 November: never an empty box)
+      calc.settleLine(out);                                                                                  // dread: no life cover; a lump sum of 0 gives an income portion of 0
+      (schema.FIGURES[t] || []).forEach(function (r) { var c = out[r[0]]; if (c && typeof c === 'object' && (c[r[1]] === null || c[r[1]] === undefined || c[r[1]] === '')) c[r[1]] = 'Not found'; });
+    }
     out.st = 'verify'; out.by = 'page'; out.src = src; return out;
   }
   function pillarsOf(c) {
@@ -242,6 +252,23 @@
     });
     return { filled: out, date: d };
   }
+  /* The Fact Find's notes of the four covers as one text (only these four notes boxes leave the machine: no ID, phone or e-mail). '' when there is nothing. */
+  function factNotesText(state) {
+    var od = state && state.factFind && state.factFind.facts && state.factFind.facts.otherDetail; if (!od) return '';
+    var rows = [['Medical aid', od.ma && od.ma.note], ['Gap cover', od.gap && od.gap.note], ['Will and legacy protection plan', od.will && od.will.note], ['Short-term insurance', od.shortterm && od.shortterm.note]];
+    return rows.filter(function (r) { return s(r[1]); }).map(function (r) { return r[0] + ': ' + s(r[1]); }).join('\n');
+  }
+  /* What the notes said goes into the boxes that are still EMPTY (company, product, premium); nothing typed or read before is overwritten, the status stays as it is (from the Fact Find, to be checked). Returns the keys filled. */
+  function applyNotesRead(state, data) {
+    var items = data && data.items && typeof data.items === 'object' ? data.items : {}, out = [];
+    state.blocks.other.items.forEach(function (it) {
+      var d = items[it.key]; if (!d || typeof d !== 'object') return; var did = false;
+      ['company', 'product'].forEach(function (k) { if (!s(it[k]) && s(d[k])) { it[k] = s(d[k]); did = true; } });
+      var pr = n(d.premium); if (!calc.isNum(it.premium) && calc.isNum(pr)) { it.premium = pr; did = true; }
+      if (did) out.push(it.key);
+    });
+    return out;
+  }
   /* "dd/mm/yyyy" as "dd/mm" for the source tag of a note. */
   function dm(v) { var m = /^(\d{1,2})\/(\d{1,2})\/\d{2,4}$/.exec(String(v || '')); return m ? two(+m[1]) + '/' + two(+m[2]) : String(v || ''); }
   function applyGroup(state, item, data, file) {
@@ -317,11 +344,12 @@
     if (kind === 'proposal') return !has(data.lump) && !has(data.monthly) && !has(data.netInvested);
     if (kind === 'goal') return !has(data.currentValuePm) && !has(data.futureValuePm) && !has(data.premium);
     if (kind === 'cmp') return !(data.rows && data.rows.length) && !has(data.reason);
+    if (kind === 'ffnotes') return !(data.items && typeof data.items === 'object' && Object.keys(data.items).some(function (k) { var d = data.items[k]; return d && typeof d === 'object' && (has(d.company) || has(d.product) || has(d.premium)); }));
     if (kind === 'followup') return !(data.items && typeof data.items === 'object' && Object.keys(data.items).some(function (k) { return has(data.items[k]); }));
     if (kind === 'astute') return !(data.investments && data.investments.length);
     return !Object.keys(data).some(function (k) { return has(data[k]) && typeof data[k] !== 'object'; }) && !Object.keys(data).some(function (k) { var v = data[k]; return v && typeof v === 'object' && Object.keys(v).some(function (j) { return has(v[j]); }); });
   }
 
-  return { classify: classify, promptFor: promptFor, parseReply: parseReply, readWithClaude: readWithClaude, applyQuote: applyQuote, enrich: enrich, factNote: factNote, applyPolicy: applyPolicy, applyOther: applyOther, applyFollowUp: applyFollowUp, dm: dm, applyGroup: applyGroup, applyInvestment: applyInvestment, applyAstute: applyAstute, applyProposed: applyProposed, applyGoal: applyGoal, isEmptyRead: isEmptyRead,
+  return { classify: classify, promptFor: promptFor, parseReply: parseReply, readWithClaude: readWithClaude, applyQuote: applyQuote, enrich: enrich, factNote: factNote, applyPolicy: applyPolicy, applyOther: applyOther, applyFollowUp: applyFollowUp, dm: dm, factNotesText: factNotesText, applyNotesRead: applyNotesRead, applyGroup: applyGroup, applyInvestment: applyInvestment, applyAstute: applyAstute, applyProposed: applyProposed, applyGoal: applyGoal, isEmptyRead: isEmptyRead,
     applyCmp: applyCmp, matchItem: matchItem, logDoc: logDoc, findQuoteByNumber: findQuoteByNumber, quoteIn: quoteIn, quoteRead: quoteRead, SPEC_OF: SPEC_OF, BLOCK_LABEL: BLOCK_LABEL, QUOTE_OF: QUOTE_OF, ENDPOINT: ENDPOINT };
 });

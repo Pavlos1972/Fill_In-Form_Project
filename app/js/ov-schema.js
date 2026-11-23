@@ -5,7 +5,7 @@
   else { root.OV = root.OV || {}; root.OV.schema = factory(); }
 })(typeof self !== 'undefined' ? self : this, function () {
   /* VERSION is the layout of the saved file (docs/OVERVIEW-DATA-CONTRACT.md): the filling skill stops on one it does not know. PAGE_VERSION is the page's own version, which changes with every stage. */
-  var VERSION = '0.1', PAGE_VERSION = '0.91', APP_ID = 'wr-overview';
+  var VERSION = '0.1', PAGE_VERSION = '0.92', APP_ID = 'wr-overview';
 
   /* The four pillars, in the order of the columns. life and lsd have a lump sum and a monthly figure; sev only a lump sum; ip only a monthly figure. */
   var PILLARS = [
@@ -53,10 +53,13 @@
     { id: 'child', l: 'Child care', monthly: 'Income portion p.m.', abi: 'child' },
     { id: 'debt', l: 'Debt', monthly: 'Monthly instalment', abi: 'debt' },
     { id: 'death', l: 'Death-related needs', monthly: 'Income portion p.m.', abi: 'death', na: ['lsd', 'ip', 'waiting'], term: 'On my death' },
-    { id: 'dread', l: 'Additional expense needs (dread)', monthly: 'Monthly', abi: 'dread', na: ['lsd', 'ip', 'waiting'], term: 'Whole of life' },
+    { id: 'dread', l: 'Additional expense needs (dread)', monthly: 'Monthly', abi: 'dread', na: ['life', 'lsd', 'ip', 'waiting'], term: 'Whole of life' },          // round 3: the additional expense cover is a severe illness amount only: no life cover cell
     { id: 'other', l: 'Other line', monthly: 'Monthly', abi: null }
   ];
   var lineTypesById = {}; LINE_TYPES.forEach(function (t) { lineTypesById[t.id] = t; });
+  /* The figures a quote has to give for each need (round 3, 23 November): [pillar, key, what it is called]. A BrightRock line read from a quote is never ticked while one of them is empty; the reading writes "Not found" in a box it could not find. */
+  var FIGURES = { household: [['life', 'lump', 'the lump sum'], ['life', 'monthly', 'the income portion p.m.']], child: [['life', 'lump', 'the lump sum'], ['life', 'monthly', 'the income portion p.m.']], death: [['life', 'lump', 'the lump sum'], ['life', 'monthly', 'the income portion p.m.']],
+    debt: [['life', 'lump', 'the debt cover'], ['life', 'monthly', 'the monthly instalment']], dread: [['sev', 'lump', 'the severe illness amount']] };
 
   /* Paul's standard settings: what the increases normally are. A line that differs is flagged (amber, never printed). */
   var STANDARDS = { aci: 10, abi: { child: 5, household: 5, debt: 0, death: 3, dread: 3 } };
@@ -92,6 +95,6 @@
 
   return { version: VERSION, pageVersion: PAGE_VERSION, released: 'November 2026', APP_ID: APP_ID, PILLARS: PILLARS, BLOCKS: BLOCKS, blocksById: blocksById, blockOfQuote: blockOfQuote, QUOTE_KINDS: QUOTE_KINDS, INSURERS: INSURERS,
     STATUS: STATUS, statusLabel: statusLabel, LINE_TYPES: LINE_TYPES, lineTypesById: lineTypesById, STANDARDS: STANDARDS, PROPOSED_TYPES: PROPOSED_TYPES, CONTRIBUTIONS: CONTRIBUTIONS,
-    contributionLabel: contributionLabel, OTHER_KEYS: OTHER_KEYS, GROUP_KINDS: GROUP_KINDS, PAID_BY: PAID_BY, ST_LABEL: ST_LABEL, fileName: fileName, yearOf: yearOf, clientName: clientName,
+    contributionLabel: contributionLabel, OTHER_KEYS: OTHER_KEYS, FIGURES: FIGURES, GROUP_KINDS: GROUP_KINDS, PAID_BY: PAID_BY, ST_LABEL: ST_LABEL, fileName: fileName, yearOf: yearOf, clientName: clientName,
     clientFull: clientFull, parseDMY: parseDMY, todayDMY: todayDMY, safeName: safeName };
 });

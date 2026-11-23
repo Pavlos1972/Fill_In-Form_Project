@@ -137,8 +137,8 @@ test('quotes are read before their pay-out guides in a bulk load; a guide is loo
   const F = app('js/folders.js'); assert.ok(/quote\|goal\|rgar\|egar\|proposal\|analysis/.test(F), 'the listing of the client\'s folder now includes the quotes, goal and proposals folders (where the guides are)');
 });
 
-test('the contract: revision g, the page version 0.91, the layout still 0.1; new keys are only the line\'s match', () => {
-  assert.strictEqual(schema.pageVersion, '0.91'); assert.strictEqual(schema.version, '0.1');
+test('the contract: revision g, the page version 0.92, the layout still 0.1; new keys are only the line\'s match', () => {
+  assert.strictEqual(schema.pageVersion, '0.92'); assert.strictEqual(schema.version, '0.1');
   const s = filled(), q = read(s, [{ type: 'child', name: 'Amy', sname: 'Client', life: { lump: 1, monthly: 5000 } }]); check.autoMatch(s, q);
   const j = JSON.parse(store.toJSON(s)); assert.strictEqual(j.blocks.fna.quotes[0].lines[0].match, 'factfind');
   assert.ok(/Revision g/.test(fs.readFileSync(path.join(__dirname, '..', 'docs', 'OVERVIEW-DATA-CONTRACT.md'), 'utf8')), 'written in the contract');

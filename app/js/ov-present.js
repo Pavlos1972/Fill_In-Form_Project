@@ -46,7 +46,7 @@
   var NA = function (v) { return v === 'N/A' || v === 'Not found'; };
   function A(v, cls) { return calc.isNum(v) ? '<span class="a' + (cls ? ' ' + cls : '') + '">' + calc.fmtR(v) + '</span>' : NA(v) ? '<span class="na">' + v + '</span>' : '<span class="none">&ndash;</span>'; }
   function PM(v) { return calc.isNum(v) ? '<span class="a pmv">' + calc.fmtR(v) + '</span> <small class="pm">p.m.</small>' : A(v); }
-  function AC(x) { var t = calc.fmtAci(x); return t ? '<span class="a aci">' + esc(t) + '</span>' : '<span class="none">&ndash;</span>'; }
+  function AC(x) { var t = calc.fmtAci(x); return t ? '<span class="a aci" title="' + esc(t) + '">' + esc(t) + '</span>' : '<span class="none">&ndash;</span>'; }
   function PC(v) { return calc.isNum(v) ? '<span class="a">' + calc.fmtPct(v) + '</span>' : NA(v) ? '<span class="na">' + v + '</span>' : '<span class="none">&ndash;</span>'; }
   function td(inner, cls, pil, extra) { return '<td' + (cls ? ' class="' + cls + '"' : '') + (pil ? ' data-pil="' + pil + '"' : '') + (extra || '') + '>' + inner + '</td>'; }
   function th(text, pil, cls) {
@@ -169,7 +169,7 @@
     if (pt.count.wr) rows += tot('Total: policies where we are the broker', pt.wr, pt.premium.wr, 'prem'); if (pt.count.other) rows += tot('Total: other brokers', pt.other, pt.premium.other, 'prem');
     rows += tot('Grand total (all policies)', pt.all, pt.premium.all, 'tot');
     return head(b, hb(false)) + tools('<span class="phint">Click a policy to see its lines</span>') +
-      tbl([20, 13, 11, 13, 13, 7, 10, 5, 8], th('Policy', '', 'l') + th('Life cover', 'life') + th('Severe illness', 'sev') + th('Lump sum disability' + ageH, 'lsd') + th('Income protector / sickness benefit' + ageH, 'ip') + th('Waiting period') + th('ACI', 'aci') + th('ABI', 'abi') + th('Premium'), rows);
+      tbl([18, 13, 11, 13, 13, 7, 12, 5, 8], th('Policy', '', 'l') + th('Life cover', 'life') + th('Severe illness', 'sev') + th('Lump sum disability' + ageH, 'lsd') + th('Income protector / sickness benefit' + ageH, 'ip') + th('Waiting period') + th('ACI', 'aci') + th('ABI', 'abi') + th('Premium'), rows, 'pols');
   }
   function groupView(b) {
     var s = state(), items = calc.groupItems(s), pi = calc.personalInvestments(s), gt = calc.groupTotals(s), prem = 0, age = s.header.disabilityAge, risk = items.filter(function (g) { return g.kind === 'risk'; });

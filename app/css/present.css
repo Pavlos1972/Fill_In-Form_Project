@@ -116,6 +116,9 @@
 .pres .ptbl .a { display: block; white-space: nowrap; font-variant-numeric: tabular-nums; font-size: 17.5px; font-weight: 700; letter-spacing: -.005em; line-height: 1.2; }
 .pres .ptbl .a.red { color: var(--red); font-size: 16px; font-weight: 600; }
 .pres .ptbl .a.pmv { display: inline; }
+/* the current policies table is roomy (round 3): taller rows, more padding, and a long ACI wording in small type that is cut at three lines (the whole wording is the hover text) so it never stretches the row */
+.pres .ptbl.pols td { padding: 15px 10px; height: 96px; }
+.pres .ptbl.pols .a.aci { font-size: 11.5px; line-height: 1.2; font-weight: 600; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; white-space: normal; overflow-wrap: anywhere; }
 .pres .ptbl .a.aci { white-space: normal; font-size: 14px; font-weight: 600; line-height: 1.25; overflow-wrap: anywhere; }
 .pres .ptbl .na, .pres .ptbl .none { color: #9aa7b1; }
 .pres .ptbl small { display: block; color: var(--muted); font-size: 12px; line-height: 1.2; margin-top: 1px; white-space: nowrap; }

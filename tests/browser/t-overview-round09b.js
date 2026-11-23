@@ -41,7 +41,8 @@ srv.listen(0, async () => {
     const real = window.fetch.bind(window);
     window.fetch = (url, opt) => {
       if (String(url).indexOf('api.anthropic.com') < 0) return real(url, opt);
-      const body = JSON.parse(opt.body), text = atob(body.messages[0].content[0].source.data); window.__api.push(text);
+      const body = JSON.parse(opt.body), c0 = body.messages[0].content[0]; if (c0.type === 'text') return Promise.resolve({ ok: true, status: 200, json: async () => ({ content: [{ type: 'text', text: '{"items":{}}' }], usage: {} }) });          // the Fact Find's notes (0.92): nothing to say
+      const text = atob(c0.source.data); window.__api.push(text);
       return (window.__delay ? new Promise(r => setTimeout(r, window.__delay)) : Promise.resolve()).then(() => ({ ok: true, status: 200, json: async () => ({ content: [{ type: 'text', text: JSON.stringify(window.__read[text] || {}) }], usage: { input_tokens: 5, output_tokens: 5 } }) }));
     };
     let fo; const FFo = {};
