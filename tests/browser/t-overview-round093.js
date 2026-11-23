@@ -150,8 +150,9 @@ srv.listen(0, async () => {
 
   /* ---- 7. current policies: the ACI as points, entry screen and Presentation ---- */
   await p.evaluate(() => OV.app.go('policies')); await p.waitForTimeout(300); await quiet();
-  const ent = await p.evaluate(() => { const u = document.querySelector('#main .pols ul.aciu'); return u ? { li: u.querySelectorAll('li').length, title: u.title, txt: u.textContent } : null; });
+  const ent = await p.evaluate(() => { const u = document.querySelector('#main .pols ul.aciu'); const tr = u && u.closest('tr'); return u ? { li: u.querySelectorAll('li').length, title: u.title, txt: u.textContent, h: Math.round(tr.getBoundingClientRect().height), w: Math.round(u.getBoundingClientRect().width), wrap: getComputedStyle(u).overflowWrap } : null; });
   ok(ent && ent.li === 3 && ent.title.length > 150 && /^The premium is reviewed/.test(ent.title) && ent.txt.length < 120, '1. the entry screen shows three short points; the whole wording is the hover text: ' + (ent && ent.txt));
+  ok(ent && ent.h <= 170 && ent.w >= 130 && ent.wrap === 'break-word', '1. the policy row is not stretched by the points (row ' + (ent && ent.h) + ' px, points ' + (ent && ent.w) + ' px wide) and a word is not broken in the middle');
   await p.screenshot({ path: out + '/r4-policies.png', fullPage: false });
   await p.click('#btnPresent'); await p.waitForTimeout(500); await p.click('#pres .ptab[data-tab="policies"]'); await p.waitForTimeout(600);
   const pr = await p.evaluate(() => { const t = document.querySelector('#pres .ptbl.pols'), a = t && t.querySelector('.a.aci.pts'), td = a && a.closest('td'); const rows = [...t.querySelectorAll('tbody tr')].map(tr => Math.round(tr.getBoundingClientRect().height)), r = a && a.getBoundingClientRect(), tr = td && td.getBoundingClientRect(); return a ? { li: a.querySelectorAll('li').length, title: a.title, rows, inside: r.left >= tr.left - 0.5 && r.right <= tr.right + 0.5 && r.bottom <= tr.bottom + 0.5, txt: a.textContent } : null; });

@@ -243,3 +243,6 @@ details.bre .breMsg { margin-left: 8px; font-size: 13px; color: var(--ok); }
 details.bre .breMsg.bad { color: var(--warn); }
 details.chkall > summary { cursor: pointer; font-weight: 600; padding: 6px 2px; list-style-position: inside; }
 details.chkall[open] > summary { margin-bottom: 6px; }
+.ovt.pols .p-aci { width: 17%; } .ovt.pols .p-name { width: 16%; }                                            /* round 4: room for the ACI points; they never break in the middle of a word */
+.ovt .aciu { overflow-wrap: break-word; word-break: normal; hyphens: manual; }
+
