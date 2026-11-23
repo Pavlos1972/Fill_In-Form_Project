@@ -214,3 +214,15 @@ test('the contract: revision j, the page version 0.91, the layout still 0.1; new
   assert.strictEqual(schema.pageVersion, '0.91'); assert.strictEqual(schema.version, '0.1');
   assert.ok(/Revision j/.test(fs.readFileSync(path.join(__dirname, '..', 'docs', 'OVERVIEW-DATA-CONTRACT.md'), 'utf8')), 'written in the contract');
 });
+
+/* ---------- 8. Paul's standard settings are not shown any more (11:41), but they are kept and used ---------- */
+test('the "Paul\'s standard settings" panel is gone from the Client details screen; the values are still stored, saved and used by the checks', () => {
+  const ui = app('js/ov-ui.js'), client = ui.slice(ui.indexOf('function clientHTML()'), ui.indexOf('/* ---------- the lines of a quote or a policy ---------- */')).replace(/\/\*[\s\S]*?\*\//g, '');   // the comment may name the panel
+  assert.ok(!/standard settings/i.test(client) && !/settings\.standards/.test(client) && !/settings\.tolerance/.test(client) && !/Difference allowed in a check/.test(client), 'no panel, no box for the increases or the difference allowed');
+  assert.ok(/lab\('First names'/.test(client) && /Premium budget for the reduced quote/.test(client), 'the client\'s own boxes are still there');
+  const s = store.blank(); assert.strictEqual(s.settings.standards.aci, 10); assert.strictEqual(s.settings.tolerance, 1); assert.deepStrictEqual(s.settings.standards.abi, { child: 5, household: 5, debt: 0, death: 3, dread: 3 });
+  const back = store.fromJSON(store.toJSON(s)); assert.strictEqual(back.settings.standards.aci, 10); assert.strictEqual(back.settings.tolerance, 1);
+  const t = withFF({}); docs.applyQuote(t, 'fna', { insurer: 'BrightRock', number: '100000099', premium: 1, aci: 7, lines: [L('household', { abi: 6 })] }, 'x.pdf');
+  const probs = check.run(t).problems.filter(p => p.id === 'standards'); assert.ok(probs.some(p => /annual benefit increase is 6%; your standard is 5%/.test(p.message)) && probs.some(p => /contribution increase is 7%; your standard is 10%/.test(p.message)), 'a line that differs is still flagged amber: ' + probs.map(p => p.message).join(' | '));
+  const loose = store.fromJSON(JSON.stringify(Object.assign(JSON.parse(store.toJSON(s)), { settings: { standards: { aci: 12, abi: { household: 4 } }, tolerance: 5 } }))); assert.strictEqual(loose.settings.standards.aci, 12); assert.strictEqual(loose.settings.tolerance, 5, 'a file\'s own values are still read');
+});

@@ -194,17 +194,15 @@
 
   /* ---------- client details ---------- */
   function clientHTML() {
-    var s = state.settings.standards, A = [['household', 'Household'], ['child', 'Children'], ['debt', 'Debts'], ['death', 'Death-related needs'], ['dread', 'Additional expense (dread)']];
+    /* Paul's standard settings (the ACI and the ABI of each need, the difference allowed in a check) are NOT shown any more (Paul, 23 November: they serve no purpose on the screen). They stay in the state and in the saved file
+       (state.settings), and the checks still use them: a line that differs is flagged amber. */
     return '<section class="sec"><div class="block-title">The client</div><div class="grid">' +
       lab('First names', inp('header.fname', 'text')) + lab('Surname', inp('header.sname', 'text')) + lab('Date of birth', inp('header.dob', 'date')) + lab('Broker', inp('header.broker', 'text')) +
       lab('Overview date', inp('header.overviewDate', 'date')) + lab('Date of the meeting', inp('header.meetingDate', 'date')) + lab('Astute report date', inp('header.astuteDate', 'date')) +
       lab('Net income (R p.m.)', inp('header.netIncome', 'money')) + lab('Gross income (R p.m.)', inp('header.grossIncome', 'money')) +
       lab('Disability and income protector to age', sel('header.disabilityAge', [{ id: 65, l: '65' }, { id: 70, l: '70' }], 'num')) + lab('Severe illness requested (R)', inp('header.sevRequest', 'money')) +
       lab('Premium budget for the reduced quote (R p.m.)', inp('header.premiumBudget', 'money')) + '</div>' +
-      '<p class="sub">These start from the Fact Find. A figure a document gives wins over the Fact Find.</p></section>' +
-      '<section class="sec"><div class="block-title">Paul\'s standard settings</div><p class="sub">A line that differs from these is flagged in amber (never printed).</p><div class="grid">' +
-      lab('Annual contribution increase (%)', inp('settings.standards.aci', 'pct')) + A.map(function (a) { return lab('Annual benefit increase: ' + a[1] + ' (%)', inp('settings.standards.abi.' + a[0], 'pct')); }).join('') +
-      lab('Difference allowed in a check (R)', inp('settings.tolerance', 'money')) + '</div></section>';
+      '<p class="sub">These start from the Fact Find. A figure a document gives wins over the Fact Find.</p></section>';
   }
 
   /* ---------- the lines of a quote or a policy ---------- */

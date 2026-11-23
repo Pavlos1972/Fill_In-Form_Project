@@ -157,6 +157,13 @@ srv.listen(0, async () => {
   await p.screenshot({ path: out + '/r2-pres-policies.png' });
   await p.click('#pBtnClose'); await p.waitForTimeout(300);
 
+  /* ---- 6b. the standard settings panel is gone from Client details (11:41) ---- */
+  await p.evaluate(() => OV.app.go('_client')); await p.waitForTimeout(200);
+  const cd = await p.evaluate(() => ({ txt: document.querySelector('#main').textContent, boxes: document.querySelectorAll('#main [data-p^="settings."]').length, titles: [...document.querySelectorAll('#main .block-title')].map(e => e.textContent) }));
+  ok(!/standard settings/i.test(cd.txt) && cd.boxes === 0 && !/Difference allowed in a check/.test(cd.txt) && cd.titles.length === 1 && /The client/.test(cd.titles[0]), '10. Client details has no "Paul\'s standard settings" panel and no box for the increases or the difference allowed: ' + cd.titles.join(' | '));
+  ok(await p.evaluate(() => OV.app.state.settings.standards.aci === 10 && OV.app.state.settings.tolerance === 1 && OV.app.state.settings.standards.abi.household === 5), '10. the values are still stored in the overview\'s data');
+  await quiet(); await p.screenshot({ path: out + '/r2-client-details.png', fullPage: false });
+
   /* ---- 7. the PDF has the descriptions ---- */
   const bytes = await p.evaluate(() => Array.from(new Uint8Array(OV.app.makePdf().output('arraybuffer'))));
   const file = out + '/r2-overview.pdf'; fs.writeFileSync(file, Buffer.from(bytes));
