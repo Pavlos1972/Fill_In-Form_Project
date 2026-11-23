@@ -246,3 +246,7 @@ details.chkall[open] > summary { margin-bottom: 6px; }
 .ovt.pols .p-aci { width: 17%; } .ovt.pols .p-name { width: 16%; }                                            /* round 4: room for the ACI points; they never break in the middle of a word */
 .ovt .aciu { overflow-wrap: break-word; word-break: normal; hyphens: manual; }
 
+
+/* Round 5: the card a click on "to check" or "waiting" goes to flashes for a moment (the keyframes are the shared stylesheet's). */
+.qcard.flash { animation: cardflash 1.6s ease-out; }
+@media (prefers-reduced-motion: reduce) { .qcard.flash { animation: none; } }

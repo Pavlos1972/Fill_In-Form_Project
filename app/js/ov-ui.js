@@ -553,6 +553,36 @@
     /* The whole list is folded (Paul, 23 November: he does not want to see it open); it is closed again after every load, fill and check. */
     $('#checks').innerHTML = '<details class="chkall"' + (checksOpen ? ' open' : '') + '><summary>' + (look ? look + (look === 1 ? ' thing' : ' things') + ' to look at' : (lines.length ? 'All checked' : 'Nothing read yet')) + '</summary>' + h + '</details>';
   }
+  /* The Progress panel (round 5, Paul 23 November): a click on "to check" or "waiting" goes to the next such row, opens the item or quote that holds it, flashes the row and says which it is and how many there are; the next click goes on to the next one, and after the last it starts again. */
+  var pend = { state: null, check: 0, waiting: 0 };
+  function itemTitle(o, b) {
+    if (b === 'policies') return [o.insurer || 'Policy', o.product].filter(Boolean).join(' ');
+    if (b === 'group') return (schema.GROUP_KINDS[o.kind] || o.kind || 'Group') + (o.provider ? ' ' + o.provider : '');
+    if (b === 'investments') return [o.provider || 'Investment', o.product].filter(Boolean).join(' ');
+    if (b === 'proposed') return [o.type || 'Proposed investment', o.provider].filter(Boolean).join(' ');
+    if (b === 'goals') return o.kind === 'rgar' ? 'RGAR' : 'EGAR';
+    if (b === 'other') return (schema.OTHER_KEYS.filter(function (k) { return k.key === o.key; })[0] || { l: o.key || 'Other cover' }).l;
+    return o.insurer || o.provider || o.type || 'Item';
+  }
+  function pendTitle(r) {
+    var own = /\.quotes\./.test(r.path) ? check.qTitle(r.owner) : itemTitle(r.owner, r.block);
+    if (!r.isLine) return own;
+    var l = r.row, t = schema.lineTypesById[l.type] || {};
+    return [l.label || t.l || 'Line', l.name || '', l.debt || ''].filter(Boolean).join(' ') + ' in ' + own;
+  }
+  function goPending(kind) {
+    var rows = store.pendingRows(state, kind), word = kind === 'check' ? 'To check' : 'Waiting';
+    if (pend.state !== state) pend = { state: state, check: 0, waiting: 0 };
+    if (!rows.length) { toast(kind === 'check' ? 'Nothing is waiting to be checked.' : 'Nothing is waiting for a document.', 3000); return; }
+    var next = rows.filter(function (r) { return r.n > pend[kind]; })[0] || rows[0];
+    pend[kind] = next.n;
+    cur = next.block;
+    if (next.isLine || !/^(policies|investments|proposed)$/.test(next.block)) openSet[next.owner.id] = true;      // what hides the row is opened (a folded quote, a policy for one of its lines); a policy's own row is on the screen already and its detail stays closed
+    drawNav(); drawMain(true); refreshChrome();
+    var el = document.querySelector('[data-row="' + next.path + '"]') || document.querySelector('[data-row="' + next.path.replace(/\.lines\.\d+$/, '') + '"]');
+    if (el) { el.classList.add('flash'); setTimeout(function () { el.classList.remove('flash'); }, 1700); if (el.scrollIntoView) el.scrollIntoView({ block: 'center' }); }
+    toast(word + ': ' + pageName(next.block) + ', ' + pendTitle(next) + ' (' + (rows.indexOf(next) + 1) + ' of ' + rows.length + ')', 3500);
+  }
   function refreshChrome() {
     last = check.run(state, runOpts());
     var name = store.clientName(state), c = store.counts(state);
@@ -1083,6 +1113,11 @@
   $('#checks').addEventListener('click', function (e) { var b = e.target.closest('[data-jump]'); if (b) { cur = b.getAttribute('data-jump'); drawNav(); drawMain(true); refreshChrome(); } });
   $('#checks').addEventListener('toggle', function (e) { if (e.target && e.target.matches && e.target.matches('details')) { if (e.target.matches('.chkall')) checksOpen = e.target.open; else if (e.target.matches('details.allchecks')) checksInner = e.target.open; } }, true);
   $('#btnAgree').addEventListener('click', function () { var n = store.acceptAll(state); touch(); redraw(); toast(n + (n === 1 ? ' row' : ' rows') + ' marked as checked.'); });
+  [['sVerifyBox', 'check'], ['sEmptyBox', 'waiting']].forEach(function (p) {
+    var el = document.getElementById(p[0]); if (!el) return;
+    el.addEventListener('click', function () { goPending(p[1]); });
+    el.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); goPending(p[1]); } });
+  });
   $('#btnSave').addEventListener('click', function () { saveJson(false); });
   $('#btnSaveAs').addEventListener('click', function () { saveJson(true); });
   $('#btnPdf').addEventListener('click', savePdf);
