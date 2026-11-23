@@ -88,22 +88,22 @@ test('block 11 says "from Fact Find" (no document to wait for) and a click confi
 
 function withQuote() {
   const s = store.blank(); store.fillFromFactFind(s, ff(val({ bf_sf_req: 'Request a quote' }), { grp: [{ d: { prov: 'Test Group', spend: 'R 100.00', broker: 'Other broker' } }] }), 'ff.json');
-  const q = docs.applyQuote(s, 'fna', { insurer: 'BrightRock', number: '127687903', lines: [{ type: 'household', life: { lump: 100000, monthly: 1000 } }, { type: 'child', name: 'Amy', sname: 'Client', life: { lump: 50000, monthly: 5000 } }] }, 'fna.pdf').quote;
+  const q = docs.applyQuote(s, 'fna', { insurer: 'BrightRock', number: '100000031', lines: [{ type: 'household', life: { lump: 100000, monthly: 1000 } }, { type: 'child', name: 'Amy', sname: 'Client', life: { lump: 50000, monthly: 5000 } }] }, 'fna.pdf').quote;
   return { s, q };
 }
-test('the Checks panel: one line for each document read, e.g. "BrightRock FNA CP 127687903 checked", and one for its change moment pay-out', () => {
+test('the Checks panel: one line for each document read, e.g. "BrightRock FNA CP 100000031 checked", and one for its change moment pay-out', () => {
   const { s, q } = withQuote(), lines = () => check.docLines(s, check.run(s).problems);
-  assert.strictEqual(check.qTitle(q), 'BrightRock FNA CP 127687903');
-  assert.ok(lines().some(l => l.state === 'tocheck' && /^BrightRock FNA CP 127687903: \d+ to check/.test(l.text)), 'amber while the rows are to check: ' + JSON.stringify(lines().map(l => l.text)));
+  assert.strictEqual(check.qTitle(q), 'BrightRock FNA CP 100000031');
+  assert.ok(lines().some(l => l.state === 'tocheck' && /^BrightRock FNA CP 100000031: \d+ to check/.test(l.text)), 'amber while the rows are to check: ' + JSON.stringify(lines().map(l => l.text)));
   store.acceptAll(s);
   const open = lines().filter(l => l.block === 'fna');
-  assert.ok(open.length === 1 && open[0].state === 'tocheck' && open[0].flagged === 1 && /No change moment pay-out guide found for CP 127687903/.test(open[0].tip), 'every row is checked, but the change moment pay-out guide is missing: ' + JSON.stringify(open.map(l => [l.text, l.tip])));
-  q.cmp = { number: '127687903', activationDate: null, reason: null, rows: [{ key: 'total', today: 1, projected: 2 }], st: 'verify', by: 'page', src: { kind: 'cmp', file: 'cmpo.pdf' } };
+  assert.ok(open.length === 1 && open[0].state === 'tocheck' && open[0].flagged === 1 && /No change moment pay-out guide found for CP 100000031/.test(open[0].tip), 'every row is checked, but the change moment pay-out guide is missing: ' + JSON.stringify(open.map(l => [l.text, l.tip])));
+  q.cmp = { number: '100000031', activationDate: null, reason: null, rows: [{ key: 'total', today: 1, projected: 2 }], st: 'verify', by: 'page', src: { kind: 'cmp', file: 'cmpo.pdf' } };
   const two = lines().filter(l => l.block === 'fna'); assert.strictEqual(two.length, 2, 'one line for the quote, one for its pay-out');
-  assert.ok(two.some(l => l.text === 'BrightRock FNA CP 127687903 checked' && l.state === 'checked'), JSON.stringify(two.map(l => l.text)));
-  assert.ok(two.some(l => l.text === 'BrightRock FNA CP 127687903 change moment pay-out: 1 to check'), JSON.stringify(two.map(l => l.text)));
-  q.cmp.st = 'confirmed'; assert.ok(lines().some(l => l.text === 'BrightRock FNA CP 127687903 change moment pay-out checked'));
-  const rq = store.addQuote(s, 'reduced'); rq.insurer = 'BrightRock'; rq.number = '127677136'; assert.strictEqual(check.qTitle(rq), 'BrightRock Reduced Quote CP 127677136');
+  assert.ok(two.some(l => l.text === 'BrightRock FNA CP 100000031 checked' && l.state === 'checked'), JSON.stringify(two.map(l => l.text)));
+  assert.ok(two.some(l => l.text === 'BrightRock FNA CP 100000031 change moment pay-out: 1 to check'), JSON.stringify(two.map(l => l.text)));
+  q.cmp.st = 'confirmed'; assert.ok(lines().some(l => l.text === 'BrightRock FNA CP 100000031 change moment pay-out checked'));
+  const rq = store.addQuote(s, 'reduced'); rq.insurer = 'BrightRock'; rq.number = '100000051'; assert.strictEqual(check.qTitle(rq), 'BrightRock Reduced Quote CP 100000051');
 });
 
 test('a difference from the Fact Find makes the document\'s line amber, with the difference in its hover text; items with only the Fact Find\'s figures have no line', () => {
@@ -143,8 +143,8 @@ test('the monthly figure under a BrightRock lump sum says what it is: "Income po
   ['js/ov-ui.js', 'js/ov-pdf.js', 'js/ov-present.js'].forEach(f => assert.ok(!/'Income portion'/.test(app(f)), f + ' takes the label from the schema'));
 });
 
-test('the page version is 0.8 and the saved file\'s layout is still 0.1 (revisions f and g add keys, remove none)', () => {
-  assert.strictEqual(schema.pageVersion, '0.8'); assert.strictEqual(schema.version, '0.1');
+test('the page version is 0.9 and the saved file\'s layout is still 0.1 (revisions f and g add keys, remove none)', () => {
+  assert.strictEqual(schema.pageVersion, '0.9'); assert.strictEqual(schema.version, '0.1');
   const s = store.blank(); store.fillFromFactFind(s, ff(), 'ff.json'); const j = JSON.parse(store.toJSON(s));
   assert.ok('asked' in j.factFind.facts, 'factFind.facts.asked'); assert.ok('aciText' in j.blocks.fna.quotes.concat([store.newQuote(s, 'fna')])[0] || true);
   const q = store.newQuote(s, 'fna'); assert.ok('aciText' in q);

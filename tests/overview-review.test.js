@@ -43,8 +43,8 @@ test('the change moment pay-out: rows total, retirement, childcare and one for e
   assert.deepStrictEqual(c.rows.map(r => r.key + (r.name ? ':' + r.name : '')), ['total', 'retirement', 'childcare', 'child:Amy', 'child:Ben'], 'the children come from the quote\'s child lines');
   assert.strictEqual(c.st, 'empty'); assert.deepStrictEqual(c.src, { kind: 'typed' }); assert.strictEqual(q.cmp, c);
   assert.strictEqual(store.addCmp(s, p), null, 'one table only');
-  const r = store.addCmpChild(s, p); assert.strictEqual(c.rows.length, 6); assert.strictEqual(r.key, 'child');
-  assert.strictEqual(store.removeCmpRow(s, p, 5), true); assert.strictEqual(c.rows.length, 5); assert.strictEqual(store.removeCmpRow(s, p, 9), false);
+  assert.strictEqual(store.addCmpChild, undefined, 'rows are not added by hand (Paul, 23 November): they come from the guide');
+  assert.strictEqual(store.removeCmpRow, undefined, 'rows are not removed by hand: a new or replacement quote brings a new table');
   assert.strictEqual(store.removeCmp(s, p), true); assert.strictEqual(q.cmp, null); assert.strictEqual(store.removeCmp(s, p), false);
   assert.strictEqual(store.addCmp(s, 'blocks.fna.quotes.5'), null, 'nothing at a wrong path');
   const empty = store.blank(), c2 = store.addQuote(empty, 'comparative'); assert.deepStrictEqual(store.newCmp(empty, c2).rows.map(r => r.key), ['total', 'retirement', 'childcare'], 'no children known: no child rows');

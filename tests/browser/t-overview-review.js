@@ -38,8 +38,7 @@ const FFJ = { app: 'wr-fact-find', schema: '5.4', f: { fname: { v: 'Test' }, sna
   await p.fill('table.payout tbody tr:nth-child(2) input[data-p$=".today"]', '20000'); await p.fill('table.payout tbody tr:nth-child(2) input[data-p$=".projected"]', '60000'); await p.fill('table.payout tbody tr:nth-child(2) input[data-p$=".payoutDate"]', '31/12/2046');
   await p.evaluate(() => OV.app.redraw()); await p.waitForTimeout(60);
   ok(!/No change moment pay-out guide found for CP/.test(await checks()), '1. a typed pay-out answers the check');
-  await p.click('[data-addcmpchild]'); ok(await p.evaluate(() => OV.app.state.blocks.fna.quotes[0].cmp.rows.length) === 6, '1. a child row can be added');
-  await p.click('table.payout tbody tr:nth-child(6) [data-delcmprow]'); ok(await p.evaluate(() => OV.app.state.blocks.fna.quotes[0].cmp.rows.length) === 5, '1. and taken out');
+  ok(await p.evaluate(() => !document.querySelector('[data-addcmpchild]') && !document.querySelector('[data-delcmprow]') && !document.querySelector('table.payout .xbtn') && document.querySelectorAll('table.payout thead th').length === 4), '1. the pay-out table has no x on a row and no "+ A child row" (rows come only from the guide), four columns');
   await p.fill('input[data-p$=".cmp.number"]', '999'); await p.evaluate(() => OV.app.redraw()); ok(/CP 999/.test(await checks()) && /not for this quote/.test(await checks()), '1. a pay-out for another CP number is flagged');
   await p.fill('input[data-p$=".cmp.number"]', '100000001'); await p.evaluate(() => OV.app.redraw());
   await p.click('[data-delcmp]'); await p.waitForTimeout(40); ok(await p.evaluate(() => OV.app.state.blocks.fna.quotes[0].cmp === null && !!document.querySelector('[data-addcmp]')), '1. Remove takes the table out (after asking) and the Add button is back');

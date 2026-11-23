@@ -9,14 +9,15 @@
     var n = q.number ? (/bright/i.test(q.insurer) ? 'CP ' : 'Quote ') + q.number : '';
     return [q.insurer, { fna: 'FNA', shortfall: 'shortfall quote', reduced: 'reduced quote', comparative: 'quote' }[q.kind], n].filter(Boolean).join(' ');
   }
-  /* The heading of a quote as the screen shows it: "BrightRock Reduced Quote CP 127677136". */
+  /* The heading of a quote as the screen shows it: "BrightRock Reduced Quote CP 100000051". */
   function qTitle(q) {
     var n = q.number ? (/bright/i.test(q.insurer) ? 'CP ' : 'Quote ') + q.number : '';
     return [q.insurer, { fna: 'FNA', shortfall: 'Shortfall Quote', reduced: 'Reduced Quote', comparative: 'Comparative Quote' }[q.kind], n].filter(Boolean).join(' ');
   }
   function hasFigures(x) { return calc.activeLines(x).some(function (l) { return ['life', 'sev', 'lsd', 'ip'].some(function (p) { var c = l[p]; return c && typeof c === 'object' && Object.keys(c).some(function (k) { return isNum(c[k]) && c[k] !== 0; }); }); }); }
 
-  function run(state) {
+  /* opts.ran: the page has looked through a folder or a document, or run its checks, in this visit (the document blocks, FNA and reduced quotes, can only say "nothing found" then). */
+  function run(state, opts) {
     var out = [], tol = (state.settings && state.settings.tolerance) || 1, h = state.header || {}, std = (state.settings && state.settings.standards) || schema.STANDARDS;
     var facts = state.factFind && state.factFind.facts, B = state.blocks;
     var matched = {};                                                                                    // the ids of the quote lines that are the same as a row of the Fact Find (child, debt)
@@ -119,9 +120,41 @@
       ['policies', 'group', 'investments', 'goals', 'other'].forEach(function (bid) { calc.active(B[bid].items).forEach(function (it) { if (it.src && it.src.kind === 'previous' && it.st === 'verify') waiting++; }); });
       if (waiting) add('review.carried', 'policies', 'Review of ' + (h.previous.date || 'last year'), waiting + (waiting === 1 ? ' item was' : ' items were') + ' carried over from last year\'s overview and still ' + (waiting === 1 ? 'waits' : 'wait') + ' for the latest schedule or statement (a document replaces it; typing a figure checks it).');
     }
-    return { problems: out, dots: dots(state, out), byBlock: byBlock(out), matched: matched };
+    var notes = emptyNotes(state, opts);
+    return { problems: out, dots: dots(state, out, notes), notes: notes, byBlock: byBlock(out), matched: matched };
   }
-  /* The Checks panel (Paul, 22 November): one line for each document read, e.g. "BrightRock FNA CP 127687903 checked", and one for its change moment pay-out, instead of the long list of every single check.
+  /* What a block says when it was checked and nothing is there (Paul, 23 November): a short comment under the block's name in the menu, and a RED dot when the whole block is empty.
+     A block that follows the Fact Find is checked once the Fact Find has been read; the FNA and the reduced quotes (documents only) once the page has looked through a folder or a document (opts.ran).
+     Each note is { text, all }: all = nothing at all is there (red); a half-empty block (group benefits there, no personal investments) has the comment and keeps its own dot. kind 'na': not needed (dashed). */
+  function emptyNotes(state, opts) {
+    var n = {}, ff = state.factFind && state.factFind.facts, ran = !!(opts && opts.ran), B = state.blocks || {}, asked = (ff && ff.asked) || {};
+    var say = function (id, text, all, kind) { n[id] = { text: text, all: !!all, kind: kind || (all ? 'red' : 'part') }; };
+    if (ff && !calc.policies(state).length) say('policies', 'No current policies', true);
+    if (ran && !calc.quotes(state, 'fna').length) say('fna', 'No FNA quote found', true);
+    if (ff || ran) {
+      var gi = calc.groupItems(state).length, pi = calc.personalInvestments(state).count;
+      if (!gi && !pi) say('group', 'No group benefits and no personal investments', true);
+      else if (!gi) say('group', 'No group benefits', false);
+      else if (!pi) say('group', 'No personal investments', false);
+    }
+    if (!calc.quotes(state, 'shortfallQuote').length) {
+      if (!calc.hasGroupRisk(state)) { if (ff || ran) say('shortfallQuote', 'Not needed: no group risk', false, 'na'); }
+      else if (ff && !asked.sf) say('shortfallQuote', 'No shortfall quote requested', true);
+      else if (ran) say('shortfallQuote', 'No shortfall quote found', true);
+    }
+    if (ran && !calc.quotes(state, 'reduced').length) say('reduced', 'No reduced quotes found', true);
+    if (!calc.quotes(state, 'comparative').length) {
+      if (ff && !asked.comparative) say('comparative', 'No comparative quotes', true);
+      else if (ran) say('comparative', 'No comparative quote found', true);
+    }
+    if (ff && !calc.investments(state).length) say('investments', 'No current investments', true);
+    if (ff && !calc.active((B.proposed || {}).items).length) say('proposed', 'No proposed investments', true);
+    if (ff && !calc.pageShown(state, 'goals')) say('goals', 'No goal analysis requested', true);
+    var holds = function (it) { return ['company', 'product', 'policyNo', 'note'].some(function (k) { return String(it[k] == null ? '' : it[k]).trim() !== ''; }) || calc.isNum(it.premium); };            // an item the Fact Find only marked "not ours" holds nothing
+    if (ff && calc.active((B.other || {}).items).length && !calc.active((B.other || {}).items).some(holds)) say('other', 'No medical aid, gap cover, will or short-term recorded', true);
+    return n;
+  }
+  /* The Checks panel (Paul, 22 November): one line for each document read, e.g. "BrightRock FNA CP 100000031 checked", and one for its change moment pay-out, instead of the long list of every single check.
      A line is checked (every row of the document checked, nothing flagged), to check (rows still amber, or something differs from the Fact Find or from Paul's standards) or waiting (nothing read or typed yet).
      The documents are every quote and every item that a document filled (a schedule, a statement, a proposal, a report); an item that still only has the Fact Find's figures has no document yet. */
   function docLines(state, problems) {
@@ -165,13 +198,15 @@
   function byBlock(problems) { var m = {}; problems.forEach(function (p) { (m[p.block || '_'] = m[p.block || '_'] || []).push(p); }); return m; }
 
   /* The dot of every block. */
-  function dots(state, problems) {
+  function dots(state, problems, notes) {
     var d = {}, bad = byBlock(problems);
+    notes = notes || {};
     schema.BLOCKS.forEach(function (b) {
       var blk = state.blocks[b.id] || {}, list = ((blk.items || []).concat(blk.quotes || [])).filter(function (r) { return !r.removed; }), amber = !!(bad[b.id] || []).length;
       if (b.id === 'shortfall') { var sfq = calc.shortfall(state); d[b.id] = sfq.has && hasFigures(sfq.quote) ? (amber ? 'amber' : 'green') : 'grey'; return; }          // green only when the FNA has figures, so the result has been worked out
       if (b.id === 'shortfallQuote' && !list.length && !calc.hasGroupRisk(state)) { d[b.id] = 'na'; return; }
-      if (b.id === 'group' && !list.length) { d[b.id] = 'grey'; return; }
+      if (notes[b.id] && notes[b.id].all) { d[b.id] = 'red'; return; }                        // checked, and nothing is there
+      if (b.id === 'group' && !list.length) { d[b.id] = notes.group && notes.group.text === 'No group benefits' ? 'green' : 'grey'; return; }          // no group benefits but personal investments: nothing here to wait for
       if (!list.length) { d[b.id] = 'grey'; return; }
       var rows = list.slice(); list.forEach(function (r) { (r.lines || []).forEach(function (l) { if (!l.removed) rows.push(l); }); });
       var ver = rows.some(function (r) { return r.st === 'verify' || (b.id === 'other' && r.st === 'ff'); }),                 // block 11 follows the Fact Find and has no document to wait for: what it says is to be checked
@@ -185,13 +220,14 @@
     return d;
   }
   /* What a dot means, in words, for the hover text of the menu (stage 7: Paul could not tell what the dots meant). */
-  var LEGEND = [['grey', 'Nothing yet'], ['amber', 'To check'], ['green', 'Checked'], ['na', 'Not needed']];
-  function dotText(state, id, dot, problems) {
+  var LEGEND = [['grey', 'Nothing yet'], ['amber', 'To check'], ['green', 'Checked'], ['red', 'Checked, nothing there'], ['na', 'Not needed']];
+  function dotText(state, id, dot, problems, note) {
     var p = byBlock(problems || [])[id] || [];
+    if (dot === 'red') return 'Checked, nothing there: ' + ((note && note.text) || 'nothing was found for this block') + '.';
     if (dot === 'na') return 'Not needed: a shortfall quote is only needed when the client has group risk, and there is none.';
     if (dot === 'green') return 'Checked: every row here has been checked and nothing is flagged.';
     if (dot === 'amber') return p.length ? 'To check: ' + p.length + (p.length === 1 ? ' thing is' : ' things are') + ' flagged. ' + [p[0].where, p[0].message].filter(Boolean).join(' ').slice(0, 140) : 'To check: some rows came from the Fact Find or from a document and are waiting for you to check them.';
     return id === 'shortfall' ? 'Nothing yet: the shortfall is worked out as soon as the FNA quote has figures.' : 'Nothing yet: waiting for a document, or for what you type.';
   }
-  return { run: run, dots: dots, qLabel: qLabel, qTitle: qTitle, docLines: docLines, autoMatch: autoMatch, dotText: dotText, LEGEND: LEGEND };
+  return { run: run, dots: dots, qLabel: qLabel, qTitle: qTitle, docLines: docLines, autoMatch: autoMatch, dotText: dotText, emptyNotes: emptyNotes, LEGEND: LEGEND };
 });

@@ -183,3 +183,8 @@
 .pres .kcard small { display: block; margin-top: 5px; font-size: 11.5px; color: var(--muted); }
 .pres .khint { margin: 6px 4px; padding: 14px 16px; border: 1.5px dashed #c9d6df; border-radius: 14px; color: var(--muted); font-size: 14px; line-height: 1.4; }
 @media (prefers-reduced-motion: reduce) { .pres .kcard { transition: none; opacity: 1; transform: none; } .pres .kcard.out { opacity: 0; } .pres .pin, .pres .ocard { animation: none; } }
+
+/* full screen (the button next to Close; "Present full screen" on the overview): the Presentation fills the monitor edge to edge, white, nothing of the browser around it */
+.pres:fullscreen { width: 100vw; height: 100vh; background: #fff; }
+.pres:-webkit-full-screen { width: 100vw; height: 100vh; background: #fff; }
+

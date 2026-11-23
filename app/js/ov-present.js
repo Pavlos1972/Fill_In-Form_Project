@@ -9,7 +9,7 @@
   var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
   var KP_KEY = 'wr-keypoints', SLIDE_W = 1240;
   var ps = { tab: 'map', qi: 0, sub: 'quote', pol: null, pil: null, rows: [], keys: true };
-  var root = null, open = false, kp = null, kpNote = '', prevOverflow = '';
+  var root = null, open = false, kp = null, kpNote = '', prevOverflow = '', fsOff = 0;
 
   function state() { return OV.app.state; }
   function loadKP() { try { var j = JSON.parse(localStorage.getItem(KP_KEY) || 'null'); return j && Array.isArray(j.points) ? j : null; } catch (e) { return null; } }
@@ -379,12 +379,14 @@
   function build() {
     root = document.createElement('div'); root.className = 'pres'; root.id = 'pres'; root.hidden = true; root.setAttribute('role', 'dialog'); root.setAttribute('aria-label', 'Presentation');
     root.innerHTML = '<div class="pbar"><img class="plogo" src="assets/logo.png" alt="Wealth Revolution"><div class="pwho" id="pWho"></div><span class="sp"></span><span class="pkstate" id="pKpState"></span>' +
+      '<button type="button" class="pb" id="pBtnFull" title="Fill the whole screen with the Presentation: the client sees no Chrome tabs, address bar or bookmarks">Full screen</button>' +
       '<button type="button" class="pb" id="pBtnClose" title="Back to the overview (Esc)">Close &#10005;</button></div><div class="ptabs" id="pTabs"></div>' +
       '<div class="pmain" id="pMain"><div class="pstage" id="pStage"><div class="pslide" id="pSlide"></div></div><aside class="ppanel" id="pPanel" hidden></aside></div>';
     document.body.appendChild(root);
     root.addEventListener('click', function (ev) {
       var tr = ev.target.closest('tr[data-keys]'), el = ev.target.closest('[data-act]'), hd = ev.target.closest('th[data-pil]'), act = el && el.getAttribute('data-act');
       if (ev.target.closest('#pBtnClose')) { close(); return; }
+      if (ev.target.closest('#pBtnFull')) { toggleFs(); return; }
       if (!act && hd) { setPil(hd.getAttribute('data-pil'), true); return; }
       if (!act && !tr) return;
       if (act === 'tab') { var tb = P.firstBlock(state(), el.getAttribute('data-tab')); if (tb) go(tb); }
@@ -398,24 +400,51 @@
       else if (tr) { var keys = tr.getAttribute('data-keys').split('|'); setRows([keys[keys.length - 1]], true); }
     });
     window.addEventListener('resize', function () { if (open) fit(); });
+    ['fullscreenchange', 'webkitfullscreenchange'].forEach(function (n) { document.addEventListener(n, onFs); });
     document.addEventListener('keydown', function (ev) {
       if (!open) return;
-      if (ev.key === 'Escape') { ev.preventDefault(); close(); }
+      if (ev.key === 'Escape') {
+        ev.preventDefault();
+        if (fsEl()) exitFs();                                                                            // the first Esc leaves full screen (the browser usually does it before the page hears the key)
+        else if (Date.now() - fsOff > 400) close();                                                      // the next one closes; an Esc that has just left full screen is not counted twice
+      }
       else if (ev.key === 'ArrowRight' || ev.key === 'ArrowLeft') { ev.preventDefault(); applyMoves([{ step: ev.key === 'ArrowRight' ? 1 : -1 }]); }
     });
   }
-  function openPres() {
+  /* ---------- full screen (Paul presents in Microsoft Teams and does not want the client to see Chrome's tabs, address bar or bookmarks) ---------- */
+  function fsEl() { return document.fullscreenElement || document.webkitFullscreenElement || null; }
+  function canFs() { return !!(root && (root.requestFullscreen || root.webkitRequestFullscreen)); }
+  function enterFs() {                                                                                  // must run inside the click that asked for it
+    if (!canFs() || fsEl()) return Promise.resolve(false);
+    try { var r = root.requestFullscreen ? root.requestFullscreen() : root.webkitRequestFullscreen(); return Promise.resolve(r).then(function () { return true; }, function () { return false; }); } catch (e) { return Promise.resolve(false); }
+  }
+  function exitFs() {
+    if (!fsEl()) return Promise.resolve(false);
+    try { var r = document.exitFullscreen ? document.exitFullscreen() : document.webkitExitFullscreen(); return Promise.resolve(r).then(function () { return true; }, function () { return false; }); } catch (e) { return Promise.resolve(false); }
+  }
+  function toggleFs() { return fsEl() ? exitFs() : enterFs(); }
+  function paintFs() {
+    var b = $('#pBtnFull'); if (!b) return;
+    var on = fsEl() === root;
+    b.textContent = on ? 'Exit full screen' : 'Full screen'; b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    b.title = on ? 'Leave full screen (Esc)' : 'Fill the whole screen with the Presentation: the client sees no Chrome tabs, address bar or bookmarks';
+    b.hidden = !canFs();
+  }
+  function onFs() { paintFs(); if (!fsEl()) fsOff = Date.now(); setTimeout(function () { if (open) fit(); }, 60); }
+  function openPres(wantFull) {
     if (!root) { kp = loadKP(); build(); }
     if (open) return;
     open = true; prevOverflow = document.body.style.overflow; document.body.style.overflow = 'hidden'; root.hidden = false;
     ps = { tab: 'map', qi: 0, sub: 'quote', pil: null, rows: [], pol: null, keys: true };
-    render(); setTimeout(fit, 30);
+    render(); setTimeout(fit, 30); paintFs();
+    if (wantFull === true) enterFs();                                                                   // "Present full screen": this click is what lets the browser do it
     refreshKeyPoints(!kp);                                                                          // the click that opened this is what lets the browser ask, and only when nothing is kept yet
   }
   function close() {
     if (!open) return;
-    open = false; root.hidden = true; document.body.style.overflow = prevOverflow;
+    exitFs(); open = false; root.hidden = true; document.body.style.overflow = prevOverflow;
   }
-  var btn = $('#btnPresent'); if (btn) btn.addEventListener('click', openPres);
-  OV.present = { open: openPres, close: close, get isOpen() { return open; }, get ps() { return ps; }, applyMoves: applyMoves, go: go, setKeys: setKeys, loadKeyPoints: loadKeyPoints, refreshKeyPoints: refreshKeyPoints, get keyPoints() { return kp; }, kpText: kpText, render: render };
+  var btn = $('#btnPresent'); if (btn) btn.addEventListener('click', function () { openPres(); });
+  var btnFull = $('#btnPresentFull'); if (btnFull) btnFull.addEventListener('click', function () { openPres(true); });
+  OV.present = { open: openPres, close: close, enterFullScreen: enterFs, exitFullScreen: exitFs, toggleFullScreen: toggleFs, get isFullScreen() { return !!fsEl() && fsEl() === root; }, get isOpen() { return open; }, get ps() { return ps; }, applyMoves: applyMoves, go: go, setKeys: setKeys, loadKeyPoints: loadKeyPoints, refreshKeyPoints: refreshKeyPoints, get keyPoints() { return kp; }, kpText: kpText, render: render };
 })();

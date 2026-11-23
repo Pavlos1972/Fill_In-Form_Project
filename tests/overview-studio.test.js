@@ -105,11 +105,11 @@ test('the menu dots: the shortfall is green only when the FNA has figures; the h
   assert.strictEqual(r.dots.shortfall, 'grey', 'no FNA yet');
   const q = store.addQuote(s, 'fna'); r = check.run(s); assert.strictEqual(r.dots.shortfall, 'grey', 'an FNA with no figures: nothing has been worked out');
   q.lines[0].life.lump = 800000; r = check.run(s); assert.strictEqual(r.dots.shortfall, 'green', 'the FNA has figures and the result is worked out');
-  assert.deepStrictEqual(check.LEGEND.map(l => l[0]), ['grey', 'amber', 'green', 'na']);
+  assert.deepStrictEqual(check.LEGEND.map(l => l[0]), ['grey', 'amber', 'green', 'red', 'na']);
   assert.match(check.dotText(s, 'shortfall', 'grey', []), /as soon as the FNA quote has figures/); assert.match(check.dotText(s, 'fna', 'green', []), /^Checked/); assert.match(check.dotText(s, 'shortfallQuote', 'na', []), /group risk/);
   assert.match(check.dotText(s, 'group', 'grey', []), /^Nothing yet/); assert.match(check.dotText(s, 'fna', 'amber', [{ block: 'fna', where: 'BrightRock FNA 1', message: 'Amy is missing.' }]), /^To check: 1 thing is flagged\. BrightRock FNA 1 Amy is missing\./);
   assert.match(check.dotText(s, 'fna', 'amber', []), /^To check: some rows came from the Fact Find/);
-  const ui = app('js/ov-ui.js'); assert.ok(/check\.dotText\(state, b\.id/.test(ui) && /id="legend"/.test(ui) && /Dashed: not needed/.test(ui) && /Grey: nothing yet/.test(ui) && /Amber: to check/.test(ui) && /Green: checked/.test(ui), 'the legend and the hover text are on the page');
+  const ui = app('js/ov-ui.js'); assert.ok(/check\.dotText\(state, b\.id/.test(ui) && /id="legend"/.test(ui) && /Dashed: not needed/.test(ui) && /Grey: nothing yet/.test(ui) && /Amber: to check/.test(ui) && /Green: checked/.test(ui) && /Red: checked, nothing there/.test(ui), 'the legend and the hover text are on the page');
 });
 
 /* ---------- where "Upload from client folder" looks (a pretend tree; the real file window is in tests/browser/t-overview-studio.js) ---------- */
