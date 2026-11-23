@@ -435,13 +435,36 @@
     (b.items || []).concat(b.quotes || []).forEach(function (r) { if (!r.removed) out.push(r); });
     return out;
   }
+  /* The rows of the screen in its order (the items, then the quotes, of each block, each followed by its lines). A removed item or quote takes its lines with it. fn(row, blockId, path, owner): the owner is the item or quote that holds the row (the one to open). */
+  function walkVisible(state, fn) {
+    Object.keys(state.blocks).forEach(function (b) {
+      var blk = state.blocks[b];
+      [['items', blk.items], ['quotes', blk.quotes]].forEach(function (g) {
+        (g[1] || []).forEach(function (o, i) {
+          var p = 'blocks.' + b + '.' + g[0] + '.' + i; fn(o, b, p, o);
+          if (!o.removed) (o.lines || []).forEach(function (l, j) { fn(l, b, p + '.lines.' + j, o); });
+        });
+      });
+    });
+  }
   function counts(state) {
     var c = { confirmed: 0, check: 0, waiting: 0 };
-    walkRows(state, function (r) { if (r.removed) return; if (r.st === 'confirmed') c.confirmed++; else if (r.st === 'ff' || r.st === 'verify') c.check++; else c.waiting++; });
+    walkVisible(state, function (r) { if (r.removed) return; if (r.st === 'confirmed') c.confirmed++; else if (r.st === 'ff' || r.st === 'verify') c.check++; else c.waiting++; });
     return c;
+  }
+  /* The rows the Progress panel counts as "to check" (kind 'check': from the Fact Find or flagged) or "waiting" (kind 'waiting': nothing yet), in the order of the screen, each with where it is (round 5, Paul 23 November: a click on the number goes there):
+     n (its place in the whole walk, the same whichever kind is asked), path (the row's address, as the screen's data-row), block, row, owner and isLine. */
+  function pendingRows(state, kind) {
+    var out = [], n = 0;
+    walkVisible(state, function (r, b, p, owner) {
+      n++; if (r.removed) return;
+      var st = r.st, want = kind === 'check' ? (st === 'ff' || st === 'verify') : (st !== 'confirmed' && st !== 'ff' && st !== 'verify');
+      if (want) out.push({ n: n, path: p, block: b, row: r, owner: owner, isLine: r !== owner });
+    });
+    return out;
   }
 
   return { blank: blank, uid: uid, parseCell: parseCell, setPath: setPath, pathGet: pathGet, accept: accept, acceptAll: acceptAll, walkRows: walkRows, newLine: newLine, newQuote: newQuote, addQuote: addQuote, findQuote: findQuote,
     setRemoved: setRemoved, newCmp: newCmp, addCmp: addCmp, removeCmp: removeCmp, startReview: startReview, addLine: addLine, addItem: addItem, newProposed: newProposed, factsFrom: factsFrom, diffFacts: diffFacts, syncBlocks: syncBlocks, fillFromFactFind: fillFromFactFind, fileName: fileName,
-    clientName: clientName, computed: computed, dedupeQuotes: dedupeQuotes, flattenPolicyLines: flattenPolicyLines, isBright: isBright, toJSON: toJSON, fromJSON: fromJSON, rows: rows, counts: counts, ffKeyFor: ffKeyFor, APP_ID: APP_ID };
+    clientName: clientName, computed: computed, dedupeQuotes: dedupeQuotes, flattenPolicyLines: flattenPolicyLines, isBright: isBright, toJSON: toJSON, fromJSON: fromJSON, rows: rows, counts: counts, pendingRows: pendingRows, ffKeyFor: ffKeyFor, APP_ID: APP_ID };
 });
