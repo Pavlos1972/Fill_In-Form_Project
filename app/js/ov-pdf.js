@@ -92,6 +92,7 @@
     var d = data.doc, c = data.cell, x = c.x + c.width - 2.2, y = c.y + 4.6;
     if (o.tick !== undefined) { mark(d, o.center ? c.x + c.width / 2 - 2 : c.x + 2.6, c.y + c.height / 2 - 1.7, o.tick); return; }
     function one(txt, size, color, bold) { setText(d, color, size, bold); d.text(t(txt), x, y, { align: 'right' }); y += size > 8 ? 4.5 : 3.4; }
+    if (o.pol !== undefined) { one(o.pol, FS.body, INK, false); (o.desc || []).forEach(function (l) { one(l, FS.small, MUTED, false); }); return; }                  // a policy's amount with the description of the benefit under it
     if (o.p === 'ip') { one(PM(o.monthly), FS.body, INK, false); if (o.protector) { one('Instalment Protector', FS.small, MUTED, false); one('To be ceded to the bank', FS.small, RED, true); } return; }
     if (!calc.isNum(o.lump) && !calc.isNum(o.monthly) && o.lump !== 'Not found') { one('-', FS.body, MUTED, false); return; }
     one(A(o.lump), FS.body, INK, false);
@@ -158,17 +159,21 @@
     var y = pageTitle(doc, b.n + '. ' + b.title), ps = calc.policies(state), pt = calc.policyTotals(state), age = state.header.disabilityAge ? '\nAge ' + state.header.disabilityAge : '';
     if (!ps.length) return empty(doc, y, 'No current policies.');
     var tickCell = function (e) {
-      var it = e.item, b2 = it.benefits || {}, notes = [b2.life, b2.lsd, b2.ip].filter(Boolean).join(' / ');
-      return { content: t((it.insurer || 'Policy') + (it.policyNo ? '   ' + it.policyNo : '') + '\n' + [it.product, it.doc ? 'DOC ' + it.doc : '', notes].filter(Boolean).join('  |  ')), ov: { tick: !!it.wr }, styles: { halign: 'left', fontStyle: 'bold', cellPadding: { top: 2, bottom: 2, left: 9, right: 2 } } };
+      var it = e.item;
+      return { content: t((it.insurer || 'Policy') + (it.policyNo ? '   ' + it.policyNo : '') + '\n' + [it.product, it.doc ? 'DOC ' + it.doc : ''].filter(Boolean).join('  |  ')), ov: { tick: !!it.wr }, styles: { halign: 'left', fontStyle: 'bold', cellPadding: { top: 2, bottom: 2, left: 9, right: 2 } } };
     };
     var rows = ps.map(function (e) {
       var tt = calc.totals(e.item), has = calc.activeLines(e.item).length, w = (calc.activeLines(e.item).filter(function (l) { return l.waiting && l.waiting !== 'N/A'; })[0] || {}).waiting;
-      return [tickCell(e), right(has ? A(tt.life.lump) : '-'), right(has ? A(tt.sev.lump) : '-'), right(has ? A(tt.lsd.lump) : '-'), right(has ? PM(tt.ip.monthly) : '-'), right(w || '-'), right(AC(e.item)), right(PC(e.item.abi)), right(A(e.item.premium))];
+      /* a very short description of each benefit, read from the schedule, in small grey under its amount (up to three short lines, never cut mid-word) */
+      var bn = e.item.benefits || {}, cw = { life: 32, sev: 32, lsd: 32, ip: 34 }, dl = {}, most = 0;
+      ['life', 'sev', 'lsd', 'ip'].forEach(function (k) { dl[k] = []; if (bn[k]) { setText(doc, MUTED, FS.small, false); dl[k] = doc.splitTextToSize(t(bn[k]), cw[k] - 3.5); if (dl[k].length > 3) { dl[k] = dl[k].slice(0, 3); dl[k][2] = dl[k][2].replace(/\s*\S*$/, '') + '...'; } } most = Math.max(most, dl[k].length); });
+      var amtCell = function (k, txt) { return most ? { content: '', ov: { pol: txt, desc: dl[k] }, styles: { minCellHeight: 7.6 + 3.4 * most } } : right(txt); };
+      return [tickCell(e), amtCell('life', has ? A(tt.life.lump) : '-'), amtCell('sev', has ? A(tt.sev.lump) : '-'), amtCell('lsd', has ? A(tt.lsd.lump) : '-'), amtCell('ip', has ? PM(tt.ip.monthly) : '-'), right(w || '-'), right(AC(e.item)), right(PC(e.item.abi)), right(A(e.item.premium))];
     });
     var tot = function (label, tt, prem, fill) { var f = function (s) { return right(s, { fontStyle: 'bold', fillColor: fill }); }; return [{ content: t(label), styles: { halign: 'left', fontStyle: 'bold', fillColor: fill } }, f(A(tt.life.lump)), f(A(tt.sev.lump)), f(A(tt.lsd.lump)), f(PM(tt.ip.monthly)), f(''), f(''), f(''), f(A(prem))]; };
     if (pt.count.wr) rows.push(tot('Total: policies where we are the broker', pt.wr, pt.premium.wr, BLUE)); if (pt.count.other) rows.push(tot('Total: other brokers', pt.other, pt.premium.other, BLUE));
     rows.push(tot('Grand total (all policies)', pt.all, pt.premium.all, ORANGE));
-    y = table(doc, y, { head: [['Policy', 'Life cover', 'Severe illness', 'Lump sum disability' + age, 'Income protector / sickness benefit' + age, 'Waiting period', 'ACI', 'ABI', 'Premium']], colw: [60, 27, 26, 28, 31, 20, 28, 16, 37], align: ['left'], body: rows, draw: drawOv });
+    y = table(doc, y, { head: [['Policy', 'Life cover', 'Severe illness', 'Lump sum disability' + age, 'Income protector / sickness benefit' + age, 'Waiting period', 'ACI', 'ABI', 'Premium']], colw: [48, 32, 32, 32, 34, 19, 24, 14, 38], align: ['left'], body: rows, draw: drawOv });
     ps.forEach(function (e) {
       var lines = calc.activeLines(e.item); if (!lines.length || (lines.length === 1 && lines[0].type === 'other' && !e.item.wr)) return;
       setText(doc, DEEP, FS.sub, true); doc.text(t((e.item.insurer || 'Policy') + (e.item.policyNo ? '   ' + e.item.policyNo : '') + (e.item.product ? '   ' + e.item.product : '')), M, y + 10);

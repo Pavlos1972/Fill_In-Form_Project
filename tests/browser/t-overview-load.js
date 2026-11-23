@@ -130,17 +130,17 @@ srv.listen(0, async () => {
   ok(listing.some(t => /3\. Quotes \\ BR FNA - 100000011/.test(t)) && listing.some(t => /3\. Quotes \\ BR CMPO - 100000099/.test(t)) && listing.some(t => /6\. Policy Schedules \\ Liberty schedule A/.test(t)), '2. Load from client folder lists what it found, the quotes folder too: ' + listing.length + ' files');
   await p.click('dialog.fdlg [data-yes]'); await p.waitForTimeout(450);
   ok(await p.evaluate(() => { const e = document.querySelector('[data-prog]:not([hidden])'); return !!e && /reading/.test(e.className) && /Reading|Downloading/.test(e.textContent); }), '2. while a document is read, a bar shows under that block\'s name in the menu');
-  await p.waitForSelector('#resultsDlg[open]', { timeout: 30000 }); await p.waitForTimeout(200);
+  await p.waitForSelector('.loadlog', { state: 'attached', timeout: 30000 }); await p.waitForTimeout(300);
+  ok(!(await p.$('#resultsDlg')), '2. there is no "What was loaded" pop-up any more');
   const calls = (await api()).map(c => c.text);
   ok(calls.indexOf('CMP99') > calls.indexOf('RED22') && calls.indexOf('CMP99') > calls.indexOf('FNA11') && calls.indexOf('CMP11') > calls.indexOf('FNA11'), '2. the quotes are read before the guides (a guide needs its quote): ' + calls.join(' > '));
   ok(calls.filter(t => t === 'CMP11').length === 1, '2. the guide of the FNA was read ONCE (by its quote), not again from the list');
   const s = await st(), fna = s.blocks.fna.quotes[0], red = s.blocks.reduced.quotes[0];
   ok(fna.cmp && fna.cmp.number === '100000011' && fna.cmp.st === 'verify' && fna.cmp.src.file === 'BR CMPO - 100000011.pdf', '2. the FNA\'s change moment pay-out was found and filled by itself (no "+ Add")');
   ok(red && !red.cmp, '2. the reduced quote has no guide');
-  const res = await p.evaluate(() => document.querySelector('#resultsDlg').innerText.replace(/\s+/g, ' '));
+  const res = await p.evaluate(() => document.querySelector('.loadlog').textContent.replace(/\s+/g, ' '));
   ok((res.match(/No change moment pay-out guide found for CP 100000022/g) || []).length === 1, '2. "No change moment pay-out guide found for CP 100000022" is said once');
   ok((res.match(/guide for CP 100000099 matches no quote/g) || []).length === 1, '2. a guide that matches no quote is listed once: ' + (res.match(/[^.]*100000099[^.]*\./g) || []).join(' '));
-  await p.click('#resultsDlg [data-yes]');
   /* every line, every box */
   ok(fna.lines.length === 6 && fna.lines.every(l => l.abi !== null && l.abi !== undefined && l.abi !== ''), '2. every line of the FNA has an ABI: ' + fna.lines.map(l => l.abi).join());
   ok(red.lines.every(l => l.abi === 'Not found'), '2. a quote that prints no ABI says "Not found" on every line');
@@ -152,7 +152,7 @@ srv.listen(0, async () => {
   ok(kid.sname === 'Load' && kid.st === 'confirmed' && kid.match === 'factfind' && deb[0].st === 'confirmed' && deb[1].st === 'confirmed' && deb[2].st === 'verify', '2. the child and the two debts that agree with the Fact Find are checked by the page; the Mahindra is to check');
   await p.evaluate(() => OV.app.go('fna')); await p.waitForTimeout(150);
   const dom = await p.evaluate(() => ({ ticks: document.querySelectorAll('#main table.lines .tickok').length, why: [...document.querySelectorAll('#main table.lines small.why')].map(x => x.textContent).filter(Boolean), aci: [...document.querySelectorAll('#main table.lines [data-aci]')].map(x => x.textContent), quoteAci: document.querySelector('#main [data-p$=".aciText"]').value, ticksTxt: [...document.querySelectorAll('#main table.lines tr.ln')].filter(r => !r.querySelector('.tickok') && /to check/.test(r.querySelector('.stb').textContent)).length }));
-  ok(dom.ticks === 3 && dom.ticksTxt === 3, '2. on the screen: three green ticks, and "to check" on the other three lines (household, the Mahindra, the dread line)');
+  ok(dom.ticks === 5 && dom.ticksTxt === 1, '2. on the screen: five green ticks (the child and the two debts that agree with the Fact Find, and the household and dread lines, which are in the quote), and "to check" on the Mahindra only: ' + dom.ticks + ' / ' + dom.ticksTxt);
   ok(dom.why.some(t => /Mahindra XUV 700 is in the quote, not in the Fact Find\./.test(t)), '2. the reason is on the line: ' + dom.why.join(' | '));
   ok(dom.aci.length === 6 && dom.aci.every(t => t === dom.quoteAci && t === '7.5% + defined age rater'), '2. the ACI on every line carries the same words as the quote\'s: ' + dom.aci.join(' | '));
   ok(await p.evaluate(() => { const r = document.querySelector('[data-prog=fna]'), q = document.querySelector('[data-prog=reduced]'), po = document.querySelector('[data-prog=policies]'); return [r, q, po].every(e => e && !e.hidden && /done/.test(e.className) && /Downloaded and populated/.test(e.textContent)); }), '2. each block\'s bar is green with "Downloaded and populated" (FNA quote, Reduced quotes, Current policies)');

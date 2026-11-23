@@ -7,7 +7,7 @@
   else { root.OV = root.OV || {}; root.OV.docs = factory(root.FF.util, root.OV.schema, root.OV.calc, root.OV.store); }
 })(typeof self !== 'undefined' ? self : this, function (util, schema, calc, store) {
   var ENDPOINT = 'https://api.anthropic.com/v1/messages', API_VERSION = '2023-06-01';
-  var BLOCK_LABEL = { policies: 'Current policies', fna: 'FNA quote', group: 'Group benefits', shortfallQuote: 'Shortfall quote', reduced: 'Reduced quote', comparative: 'Comparative quote', investments: 'Current investments', astute: 'Astute report', cmp: 'Change moment pay-out guide', proposed: 'Proposed investment', goals: 'Goal analysis report', other: 'Legacy protection plan' };
+  var BLOCK_LABEL = { followup: 'Follow-Up Summary Notes', policies: 'Current policies', fna: 'FNA quote', group: 'Group benefits', shortfallQuote: 'Shortfall quote', reduced: 'Reduced quote', comparative: 'Comparative quote', investments: 'Current investments', astute: 'Astute report', cmp: 'Change moment pay-out guide', proposed: 'Proposed investment', goals: 'Goal analysis report', other: 'Legacy protection plan' };
   var QUOTE_OF = { fna: 'fna', shortfallQuote: 'shortfall', reduced: 'reduced', comparative: 'comparative' };
 
   /* ---------- sorting a document by its name ---------- */
@@ -19,6 +19,7 @@
     if ((m = /(\d{1,2})[.\/-](\d{1,2})[.\/-](\d{2}|\d{4})(?!\d)/.exec(n))) { var y = +m[3]; if (y < 100) y += 2000; date = two(+m[1]) + '/' + two(+m[2]) + '/' + y; }
     var block = null;
     if (/cmpo|change[ _-]?moment/.test(low)) block = 'cmp';
+    else if (/follow[ _-]?up|summary[ _-]?notes/.test(low)) block = 'followup';                           // the Follow-Up Appointment Summary Notes of a later meeting (2. Fact Find folder)
     else if (/rgar|egar|goal[ _-]?analysis|goal[ _-]?report|retirement goal|education goal/.test(low)) block = 'goals';
     else if (/(^|[^a-z])fna([^a-z]|$)/.test(low)) block = 'fna';
     else if (/shortfall/.test(low)) block = 'shortfallQuote';
@@ -45,7 +46,11 @@
       'EVERY line has its own "abi": the annual benefit increase (annual base increase) of that need, as a number. BrightRock prints it for each need, or once for the whole quote: when it is printed once, copy it onto every line it covers (and also give it as "abi" of the quote). ' +
       'When the quote prints no annual benefit increase for a line, write "Not found" in that line\'s "abi", never null. Severe illness has an amount only on the lines where the quote gives one (the additional expense needs line); leave it null on the others. ' +
       'For a quote that does not list needs separately (other insurers), give one line of type "other" for each benefit with its label. printedTotals is only what the document itself prints as totals; leave it null if it prints none.',
-    policy: 'This is a policy schedule from ANY insurer. Return { "insurer": "text", "product": "text", "policyNo": "text", "doc": "dd/mm/yyyy (date of commencement)", "premium": n (monthly), "aci": n, "aciText": "the yearly premium increase exactly as the schedule words it, or null when it only gives a figure", "abi": n, "ipAge": n, "benefits": { "life": "short description as printed", "lsd": "...", "ip": "..." }, "lines": [ ' + LINE + ' ] }. ' +
+    policy: 'This is a policy schedule from ANY insurer. Return { "insurer": "text", "product": "text", "policyNo": "text", "doc": "dd/mm/yyyy (date of commencement)", "premium": n (monthly), "aci": n, "aciText": "the yearly premium increase exactly as the schedule words it, or null when it only gives a figure", "abi": n, "ipAge": n, "benefits": { "life": "...", "sev": "...", "lsd": "...", "ip": "..." }, "lines": [ ' + LINE + ' ] }. ' +
+      'The four "benefits" are a very short description of each benefit, read from the schedule, for ANY insurer: ONE or TWO short lines each (about 60 characters), no amounts, null for a benefit the policy does not have. ' +
+      'Life cover: whole of life or term, and to what age. Severe illness: the product name and type (for example Living Lifestyle Plus), standalone or accelerated, a top-up and an extended option if there are any, whole of life. ' +
+      'Lump sum disability: the product name (for example Absolute Protector Plus), OOD (own occupation) or AOD/OD, accelerated or standalone, to what age (for example 65). ' +
+      'Income protector: for example payable for the first 24 months, or after 24 months to age 65, with the waiting period. Say only what the schedule says. ' +
       'The need-by-need lines (types household, child, debt, death, dread) belong ONLY to a BrightRock policy: for a BrightRock policy give one line for each need. For EVERY OTHER insurer (Liberty, Discovery, Old Mutual, Momentum, Sanlam, Hollard ...) a policy is ONE row with its benefits: give exactly ONE line of type "other", labelled with the product name, whose "life", "sev", "lsd" and "ip" cells hold the amounts of that policy\'s benefits (the lump sums, and the income protector a month). ' +
       'NEVER use the types household, child, debt, death or dread for a policy that is not BrightRock, whatever the schedule lists.',
     group: 'This is a group risk benefit statement or a pension / provident fund statement. Return { "provider": "text", "statementDate": "dd/mm/yyyy", "basis": "e.g. 1.5 x insurance salary", "paidBy": "employer" | "employee" | "both" | null, "monthlyCost": n, "ipWaiting": "text", "aci": n, "abi": n, ' +
@@ -56,9 +61,12 @@
     proposal: 'This is a quote or proposal for an investment (a retirement annuity, a tax-free investment, an endowment, unit trusts, a Section 14 or pension / provident fund transfer, a living annuity). Return { "provider": "text", "type": "Tax-free investment" | "Retirement annuity (RA)" | "Endowment" | "Unit trusts (open-ended)" | "Section 14 transfer" | "Pension / provident fund transfer", "number": "the quote number as printed", ' +
       '"contribution": "lump" | "monthly" | "both" | "transfer", "lump": n (a lump sum), "monthly": n (the monthly premium), "boostPct": n (the boost or bonus on the contribution as a percentage, only if printed), "netInvested": n (the net amount invested after charges and boost, only if printed), "aci": n (the yearly contribution increase) }.',
     goal: 'This is a Retirement Goal Analysis Report (RGAR) or an Education Goal Analysis Report (EGAR). Return { "kind": "rgar" | "egar", "note": "a short reason, only if the report says it could not be done or is not applicable, else null", "currentValuePm": n (the current value in rand a month, gross), "futureValuePm": n (the future value in rand a month, gross), "aci": n, "premium": n (the monthly premium) }.',
+    followup: 'These are Follow-Up Appointment Summary Notes written after a later meeting with a client of a South African financial adviser. Return { "date": "dd/mm/yyyy (the date of the meeting or of the notes)", "items": { "medical": "...", "gap": "...", "will": "...", "legacy": "...", "shortterm": "..." } }. ' +
+      'Each item is ONE short sentence (up to about 160 characters) saying what has progressed or is still outstanding for that cover since the Fact Find, in the notes\' own words, for example: Capital Legacy to call to amend the will; everything sent to Cameron, feedback awaited; short-term R 2,539 p.m. split. ' +
+      'medical = medical aid, gap = gap cover, will = the will, legacy = the legacy protection plan, shortterm = short-term insurance. Write null for an item the notes say nothing about. Never guess, never copy anything that is not about that item.',
     cmp: 'This is a BrightRock change moment pay-out guide. Return { "number": "the CP number", "activationDate": "dd/mm/yyyy", "reason": "BrightRock\'s reason, only if it gives no pay-out, else null", "rows": [ { "key": "total" | "retirement" | "childcare" | "child", "name": "child first name", "sname": "child surname", "today": n, "projected": n, "payoutDate": "dd/mm/yyyy" or null } ] }.'
   };
-  var SPEC_OF = { fna: 'quote', shortfallQuote: 'quote', reduced: 'quote', comparative: 'quote', policies: 'policy', group: 'group', investments: 'investment', astute: 'astute', cmp: 'cmp', proposed: 'proposal', goals: 'goal', other: 'policy' };
+  var SPEC_OF = { fna: 'quote', shortfallQuote: 'quote', reduced: 'quote', comparative: 'quote', policies: 'policy', group: 'group', investments: 'investment', astute: 'astute', cmp: 'cmp', proposed: 'proposal', goals: 'goal', other: 'policy', followup: 'followup' };
   /* What the Fact Find says about the client's debts and children, for the reading of a quote (the quote often prints no bank or the debt's name): Claude is asked to name each debt line from it. '' when there is nothing. */
   function factNote(state) {
     var f = state && state.factFind && state.factFind.facts; if (!f) return '';
@@ -208,7 +216,7 @@
     ['premium', 'aci', 'abi'].forEach(function (k) { if (data[k] !== undefined && data[k] !== null) item[k] = n(data[k]); });
     if (s(data.aciText)) item.aciText = s(data.aciText);
     if (data.ipAge !== undefined && calc.isNum(n(data.ipAge))) item.ipAge = n(data.ipAge);
-    if (data.benefits && typeof data.benefits === 'object') { item.benefits = item.benefits || {}; ['life', 'lsd', 'ip'].forEach(function (k) { if (s(data.benefits[k])) item.benefits[k] = s(data.benefits[k]); }); }
+    if (data.benefits && typeof data.benefits === 'object') { item.benefits = item.benefits || {}; ['life', 'sev', 'lsd', 'ip'].forEach(function (k) { if (s(data.benefits[k])) item.benefits[k] = s(data.benefits[k]); }); }
     if (data.lines && data.lines.length) item.lines = data.lines.map(function (l) { return line(l, src); });
     store.flattenPolicyLines(item);                                                                         // the need-by-need lines are for a BrightRock policy only: any other insurer's policy is one row with its benefits
     item.st = 'verify'; item.by = 'page'; item.src = src; return item;
@@ -221,6 +229,21 @@
     var note = [b.life, b.lsd, b.ip].filter(Boolean).join(' / '); if (note) item.note = note;
     item.st = 'verify'; item.by = 'page'; item.src = src; return item;
   }
+  /* The Follow-Up Appointment Summary Notes of a later meeting (round 2, 23 November): what each cover of block 11 has progressed since the Fact Find is added to that item's note, with where it came from, "(Summary Notes dd/mm)".
+     Nothing is overwritten: the Fact Find's part of the note stays in front. Returns { filled: [item names], date }. */
+  function applyFollowUp(state, data, file, fileDate) {
+    data = data || {}; var items = data.items && typeof data.items === 'object' ? data.items : {}, d = dmy(data.date) || fileDate || '', tag = ' (Summary Notes' + (d ? ' ' + dm(d) : '') + ')', src = srcOf('followup', file, d || undefined), out = [];
+    state.blocks.other.items.forEach(function (it) {
+      var t = s(items[it.key]); if (!t) return;
+      t = t.replace(/\s*\(Summary Notes[^)]*\)\s*$/i, '');
+      var base = s(it.note);
+      if (base && base.indexOf(t) >= 0) return;                                                         // the same words are there already
+      it.note = (base ? base + ' \u00b7 ' : '') + t + tag; it.st = 'verify'; it.by = 'page'; it.src = src; out.push(it.key);
+    });
+    return { filled: out, date: d };
+  }
+  /* "dd/mm/yyyy" as "dd/mm" for the source tag of a note. */
+  function dm(v) { var m = /^(\d{1,2})\/(\d{1,2})\/\d{2,4}$/.exec(String(v || '')); return m ? two(+m[1]) + '/' + two(+m[2]) : String(v || ''); }
   function applyGroup(state, item, data, file) {
     var src = srcOf('group', file);
     if (item.kind === 'risk') {
@@ -294,10 +317,11 @@
     if (kind === 'proposal') return !has(data.lump) && !has(data.monthly) && !has(data.netInvested);
     if (kind === 'goal') return !has(data.currentValuePm) && !has(data.futureValuePm) && !has(data.premium);
     if (kind === 'cmp') return !(data.rows && data.rows.length) && !has(data.reason);
+    if (kind === 'followup') return !(data.items && typeof data.items === 'object' && Object.keys(data.items).some(function (k) { return has(data.items[k]); }));
     if (kind === 'astute') return !(data.investments && data.investments.length);
     return !Object.keys(data).some(function (k) { return has(data[k]) && typeof data[k] !== 'object'; }) && !Object.keys(data).some(function (k) { var v = data[k]; return v && typeof v === 'object' && Object.keys(v).some(function (j) { return has(v[j]); }); });
   }
 
-  return { classify: classify, promptFor: promptFor, parseReply: parseReply, readWithClaude: readWithClaude, applyQuote: applyQuote, enrich: enrich, factNote: factNote, applyPolicy: applyPolicy, applyOther: applyOther, applyGroup: applyGroup, applyInvestment: applyInvestment, applyAstute: applyAstute, applyProposed: applyProposed, applyGoal: applyGoal, isEmptyRead: isEmptyRead,
+  return { classify: classify, promptFor: promptFor, parseReply: parseReply, readWithClaude: readWithClaude, applyQuote: applyQuote, enrich: enrich, factNote: factNote, applyPolicy: applyPolicy, applyOther: applyOther, applyFollowUp: applyFollowUp, dm: dm, applyGroup: applyGroup, applyInvestment: applyInvestment, applyAstute: applyAstute, applyProposed: applyProposed, applyGoal: applyGoal, isEmptyRead: isEmptyRead,
     applyCmp: applyCmp, matchItem: matchItem, logDoc: logDoc, findQuoteByNumber: findQuoteByNumber, quoteIn: quoteIn, quoteRead: quoteRead, SPEC_OF: SPEC_OF, BLOCK_LABEL: BLOCK_LABEL, QUOTE_OF: QUOTE_OF, ENDPOINT: ENDPOINT };
 });
