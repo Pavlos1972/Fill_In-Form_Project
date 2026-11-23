@@ -96,8 +96,8 @@
     var r = new FileReader();
     r.onload = function () {
       try {
-        state = store.fromJSON(r.result); fileHandle = handle || null; lastFolder = null; fileBase = file.name.replace(/\.json$/i, ''); dirty = false; onDisk = true; cur = CLIENT; progClear(); rememberHandle(handle || null); saveDraft(); redraw();
-        var tidy = [state.dups ? state.dups + (state.dups === 1 ? ' extra copy of a quote was' : ' extra copies of a quote were') + ' removed (each quote is kept once)' : '', state.flattened ? state.flattened + (state.flattened === 1 ? ' policy of another insurer was' : ' policies of other insurers were') + ' put into one row with its benefits' : ''].filter(Boolean).join('; ');
+        state = store.fromJSON(r.result); var healed = check.settleAll(state); fileHandle = handle || null; lastFolder = null; fileBase = file.name.replace(/\.json$/i, ''); dirty = false; onDisk = true; cur = CLIENT; progClear(); rememberHandle(handle || null); saveDraft(); redraw();
+        var tidy = [state.dups ? state.dups + (state.dups === 1 ? ' extra copy of a quote was' : ' extra copies of a quote were') + ' removed (each quote is kept once)' : '', state.flattened ? state.flattened + (state.flattened === 1 ? ' policy of another insurer was' : ' policies of other insurers were') + ' put into one row with its benefits' : '', healed ? 'older quote lines were brought up to date (checked by the quote, no empty income portions, no life cover on the additional expense line)' : ''].filter(Boolean).join('; ');
         if (tidy) { dirty = true; onDisk = false; saveDraft(); refreshChrome(); }
         toast(state.newer ? 'Opened ' + file.name + ' read-only: it was made by a newer version.' : 'Opened ' + file.name + (tidy ? '. ' + tidy.charAt(0).toUpperCase() + tidy.slice(1) + '; save to keep it.' : ''), state.newer ? 7000 : tidy ? 9000 : 3500);
       } catch (e) { toast(e.message || 'Could not open that file.', 6000); }
@@ -113,7 +113,7 @@
   /* Fill from Fact Find: the client's saved Fact Find (or the one on screen, through the hand-over) is read, never changed. */
   function fillFactFind(text, name, quiet) {
     try {
-      var rep = store.fillFromFactFind(state, text, name); touch(); redraw(); checkPass();
+      var rep = store.fillFromFactFind(state, text, name); check.settleAll(state); touch(); redraw(); checkPass(); readFactNotes();
       var bits = [];
       if (rep.added) bits.push(rep.added + (rep.added === 1 ? ' item' : ' items') + ' added');
       if (rep.updated) bits.push(rep.updated + ' brought up to date');
@@ -465,7 +465,7 @@
     return '<textarea data-p="' + path + '" data-k="text" rows="' + (rows || 3) + '"' + (state.newer ? ' disabled' : '') + '>' + esc(v == null ? '' : v) + '</textarea>';
   }
   function otherBlock() {
-    return '<p class="blue">Each cover is filled from what the Fact Find asked and answered (company, product, broker, premium and the Fact Find\'s own notes). <b>Load from client folder</b> then reads the client\'s newest Follow-Up Appointment Summary Notes in <b>2. Fact Find</b> (after the Fact Find) and adds what has progressed to the note. Every part of a note says where it came from: <i>(Fact Find dd/mm)</i> or <i>(Summary Notes dd/mm)</i>. Click <b>from Fact Find</b> on an item when it has been checked. Only the legacy protection plan takes a schedule.</p>' +
+    return '<p class="blue">Each cover is filled from what the Fact Find asked and answered (company, product, broker, premium and the Fact Find\'s own notes). <b>Load from client folder</b> then reads the client\'s newest Follow-Up Appointment Summary Notes in <b>2. Fact Find</b> (after the Fact Find) and adds what has progressed to the note. Every part of a note says where it came from: <i>(Fact Find dd/mm)</i> or <i>(Summary Notes dd/mm)</i>. When reading is on, the company, product and premium that those notes mention are read out of them too. Click <b>from Fact Find</b> on an item when it has been checked. Only the legacy protection plan takes a schedule.</p>' +
       state.blocks.other.items.map(function (it, i) {
         var p = 'blocks.other.items.' + i, nm = (schema.OTHER_KEYS.filter(function (k) { return k.key === it.key; })[0] || { l: it.key }).l;
         return '<article class="qcard" data-row="' + p + '"><header><span class="' + (it.wr ? 'tick' : 'cross') + '" data-tickfor="' + p + '">' + (it.wr ? '&#10003;' : '&#10007;') + '</span><h3>' + esc(nm) + '</h3>' + stb(p) + (it.key === 'legacy' ? '<span class="grow"></span><button type="button" class="x" data-upi="' + p + '|other">Upload policy schedule&hellip;</button>' : '') + '</header><div class="grid qh">' +
@@ -539,7 +539,7 @@
     if (!lines.length && !p.length) h = '<div class="ok">&#10003; Nothing to look at.</div>';
     else if (!lines.length) h = '<div class="none">No document has been read yet.</div>';
     var warned = lastLog.filter(function (x) { return x.warn; });
-    if (warned.length) h += '<details class="allchecks loadlog"><summary>What the last load said: ' + warned.length + ' to look at</summary>' + warned.map(function (x) { return '<div class="amber">' + esc(x.msg) + '</div>'; }).join('') + '</details>';
+    if (warned.length) h += '<details class="allchecks loadlog" open><summary>What the last load said: ' + warned.length + ' to look at</summary>' + warned.map(function (x) { return '<div class="amber">' + esc(x.msg) + '</div>'; }).join('') + '</details>';
     if (p.length) h += '<details class="allchecks"' + (checksOpen ? ' open' : '') + '><summary>All ' + p.length + (p.length === 1 ? ' individual check' : ' individual checks') + '</summary>' + p.map(function (x) { return '<button type="button" class="amber" data-jump="' + (x.block || CLIENT) + '"><b>' + esc(x.where) + '</b> ' + esc(x.message) + '</button>'; }).join('') + '</details>';
     $('#checks').innerHTML = h;
   }
@@ -580,11 +580,11 @@
   function navBlockOf(block, q) { return block === 'astute' ? 'investments' : block === 'followup' ? 'other' : block === 'cmp' ? (q && schema.blockOfQuote[q.kind]) || null : block; }
   function progHTML(id) {
     var p = prog[id], st = p ? p.st : '';
-    return '<span class="prog' + (st ? ' ' + st : '') + '" data-prog="' + id + '"' + (st ? '' : ' hidden') + '><i style="width:' + (p ? Math.round(p.pct) : 0) + '%"></i><em>' + esc(p ? p.text : '') + '</em></span>';
+    return '<span class="prog' + (st ? ' ' + st : '') + '" data-prog="' + id + '"' + (st ? '' : ' hidden') + (p && p.title ? ' title="' + esc(p.title) + '"' : '') + '><i style="width:' + (p ? Math.round(p.pct) : 0) + '%"></i><em>' + esc(p ? p.text : '') + '</em></span>';
   }
   function paintProg(id) {
     var el = document.querySelector('[data-prog="' + id + '"]'), p = prog[id]; if (!el || !p) return;
-    el.hidden = !p.st; el.className = 'prog ' + p.st; el.querySelector('i').style.width = Math.round(p.pct) + '%'; el.querySelector('em').textContent = p.text;
+    el.hidden = !p.st; el.className = 'prog ' + p.st; el.querySelector('i').style.width = Math.round(p.pct) + '%'; el.querySelector('em').textContent = p.text; if (p.title) el.title = p.title; else el.removeAttribute('title');
   }
   function tick() {
     var any = false;
@@ -594,17 +594,17 @@
   function startTicker() { if (!progT) progT = setInterval(tick, 350); }
   function progStart(id) {
     if (!id) return; var p = prog[id] || (prog[id] = { pct: 0, busy: 0, errs: 0, recorded: 0 });
-    if (!p.busy) { p.errs = 0; p.recorded = 0; p.pct = 6; }
+    if (!p.busy) { p.errs = 0; p.recorded = 0; p.pct = 6; p.err = ''; p.ok = ''; p.title = ''; }
     p.busy = (p.busy || 0) + 1; p.st = 'reading'; p.text = 'Reading the document…'; paintProg(id);
     startTicker();
   }
   function progStep(id, pct, text) { var p = prog[id]; if (!p || p.st !== 'reading') return; if (pct > p.pct) p.pct = pct; if (text) p.text = text; paintProg(id); }
-  function progEnd(id, how) {                                                                           // how: done | recorded | error
+  function progEnd(id, how, text) {                                                                     // how: done | recorded | error; text: what the bar says instead of the usual (the real message of a failure)
     var p = prog[id]; if (!p) return;
-    if (how === 'error') p.errs++; else if (how === 'recorded') p.recorded++;
+    if (how === 'error') { p.errs++; if (text) p.err = text; } else if (how === 'recorded') p.recorded++; else if (text) p.ok = text;
     p.busy = Math.max(0, p.busy - 1); if (p.busy) return;
-    p.pct = 100; p.st = p.errs ? 'error' : p.recorded ? 'recorded' : 'done';
-    p.text = p.errs ? 'Could not read it: see the message' : p.recorded ? 'Recorded, not read (add your key in Settings)' : 'Downloaded and populated'; paintProg(id);
+    p.pct = 100; p.st = p.errs ? 'error' : p.recorded ? 'recorded' : 'done'; p.title = p.errs ? (p.err || '') : '';
+    p.text = p.errs ? (p.err || 'Could not read it: see the Checks panel') : p.recorded ? 'Recorded, not read (add your key in Settings)' : (p.ok || 'Downloaded and populated'); paintProg(id);
   }
   function progClear() { prog = {}; ran = false; finished = {}; loading = 0; deferred = false; searchedAll = false; checkTimers.forEach(clearTimeout); checkTimers = []; if (progT) { clearInterval(progT); progT = null; } document.querySelectorAll('[data-prog]').forEach(function (el) { el.hidden = true; }); }
 
@@ -755,19 +755,27 @@
     cls = cls || { number: '', date: '' };
     if (D.QUOTE_OF[block] && !o.replaces && cls.number) {                                                    // its number says it is a quote that is already loaded and read: it is not read (or paid for) twice
       var have = D.quoteIn(state, block, cls.number);
-      if (have && D.quoteRead(have)) return Promise.resolve({ msg: file.name + ': already loaded as ' + check.qTitle(have) + '; not read again (to read it again, use Replace quote on it).', dupe: true });
+      if (have && D.quoteRead(have)) {                                                                       // not read again, but not forgotten: it is checked again by the current rules and its bar says so
+        var nb0 = navBlockOf(block, o.quote), ticked = check.autoMatch(state, have);
+        if (!(prog[nb0] && prog[nb0].st === 'done')) { progStart(nb0); progEnd(nb0, 'done', 'Already loaded' + (ticked ? ', ' + ticked + (ticked === 1 ? ' line' : ' lines') + ' checked again' : '')); }
+        return Promise.resolve({ msg: file.name + ': already loaded as ' + check.qTitle(have) + '; not read again (to read it again, use Replace quote on it).' + (ticked ? ' ' + ticked + (ticked === 1 ? ' line was' : ' lines were') + ' checked against the quote.' : ''), dupe: true });
+      }
     }
     var want = aiOn(), key = aiKey(), read = want && !!key.apiKey, failure = '', nb = navBlockOf(block, o.quote), ctx = D.QUOTE_OF[block] && block !== 'comparative' ? { clientNote: D.factNote(state) } : undefined;
     progStart(nb); progStep(nb, 12, 'Downloading the document…');
     var get = read ? toBase64(file).then(function (b64) { progStep(nb, 28, 'Reading the document…'); return D.readWithClaude({ apiKey: key.apiKey, model: key.model, mediaType: file.type || 'application/pdf', base64: b64, block: block, ctx: ctx }); }).then(function (r) { return r.data; })
       .catch(function (e) { failure = e && e.message ? e.message : 'It could not be read.'; return null; }) : Promise.resolve(null);
     return get.then(function (data) {
-      if (data && D.isEmptyRead(block, data)) { failure = 'Claude read the document but found no figures in it (a scan it could not read, or not the kind of document it was said to be).'; data = null; }
+      var notice = '';
+      if (data && D.isEmptyRead(block, data)) {
+        if (block === 'followup') { notice = 'Read: nothing new for these covers'; data = { items: {} }; }          // the notes were read; they say nothing about medical aid, gap cover, will, legacy plan or short-term: not an error
+        else { failure = 'Claude read the document but found no figures in it (a scan it could not read, or not the kind of document it was said to be).'; data = null; }
+      }
       progStep(nb, 80, 'Filling it in…');
       var r = put(file, block, cls, data, o);
       if (failure) { r.msg = file.name + ': ' + failure + ' It was recorded; type the figures from it.'; r.warn = true; }
       var then = r.quote && data ? autoGuide(r.quote, o).then(function (m) { if (m) { r.msg += ' ' + m.msg; if (m.warn) r.warn = true; } }) : Promise.resolve();
-      return then.then(function () { progEnd(nb, failure ? 'error' : data ? 'done' : 'recorded'); return r; });
+      return then.then(function () { progEnd(nb, failure ? 'error' : data ? 'done' : 'recorded', failure ? 'Could not read it: ' + failure : notice); return r; });
     });
   }
   /* A quote read from the client's folder is compared with the Fact Find's rows the checks already know (each child by name and surname and her childcare amount; each debt by name, bank and instalment): what differs is flagged amber
@@ -817,6 +825,26 @@
       dlg.showModal();
     });
   }
+  /* The company, product and premium that the Fact Find's own notes of the four covers mention are read out of those notes (round 3, 23 November), into the boxes that are still empty. Only the text of the four notes boxes is sent
+     (no ID, phone or e-mail). Once for the same notes; only while reading is on and a key is saved. */
+  var notesSig = '', notesBusy = false;
+  function readFactNotes() {
+    var txt = D.factNotesText(state), key = aiKey();
+    if (!txt || !aiOn() || !key.apiKey || notesBusy || txt === notesSig || state.newer) return Promise.resolve();
+    if (!state.blocks.other.items.some(function (it) { return !String(it.company || '').trim() || !String(it.product || '').trim() || !calc.isNum(it.premium); })) return Promise.resolve();
+    notesBusy = true; notesSig = txt; progStart('other'); progStep('other', 20, 'Reading the Fact Find\u2019s notes\u2026');
+    var ended = false;                                                                                     // whatever goes wrong (a refusal, no network, even a throw before the call starts) the bar ends and the next fill may try again
+    function fail(e) {
+      if (ended) return; ended = true; notesSig = ''; var why = e && e.message ? e.message : 'an error';
+      lastLog.push({ msg: 'The Fact Find\u2019s notes could not be read: ' + why, warn: true }); progEnd('other', 'error', 'Could not read the notes: ' + why);
+    }
+    return Promise.resolve().then(function () { return D.readWithClaude({ apiKey: key.apiKey, model: key.model, block: 'ffnotes', text: txt }); }).then(function (r) {
+      var filled = D.isEmptyRead('ffnotes', r.data) ? [] : D.applyNotesRead(state, r.data);
+      lastLog.push({ msg: 'The Fact Find\u2019s notes: ' + (filled.length ? 'company, product or premium filled for ' + filled.join(', ') + '.' : 'they do not name a company, product or premium that is still missing.'), warn: false });
+      ended = true; progEnd('other', 'done', filled.length ? 'Notes read: company / product filled' : 'Notes read: nothing new');
+      if (filled.length) { touch(); redraw(); }
+    }).catch(fail).then(function () { notesBusy = false; refreshChrome(); });
+  }
   /* Documents, one after the other (each may be read by Claude, which takes a moment): QUOTES FIRST, then the pay-out guides (a guide needs its quote), then the ones the adviser had to sort. */
   function ingest(files, o) {
     o = Object.assign({}, o || {}); files = uniqueFiles([].slice.call(files)); unmatchedGuides = {}; o.guides = {};
@@ -840,7 +868,7 @@
             .then(function () { return chain(last2.map(function (x) { return x.file; }), function () { return Object.assign({}, o, { block: 'cmp' }); }); });
         });
       }).then(function () {
-        touch(); redraw(); finish();
+        check.settleAll(state); touch(); redraw(); finish(); readFactNotes();
         if (count && aiOn() && !aiKey().apiKey) toastLink(count + (count === 1 ? ' document was' : ' documents were') + ' recorded, not read: reading needs your Anthropic key.', 'Add the key in Settings', openSettings, 20000);
         else toast((count ? count + (count === 1 ? ' document' : ' documents') + ' loaded' + (warns ? ', ' + warns + ' to look at' : '') + '.' : same ? 'Nothing new was loaded.' : 'Nothing was loaded.') + (same ? ' ' + same + (same === 1 ? ' was' : ' were') + ' already there (each quote is kept once).' : ''), 7000);
         refreshChrome();                                                                                 // the Checks panel lists what needs a look; there is no pop-up
@@ -997,7 +1025,7 @@
   $('#btnLoad').addEventListener('click', chooseFactFind);
   $('#btnReadFolder').addEventListener('click', loadFromClientFolder);
   $('#btnSettings').addEventListener('click', openSettings);
-  $('#btnCheck').addEventListener('click', function () { checkPass({ explicit: true }); });
+  $('#btnCheck').addEventListener('click', function () { check.settleAll(state); checkPass({ explicit: true }); });
   $('#docIn').addEventListener('change', function (e) { var fs = [].slice.call(e.target.files); e.target.value = ''; if (fs.length) ingest(fs, {}); });
   $('#docOne').addEventListener('change', function (e) { var f = e.target.files[0], o = pending || {}; e.target.value = ''; pending = null; if (f) ingest([f], o); });
   /* the More menu closes after a click on one of its buttons, on a click outside it and on Escape; the toast's link opens Settings */
@@ -1035,7 +1063,7 @@
     document.body.appendChild(rd);
     rd.addEventListener('cancel', function (e) { e.preventDefault(); });
     rd.querySelector('#restoreYes').addEventListener('click', function () {
-      state = restored; fileBase = restoredBase; dirty = true; onDisk = false; draftHold = false; rd.close(); rd.remove(); recallHandle().then(function (h) { if (h && fileBase) fileHandle = h; });
+      state = restored; check.settleAll(state); fileBase = restoredBase; dirty = true; onDisk = false; draftHold = false; rd.close(); rd.remove(); recallHandle().then(function (h) { if (h && fileBase) fileHandle = h; });
       redraw(); toast('Restored your unsaved changes for ' + who + '.'); if (HO && !other) fillFactFind(HO.text, HO.name || 'the Fact Find on screen', true);
     });
     rd.querySelector('#restoreNew').addEventListener('click', function () { draftHold = false; rd.close(); rd.remove(); rememberHandle(null); saveDraft(); redraw(); if (HO) fillFactFind(HO.text, HO.name || 'the Fact Find on screen', true); });

@@ -14,6 +14,10 @@
     var n = q.number ? (/bright/i.test(q.insurer) ? 'CP ' : 'Quote ') + q.number : '';
     return [q.insurer, { fna: 'FNA', shortfall: 'Shortfall Quote', reduced: 'Reduced Quote', comparative: 'Comparative Quote' }[q.kind], n].filter(Boolean).join(' ');
   }
+  /* Checks that stay in the Checks panel as notes but never hold a block's dot or a quote's row amber (Paul, 23 November: only real line differences, a missing pay-out guide or missing figures do): the quote's income against the client's net income,
+     an increase that differs from the standard settings, a premium above the budget. */
+  var NOTE_IDS = { 'fna.income': 1, standards: 1, budget: 1 };
+  function realOnes(problems) { return (problems || []).filter(function (p) { return !NOTE_IDS[p.id]; }); }
   function hasFigures(x) { return calc.activeLines(x).some(function (l) { return ['life', 'sev', 'lsd', 'ip'].some(function (p) { var c = l[p]; return c && typeof c === 'object' && Object.keys(c).some(function (k) { return isNum(c[k]) && c[k] !== 0; }); }); }); }
 
   /* opts.ran: the page has looked through a folder or a document, or run its checks, in this visit (the document blocks, FNA and reduced quotes, can only say "nothing found" then).
@@ -28,7 +32,7 @@
     schema.QUOTE_KINDS.forEach(function (kind) {
       var block = schema.blockOfQuote[kind];
       calc.quotes(state, block).forEach(function (q) {
-        var where = qLabel(q), t = calc.totals(q), lines = calc.activeLines(q), figures = hasFigures(q);
+        var where = qLabel(q), t = calc.totals(q), lines = calc.activeLines(q), figures = hasFigures(q), ffInst = {};
         if (kind === 'fna' && isNum(h.netIncome) && figures) {
           [['life', t.life.monthly, 'Life cover'], ['lsd', t.lsd.monthly, 'Lump sum disability'], ['ip', t.ip.monthly, 'Income protector']].forEach(function (x) {
             if (differs(x[1], h.netIncome)) add('fna.income', block, where, x[2] + ' protects ' + fmtR(x[1]) + ' a month; the client\'s net income is ' + fmtR(h.netIncome) + '.');
@@ -40,7 +44,7 @@
             var c = p.ff, l = p.line, nm = fullName(c), bad = 0;
             if (p.loose) { add('quote.children', block, where, nm + ': the quote has the child as "' + fullName(l) + '"; the Fact Find has the surname "' + c.sname + '".', l.id); bad++; }
             var m = calc.lineVal(l, 'life', 'monthly');
-            if (differs(m, c.cost)) { add('quote.children', block, where, nm + ': the quote has ' + fmtR(m) + ' a month; the Fact Find has ' + fmtR(c.cost) + '.', l.id); bad++; }
+            if (differs(m, c.cost)) { add('quote.children', block, where, nm + ': the quote has ' + fmtR(m) + ' a month; the Fact Find has ' + fmtR(c.cost) + ' (the quote wins: correct the Fact Find).', l.id); bad++; }
             if (!bad) matched[l.id] = 1;
           });
           mk.missing.forEach(function (c) { if (figures || mk.pairs.length || mk.extra.length) add('quote.children', block, where, fullName(c) + ' is in the Fact Find, not in the quote.'); });
@@ -49,8 +53,9 @@
             var d = p.ff, l = p.line, label = d.desc || d.type || 'a debt', m = calc.lineVal(l, 'life', 'monthly'), bk = norm(l.bank), fb = norm(d.prov), bad = 0;
             if (bk && fb && bk.indexOf(fb) < 0 && fb.indexOf(bk) < 0) { add('quote.debts', block, where, label + ': the quote has the bank "' + l.bank + '"; the Fact Find has "' + d.prov + '".', l.id); bad++; }
             if (!bk && !fb) { add('quote.debts', block, where, label + ': bank missing in the Fact Find and the quote.', l.id, 'Bank missing in the Fact Find and the quote.'); bad++; }
-            if (differs(m, d.inst)) { add('quote.debts', block, where, label + ': the quote has an instalment of ' + fmtR(m) + '; the Fact Find has ' + fmtR(d.inst) + '.', l.id); bad++; }
+            if (differs(m, d.inst)) { add('quote.debts', block, where, label + ': the quote has an instalment of ' + fmtR(m) + '; the Fact Find has ' + fmtR(d.inst) + ' (the quote wins: correct the Fact Find).', l.id); bad++; }
             if (!bad) matched[l.id] = 1;
+            if (isNum(d.inst)) ffInst[l.id] = d.inst;
           });
           md.missing.forEach(function (d) { if (figures || md.pairs.length || md.extra.length) add('quote.debts', block, where, (d.desc || d.type || 'A debt') + ' is in the Fact Find, not in the quote.'); });
           md.extra.forEach(function (l) { if (l.debt) add('quote.debts', block, where, l.debt + ' is in the quote, not in the Fact Find.', l.id); });
@@ -66,6 +71,20 @@
         lines.forEach(function (l) {
           var key = (schema.lineTypesById[l.type] || {}).abi;
           if (key && isNum(l.abi) && isNum(std.abi[key]) && l.abi !== std.abi[key]) add('standards', block, where, (l.label || l.type) + ': the annual benefit increase is ' + l.abi + '%; your standard is ' + std.abi[key] + '%.');
+        });
+        if (kind !== 'comparative') lines.forEach(function (l) {                                           // a BrightRock line read from the quote: every figure is there, or the line says so and stays to check (never an empty box ticked green)
+          if (l.by !== 'page' || !l.src || l.src.kind !== 'quote' || (l.st !== 'verify' && l.st !== 'confirmed')) return;
+          var parts = [], shorts = [], isDeath = l.type === 'death';
+          (schema.FIGURES[l.type] || []).forEach(function (r) {
+            var c = l[r[0]], v = c && typeof c === 'object' ? c[r[1]] : null, notFound = v === 'Not found', empty = v === null || v === undefined || v === '';
+            if (!notFound && !empty) return;
+            var fnd = isDeath && r[1] === 'monthly' ? r[2] + ' is not on the quote: see the BrightRock email' : r[2] + (notFound ? ' is not found on the quote' : ' is empty');
+            if (l.type === 'debt' && r[1] === 'monthly' && isNum(ffInst[l.id])) fnd += ' (the Fact Find has ' + fmtR(ffInst[l.id]) + ')';
+            parts.push(fnd); shorts.push((isDeath && r[1] === 'monthly' ? 'Not on the quote: see the BrightRock email' : notFound ? 'Not found on the quote: ' + r[2].replace(/^the /, '') : 'Empty: ' + r[2].replace(/^the /, '')) + (l.type === 'debt' && r[1] === 'monthly' && isNum(ffInst[l.id]) ? ' (Fact Find: ' + fmtR(ffInst[l.id]) + ')' : ''));
+          });
+          if (!parts.length) return;
+          var who = l.type === 'child' ? ((l.name || '') + ' ' + (l.sname || '')).trim() : l.type === 'debt' ? (l.debt || '') : '', lab = ((schema.lineTypesById[l.type] || {}).l || l.type) + (who ? ' ' + who : '');
+          add('figures', block, where, lab + ': ' + parts.join('; ') + '.', l.id, shorts.join('. ') + '.');
         });
         if (isNum(q.aci) && isNum(std.aci) && q.aci !== std.aci && lines.length) add('standards', block, where, 'The annual contribution increase is ' + q.aci + '%; your standard is ' + std.aci + '%.');
         if (q.printedTotals) {
@@ -159,7 +178,7 @@
      A line is checked (every row of the document checked, nothing flagged), to check (rows still amber, or something differs from the Fact Find or from Paul's standards) or waiting (nothing read or typed yet).
      The documents are every quote and every item that a document filled (a schedule, a statement, a proposal, a report); an item that still only has the Fact Find's figures has no document yet. */
   function docLines(state, problems) {
-    var out = [], B = state.blocks || {}, probs = problems || [];
+    var out = [], B = state.blocks || {}, probs = realOnes(problems);
     function make(block, title, rows, own) {
       var toCheck = rows.filter(function (r) { return r && (r.st === 'verify' || r.st === 'ff'); }).length, flagged = own.length, any = rows.some(function (r) { return r && (r.st === 'confirmed' || r.st === 'verify' || r.st === 'ff'); });
       var st = toCheck || flagged ? 'tocheck' : (rows.some(function (r) { return r && r.st === 'confirmed'; }) ? 'checked' : 'waiting');
@@ -198,15 +217,27 @@
       else if (!flagged[l.id]) { l.st = 'confirmed'; l.match = 'quote'; n++; }
     });
     res = run(state);
-    hold = res.problems.filter(function (p) { return p.block === block && p.where === where; }).length;
+    hold = realOnes(res.problems).filter(function (p) { return p.block === block && p.where === where; }).length;
     if (!hold && q.st === 'verify' && q.by === 'page' && calc.activeLines(q).length && !calc.activeLines(q).some(function (l) { return l.st === 'verify' || l.st === 'ff'; })) { q.st = 'confirmed'; }
+    return n;
+  }
+  /* Every quote already in the overview is brought up to the current rules (round 3, 23 November): a file saved, or a draft restored, by an older version gets its dread line without life cover, its income portions of 0, and its lines ticked by the quote
+     (a quote read by 0.9 had them "to check"). Returns how many things changed. */
+  function settleAll(state) {
+    var n = 0;
+    schema.QUOTE_KINDS.forEach(function (kind) {
+      calc.quotes(state, schema.blockOfQuote[kind]).forEach(function (q) {
+        (q.lines || []).forEach(function (l) { n += calc.settleLine(l); });
+        if (calc.activeLines(q).some(function (l) { return l.by === 'page' && l.st === 'verify'; }) || (q.st === 'verify' && q.by === 'page' && calc.activeLines(q).length)) n += autoMatch(state, q);
+      });
+    });
     return n;
   }
   function byBlock(problems) { var m = {}; problems.forEach(function (p) { (m[p.block || '_'] = m[p.block || '_'] || []).push(p); }); return m; }
 
   /* The dot of every block. */
   function dots(state, problems, notes) {
-    var d = {}, bad = byBlock(problems);
+    var d = {}, bad = byBlock(realOnes(problems));
     notes = notes || {};
     schema.BLOCKS.forEach(function (b) {
       var blk = state.blocks[b.id] || {}, list = ((blk.items || []).concat(blk.quotes || [])).filter(function (r) { return !r.removed; }), amber = !!(bad[b.id] || []).length;
@@ -229,12 +260,12 @@
   /* What a dot means, in words, for the hover text of the menu (stage 7: Paul could not tell what the dots meant). */
   var LEGEND = [['grey', 'Nothing yet'], ['amber', 'To check'], ['green', 'Checked'], ['red', 'Checked, nothing there'], ['na', 'Not needed']];
   function dotText(state, id, dot, problems, note) {
-    var p = byBlock(problems || [])[id] || [];
+    var p = byBlock(realOnes(problems))[id] || [];
     if (dot === 'red') return 'Checked, nothing there: ' + ((note && note.text) || 'nothing was found for this block') + '.';
     if (dot === 'na') return 'Not needed: a shortfall quote is only needed when the client has group risk, and there is none.';
     if (dot === 'green') return 'Checked: every row here has been checked and nothing is flagged.';
     if (dot === 'amber') return p.length ? 'To check: ' + p.length + (p.length === 1 ? ' thing is' : ' things are') + ' flagged. ' + [p[0].where, p[0].message].filter(Boolean).join(' ').slice(0, 140) : 'To check: some rows came from the Fact Find or from a document and are waiting for you to check them.';
     return id === 'shortfall' ? 'Nothing yet: the shortfall is worked out as soon as the FNA quote has figures.' : 'Nothing yet: waiting for a document, or for what you type.';
   }
-  return { run: run, dots: dots, qLabel: qLabel, qTitle: qTitle, docLines: docLines, autoMatch: autoMatch, dotText: dotText, emptyNotes: emptyNotes, LEGEND: LEGEND };
+  return { run: run, dots: dots, qLabel: qLabel, qTitle: qTitle, docLines: docLines, autoMatch: autoMatch, settleAll: settleAll, NOTE_IDS: NOTE_IDS, dotText: dotText, emptyNotes: emptyNotes, LEGEND: LEGEND };
 });

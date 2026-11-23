@@ -183,6 +183,8 @@ dialog#restoreDraft .grow { flex: 1; }
 .nav .prog.done i { background: var(--ok); }
 .nav .prog.done em, .nav .prog.error em { color: #fff; font-weight: 600; }
 .nav .prog.recorded i { background: #e0a800; }
+.nav .prog.error { height: auto; min-height: 15px; }                                                    /* a failure says why, in full, under the block's name (round 3) */
+.nav .prog.error em { white-space: normal; line-height: 1.25; padding: 2px 6px; overflow: visible; text-overflow: clip; }
 .nav .prog.error i { background: var(--bad); }
 /* a line the page checked because the Fact Find and the quote agree: a small green tick; the reason on a line that is to be checked */
 .tickok { display: inline-flex; align-items: center; justify-content: center; width: 17px; height: 17px; border-radius: 50%; background: var(--ok); color: #fff; font-size: 11px; font-weight: 700; line-height: 1; }

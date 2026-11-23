@@ -206,12 +206,12 @@ test('the Presentation\'s tables: a figure never runs into the next column (it i
   assert.ok(/function fitAmounts\(sl\)/.test(pr) && /fitAmounts\(sl\); var h = sl\.offsetHeight/.test(pr), 'measured at the slide\'s own size, before it is scaled');
   assert.ok(/fs > 10/.test(pr) && /w > room \+ 0\.5/.test(pr) && /nextElementSibling\.getBoundingClientRect\(\)\.width/.test(pr), 'down to 10px, never overflowing; "R25,000" and its "p.m." are measured as one line');
   const ui = app('js/ov-ui.js'); assert.ok(/function fitTables\(\)/.test(ui) && /fs > 9/.test(ui) && /fitTables\(\);\s*\n\s*\}/.test(ui), 'the entry screen has the same rule (down to 9px), after every draw and every redraw of a row');
-  assert.ok(/tbl\(\[20, 13, 11, 13, 13, 7, 10, 5, 8\]/.test(pr), 'the policies table gives its money columns more room');
+  assert.ok(/tbl\(\[18, 13, 11, 13, 13, 7, 12, 5, 8\]/.test(pr), 'the policies table gives its money columns more room');
 });
 
 /* ---------- the contract ---------- */
-test('the contract: revision j, the page version 0.91, the layout still 0.1; new: benefits.sev, match "quote", src.kind "followup"', () => {
-  assert.strictEqual(schema.pageVersion, '0.91'); assert.strictEqual(schema.version, '0.1');
+test('the contract: revision j, the page version 0.92, the layout still 0.1; new: benefits.sev, match "quote", src.kind "followup"', () => {
+  assert.strictEqual(schema.pageVersion, '0.92'); assert.strictEqual(schema.version, '0.1');
   assert.ok(/Revision j/.test(fs.readFileSync(path.join(__dirname, '..', 'docs', 'OVERVIEW-DATA-CONTRACT.md'), 'utf8')), 'written in the contract');
 });
 
