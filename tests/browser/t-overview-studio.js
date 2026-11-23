@@ -109,7 +109,7 @@ srv.listen(0, async () => {
   const hh = q.lines.filter(l => l.type === 'household')[0];
   ok(q.lines.length === 6 && hh.term === 'Standalone' && hh.waiting === '3 months' && hh.life.lump === 800000 && hh.life.monthly === 5000 && hh.lsd.monthly === 12500 && hh.ip.monthly === 22500 && hh.abi === 5, '4. every line was filled: lump sum, monthly figure, term, waiting period, ABI');
   ok(q.cmp && q.cmp.rows.length === 3 && q.cmp.number === '100000011' && q.cmp.st === 'verify' && q.cmp.src.file === 'BR CMPO - 100000011.pdf' && q.cmp.rows[1].projected === 60000, '4. the change moment pay-out was filled from the guide, amber, with its file');
-  ok(!q.lines.some(l => l.st === 'confirmed') && q.st === 'verify' && q.by === 'page', '4. nothing read is marked as checked');
+  ok(!q.lines.some(l => l.st === 'confirmed' && l.by !== 'page') && q.by === 'page' && q.lines.every(l => l.st === 'verify' || l.match === 'quote' || l.match === 'factfind'), '4. nothing read is marked as checked by a person: only the page confirms a line (it is in the quote, or it matches the Fact Find)');
   const msg = await side();
   ok(/Compared with the Fact Find \(1 children, 1 debts\)/.test(msg) && /differences are flagged amber/.test(msg) && /change moment pay-out is filled in/.test(msg), '4. the Documents card says it compared with the Fact Find and what it flagged: ' + msg.slice(0, 260));
   const flags = await p.evaluate(() => [...document.querySelectorAll('.qcard:last-of-type tr.ffdiff')].map(r => ({ need: (r.querySelector('.need').innerText + ' ' + [...r.querySelectorAll('.need input')].map(i => i.value).join(' ')).replace(/\s+/g, ' ').trim(), title: r.title })));

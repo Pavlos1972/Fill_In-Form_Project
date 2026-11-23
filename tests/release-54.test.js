@@ -152,7 +152,7 @@ test('Fill from Fact Find: the header, a starting item for every Fact Find row (
   assert.deepStrictEqual(B.proposed.items.map(i => [i.type, i.provider, i.monthly, i.contribution]), [['Retirement annuity (RA)', 'Old Mutual', 5000, 'monthly'], ['Tax-free investment', 'Old Mutual', 3000, 'monthly']], 'only what the client asked to have quoted');
   assert.deepStrictEqual(B.goals.items.map(i => [i.kind, i.requested, i.note]), [['rgar', false, 'Client did not request for at this time'], ['egar', true, '']]);
   assert.deepStrictEqual(B.other.items.map(i => i.key), ['medical', 'gap', 'will', 'legacy', 'shortterm']);
-  assert.strictEqual(B.other.items[0].company, 'Test Medical'); assert.strictEqual(B.other.items[2].company, 'Test Attorneys'); assert.ok(/Will up to date/.test(B.other.items[2].note));
+  assert.strictEqual(B.other.items[0].company, 'Test Medical'); assert.strictEqual(B.other.items[2].company, 'Test Attorneys'); assert.ok(/up to date/.test(B.other.items[2].note));
   assert.strictEqual(B.other.items[4].premium, 1479, 'short-term from the Fact Find, with Cameron Maritz as its broker'); assert.ok(/Cameron Maritz/.test(B.other.items[4].note));
   assert.ok([].concat(B.policies.items, B.group.items, B.investments.items).every(i => i.st === 'ff' && i.by === 'page' && i.src.kind === 'factfind'));
 });

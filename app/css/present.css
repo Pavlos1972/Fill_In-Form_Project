@@ -105,7 +105,7 @@
 .pres .ptbl th .hi svg { width: 18px; height: 18px; display: block; }
 .pres .ptbl th[data-pil] { cursor: pointer; }
 .pres .ptbl th[data-pil]:hover { color: var(--or-deep); }
-.pres .ptbl td { border: 1px solid var(--grid); padding: 8px 10px; line-height: 1.2; text-align: right; vertical-align: middle; background: #fff; color: var(--ink); transition: background .25s, box-shadow .25s; }
+.pres .ptbl td { border: 1px solid var(--grid); padding: 9px 9px; line-height: 1.2; text-align: right; vertical-align: middle; background: #fff; color: var(--ink); transition: background .25s, box-shadow .25s; }
 .pres .ptbl tr:first-child td, .pres .ptbl thead tr:first-child th { border-top: 0; }
 .pres .ptbl tr > :first-child { border-left: 0; }
 .pres .ptbl tr > :last-child { border-right: 0; }
@@ -120,6 +120,7 @@
 .pres .ptbl .na, .pres .ptbl .none { color: #9aa7b1; }
 .pres .ptbl small { display: block; color: var(--muted); font-size: 12px; line-height: 1.2; margin-top: 1px; white-space: nowrap; }
 .pres .ptbl td.l small { white-space: normal; }
+.pres .ptbl small.bdesc { white-space: normal; text-align: right; font-size: 11.5px; line-height: 1.2; margin-top: 3px; color: var(--muted); font-weight: 400; overflow-wrap: anywhere; }
 .pres .ptbl small.red { color: var(--red); font-weight: 700; }
 .pres .ptbl small.pm { display: inline; margin-left: 4px; }
 .pres .ptbl small.cov { display: inline-block; margin-top: 4px; padding: 1px 10px; border-radius: 999px; background: var(--wr-soft); color: var(--wr-deep); font-weight: 700; font-size: 12px; }

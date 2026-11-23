@@ -160,16 +160,16 @@
       return head(b, hb(true)) + '<div class="qhead"><button type="button" class="pchip back" data-act="polall">&larr; All policies</button><span class="qinfo">' + esc([it.insurer || 'Policy', it.policyNo, it.product, it.doc ? 'DOC ' + it.doc : ''].filter(Boolean).join('   |   ')) + '</span></div>' + linesTable(it, true, it.ipAge || age) + (it.cmp ? '<div class="qhead"><span class="qinfo">Your change moment pay-out</span></div>' + cmpView(it) : '');
     }
     var ageH = ageText(age), rows = ps0.map(function (e, i) {
-      var it = e.item, tt = calc.totals(it), lines = calc.activeLines(it), has = lines.length, bn = it.benefits || {}, notes = [bn.life, bn.lsd, bn.ip].filter(Boolean).join(' / ');
+      var it = e.item, tt = calc.totals(it), lines = calc.activeLines(it), has = lines.length, bn = it.benefits || {}, bd = function (k) { return bn[k] ? '<small class="bdesc">' + esc(bn[k]) + '</small>' : ''; };
       var w = (lines.filter(function (l) { return l.waiting && l.waiting !== 'N/A'; })[0] || {}).waiting;
-      return '<tr' + (has ? ' data-act="pol" data-i="' + i + '"' : '') + '>' + tickCell('<b>' + esc((it.insurer || 'Policy') + (it.policyNo ? ' ' + it.policyNo : '')) + '</b><small>' + esc([it.product, it.doc ? 'DOC ' + it.doc : '', notes].filter(Boolean).join('  |  ')) + '</small>', !!it.wr) +
-        td(has ? A(tt.life.lump) : A(null), '', 'life') + td(has ? A(tt.sev.lump) : A(null), '', 'sev') + td(has ? A(tt.lsd.lump) : A(null), '', 'lsd') + td(has ? PM(tt.ip.monthly) : A(null), '', 'ip') + td(esc(w || '-')) + td(AC(it), '', 'aci') + td(PC(it.abi), '', 'abi') + td(A(it.premium)) + '</tr>';
+      return '<tr' + (has ? ' data-act="pol" data-i="' + i + '"' : '') + '>' + tickCell('<b>' + esc((it.insurer || 'Policy') + (it.policyNo ? ' ' + it.policyNo : '')) + '</b><small>' + esc([it.product, it.doc ? 'DOC ' + it.doc : ''].filter(Boolean).join('  |  ')) + '</small>', !!it.wr) +
+        td((has ? A(tt.life.lump) : A(null)) + bd('life'), '', 'life') + td((has ? A(tt.sev.lump) : A(null)) + bd('sev'), '', 'sev') + td((has ? A(tt.lsd.lump) : A(null)) + bd('lsd'), '', 'lsd') + td((has ? PM(tt.ip.monthly) : A(null)) + bd('ip'), '', 'ip') + td(esc(w || '-')) + td(AC(it), '', 'aci') + td(PC(it.abi), '', 'abi') + td(A(it.premium)) + '</tr>';
     }).join('');
     var tot = function (label, tt, prem, cls) { return '<tr class="' + cls + '"><td class="l">' + label + '</td>' + td(A(tt.life.lump), '', 'life') + td(A(tt.sev.lump), '', 'sev') + td(A(tt.lsd.lump), '', 'lsd') + td(PM(tt.ip.monthly), '', 'ip') + '<td></td>' + td('', '', 'aci') + td('', '', 'abi') + td(A(prem)) + '</tr>'; };
     if (pt.count.wr) rows += tot('Total: policies where we are the broker', pt.wr, pt.premium.wr, 'prem'); if (pt.count.other) rows += tot('Total: other brokers', pt.other, pt.premium.other, 'prem');
     rows += tot('Grand total (all policies)', pt.all, pt.premium.all, 'tot');
     return head(b, hb(false)) + tools('<span class="phint">Click a policy to see its lines</span>') +
-      tbl([25, 10, 9, 10, 11, 8, 12, 6, 9], th('Policy', '', 'l') + th('Life cover', 'life') + th('Severe illness', 'sev') + th('Lump sum disability' + ageH, 'lsd') + th('Income protector / sickness benefit' + ageH, 'ip') + th('Waiting period') + th('ACI', 'aci') + th('ABI', 'abi') + th('Premium'), rows);
+      tbl([20, 13, 11, 13, 13, 7, 10, 5, 8], th('Policy', '', 'l') + th('Life cover', 'life') + th('Severe illness', 'sev') + th('Lump sum disability' + ageH, 'lsd') + th('Income protector / sickness benefit' + ageH, 'ip') + th('Waiting period') + th('ACI', 'aci') + th('ABI', 'abi') + th('Premium'), rows);
   }
   function groupView(b) {
     var s = state(), items = calc.groupItems(s), pi = calc.personalInvestments(s), gt = calc.groupTotals(s), prem = 0, age = s.header.disabilityAge, risk = items.filter(function (g) { return g.kind === 'risk'; });
@@ -263,10 +263,24 @@
   }
   /* The key-points column is there on a quote or a policy that has the pills, while the switch is on (the library, or the placeholder cards until it is found). */
   function panelOn() { var c = context(), sl = slide(); return ps.tab !== 'map' && ps.keys && !!(c && c.insurer) && !!(sl && sl.querySelector('.pbtn:not([hidden])')); }
+  /* An amount never touches or runs into the next column (totals rows too): where a figure is wider than its cell, its type is made smaller (down to 10px) until it fits. Measured at the slide's own size, before it is scaled. */
+  function fitAmounts(sl) {
+    [].forEach.call(sl.querySelectorAll('.ptbl td'), function (cell) {
+      var nums = [].slice.call(cell.querySelectorAll('.a:not(.aci)')); if (!nums.length) return;
+      nums.forEach(function (n) { n.style.fontSize = ''; });
+      var cs = getComputedStyle(cell), room = cell.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight), fs = parseFloat(getComputedStyle(nums[0]).fontSize) || 17.5;
+      var wide = function (n) {
+        var w = Math.max(n.getBoundingClientRect().width, n.scrollWidth);
+        if (n.classList.contains('pmv') && n.nextElementSibling) w = n.getBoundingClientRect().width + n.nextElementSibling.getBoundingClientRect().width + 4;          // "R25,000" and its "p.m." are one line
+        return w > room + 0.5;
+      };
+      while (fs > 10 && nums.some(wide)) { fs -= 0.5; nums.forEach(function (n) { n.style.fontSize = fs + 'px'; }); }
+    });
+  }
   function fit() {
     var st = $('#pStage'), sl = slide(); if (!st || !sl) return;
     $('#pMain').classList.toggle('haspanel', panelOn());
-    sl.style.transform = 'none'; var h = sl.offsetHeight, sw = st.clientWidth, sh = st.clientHeight, pad = ps.tab === 'map' ? 0 : 10, sc = Math.min(sw / SLIDE_W, (sh - pad) / h, 1.5);
+    sl.style.transform = 'none'; fitAmounts(sl); var h = sl.offsetHeight, sw = st.clientWidth, sh = st.clientHeight, pad = ps.tab === 'map' ? 0 : 10, sc = Math.min(sw / SLIDE_W, (sh - pad) / h, 1.5);
     if (!(sc > 0) || !isFinite(sc)) sc = 1;
     sl.style.transform = 'translate(' + Math.round((sw - SLIDE_W * sc) / 2) + 'px,' + (ps.tab === 'map' ? Math.max(0, Math.round((sh - h * sc) / 2)) : 4) + 'px) scale(' + sc + ')';
   }

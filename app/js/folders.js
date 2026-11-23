@@ -289,6 +289,11 @@
         await files(k.handle, [k.name]);
         var years = (await listDirs(k.handle)).filter(function (y) { return RULES.year.test(norm(y.name)); }).sort(function (a, b) { return b.name < a.name ? -1 : 1; });
         if (years.length) await files(years[0].handle, [k.name, years[0].name]);
+      } else if (/^\d+\.\s*fact find/.test(nk)) {                                                      // the Follow-Up Appointment Summary Notes of the later meetings (never the Fact Find itself, nor the transcripts)
+        var fu = async function (dir, rel) { for await (var e of dir.entries()) if (e[1].kind === 'file' && isDoc(e[0]) && /follow[ _-]?up|summary[ _-]?notes/i.test(e[0])) out.push({ name: e[0], rel: rel, handle: e[1] }); };
+        await fu(k.handle, [k.name]);
+        var fyears = (await listDirs(k.handle)).filter(function (y) { return RULES.year.test(norm(y.name)); });
+        for (var fy = 0; fy < fyears.length; fy++) await fu(fyears[fy].handle, [k.name, fyears[fy].name]);
       } else if (isStandard(k.name) && /quote|goal|rgar|egar|proposal|analysis/.test(nk)) await files(k.handle, [k.name]);          // the quotes (and their change moment pay-out guides), the goal analysis reports and the proposals
       else if (!isStandard(k.name)) {
         var inner = await listDirs(k.handle);

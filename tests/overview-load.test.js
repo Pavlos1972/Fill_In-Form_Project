@@ -71,11 +71,11 @@ test('a line where the Fact Find and the quote agree is checked by the page (gre
   const s = filled(), q = read(s, [HOUSE, { type: 'child', name: 'Amy', sname: 'Client', life: { lump: 1, monthly: 5000 } }, { type: 'debt', debt: 'Home loan', life: { lump: 1200000, monthly: 12000 } },
     { type: 'debt', debt: 'Car loan', life: { lump: 200000, monthly: 3000 } }, { type: 'debt', debt: 'Mahindra XUV 700', life: { lump: 1, monthly: 1 } }]);
   const n = check.autoMatch(s, q), by = (t, d) => q.lines.filter(l => l.type === t && (!d || l.debt === d))[0];
-  assert.strictEqual(n, 2, 'the child and the home loan agree');
+  assert.strictEqual(n, 3, 'the child and the home loan agree with the Fact Find, and the household line is in the quote');
   const kid = by('child'), home = by('debt', 'Home loan');
   assert.ok(kid.st === 'confirmed' && kid.match === 'factfind' && kid.by === 'page' && home.st === 'confirmed' && home.match === 'factfind', 'checked by the page, with the reason: they match');
   assert.strictEqual(by('debt', 'Car loan').st, 'verify', 'the instalment differs: to check'); assert.strictEqual(by('debt', 'Mahindra XUV 700').st, 'verify', 'only in the quote: to check');
-  assert.strictEqual(by('household').st, 'verify', 'a line with no Fact Find counterpart is not ticked by the page');
+  assert.ok(by('household').st === 'confirmed' && by('household').match === 'quote', 'a line the quote gives, with no Fact Find counterpart, is confirmed by the quote (round 2)');
   assert.strictEqual(check.autoMatch(s, q), 0, 'nothing more to tick the second time');
   store.setPath(s, 'blocks.fna.quotes.0.lines.' + q.lines.indexOf(kid) + '.name', 'Amy', 'text');
   assert.ok(kid.st === 'confirmed' && kid.by === 'person' && kid.match === undefined, 'a person\'s typing ends the page\'s automatic check (the tick becomes "checked")');
@@ -133,12 +133,12 @@ test('quotes are read before their pay-out guides in a bulk load; a guide is loo
   assert.ok(/chain\(files\.filter\(function \(f\) \{ return !isGuide\(f\); \}\)/.test(ui) && /chain\(files\.filter\(isGuide\)/.test(ui), 'the guides come after the quotes');
   assert.ok(/function autoGuide\(q, o\)/.test(ui) && /q\.kind === 'comparative' \|\| !\/bright\/i\.test\(q\.insurer/.test(ui) && /No change moment pay-out guide found for CP /.test(ui), 'every BrightRock quote but a comparative one looks for its guide: "No change moment pay-out guide found for CP <n>" when there is none');
   assert.ok(/unmatchedGuides\[num\]/.test(ui) && /matches no quote that is loaded/.test(ui) && /res\.skip = true/.test(ui), 'a guide that matches no quote is listed once');
-  assert.ok(/guideIn\(pool, num\)/.test(ui) && /ingest\(fs, \{ pool: res\.files \}\)/.test(ui), 'the guide is looked for in the files of the client\'s folder that were listed, beside the quote, or in the quotes folder');
+  assert.ok(/guideIn\(pool, num\)/.test(ui) && /ingest\(fs, \{ pool: res\.files, counted: true \}\)/.test(ui), 'the guide is looked for in the files of the client\'s folder that were listed, beside the quote, or in the quotes folder');
   const F = app('js/folders.js'); assert.ok(/quote\|goal\|rgar\|egar\|proposal\|analysis/.test(F), 'the listing of the client\'s folder now includes the quotes, goal and proposals folders (where the guides are)');
 });
 
-test('the contract: revision g, the page version 0.9, the layout still 0.1; new keys are only the line\'s match', () => {
-  assert.strictEqual(schema.pageVersion, '0.9'); assert.strictEqual(schema.version, '0.1');
+test('the contract: revision g, the page version 0.91, the layout still 0.1; new keys are only the line\'s match', () => {
+  assert.strictEqual(schema.pageVersion, '0.91'); assert.strictEqual(schema.version, '0.1');
   const s = filled(), q = read(s, [{ type: 'child', name: 'Amy', sname: 'Client', life: { lump: 1, monthly: 5000 } }]); check.autoMatch(s, q);
   const j = JSON.parse(store.toJSON(s)); assert.strictEqual(j.blocks.fna.quotes[0].lines[0].match, 'factfind');
   assert.ok(/Revision g/.test(fs.readFileSync(path.join(__dirname, '..', 'docs', 'OVERVIEW-DATA-CONTRACT.md'), 'utf8')), 'written in the contract');

@@ -16,7 +16,8 @@
   }
   function hasFigures(x) { return calc.activeLines(x).some(function (l) { return ['life', 'sev', 'lsd', 'ip'].some(function (p) { var c = l[p]; return c && typeof c === 'object' && Object.keys(c).some(function (k) { return isNum(c[k]) && c[k] !== 0; }); }); }); }
 
-  /* opts.ran: the page has looked through a folder or a document, or run its checks, in this visit (the document blocks, FNA and reduced quotes, can only say "nothing found" then). */
+  /* opts.ran: the page has looked through a folder or a document, or run its checks, in this visit (the document blocks, FNA and reduced quotes, can only say "nothing found" then).
+     opts.done (round 2, 23 November): the blocks whose search or check has FINISHED in this visit ({ blockId: true }). A block never says "nothing found" before it is in there: until then the menu shows a neutral waiting state. Left out: every block counts as finished. */
   function run(state, opts) {
     var out = [], tol = (state.settings && state.settings.tolerance) || 1, h = state.header || {}, std = (state.settings && state.settings.standards) || schema.STANDARDS;
     var facts = state.factFind && state.factFind.facts, B = state.blocks;
@@ -128,7 +129,7 @@
      Each note is { text, all }: all = nothing at all is there (red); a half-empty block (group benefits there, no personal investments) has the comment and keeps its own dot. kind 'na': not needed (dashed). */
   function emptyNotes(state, opts) {
     var n = {}, ff = state.factFind && state.factFind.facts, ran = !!(opts && opts.ran), B = state.blocks || {}, asked = (ff && ff.asked) || {};
-    var say = function (id, text, all, kind) { n[id] = { text: text, all: !!all, kind: kind || (all ? 'red' : 'part') }; };
+    var done = opts && opts.done, say = function (id, text, all, kind) { if (done && !done[id]) return; n[id] = { text: text, all: !!all, kind: kind || (all ? 'red' : 'part') }; };
     if (ff && !calc.policies(state).length) say('policies', 'No current policies', true);
     if (ran && !calc.quotes(state, 'fna').length) say('fna', 'No FNA quote found', true);
     if (ff || ran) {
@@ -184,15 +185,21 @@
     });
     return out;
   }
-  /* A line where the Fact Find and the quote agree is checked by the page (Paul, 22 November): a child or a debt line the quote gives that is the same as a row of the Fact Find (name, bank, amounts) and has nothing flagged
-     turns green with a tick, no "to check". Only a line the page itself read (st verify, by page) is touched; a person's typing and every line that is missing, different or only in one of the two stay as they are.
-     Returns how many lines were checked. */
+  /* A line the quote gives is checked by the page (Paul, 22 and 23 November). The quote is the document, so a line that is IN the quote is confirmed (green tick) whether or not the Fact Find has anything like it:
+     household needs, death-related needs, additional expense (dread) and the plain benefit lines (match "quote"). A child or a debt line is held to the Fact Find: where the two agree (name, bank, amounts) it is confirmed
+     (match "factfind"); one that differs, or that is in the quote and not in the Fact Find, shows "to check" with its reason. Only a line the page itself read (st verify, by page) is touched; a person's typing stays.
+     The quote's own row is confirmed too (st only, no key) when nothing at all is flagged for it. Returns how many lines were checked. */
   function autoMatch(state, q) {
-    var res = run(state), n = 0, flagged = {};
+    var res = run(state), n = 0, flagged = {}, where = qLabel(q), block = schema.blockOfQuote[q.kind], hold = 0;
     res.problems.forEach(function (p) { if (p.line) flagged[p.line] = 1; });
     calc.activeLines(q).forEach(function (l) {
-      if ((l.type === 'child' || l.type === 'debt') && res.matched[l.id] && !flagged[l.id] && l.st === 'verify' && l.by === 'page') { l.st = 'confirmed'; l.match = 'factfind'; n++; }
+      if (l.st !== 'verify' || l.by !== 'page') return;
+      if (l.type === 'child' || l.type === 'debt') { if (res.matched[l.id] && !flagged[l.id]) { l.st = 'confirmed'; l.match = 'factfind'; n++; } }
+      else if (!flagged[l.id]) { l.st = 'confirmed'; l.match = 'quote'; n++; }
     });
+    res = run(state);
+    hold = res.problems.filter(function (p) { return p.block === block && p.where === where; }).length;
+    if (!hold && q.st === 'verify' && q.by === 'page' && calc.activeLines(q).length && !calc.activeLines(q).some(function (l) { return l.st === 'verify' || l.st === 'ff'; })) { q.st = 'confirmed'; }
     return n;
   }
   function byBlock(problems) { var m = {}; problems.forEach(function (p) { (m[p.block || '_'] = m[p.block || '_'] || []).push(p); }); return m; }

@@ -185,7 +185,8 @@
       answers: { hasRisk: f('has_risk'), hasGroup: f('has_group'), hasRa: f('has_ra'), hasPp: f('has_pp'), hasInv: f('has_inv'), raqReqs: rows('raq').map(function (d) { return str(d.req); }).filter(Boolean), refSti: f('ref_sti') },     // what the Fact Find answered, for the Presentation's sentences (never guessed: an empty answer says so)
       other: { ma: { value: f('ma'), provider: f('ma_prov'), plan: f('ma_plan'), broker: f('ma_broker') }, gap: { value: f('gap'), provider: f('gap_prov'), broker: f('gap_broker') },
         will: { value: f('will'), where: f('will_where') === 'Other' ? f('will_where_other') : f('will_where'), up: f('will_up'), broker: f('will_broker'), date: f('will_date') },
-        shortterm: { value: f('sti'), broker: f('sti_broker'), personal: money(f('sti_personal')) } }
+        shortterm: { value: f('sti'), broker: f('sti_broker'), personal: money(f('sti_personal')) } },
+      otherDetail: { ma: { note: f('n_ma') }, gap: { note: f('n_gap') }, will: { note: f('n_will'), ref: f('ref_will') }, shortterm: { note: f('n_sti'), car: f('sti_car'), house: f('sti_house'), struct: f('sti_struct'), biz: f('sti_biz'), bizSpend: money(f('sti_biz_spend')), ref: f('ref_sti') } }          // round 2: what the Fact Find's notes and answers say about each cover of block 11
     };
   }
   /* The facts as a flat list of "where = value", so two readings of the Fact Find can be compared. */
@@ -200,7 +201,7 @@
   }
   /* How many items of the Fact Find differ between two readings of it. */
   function diffFacts(a, b) {
-    ['asked', 'answers'].forEach(function (k) {                                                                  // a key an older reading did not have is not a change in the Fact Find
+    ['asked', 'answers', 'otherDetail'].forEach(function (k) {                                                   // a key an older reading did not have is not a change in the Fact Find
       var oldHad = a && a[k] !== undefined, newHad = b && b[k] !== undefined;
       if (oldHad !== newHad) { a = Object.assign({}, a); b = Object.assign({}, b); delete a[k]; delete b[k]; }
     });
@@ -214,6 +215,7 @@
     return Object.keys(items).length;
   }
   var isWR = function (broker) { return broker === 'Paul K'; };
+  var dm = function (v) { var m = /^(\d{1,2})\/(\d{1,2})\/\d{2,4}$/.exec(String(v || '')); return m ? ('0' + m[1]).slice(-2) + '/' + ('0' + m[2]).slice(-2) : String(v || ''); };          // dd/mm/yyyy as dd/mm, for the source tag of a note
   function ffSrc(name) { return { kind: 'factfind', file: name || '', page: null, date: schema.todayDMY() }; }
   function findByKey(list, key) { var hit = null; (list || []).forEach(function (i) { if (i.ffKey === key) hit = i; }); return hit; }
   function present(v) { return v != null && v !== ''; }
@@ -269,17 +271,43 @@
       if (!it) { B.goals.items.push({ id: 'goal-' + x[0], kind: x[0], requested: x[1], note: note, currentValuePm: null, futureValuePm: null, aci: null, premium: null, st: 'ff', src: src, by: 'page', removed: false }); rep.added++; }
       else if (it.st === 'ff' || it.st === 'empty') { if (it.requested !== x[1]) { it.requested = x[1]; it.note = note; it.st = 'ff'; it.src = src; rep.updated++; } }
     });
+    var od = facts.otherDetail || {}, ffDate = facts.header && facts.header.date, ffTag = ' (Fact Find' + (ffDate ? ' ' + dm(ffDate) : '') + ')';
+    var join = function (parts) { return parts.filter(Boolean).join('; '); }, yes = function (v) { return v === 'Yes'; };
+    /* What the Fact Find asked and answered for each cover of block 11, in the item's own boxes (company, product, broker, premium) and in the note (the answers and the Fact Find's own notes, ending with where it came from). */
+    function pickOf(key) {
+      var o = facts.other, ma = o.ma, gap = o.gap, wl = o.will, st = o.shortterm, mad = od.ma || {}, gapd = od.gap || {}, wd = od.will || {}, sd = od.shortterm || {}, text = '', pick;
+      if (key === 'medical') {
+        text = join([ma.value === 'None' ? 'No medical aid' : ma.value, ma.value && ma.value !== 'None' && ma.broker ? 'broker ' + ma.broker : '', mad.note]);
+        pick = { company: ma.provider, product: ma.plan, wr: isWR(ma.broker), note: text };
+      } else if (key === 'gap') {
+        text = join([gap.value ? 'Gap cover: ' + gap.value : (ma.value === 'None' ? 'No medical aid, so no gap cover' : ''), gap.value && gap.value !== 'No' && gap.broker ? 'broker ' + gap.broker : '', gapd.note]);
+        pick = { company: gap.provider, wr: isWR(gap.broker), note: text };
+      } else if (key === 'will') {
+        var has = wl.value === 'Yes' ? (wl.up === 'Yes' ? 'Has a will, up to date' : wl.up === 'No' ? 'Has a will, not up to date' : 'Has a will') : wl.value === 'No' ? 'No will' : wl.value;
+        text = join([has, wl.date ? 'last updated ' + wl.date : '', wl.where ? 'held with ' + wl.where : '', wl.value === 'Yes' && wl.broker ? 'broker ' + wl.broker : '', wd.note]);
+        pick = { company: wl.where, wr: isWR(wl.broker), note: text };
+      } else if (key === 'legacy') {
+        var cap = /capital legacy/i.test(wl.where || '') || /capital legacy/i.test(wd.ref || '');
+        text = join([wd.ref]);
+        pick = cap || text ? { company: cap ? 'Capital Legacy' : '', note: text } : {};
+      } else if (key === 'shortterm') {
+        var covers = [yes(sd.car) ? 'car' : '', yes(sd.house) ? 'household contents' : '', yes(sd.struct) ? 'structural' : '', yes(sd.biz) ? 'business' : ''].filter(Boolean);
+        text = join([st.value === 'Yes' ? 'Has short-term insurance' : st.value === 'No' ? 'No short-term insurance' : st.value, st.value === 'Yes' && st.broker ? 'broker ' + st.broker : '', covers.length ? 'covers ' + covers.join(', ') : '',
+          calc.isNum(sd.bizSpend) ? 'business spend ' + calc.fmtR(sd.bizSpend) : '', sd.note, sd.ref]);
+        pick = { company: '', wr: false, note: text, premium: st.personal };
+      } else pick = {};
+      if (pick.note) pick.note += ffTag; else delete pick.note;
+      return pick;
+    }
     B.other.items.forEach(function (it) {
-      if (it.st !== 'ff' && it.st !== 'empty') return;
-      var o = facts.other, prev = JSON.stringify(it), pick = {
-        medical: { company: o.ma.provider, wr: isWR(o.ma.broker), note: [o.ma.value, o.ma.plan].filter(Boolean).join(': ') },
-        gap: { company: o.gap.provider, wr: isWR(o.gap.broker), note: o.gap.value },
-        will: { company: o.will.where, wr: isWR(o.will.broker), note: [o.will.value === 'Yes' ? (o.will.up === 'Yes' ? 'Will up to date' : 'Has a will') : o.will.value, o.will.date ? 'last updated ' + o.will.date : ''].filter(Boolean).join(', ') },
-        legacy: {},
-        shortterm: { company: '', wr: false, note: [o.shortterm.value, o.shortterm.broker].filter(Boolean).join(': '), premium: o.shortterm.personal }
-      }[it.key] || {};
+      var pick = pickOf(it.key);
+      if (it.st !== 'ff' && it.st !== 'empty') {                                                               // a later update (the Summary Notes) was added: the Fact Find's part stays in front of it
+        if (it.src && it.src.kind === 'followup' && pick.note && !/\(Fact Find/.test(it.note || '')) it.note = pick.note + ' · ' + (it.note || '');
+        return;
+      }
+      var prev = JSON.stringify(it);
       Object.keys(pick).forEach(function (k) { if (pick[k] != null && pick[k] !== '') it[k] = pick[k]; });
-      if (JSON.stringify(it) !== prev || it.st === 'empty') { var had = Object.keys(pick).some(function (k) { return pick[k] != null && pick[k] !== ''; }); if (had) { it.st = 'ff'; it.src = src; it.by = 'page'; rep.updated++; } }
+      if (JSON.stringify(it) !== prev || it.st === 'empty') { var had = Object.keys(pick).some(function (k) { return pick[k] != null && pick[k] !== '' && !(k === 'wr' && pick[k] === false); }); if (had) { it.st = 'ff'; it.src = src; it.by = 'page'; rep.updated++; } }
     });
     return rep;
   }

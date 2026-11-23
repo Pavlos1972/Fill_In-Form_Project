@@ -161,7 +161,7 @@ dialog#restoreDraft .grow { flex: 1; }
 .ovt.lines.qlines .c-need { width: 15%; } .ovt.lines.qlines .c-term { width: 11%; } .ovt.lines.qlines .c-life { width: 13%; } .ovt.lines.qlines .c-sev { width: 9%; } .ovt.lines.qlines .c-lsd { width: 13%; }
 .ovt.lines.qlines .c-ip { width: 12%; } .ovt.lines.qlines .c-wait { width: 8%; } .ovt.lines.qlines .c-aci { width: 10%; } .ovt.lines.qlines .c-abi { width: 9%; }
 .ovt.lines:not(.qlines) .c-aci { width: 9%; } .ovt.lines:not(.qlines) .c-need { width: 15%; } .ovt.lines:not(.qlines) .c-term { width: 12%; }
-.ovt.pols .p-name { width: 21%; } .ovt.pols .p-aci { width: 11%; }
+.ovt.pols .p-name { width: 18%; } .ovt.pols .p-aci { width: 9%; } .ovt.pols .p-w { width: 8%; } .ovt.pols .p-s { width: 5%; }                    /* round 2: more room for the money columns */
 .ovt.prop .q-type { width: 18%; } .ovt.prop .q-prov { width: 21%; } .ovt.prop .q-contrib { width: 14%; }
 
 /* the Checks panel: one line for each document read */
@@ -216,6 +216,11 @@ dialog#resultsDlg .docsess { max-height: 60vh; overflow: auto; }
 .nav .prog.checking i { background: var(--brand); }
 .nav .prog.checked i { background: var(--ok); }
 .nav .prog.checked em { color: #fff; font-weight: 600; }
+.nav .prog.waiting { background: #eef1f3; }                                                     /* neutral: the search of the client folder has not started for this block (round 2) */
+.nav .prog.waiting em { color: var(--muted); font-style: italic; }
+.nav .prog.searching i { background: #9db8c8; }
+.nav .prog.searching em { color: var(--ink); font-style: italic; }
+.loadlog > div { margin: 3px 0; font-size: 12.5px; }
 
 /* Studio 0.9: every table of the entry screen has rounded corners like the Presentation's (16px); the wrapper clips the table and carries the outer line */
 .ovw { border: 1px solid var(--line); border-radius: 16px; overflow: hidden; background: var(--surface); margin: 0; }

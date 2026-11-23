@@ -65,10 +65,10 @@ const POLICY = { insurer: 'Other Insurer', product: 'Test Protector', policyNo: 
   s = await st(); const q2 = s.blocks.fna.quotes[1];
   const api = await p.evaluate(() => window.__api);
   ok(api.length === 1 && api[0].key === 'sk-test-key' && api[0].type === 'document' && Buffer.from(api[0].data, 'base64').toString() === '%PDF-1.4 the quote' && /insurance quote/.test(api[0].prompt), '3. the document went to Anthropic as itself (base64) with the key and the quote instructions');
-  ok(q2 && q2.number === '100000020' && q2.lines.length === 5 && q2.lines.every(l => (l.st === 'verify' || (l.st === 'confirmed' && l.match === 'factfind')) && l.by === 'page' && l.src.file.startsWith('BR FNA - 100000020')) && q2.st === 'verify', '3. read into a new quote: five lines, amber (or checked by the page where the Fact Find agrees), each with its file');
+  ok(q2 && q2.number === '100000020' && q2.lines.length === 5 && q2.lines.every(l => (l.st === 'verify' || (l.st === 'confirmed' && (l.match === 'factfind' || l.match === 'quote'))) && l.by === 'page' && l.src.file.startsWith('BR FNA - 100000020')) && (q2.st === 'verify' || q2.st === 'confirmed'), '3. read into a new quote: five lines, amber (or checked by the page where the Fact Find agrees), each with its file');
   ok(await p.evaluate(() => /R3,100,000/.test(document.querySelectorAll('[data-comp^="qtot"]')[1].innerText.replace(/\s+/g, '')) || /R3,100,000/.test(document.body.innerText.replace(/\s+/g, ''))), '3. the totals follow the figures that were read');
   ok(await p.evaluate(() => document.querySelectorAll('.qcard').length) === 2 && /to check/.test(await p.evaluate(() => document.querySelectorAll('.qcard')[1].innerText)), '3. the new quote shows "to check"');
-  ok(!(await st()).blocks.fna.quotes[1].lines.some(l => l.st === 'confirmed' && l.match !== 'factfind'), '3. nothing read is marked as checked by anyone but the page\'s own match with the Fact Find');
+  ok(!(await st()).blocks.fna.quotes[1].lines.some(l => l.st === 'confirmed' && l.match !== 'factfind' && l.match !== 'quote'), '3. nothing read is marked as checked by anyone but the page itself (it matches the Fact Find, or it is in the quote)');
   await p.screenshot({ path: out + '/overview-docs-read.png', fullPage: true });
 
   /* ---- 4. failures are told in plain words, and the document is still recorded ---- */
