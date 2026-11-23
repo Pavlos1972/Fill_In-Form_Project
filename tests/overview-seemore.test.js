@@ -143,8 +143,8 @@ test('the monthly figure under a BrightRock lump sum says what it is: "Income po
   ['js/ov-ui.js', 'js/ov-pdf.js', 'js/ov-present.js'].forEach(f => assert.ok(!/'Income portion'/.test(app(f)), f + ' takes the label from the schema'));
 });
 
-test('the page version is 0.8 and the saved file\'s layout is still 0.1 (revisions f and g add keys, remove none)', () => {
-  assert.strictEqual(schema.pageVersion, '0.8'); assert.strictEqual(schema.version, '0.1');
+test('the page version is 0.9 and the saved file\'s layout is still 0.1 (revisions f and g add keys, remove none)', () => {
+  assert.strictEqual(schema.pageVersion, '0.9'); assert.strictEqual(schema.version, '0.1');
   const s = store.blank(); store.fillFromFactFind(s, ff(), 'ff.json'); const j = JSON.parse(store.toJSON(s));
   assert.ok('asked' in j.factFind.facts, 'factFind.facts.asked'); assert.ok('aciText' in j.blocks.fna.quotes.concat([store.newQuote(s, 'fna')])[0] || true);
   const q = store.newQuote(s, 'fna'); assert.ok('aciText' in q);

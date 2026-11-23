@@ -5,7 +5,7 @@
   else { root.OV = root.OV || {}; root.OV.schema = factory(); }
 })(typeof self !== 'undefined' ? self : this, function () {
   /* VERSION is the layout of the saved file (docs/OVERVIEW-DATA-CONTRACT.md): the filling skill stops on one it does not know. PAGE_VERSION is the page's own version, which changes with every stage. */
-  var VERSION = '0.1', PAGE_VERSION = '0.8', APP_ID = 'wr-overview';
+  var VERSION = '0.1', PAGE_VERSION = '0.9', APP_ID = 'wr-overview';
 
   /* The four pillars, in the order of the columns. life and lsd have a lump sum and a monthly figure; sev only a lump sum; ip only a monthly figure. */
   var PILLARS = [
