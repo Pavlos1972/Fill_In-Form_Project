@@ -128,6 +128,21 @@
     var diff = isNum(before) && isNum(after) ? r2(after - before) : null;
     return { before: before, after: after, diff: diff, pct: isNum(diff) && before > 0 ? Math.round(diff / before * 10000) / 100 : null, prev: prev };
   }
+  /* The letter's premiums and the premiums of the quotes on either side of it are the same figures a cent apart (rounding): the LETTER's figures win, so a card never prints two premiums. For every counter offer: the quote before it
+     takes the letter's original premium and the counter offer quote takes the letter's revised premium, when each differs by 5 cents or less. A larger difference is left as it is and the check counter.premium says so. Runs when a
+     document is read and when a file opens (settleAll), so a file the skill built or one saved by 1.2 opens with one figure too. Returns how many premiums it changed. */
+  function alignPremiums(state) {
+    var n = 0, near = function (a, b) { return isNum(a) && isNum(b) && a !== b && Math.abs(a - b) <= 0.05; };
+    mainQuotes(state).forEach(function (root) {
+      var chain = [root].concat(counterOffers(state, root));
+      for (var i = 1; i < chain.length; i++) {
+        var c = chain[i], p = chain[i - 1], off = c.offer || {};
+        if (near(p.premium, off.origPremium)) { p.premium = off.origPremium; n++; }
+        if (near(c.premium, off.revPremium)) { c.premium = off.revPremium; n++; }
+      }
+    });
+    return n;
+  }
   /* The red references a quote's terms put on the pillar columns: [{ kind, text, need, pillars }]. A loading belongs to a need group and a column group (BrightRock's letter), or to a benefit a person typed; an exclusion is
      numbered as the insurer numbers it and lists the cells it applies to. Derived: nothing is stored per line. */
   function pctText(p) { return (Math.round(p * 100) / 100) + '%'; }
@@ -365,7 +380,7 @@
   var PAGE_WHY = { shortfallQuote: 'Left out: there is no group risk, or no shortfall quote was asked for.', comparative: 'Left out: no comparative quote was asked for in the Fact Find.', proposed: 'Left out: there are no proposed investments.', goals: 'Left out: no goal analysis report was asked for.' };
   function pageWhy(id) { return PAGE_WHY[id] || ''; }
 
-  return { ownNumberOut: ownNumberOut, settleQuote: settleQuote, parentOf: parentOf, isCounter: isCounter, mainQuotes: mainQuotes, counterOffers: counterOffers, liveCounter: liveCounter, effectiveQuote: effectiveQuote, counterDead: counterDead, chainIds: chainIds, chainIssued: chainIssued, canCounter: canCounter, counterPremium: counterPremium, termRefs: termRefs, termBenefit: termBenefit, refsAt: refsAt, refsTotal: refsTotal, termsToCheck: termsToCheck, uwOf: uwOf, declined: declined, accepted: accepted, dead: dead, issued: issued, statusText: statusText, statusClass: statusClass, acceptedQuotes: acceptedQuotes, acceptanceConflicts: acceptanceConflicts, replOf: replOf, quoteRef: quoteRef, policyRef: policyRef, replaceable: replaceable, replacementInfo: replacementInfo, policyNote: policyNote, settleLine: settleLine, aciPoints: aciPoints, sameDebtName: sameDebtName, isNum: isNum, r2: r2, norm: norm, fmtR: fmtR, fmtPct: fmtPct, fmtAci: fmtAci, matchChildren: matchChildren, matchDebts: matchDebts, pageShown: pageShown, pageWhy: pageWhy, fmtDiff: fmtDiff, show: show, lineVal: lineVal, active: active, activeLines: activeLines, totals: totals, sumLines: sumLines,
+  return { alignPremiums: alignPremiums, ownNumberOut: ownNumberOut, settleQuote: settleQuote, parentOf: parentOf, isCounter: isCounter, mainQuotes: mainQuotes, counterOffers: counterOffers, liveCounter: liveCounter, effectiveQuote: effectiveQuote, counterDead: counterDead, chainIds: chainIds, chainIssued: chainIssued, canCounter: canCounter, counterPremium: counterPremium, termRefs: termRefs, termBenefit: termBenefit, refsAt: refsAt, refsTotal: refsTotal, termsToCheck: termsToCheck, uwOf: uwOf, declined: declined, accepted: accepted, dead: dead, issued: issued, statusText: statusText, statusClass: statusClass, acceptedQuotes: acceptedQuotes, acceptanceConflicts: acceptanceConflicts, replOf: replOf, quoteRef: quoteRef, policyRef: policyRef, replaceable: replaceable, replacementInfo: replacementInfo, policyNote: policyNote, settleLine: settleLine, aciPoints: aciPoints, sameDebtName: sameDebtName, isNum: isNum, r2: r2, norm: norm, fmtR: fmtR, fmtPct: fmtPct, fmtAci: fmtAci, matchChildren: matchChildren, matchDebts: matchDebts, pageShown: pageShown, pageWhy: pageWhy, fmtDiff: fmtDiff, show: show, lineVal: lineVal, active: active, activeLines: activeLines, totals: totals, sumLines: sumLines,
     quotes: quotes, allQuotes: allQuotes, policies: policies, policyTotals: policyTotals, groupItems: groupItems, hasGroupRisk: hasGroupRisk, groupTotals: groupTotals, investments: investments,
     personalInvestments: personalInvestments, shortfall: shortfall, compare: compare, pillars: pillarOfBlock };
 });

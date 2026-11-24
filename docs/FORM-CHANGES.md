@@ -20,7 +20,7 @@ The version is `version` in `app/js/schema.js` (the Fact Find), `app/js/sr-schem
 ## Client Overview Studio 1.3: 24 November 2026, the real-letter findings (the Overview's layout stays "0.1", contract revision n unchanged; the three forms keep their numbers; no key added)
 
 - **Reading (BrightRock only, safety nets):** the private glyphs U+E000 and U+E001 are read as *ti*; an exclusion's own number (with its asterisk) is taken out of its wording; the letter's prompt and the quote's prompt say what is read from where. **The letter is the only source of loadings and exclusion numbers.**
-- **Premium:** the premium before and after a counter offer is the letter's (`offer.origPremium`, `offer.revPremium`); the counter offer quote's premium is made the letter's figure when they differ by 5 cents or less; a larger difference raises the check `counter.premium`.
+- **Premium:** the premium before and after a counter offer is the letter's (`offer.origPremium`, `offer.revPremium`); the premium of the quote before the letter and the counter offer quote's premium are made the letter's figures when each differs by 5 cents or less (when a document is read and when a file opens); a larger difference raises the check `counter.premium`.
 - **Display:** the need group decides the benefit and the pillar of a term row (needs + recover from = Income protector; additional expense + recover from = Severe illness; an exclusion on every column = All benefits); the label is derived at draw time, so a file saved by 1.2 opens with the new labels.
 
 ## Client Overview Studio 1.2: 24 November 2026, counter offers (the Overview's layout stays "0.1", contract revision n; the three forms keep their numbers; display, reading and saved keys of the Overview only)

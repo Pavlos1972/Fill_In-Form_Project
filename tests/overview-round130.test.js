@@ -40,9 +40,9 @@ test('(e) the table is keyed by need group and column group: needs + recover = i
   assert.deepStrictEqual(c(undefined, 'recover'), { pillars: ['sev', 'ip'], benefit: 'Severe illness and income protector' }); assert.deepStrictEqual(c('nonsense', 'recover').pillars, ['sev', 'ip']);
   assert.strictEqual(c('needs', 'nonsense'), null); assert.strictEqual(c('constructor', 'recover').benefit, 'Severe illness and income protector', 'a name from the prototype is no need group');
   assert.strictEqual(schema.cellsBenefit([{ need: 'needs', column: 'recover' }]), 'Income protector');
-  assert.strictEqual(schema.cellsBenefit([{ need: 'dread', column: 'recover' }, { need: 'needs', column: 'recover' }]), 'Severe illness and Income protector', 'in the order of the columns on the page');
+  assert.strictEqual(schema.cellsBenefit([{ need: 'dread', column: 'recover' }, { need: 'needs', column: 'recover' }]), 'Severe illness and income protector', 'in the order of the columns on the page');
   assert.strictEqual(schema.cellsBenefit([{ need: 'needs', column: 'recover' }, { need: 'needs', column: 'permanent' }, { need: 'needs', column: 'death' }, { need: 'dread', column: 'recover' }]), 'All benefits', 'an exclusion on every column is on all benefits, not a four-part list');
-  assert.strictEqual(schema.cellsBenefit([{ need: 'needs', column: 'death' }, { need: 'needs', column: 'permanent' }, { need: 'needs', column: 'recover' }]), 'Life cover, Lump sum disability and Income protector');
+  assert.strictEqual(schema.cellsBenefit([{ need: 'needs', column: 'death' }, { need: 'needs', column: 'permanent' }, { need: 'needs', column: 'recover' }]), 'Life cover, lump sum disability and income protector');
   assert.strictEqual(schema.cellsBenefit([]), ''); assert.strictEqual(schema.cellsBenefit([{ need: 'needs', column: 'nonsense' }]), '');
 });
 
@@ -51,7 +51,7 @@ test('(e) a file saved by 1.2 (the old combined label stored on the rows) opens 
   c.terms.loadings.forEach(l => { l.benefit = 'Severe illness and income protector'; }); c.terms.exclusions[0].benefit = 'Severe illness and income protector';          // what 1.2 stored
   const o = store.fromJSON(store.toJSON(s)), oc = o.blocks.fna.quotes[1];
   assert.deepStrictEqual(oc.terms.loadings.map(l => calc.termBenefit(l)), ['Income protector', 'Lump sum disability', 'Severe illness']);
-  assert.strictEqual(calc.termBenefit(oc.terms.exclusions[0]), 'Severe illness and Income protector');
+  assert.strictEqual(calc.termBenefit(oc.terms.exclusions[0]), 'Severe illness and income protector');
   const txt = (t, p) => calc.refsAt(oc, t, p).map(r => r.text);
   assert.deepStrictEqual(txt('household', 'ip'), ['+9% loading', 'Exclusion 4*']); assert.deepStrictEqual(txt('household', 'sev'), []); assert.deepStrictEqual(txt('dread', 'sev'), ['+9% loading', 'Exclusion 4*']); assert.deepStrictEqual(txt('dread', 'ip'), []);
   assert.strictEqual(calc.termBenefit({ column: 'recover', benefit: 'x' }), 'Severe illness and income protector', 'no need group: the combined reading');
@@ -79,6 +79,23 @@ test('(d) the letter is the source of the before and after premium; a cent apart
   // the letter prints no premium: the quotes fill in
   const s2 = fresh(), q2 = accepted(s2, quote(s2, '400500600')), c2 = docs.applyCounterLetter(s2, q2, mkLetter({ origPremium: undefined, revPremium: undefined }), 'letter.pdf').quote; c2.premium = 5300;
   assert.deepStrictEqual([calc.counterPremium(s2, c2).before, calc.counterPremium(s2, c2).after], [5000, 5300]);
+});
+
+test('(d) a file the skill built or one saved by 1.2 opens with ONE premium too (settleAll): the quote before the letter and the counter offer quote both take the letter\u2019s figure when a cent apart; a real difference is left and said, on either side', () => {
+  const s = fresh(), q = accepted(s, quote(s, '400500600')), c = docs.applyCounterLetter(s, q, mkLetter(), 'letter.pdf').quote;
+  q.premium = 4999.99; c.premium = 5420.01;                                                                  // what a 1.2 file or the skill\u2019s file can hold: each quote\u2019s own figure, a cent off the letter
+  const o = store.fromJSON(store.toJSON(s)); assert.ok(check.settleAll(o) >= 2, 'settleAll puts both right');
+  const oq = o.blocks.fna.quotes[0], oc = o.blocks.fna.quotes[1];
+  assert.deepStrictEqual([oq.premium, oc.premium], [5000, 5420], 'the original\u2019s bar and the counter offer\u2019s bar show the letter\u2019s figures');
+  const p = calc.counterPremium(o, oc); assert.deepStrictEqual([p.before, p.after, p.diff], [5000, 5420, 420]);
+  assert.ok(!problems(o).some(x => x.id === 'counter.premium'), 'a cent is not a problem'); assert.strictEqual(check.settleAll(o) >= 0 && calc.alignPremiums(o), 0, 'and it is done once');
+  // a real difference on the BEFORE side: left alone, said, the letter\u2019s figure is the one shown as the premium before
+  const s2 = fresh(), q2 = accepted(s2, quote(s2, '400500600')), c2 = docs.applyCounterLetter(s2, q2, mkLetter(), 'letter.pdf').quote; q2.premium = 5100; check.settleAll(s2);
+  assert.strictEqual(q2.premium, 5100); assert.strictEqual(calc.counterPremium(s2, c2).before, 5000);
+  const pr = problems(s2).filter(x => x.id === 'counter.premium'); assert.strictEqual(pr.length, 1); assert.ok(/original premium/.test(pr[0].message) && /5[ ,\u00a0]?000/.test(pr[0].message) && /5[ ,\u00a0]?100/.test(pr[0].message), pr[0].message);
+  // the premium before of a SECOND counter offer is the first counter offer\u2019s: aligned the same way
+  const s3 = fresh(), q3 = accepted(s3, quote(s3, '400500600')), c3 = docs.applyCounterLetter(s3, q3, mkLetter(), 'l1.pdf').quote, d3 = docs.applyCounterLetter(s3, q3, mkLetter({ revisedNumber: '400500888', origPremium: 5420, revPremium: 5600 }), 'l2.pdf').quote;
+  c3.premium = 5420.01; d3.premium = 5600.02; check.settleAll(s3); assert.deepStrictEqual([c3.premium, d3.premium], [5420, 5600]); assert.deepStrictEqual([calc.counterPremium(s3, d3).before, calc.counterPremium(s3, d3).after], [5420, 5600]);
 });
 
 test('(c) the letter is the ONLY source of loadings and exclusion numbers: reading the revised proposal, before or after the letter, never adds, changes or removes a term row, whatever the proposal’s own grid says', () => {

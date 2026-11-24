@@ -236,12 +236,12 @@
     if (same) {
       if (!read && quoteRead(same)) return { quote: same, read: false, duplicate: same, merged: 'kept' };   // only a name and a number: what was read is never replaced by it
       var keep = { id: same.id, status: same.status, uw: same.uw, second: same.second, counterOf: same.counterOf, offer: same.offer, terms: same.terms, repl: same.repl, policyNo: same.policyNo, startDate: same.startDate, cmp: same.cmp, replaces: same.replaces, replacedBy: same.replacedBy };          // the adviser's choices (status, underwriting, terms, replacements) are never lost to a second reading
-      Object.keys(same).forEach(function (k) { delete same[k]; }); Object.assign(same, q, keep); alignPremium(same);
+      Object.keys(same).forEach(function (k) { delete same[k]; }); Object.assign(same, q, keep); calc.alignPremiums(state);
       return { quote: same, read: read, duplicate: same, merged: 'again' };
     }
     var dup = findQuoteByNumber(state, q.number);                                                           // a quote with this number (not removed) is already there: the caller says so
     var arr = state.blocks[schema.blockOfQuote[kind]].quotes; if (place && arr.indexOf(place) >= 0) arr.splice(arr.indexOf(place) + 1, 0, q); else arr.push(q);          // a replaced counter offer keeps its place: replacing the older one never makes the replacement the live one
-    alignPremium(q);
+    calc.alignPremiums(state);
     return { quote: q, read: read, duplicate: dup || null };
   }
   /* A policy schedule fills the details of one item of block 1. Returns the item, or null when none matches (the schedule is for a policy that is not in the Fact Find). */
@@ -524,13 +524,6 @@
     if (v && typeof v === 'object') { Object.keys(v).forEach(function (k) { v[k] = glyphs(v[k]); }); return v; }
     return v;
   }
-  /* The letter's revised premium and the counter offer quote's premium are the same figure a cent apart (rounding): the letter's wins, so a card never prints two premiums. A real difference is left alone and checked (ov-check). */
-  function alignPremium(c) {
-    var off = c && c.offer; if (!off || !calc.isNum(c.premium) || !calc.isNum(off.revPremium)) return;
-    if (c.premium !== off.revPremium && Math.abs(c.premium - off.revPremium) <= 0.05) c.premium = off.revPremium;
-  }
-  /* What a file in a client's counter offer folder is, from its name: letter (the counter offer letter), quote (the revised proposal), consent (ignore), signed (the client's signed copy: a sign the client accepted), other. numbers: the 6 to 12 digit
-     numbers in the name, in order (BrightRock's letter names the original and the revised proposal, its quote only the revised one). */
   function counterRole(fileName) {
     var raw = String(fileName == null ? '' : fileName), low = raw.replace(/\.[A-Za-z0-9]{2,5}$/, '').toLowerCase(), numbers = (raw.match(/\d{6,12}/g) || []);
     var role = /consent to release|confidential information/.test(low) ? 'consent' : /(^|[ _\-(])signed\s*\)?$/.test(low) ? 'signed' : /cover terms|counter[ _-]?offer|offer letter|terms letter|underwriting terms/.test(low) ? 'letter' : /cover proposal|proposal|quote/.test(low) ? 'quote' : 'other';
@@ -577,7 +570,7 @@
       else if (hv.st === 'verify' && hv.by !== 'person') { var was = JSON.stringify([hv.applies, hv.benefit, hv.page]); hv.applies = applies; hv.benefit = row.benefit; hv.page = row.page; hv.src = row.src; if (row.what && hv.by !== 'person') hv.what = row.what; if (JSON.stringify([hv.applies, hv.benefit, hv.page]) !== was) made.updated++; }          // an amber row nobody has typed in takes the cleaned wording (a row of an earlier reading had the number in it); what a person typed stays
     });
     c.st = c.st === 'empty' ? 'verify' : c.st; c.by = 'page'; if (!c.src) c.src = src(null);
-    alignPremium(c);
+    calc.alignPremiums(state);
     return { quote: c, loadings: made.loadings, exclusions: made.exclusions, updated: made.updated };
   }
   /* What was read has nothing in it (a document that is not the kind said, a scan that could not be read): the caller says so and only records the document. */
@@ -597,6 +590,6 @@
     return !Object.keys(data).some(function (k) { return has(data[k]) && typeof data[k] !== 'object'; }) && !Object.keys(data).some(function (k) { var v = data[k]; return v && typeof v === 'object' && Object.keys(v).some(function (j) { return has(v[j]); }); });
   }
 
-  return { glyphs: glyphs, alignPremium: alignPremium, classify: classify, promptFor: promptFor, parseReply: parseReply, readWithClaude: readWithClaude, applyQuote: applyQuote, counterRole: counterRole, applyCounterLetter: applyCounterLetter, enrich: enrich, factNote: factNote, applyPolicy: applyPolicy, applyOther: applyOther, applyFollowUp: applyFollowUp, dm: dm, factNotesText: factNotesText, applyNotesRead: applyNotesRead, emailText: emailText, msgText: msgText, applyBrEmail: applyBrEmail, setAstuteDate: setAstuteDate, brightQuotes: brightQuotes, applyGroup: applyGroup, applyInvestment: applyInvestment, applyAstute: applyAstute, applyAstutePolicies: applyAstutePolicies, applyAstuteGroup: applyAstuteGroup, astuteSrc: astuteSrc, applyProposed: applyProposed, applyGoal: applyGoal, isEmptyRead: isEmptyRead,
+  return { glyphs: glyphs, classify: classify, promptFor: promptFor, parseReply: parseReply, readWithClaude: readWithClaude, applyQuote: applyQuote, counterRole: counterRole, applyCounterLetter: applyCounterLetter, enrich: enrich, factNote: factNote, applyPolicy: applyPolicy, applyOther: applyOther, applyFollowUp: applyFollowUp, dm: dm, factNotesText: factNotesText, applyNotesRead: applyNotesRead, emailText: emailText, msgText: msgText, applyBrEmail: applyBrEmail, setAstuteDate: setAstuteDate, brightQuotes: brightQuotes, applyGroup: applyGroup, applyInvestment: applyInvestment, applyAstute: applyAstute, applyAstutePolicies: applyAstutePolicies, applyAstuteGroup: applyAstuteGroup, astuteSrc: astuteSrc, applyProposed: applyProposed, applyGoal: applyGoal, isEmptyRead: isEmptyRead,
     applyCmp: applyCmp, matchItem: matchItem, logDoc: logDoc, findQuoteByNumber: findQuoteByNumber, quoteIn: quoteIn, quoteRead: quoteRead, SPEC_OF: SPEC_OF, BLOCK_LABEL: BLOCK_LABEL, QUOTE_OF: QUOTE_OF, ENDPOINT: ENDPOINT };
 });

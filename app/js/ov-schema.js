@@ -80,7 +80,7 @@
     var by = cg.byNeed && needGroupById[need] ? cg.byNeed[need] : null;
     return by || { pillars: cg.pillars, benefit: cg.benefit };
   }
-  /* The benefit name for a set of cells: one benefit as it is, every pillar as All benefits, otherwise the names joined (Life cover, Lump sum disability and Income protector). */
+  /* The benefit name for a set of cells: one benefit as it is, every pillar as All benefits, otherwise the names joined (Life cover, lump sum disability and income protector). */
   function cellsBenefit(cells) {
     var names = [], pil = {};
     (cells || []).forEach(function (a) { var c = a && cellOf(a.need, a.column); if (!c) return; if (names.indexOf(c.benefit) < 0) names.push(c.benefit); c.pillars.forEach(function (p) { pil[p] = 1; }); });
@@ -88,7 +88,8 @@
     var order = ['Life cover', 'Severe illness', 'Lump sum disability', 'Income protector', 'Severe illness and income protector'], at = function (b) { var i = order.indexOf(b); return i < 0 ? order.length : i; };
     names.sort(function (a, b) { return at(a) - at(b); });                                                   // always in the order of the columns on the page
     if (names.length > 1 && ['life', 'sev', 'lsd', 'ip'].every(function (p) { return pil[p]; })) return 'All benefits';
-    return names.length === 1 ? names[0] : names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1];
+    var low = names.map(function (b, i) { return i ? b.charAt(0).toLowerCase() + b.slice(1) : b; });                 // Severe illness and income protector
+    return low.length === 1 ? low[0] : low.slice(0, -1).join(', ') + ' and ' + low[low.length - 1];
   }
   var needGroupOfLine = Object.create(null); NEED_GROUPS.forEach(function (g) { g.lines.forEach(function (t) { needGroupOfLine[t] = g.id; }); });
   /* The four pillars a typed benefit name stands for. */

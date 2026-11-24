@@ -286,7 +286,7 @@ test('the shortfall never takes a counter offer, even one whose quote is gone', 
 test('the labels of the terms come from the table (need group and column group) at draw time: a correction of the mapping reaches saved files, also one saved by 1.2; a typed row keeps what was typed', () => {
   const s = fresh(), q = accepted(s, quote(s, 'fna', '400500600')), c = docs.applyCounterLetter(s, q, LETTER, 'letter.pdf').quote;
   const l = c.terms.loadings[0], e = c.terms.exclusions[0]; l.benefit = 'a stale label'; e.benefit = 'a stale label';
-  assert.strictEqual(calc.termBenefit(l), 'Income protector'); assert.strictEqual(calc.termBenefit(e), 'Severe illness and Income protector', 'an exclusion on a needs cell and a dread cell: both benefits, in the order of the columns');
+  assert.strictEqual(calc.termBenefit(l), 'Income protector'); assert.strictEqual(calc.termBenefit(e), 'Severe illness and income protector', 'an exclusion on a needs cell and a dread cell: both benefits, in the order of the columns');
   assert.strictEqual(calc.termBenefit({ benefit: 'Life cover' }), 'Life cover');
   const old = schema.columnGroupById.recover.byNeed.needs; schema.columnGroupById.recover.byNeed.needs = { pillars: ['sev'], benefit: 'Severe illness' };
   assert.strictEqual(calc.termBenefit(l), 'Severe illness'); assert.deepStrictEqual(calc.refsAt(c, 'household', 'ip').map(r => r.text), [], 'and the red references follow the same table'); assert.ok(calc.refsAt(c, 'household', 'sev').length > 0);
