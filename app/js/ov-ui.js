@@ -221,6 +221,14 @@
   /* The reasons a line is to be checked, in the words for the line (the missing bank, the debt that is only in the quote ...). */
   function lineWhy(id) { return ((last && last.problems) || []).filter(function (p) { return p.line === id; }).map(function (p) { return p.short || p.message; }).join(' '); }
   function lineFlag(id) { return ((last && last.problems) || []).filter(function (p) { return p.line === id; }).map(function (p) { return p.message; }).join(' '); }
+  /* The red references a quote's terms put on a cell (derived from the terms: +10% loading, Exclusion 3*): only where the cell has an amount. */
+  function refSmall(r) { return '<small class="rednote ref" title="' + (r.kind === 'loading' ? 'A premium loading from the insurer' : 'An exclusion from the insurer') + '">' + esc(r.text) + '</small>'; }
+  function lineRefs(c, l, pid, isPolicy) {
+    if (isPolicy || !c || !c.terms || !l.type) return '';
+    var pl = schema.PILLARS.filter(function (x) { return x.id === pid; })[0];
+    if (!pl || !pl.keys.some(function (k) { var v = calc.lineVal(l, pid, k); return calc.isNum(v) && v > 0; })) return '';
+    return calc.refsAt(c, l.type, pid).map(refSmall).join('');
+  }
   function lineHTML(cpath, c, l, i, isPolicy) {
     var p = cpath + '.lines.' + i, t = schema.lineTypesById[l.type] || schema.lineTypesById.other, tt = t.monthly, cols = isPolicy ? 10 : 9;
     if (l.removed) return fresh(p) ? '<tr class="removed" data-row="' + p + '" data-notice="' + p + '"><td colspan="' + cols + '"><span class="gone">' + esc((l.label || t.l) + (l.name ? ' · ' + l.name + ' ' + (l.sname || '') : '') + (l.debt ? ' · ' + l.debt : '')) + ' removed.</span> <button type="button" class="lnk" data-undo="' + p + '">Undo</button></td></tr>' : '';
@@ -235,7 +243,7 @@
       if (hasLump) s += inp(p + '.' + pid + '.lump', 'money');
       if (hasMonthly) s += inp(p + '.' + pid + '.monthly', 'money') + (pid === 'ip' ? '<small class="pm">p.m.</small>' : '<small class="sm">' + esc(tt) + '</small>') + viaNote(l, pid);
       if (pid === 'ip' && l.type === 'debt' && calc.isNum(l.ip && l.ip.monthly) && l.ip.monthly > 0) s += '<small class="ip">Instalment Protector</small><small class="ced">To be ceded to the bank</small>';
-      return '<td class="c">' + s + '</td>';
+      return '<td class="c">' + s + lineRefs(c, l, pid, isPolicy) + '</td>';
     }
     var flag = lineFlag(l.id);
     return '<tr data-row="' + p + '" class="ln' + (flag ? ' ffdiff' : '') + '"' + (flag ? ' title="' + esc(flag) + '"' : '') + '><td class="need">' + stb(p) + need + '<small class="why" data-why="' + l.id + '">' + esc(lineWhy(l.id)) + '</small></td><td>' + inp(p + '.term', 'text', 'term', t.term || 'Term') + '</td>' + pillar('life', true, true) + pillar('sev', true, false) + pillar('lsd', true, true) + pillar('ip', false, true) +
@@ -257,14 +265,15 @@
   }
 
   /* ---------- the figures the page works out ---------- */
-  function totRows(t, premium, rates) {
-    return '<tr class="tot lump"><td colspan="2">Total lump sum</td><td class="c">' + amt(t.life.lump) + '</td><td class="c">' + amt(t.sev.lump) + '</td><td class="c">' + amt(t.lsd.lump) + '</td><td class="c"></td><td colspan="3"></td></tr>' +
+  function totRows(t, premium, rates, q) {
+    var refs = q && q.terms ? ['life', 'sev', 'lsd', 'ip'].map(function (pid) { return calc.refsTotal(q, pid).map(refSmall).join(''); }) : [];
+    return (refs.some(Boolean) ? '<tr class="tot refs"><td colspan="2">Loadings and exclusions</td><td class="c">' + refs[0] + '</td><td class="c">' + refs[1] + '</td><td class="c">' + refs[2] + '</td><td class="c">' + refs[3] + '</td><td colspan="3"></td></tr>' : '') + '<tr class="tot lump"><td colspan="2">Total lump sum</td><td class="c">' + amt(t.life.lump) + '</td><td class="c">' + amt(t.sev.lump) + '</td><td class="c">' + amt(t.lsd.lump) + '</td><td class="c"></td><td colspan="3"></td></tr>' +
       '<tr class="tot inc"><td colspan="2">Total income protected</td><td class="c">' + pm(t.life.monthly) + '</td><td class="c"><span class="na">N/A</span></td><td class="c">' + pm(t.lsd.monthly) + '</td><td class="c">' + pm(t.ip.monthly) + '</td><td colspan="3"></td></tr>' +
       '<tr class="tot prem"><td colspan="2">Monthly premium' + (rates ? ' <small>' + esc(rates) + '</small>' : '') + '</td><td colspan="2" class="c">' + (calc.isNum(premium) ? '<span class="a">' + R(premium) + '</span>' : '<span class="none">&ndash;</span>') + '</td><td colspan="5"></td></tr>';
   }
   function compHTML(name, id) {
     var q;
-    if (name === 'qtot') { q = store.findQuote(state, id); return q ? totRows(calc.totals(q), q.premium, q.rates) : ''; }
+    if (name === 'qtot') { q = store.findQuote(state, id); return q ? totRows(calc.totals(q), q.premium, q.rates, q) : ''; }
     if (name === 'cmp') { q = store.findQuote(state, id); return q ? compareHTML(q) : ''; }
     if (name === 'polrow') { var pe = calc.policies(state)[+id]; return pe ? policyRow(pe, +id) : ''; }
     if (name === 'poltot') return policyTots();
@@ -309,25 +318,61 @@
   }
   /* The insurer's terms, once the client has accepted and the insurer has answered: standard rates say just that; loadings and exclusions are typed here (the skill never writes them). Shown on the screen, in the PDF and in the Presentation. */
   function termsBlock(q, p) {
-    var u = calc.uwOf(q); if (!u || u === 'pending' || schema.UW_DECLINED.indexOf(u) >= 0) return '';
+    var counter = !!q.counterOf, u = counter ? 'both' : calc.uwOf(q); if (!u || u === 'pending' || schema.UW_DECLINED.indexOf(u) >= 0) return '';
+    if (!counter && u !== 'standard' && calc.counterOffers(state, q).length && !((q.terms && q.terms.loadings || []).length + (q.terms && q.terms.exclusions || []).length)) return '<div class="uwblock"><h4>Underwriting outcome: ' + esc(schema.uwLabel[u]) + '</h4><p class="foot">The insurer\u2019s terms are on the counter offer below.</p></div>';
     if (u === 'standard') return '<div class="uwblock"><h4>Underwriting outcome</h4><p class="uwline">Accepted at standard rates.</p></div>';
-    var t = q.terms || {}, dis = state.newer ? ' disabled' : '', h = '<div class="uwblock"><h4>Underwriting outcome: ' + esc(schema.uwLabel[u]) + '</h4>';
+    var t = q.terms || {}, dis = state.newer ? ' disabled' : '', h = '<div class="uwblock"><h4>' + (counter ? 'Underwriting terms of the counter offer' : 'Underwriting outcome: ' + esc(schema.uwLabel[u])) + '</h4>';
     if (u === 'loadings' || u === 'both') {
       var ls = Array.isArray(t.loadings) ? t.loadings : [];
-      h += '<div class="ovw"><table class="ovt terms ld"><thead><tr><th>Loading on</th><th>Percentage added</th><th>Reason</th><th>The reason in words</th><th></th></tr></thead><tbody>' +
-        (ls.map(function (r, i) { var rp = p + '.terms.loadings.' + i; return '<tr><td>' + sel(rp + '.benefit', schema.TERM_BENEFITS, 'text', false) + '</td><td>' + inp(rp + '.pct', 'pct') + '</td><td>' + sel(rp + '.kind', schema.LOADING_KINDS, 'text', false) + '</td><td>' + inp(rp + '.reason', 'text', '', 'e.g. raised blood pressure') + '</td><td><button type="button" class="x" data-delterm="' + p + '|loadings|' + i + '"' + dis + '>Remove</button></td></tr>'; }).join('') || '<tr><td colspan="5" class="empty">No loading typed yet.</td></tr>') +
+      h += '<div class="ovw"><table class="ovt terms ld' + (counter ? ' cnt' : '') + '"><thead><tr><th>Loading on</th><th>Percentage added</th><th>Reason</th><th>The reason in words</th><th></th></tr></thead><tbody>' +
+        (ls.map(function (r, i) { var rp = p + '.terms.loadings.' + i; return '<tr' + (r && r.st === 'verify' ? ' class="tocheck" title="Read from the letter: to check"' : '') + '><td>' + (r && r.column ? '<b class="tbenefit">' + esc(calc.termBenefit(r)) + '</b>' : sel(rp + '.benefit', schema.TERM_BENEFITS, 'text', false)) + termCell(r) + '</td><td>' + inp(rp + '.pct', 'pct') + '</td><td>' + sel(rp + '.kind', schema.LOADING_KINDS, 'text', !(r && r.kind)) + '</td><td>' + inp(rp + '.reason', 'text', '', 'e.g. raised blood pressure') + '</td><td><button type="button" class="x" data-delterm="' + p + '|loadings|' + i + '"' + dis + '>Remove</button></td></tr>'; }).join('') || '<tr><td colspan="5" class="empty">No loading typed yet.</td></tr>') +
         '</tbody></table></div><div class="adders"><button type="button" class="addrow" data-addterm="' + p + '|loadings"' + dis + '>+ A loading</button></div>';
     }
     if (u === 'exclusions' || u === 'both') {
       var es = Array.isArray(t.exclusions) ? t.exclusions : [];
-      h += '<div class="ovw"><table class="ovt terms ex"><thead><tr><th>Benefit</th><th>What is excluded</th><th>Why</th><th></th></tr></thead><tbody>' +
-        (es.map(function (r, i) { var rp = p + '.terms.exclusions.' + i; return '<tr><td>' + sel(rp + '.benefit', schema.TERM_BENEFITS, 'text', true) + '</td><td>' + inp(rp + '.what', 'text', '', 'the condition or benefit excluded') + '</td><td>' + inp(rp + '.why', 'text', '', 'e.g. a back injury in 2023') + '</td><td><button type="button" class="x" data-delterm="' + p + '|exclusions|' + i + '"' + dis + '>Remove</button></td></tr>'; }).join('') || '<tr><td colspan="4" class="empty">No exclusion typed yet.</td></tr>') +
+      var hasNo = counter || es.some(function (r) { return r && r.no; });
+      h += '<div class="ovw"><table class="ovt terms ex' + (hasNo ? ' withno' : '') + '"><thead><tr>' + (hasNo ? '<th>No.</th>' : '') + '<th>Benefit</th><th>What is excluded</th><th>' + (hasNo ? 'Type' : 'Why') + '</th><th></th></tr></thead><tbody>' +
+        (es.map(function (r, i) { var rp = p + '.terms.exclusions.' + i; return '<tr' + (r && r.st === 'verify' ? ' class="tocheck" title="Read from the letter: to check"' : '') + '>' + (hasNo ? '<td>' + inp(rp + '.no', 'text') + '</td>' : '') + '<td>' + (r && r.applies && r.applies.length ? '<b class="tbenefit">' + esc(calc.termBenefit(r)) + '</b>' : hasNo ? inp(rp + '.benefit', 'text') : sel(rp + '.benefit', schema.TERM_BENEFITS, 'text', true)) + (r && r.page ? '<small class="foot">page ' + esc(r.page) + '</small>' : '') + '</td><td>' + inp(rp + '.what', 'text', '', 'the condition or benefit excluded') + '</td><td>' + inp(rp + '.why', 'text', '', hasNo ? 'e.g. Medical' : 'e.g. a back injury in 2023') + '</td><td><button type="button" class="x" data-delterm="' + p + '|exclusions|' + i + '"' + dis + '>Remove</button></td></tr>'; }).join('') || '<tr><td colspan="' + (hasNo ? 5 : 4) + '" class="empty">No exclusion typed yet.</td></tr>') +
         '</tbody></table></div><div class="adders"><button type="button" class="addrow" data-addterm="' + p + '|exclusions"' + dis + '>+ An exclusion</button></div>';
     }
     return h + '</div>';
   }
+  /* Under a loading read from a letter: which need group and column group it belongs to. */
+  function termCell(r) {
+    if (!r || (!r.need && !r.column)) return '';
+    var ng = schema.needGroupById[r.need], cg = schema.columnGroupById[r.column];
+    return '<small class="foot">' + esc([ng && ng.l, cg && cg.l].filter(Boolean).join(' · ')) + '</small>';
+  }
+  /* Premium before, after and the difference of a counter offer (derived: the quote before it and the counter offer's own premium, else the letter's two premiums). */
+  function premText(pr) {
+    if (!pr || !calc.isNum(pr.before) || !calc.isNum(pr.after)) return '';
+    return 'Premium: before ' + R(pr.before) + ' p.m. · after ' + R(pr.after) + ' p.m. · difference ' + calc.fmtDiff(pr.diff) + (calc.isNum(pr.pct) ? ' (' + (pr.pct > 0 ? '+' : pr.pct < 0 ? '\u2212' : '') + Math.abs(pr.pct) + '%)' : '');
+  }
+  /* The head of a counter offer: what it is, its letter, its expiry, the premium, a signed copy, what the letter says beyond the terms, and the terms still to check. */
+  function counterBlock(q, p) {
+    var root = calc.parentOf(state, q); if (!root) return '';
+    var off = q.offer || {}, pr = calc.counterPremium(state, q), n = calc.termsToCheck(q), dis = state.newer ? ' disabled' : '';
+    var meta = [off.letter ? 'Letter: ' + off.letter : 'The letter is not loaded yet', off.expires ? 'The revised proposal expires ' + off.expires : '', off.startDate ? 'The letter proposes the start date ' + off.startDate : ''].filter(Boolean).join(' \u00b7 ');
+    var h = '<div class="uwblock counterblock" data-counter="' + esc(q.id) + '"><h4>Counter offer to ' + esc(calc.quoteRef(root)) + '</h4><p class="uwline">' + esc(meta) + ' ' + vb(p + '.letter') + '</p>';
+    var pt = premText(pr); if (pt) h += '<p class="uwline premline">' + esc(pt) + '</p>';
+    if (off.signed && q.status === 'pending') h += '<p class="blue">A signed copy of the letter (' + esc(off.signed) + ') is in the folder. That usually means the client accepted: set the client decision above if so. It was not read.</p>';
+    if (off.notes) h += '<p class="rednote">' + esc('The letter also says: ' + off.notes) + '</p>';
+    if (!calc.activeLines(q).length) h += '<p class="blue">The counter offer quote is not loaded yet: use Add counter offer&hellip; on the original quote and tick the revised proposal.</p>';
+    if (n) h += '<p class="amberline">' + n + (n === 1 ? ' term was' : ' terms were') + ' read from the letter and ' + (n === 1 ? 'is' : 'are') + ' to check. <button type="button" class="x" data-confirmterms="' + p + '"' + dis + '>Terms checked</button></p>';
+    return h + '</div>';
+  }
+  /* Under the quote the client accepted: its counter offers and the button that adds one (only where underwriting came back with loadings, exclusions or both). */
+  function counterList(q, p) {
+    var cs = calc.counterOffers(state, q), can = calc.canCounter(state, q), dis = state.newer ? ' disabled' : '';
+    if (!cs.length && !can) return '';
+    var h = '<div class="uwblock counterlist"><h4>Counter offers</h4>';
+    cs.forEach(function (c) { var pt = premText(calc.counterPremium(state, c)); h += '<p class="uwline">' + esc(check.qTitle(c) + ' \u00b7 ' + (schema.statusLabel[c.status] || '')) + (pt ? ' \u00b7 ' + esc(pt) : '') + '</p>'; });
+    if (can) h += '<p class="foot">The insurer\u2019s counter offer letter and counter offer quote are in the policy folder\u2019s Counter Offer Letter folder.</p><div class="adders"><button type="button" class="addrow" data-addcounter="' + p + '"' + dis + '>+ Add counter offer&hellip;</button></div>';
+    return h + '</div>';
+  }
   /* Will this quote replace any of the client's existing policies? The answer and the picks are the adviser's. */
   function replBlock(q, p) {
+    if (q.counterOf) { var rt = calc.parentOf(state, q); return '<div class="replblock"><h4>Replacing existing policies</h4><p class="foot">The same as the original quote' + (rt ? ' (' + esc(calc.quoteRef(rt)) + ')' : '') + ': answer it there.</p></div>'; }
     var r = calc.replOf(q), list = calc.replaceable(state, q), dis = state.newer ? ' disabled' : '';
     var h = '<div class="replblock"><h4>Replacing existing policies</h4><label class="f"><span class="l">Will this quote replace any of the client&rsquo;s existing policies?</span><div class="box"><select data-replans="' + p + '"' + dis + '><option value="">&nbsp;</option><option value="yes"' + (r.answer === 'yes' ? ' selected' : '') + '>Yes</option><option value="no"' + (r.answer === 'no' ? ' selected' : '') + '>No</option></select></div></label>';
     if (r.answer === 'yes') {
@@ -336,7 +381,7 @@
     }
     return h + '</div>';
   }
-  function quoteStates(q, p) { return acceptWarn(q, p) + termsBlock(q, p) + replBlock(q, p); }
+  function quoteStates(q, p) { return q.counterOf ? counterBlock(q, p) + termsBlock(q, p) + replBlock(q, p) : acceptWarn(q, p) + termsBlock(q, p) + counterList(q, p) + replBlock(q, p); }
   /* The red note under a current policy: replaced by a quote, or "will not be replaced" with the question about the broker on record. */
   function polNote(e, ri) {
     var n = calc.policyNote(state, e, ri); if (!n) return '';
@@ -354,19 +399,31 @@
   }
 
   /* ---------- quotes ---------- */
+  /* What a quote's acceptance means for Current policies: issued (shown there), waiting for its counter offer, or waiting for the policy number and start date. */
+  function issuedNotes(q) {
+    if (!calc.accepted(q)) return '';
+    var root = calc.parentOf(state, q) || q, ci = calc.chainIssued(state, root);
+    if (!q.counterOf && calc.counterOffers(state, q).length) {
+      var lv = calc.liveCounter(state, q);
+      if (lv.status === 'notaccepted') return '<p class="bad-note">The client did not accept the counter offer, so no policy comes from this quote.</p>';
+      if (lv.status === 'accepted') return ci && ci.id === lv.id ? '' : '<p class="blue">The client accepted the counter offer. Type the policy number and the start date on the counter offer below: it then moves to Current policies as a current policy of ours.</p>';
+      return '<p class="blue">The insurer sent a counter offer: the policy comes from the counter offer once the client has accepted it (see Counter offers below).</p>';
+    }
+    if (ci && ci.id === q.id) return '<p class="blue">This ' + (q.counterOf ? 'counter offer' : 'quote') + ' has been issued as a policy, so it is also shown under Current policies as a current policy of ours.</p>';
+    return '<p class="blue">Accepted. When the insurer has issued the policy, type its policy number and start date above: the ' + (q.counterOf ? 'counter offer' : 'quote') + ' then moves to Current policies as a current policy of ours.</p>';
+  }
   function quoteCard(q, i, bid) {
     var p = 'blocks.' + bid + '.quotes.' + i, title = check.qTitle(q) + (q.date ? ' · ' + q.date : '') + (q.rates ? ' · ' + q.rates : ''), open = isOpen(q.id);
-    var head = '<header><span class="statusbadge s-' + esc(calc.statusClass(q)) + '" data-statusfor="' + p + '">' + esc(calc.statusText(q)) + '</span><h3 data-titlefor="' + p + '">' + esc(title) + '</h3>' + stb(p) + vb(p) +
+    var head = '<header><span class="statusbadge s-' + esc(calc.statusClass(q, state)) + '" data-statusfor="' + p + '">' + esc(calc.statusText(q, state)) + '</span><h3 data-titlefor="' + p + '">' + esc(title) + '</h3>' + stb(p) + vb(p) +
       '<span class="grow"></span>' + (open ? '<button type="button" class="x" data-replace="' + bid + '|' + q.id + '">Replace quote&hellip;</button><button type="button" class="x" data-del="' + p + '">Remove quote</button>' : '') + seeBtn(q.id) + '</header>';
     if (!open) return '<article class="qcard folded" data-row="' + p + '">' + head + '</article>';
     return '<article class="qcard" data-row="' + p + '">' + head +
       '<div class="grid qh">' + lab('Insurer', inp(p + '.insurer', 'text', '', 'e.g. BrightRock')) + lab(/bright/i.test(q.insurer) ? 'CP number' : 'Quote number', inp(p + '.number', 'text')) + lab('Quote date', inp(p + '.date', 'date')) +
-      lab('Rates', inp(p + '.rates', 'text')) + lab('Kind of quote', boolSel(p + '.servicing', 'Servicing', 'New business')) + lab('Client decision', sel(p + '.status', schema.STATUS, 'text', false)) + (q.status === 'accepted' ? lab('Underwriting', sel(p + '.uw', schema.UW, 'text', false)) : '') +
+      lab('Rates', inp(p + '.rates', 'text')) + lab('Kind of quote', boolSel(p + '.servicing', 'Servicing', 'New business')) + lab('Client decision', sel(p + '.status', schema.STATUS, 'text', false)) + (q.status === 'accepted' && !q.counterOf ? lab('Underwriting', sel(p + '.uw', schema.UW, 'text', false)) : '') +
       lab('Disability to age', sel(p + '.disabilityAge', [{ id: 65, l: '65' }, { id: 70, l: '70' }], 'num')) + lab('ACI (%)', inp(p + '.aci', 'pct')) + lab('ACI as the quote words it', inp(p + '.aciText', 'text', '', 'e.g. 7.5% + age rater')) + lab('ACI in short points', taLines(p + '.aciPoints')) + lab('Monthly premium (R)', inp(p + '.premium', 'money')) +
       (calc.accepted(q) ? lab('Policy number', inp(p + '.policyNo', 'text')) + lab('Start date', inp(p + '.startDate', 'date')) : '') + '</div>' +
-      (calc.issued(q) ? '<p class="blue">This quote has been issued as a policy, so it is also shown under Current policies as a current policy of ours.</p>' : '') +
-      (calc.accepted(q) && !(q.policyNo && q.startDate) ? '<p class="blue">Accepted. When the insurer has issued the policy, type its policy number and start date above: the quote then moves to Current policies as a current policy of ours.</p>' : '') +
-      (q.kind === 'comparative' ? '<p class="blue">This is what the other insurer\'s quote prints, read from the document: often one whole-of-life amount for each benefit. The four benefit columns, the totals and the comparison follow it.</p>' : '') + linesTable(p, q, false) + breBox(q) + quoteStates(q, p) + '<div class="under">' + cmpHTML(q, p) + '<h4>Compared with what you have now</h4><div data-comp="cmp|' + q.id + '">' + compareHTML(q) + '</div></div></article>';
+      issuedNotes(q) +
+      (q.kind === 'comparative' ? '<p class="blue">This is what the other insurer\'s quote prints, read from the document: often one whole-of-life amount for each benefit. The four benefit columns, the totals and the comparison follow it.</p>' : '') + linesTable(p, q, false) + breBox(q) + quoteStates(q, p) + '<div class="under">' + (q.counterOf ? '' : cmpHTML(q, p)) + (q.counterOf && !calc.activeLines(q).length ? '' : '<h4>Compared with what you have now</h4><div data-comp="cmp|' + q.id + '">' + compareHTML(q) + '</div>') + '</div></article>';
   }
   function quotesBlock(b) {
     var list = (state.blocks[b.id].quotes || []), live = list.filter(function (q) { return !q.removed; }), gone = list.filter(function (q) { return q.removed; });
@@ -540,8 +597,20 @@
       }).join('');
   }
 
+  /* The Counter offers page (round 1.2): every counter offer of the client with the block its quote is in. A derived list: nothing of its own is saved. */
+  var COUNTERS = 'counters';
+  function counterRows() { var out = []; calc.mainQuotes(state).forEach(function (root) { calc.counterOffers(state, root).forEach(function (c) { out.push({ root: root, c: c, block: schema.blockOfQuote[root.kind] }); }); }); return out; }
+  function countersHTML() {
+    var rows = counterRows();
+    if (!rows.length) return '<p class="sub">There are no counter offers yet. When the client has accepted a quote and the insurer comes back with loadings or exclusions, use Add counter offer&hellip; under that quote.</p>';
+    return '<p class="sub">Every counter offer of this client, with the block its quote is in. The client decides on each one; accepting one is the same policy, so it is not a second acceptance.</p><div class="ovw"><table class="ovt cnt"><thead><tr><th>Counter offer</th><th>Block</th><th>Counter offer to</th><th>Client decision</th><th>Premium</th><th>Terms</th><th></th></tr></thead><tbody>' + rows.map(function (r) {
+      var c = r.c, pr = calc.counterPremium(state, c), t = c.terms || {}, nl = (t.loadings || []).length, ne = (t.exclusions || []).length, chk = calc.termsToCheck(c), pm = pr && calc.isNum(pr.before) && calc.isNum(pr.after) ? R(pr.before) + ' \u2192 ' + R(pr.after) + ' (' + calc.fmtDiff(pr.diff) + ')' : '\u2013';
+      return '<tr><td>' + esc(check.qTitle(c)) + '</td><td>' + esc(schema.blocksById[r.block].title) + '</td><td>' + esc(calc.quoteRef(r.root)) + '</td><td>' + esc(schema.statusLabel[c.status] || '') + '</td><td>' + pm + '</td><td>' + nl + (nl === 1 ? ' loading' : ' loadings') + ', ' + ne + (ne === 1 ? ' exclusion' : ' exclusions') + (chk ? ' \u00b7 ' + chk + ' to check' : '') + '</td><td><button type="button" class="x" data-gocounter="' + r.block + '|' + esc(c.id) + '">Open</button></td></tr>';
+    }).join('') + '</tbody></table></div>';
+  }
   function blockHTML(id) {
     if (id === CLIENT) return clientHTML();
+    if (id === COUNTERS) return countersHTML();
     var b = schema.blocksById[id];
     var draw = { policies: policiesBlock, group: groupBlock, shortfall: shortfallBlock, investments: investmentsBlock, proposed: proposedBlock, goals: goalsBlock, other: otherBlock }[b.kind];
     return draw ? draw() : quotesBlock(b);
@@ -551,13 +620,14 @@
   function drawNav() {
     var h = '<button type="button" data-block="' + CLIENT + '"' + (cur === CLIENT ? ' aria-current="true"' : '') + '><span>Client details</span></button><div class="sep">Blocks</div>';
     h += schema.BLOCKS.map(function (b) { return '<button type="button" data-block="' + b.id + '"' + (b.id === cur ? ' aria-current="true"' : '') + ' title="' + esc(check.dotText(state, b.id, last.dots[b.id] || 'grey', last.problems, (last.notes || {})[b.id])) + '"><span><i class="dot ' + (last.dots[b.id] || 'grey') + '" data-dot="' + b.id + '"></i>' + esc(b.title) + '</span>' + progHTML(b.id) + noteHTML(b.id) + '</button>'; }).join('');
+    var nc = counterRows().length; if (nc) h += '<button type="button" data-block="' + COUNTERS + '"' + (cur === COUNTERS ? ' aria-current="true"' : '') + ' title="Every counter offer of this client"><span><i class="dot ' + (counterRows().some(function (r) { return calc.termsToCheck(r.c) > 0 || !calc.activeLines(r.c).length || r.c.st !== 'confirmed'; }) ? 'amber' : 'green') + '"></i>Counter offers <small>&nbsp;(' + nc + ')</small></span></button>';
     h += '<div class="legend" id="legend"><div class="sep">The dots</div>' + check.LEGEND.map(function (l) { return '<div><i class="dot ' + l[0] + '"></i>' + (l[0] === 'na' ? 'Dashed: not needed (for example, no shortfall quote without group risk)' : { grey: 'Grey: nothing yet', amber: 'Amber: to check', green: 'Green: checked', red: 'Red: checked, nothing there' }[l[0]]) + '</div>'; }).join('') + '</div>';
     $('#nav').innerHTML = h;
   }
   /* The page before and the page after this one, skipping a page that does not apply (no shortfall quote page without group risk). */
-  function pageName(id) { return id === CLIENT ? 'Client details' : schema.blocksById[id].title; }
+  function pageName(id) { return id === CLIENT ? 'Client details' : id === COUNTERS ? 'Counter offers' : schema.blocksById[id].title; }
   function pagerHTML() {
-    var order = [CLIENT].concat(schema.BLOCKS.map(function (b) { return b.id; })), i = order.indexOf(cur), ok = function (id) { return id === CLIENT || (last.dots || {})[id] !== 'na'; }, prev = null, next = null, j;
+    var order = [CLIENT].concat(schema.BLOCKS.map(function (b) { return b.id; })).concat(counterRows().length ? [COUNTERS] : []), i = order.indexOf(cur), ok = function (id) { return id === CLIENT || (last.dots || {})[id] !== 'na'; }, prev = null, next = null, j;
     for (j = i - 1; j >= 0 && !prev; j--) if (ok(order[j])) prev = order[j];
     for (j = i + 1; j < order.length && !next; j++) if (ok(order[j])) next = order[j];
     return '<div class="pagenav"><span>' + (prev ? '<button type="button" class="btn small" data-block="' + prev + '">&lsaquo; Back: ' + esc(pageName(prev)) + '</button>' : '') + '</span><span>' + (next ? '<button type="button" class="btn small" data-block="' + next + '">Next: ' + esc(pageName(next)) + ' &rsaquo;</button>' : '') + '</span></div>';
@@ -593,7 +663,7 @@
       el.classList.remove('s-empty', 's-ff', 's-verify', 's-confirmed'); el.classList.add('s-' + (o.st || 'empty'));
       var b = el.querySelector('[data-stfor="' + el.getAttribute('data-row') + '"]'); if (b) b.innerHTML = badgeHTML(el.getAttribute('data-row'), o.st, el.tagName === 'TR', o);
     });
-    document.querySelectorAll('[data-statusfor]').forEach(function (el) { var q = store.pathGet(state, el.getAttribute('data-statusfor')); if (q) { el.textContent = calc.statusText(q); el.className = 'statusbadge s-' + calc.statusClass(q); } });
+    document.querySelectorAll('[data-statusfor]').forEach(function (el) { var q = store.pathGet(state, el.getAttribute('data-statusfor')); if (q) { el.textContent = calc.statusText(q, state); el.className = 'statusbadge s-' + calc.statusClass(q, state); } });
     document.querySelectorAll('[data-titlefor]').forEach(function (el) { var q = store.pathGet(state, el.getAttribute('data-titlefor')); if (q) el.textContent = check.qTitle(q) + (q.date ? ' \u00b7 ' + q.date : '') + (q.rates ? ' \u00b7 ' + q.rates : ''); });
     document.querySelectorAll('[data-tickfor]').forEach(function (el) { var o = store.pathGet(state, el.getAttribute('data-tickfor')); if (o) { el.className = o.wr ? 'tick' : 'cross'; el.innerHTML = o.wr ? '&#10003;' : '&#10007;'; } });
   }
@@ -686,7 +756,7 @@
 
   /* ---------- the bar under a block's name in the menu: a document is downloaded and read (Paul, 22 November) ---------- */
   var prog = {}, progT = null;
-  function navBlockOf(block, q) { return block === 'astute' ? 'investments' : block === 'followup' ? 'other' : block === 'cmp' ? (q && schema.blockOfQuote[q.kind]) || null : block; }
+  function navBlockOf(block, q) { return block === 'astute' ? 'investments' : block === 'followup' ? 'other' : block === 'cmp' || block === 'counterletter' ? (q && schema.blockOfQuote[q.kind]) || null : block; }
   function progHTML(id) {
     var p = prog[id], st = p ? p.st : '';
     return '<span class="prog' + (st ? ' ' + st : '') + '" data-prog="' + id + '"' + (st ? '' : ' hidden') + (p && p.title ? ' title="' + esc(p.title) + '"' : '') + '><i style="width:' + (p ? Math.round(p.pct) : 0) + '%"></i><em>' + esc(p ? p.text : '') + '</em></span>';
@@ -803,8 +873,14 @@
   /* What a document becomes in the overview. data: what was read (null: only recorded). */
   function put(file, block, cls, data, o) {
     var name = file.name, res = { msg: '' }, lower = (D.BLOCK_LABEL[block] || block).toLowerCase(), astuteSet = block === 'astute' ? D.setAstuteDate(state, data, cls.date) : null;                   // the Astute report's date goes into Client details, whether or not an investment matches
-    if (D.QUOTE_OF[block]) {
-      var r = D.applyQuote(state, block, data || { number: cls.number, date: cls.date }, name, { replaces: o.replaces, nameOnly: !data });
+    if (block === 'counterletter') {
+      var nums = D.counterRole(name).numbers, ld = Object.assign({}, data || {}); if (!ld.revisedNumber && nums.length) ld.revisedNumber = nums[nums.length - 1];
+      var cr = D.applyCounterLetter(state, o.root, ld, name, { signed: o.signedFor ? o.signedFor(name) : null });
+      openSet[cr.quote.id] = true; openSet[o.root.id] = true; res.counter = cr.quote;
+      res.msg = name + ': ' + (data ? 'read into the counter offer ' + (cr.quote.number ? 'CP ' + cr.quote.number : '') + ': ' + cr.loadings + (cr.loadings === 1 ? ' loading' : ' loadings') + ' and ' + cr.exclusions + (cr.exclusions === 1 ? ' exclusion' : ' exclusions') + ' for you to check (amber)' + (cr.updated ? ' and ' + cr.updated + (cr.updated === 1 ? ' row that was already there was updated' : ' rows that were already there were updated') : '') + '.' : 'recorded, not read (reading needs your Anthropic key): a counter offer was started from the numbers in the file name; type its terms.');
+      if (data && !cr.loadings && !cr.exclusions) { res.msg += ' The letter shows no loading or exclusion.'; res.warn = true; }
+    } else if (D.QUOTE_OF[block]) {
+      var r = D.applyQuote(state, block, data || { number: cls.number, date: cls.date }, name, { replaces: o.replaces, nameOnly: !data, counterOf: o.counterOf });
       if (o.replaces) { var oq = store.findQuote(state, o.replaces), ol = state.blocks[block].quotes; if (oq && ol.indexOf(oq) >= 0) markRemoved('blocks.' + block + '.quotes.' + ol.indexOf(oq)); }          // the quote that was replaced can be brought back for a few seconds
       res.msg = name + ': ' + (data ? 'read into a new ' + lower + '.' : 'a new ' + lower + ' was started from the number and date in the file name; type the figures from the document.');
       if (r.merged === 'kept') { res.msg = name + ': the quote with this number is already there with its figures read, so nothing was changed (no second copy).'; res.dupe = true; }
@@ -896,7 +972,7 @@
       progStep(nb, 80, 'Filling it in…');
       var r = put(file, block, cls, data, o);
       if (failure) { r.msg = file.name + ': ' + failure + ' It was recorded; type the figures from it.'; r.warn = true; }
-      var then = r.quote && data ? autoGuide(r.quote, o).then(function (m) { if (m) { r.msg += ' ' + m.msg; if (m.warn) r.warn = true; } }) : Promise.resolve();
+      var then = r.quote && data && !o.counterOf ? autoGuide(r.quote, o).then(function (m) { if (m) { r.msg += ' ' + m.msg; if (m.warn) r.warn = true; } }) : Promise.resolve();
       return then.then(function () { progEnd(nb, failure ? 'error' : data ? 'done' : 'recorded', failure ? 'Could not read it: ' + failure : notice); return r; });
     });
   }
@@ -1223,6 +1299,80 @@
     run();
   }
 
+  /* ---------- Add counter offer (round 1.2) ---------- */
+  function baseOf(name) { return String(name || '').toLowerCase().replace(/\.[a-z0-9]{2,5}$/, '').replace(/[ _-]*signed\s*$/, '').replace(/\s+/g, ' ').trim(); }
+  /* The files of the Counter Offer Letter folders: the letter and the revised proposal for THIS quote are ticked (by the quote's number, and the revised number the letter names); the consent form and a signed copy never are. */
+  function pickCounter(res, root) {
+    var key = String(root.number || '').replace(/\D/g, ''), info = res.files.map(function (f) { return D.counterRole(f.name); }), tick = info.map(function (c) { return false; });
+    var cs = calc.counterOffers(state, root);
+    var twin = res.files.map(function (f, i) { return info[i].role === 'signed' && res.files.some(function (g, j) { return info[j].role !== 'signed' && info[j].role !== 'consent' && baseOf(g.name) === baseOf(f.name); }); });          // a signed copy is only noticed when the unsigned letter is there; on its own it is the letter
+    var loaded = res.files.map(function (f, i) { var c = info[i]; return twin[i] ? false : (c.role === 'letter' || c.role === 'signed' || c.role === 'other') ? cs.some(function (x) { return x.offer && x.offer.letter && baseOf(x.offer.letter) === baseOf(f.name); }) : c.role === 'quote' ? cs.some(function (x) { return c.numbers[0] && String(x.number || '').replace(/\D/g, '') === c.numbers[0] && D.quoteRead(x); }) : false; });
+    info.forEach(function (c, i) { if (loaded[i] || twin[i]) return; if ((c.role === 'letter' || c.role === 'signed') && (!key || c.numbers.indexOf(key) >= 0)) tick[i] = true; if (c.role === 'other' && key && c.numbers.indexOf(key) >= 0) tick[i] = true; });
+    var revised = {}; info.forEach(function (c, i) { if ((tick[i] || loaded[i]) && (c.role === 'letter' || c.role === 'signed') && c.numbers.length > 1 && (!key || c.numbers.indexOf(key) >= 0)) revised[c.numbers[c.numbers.length - 1]] = 1; });
+    info.forEach(function (c, i) { if (c.role === 'quote' && !loaded[i] && ((c.numbers[0] && revised[c.numbers[0]]) || (!key && !Object.keys(revised).length))) tick[i] = true; });
+    var WORD = { letter: 'counter offer letter', quote: 'counter offer quote', consent: 'consent form: not read', signed: 'signed copy: it tells you the client accepted', other: 'not sure what this is' };
+    return new Promise(function (resolve) {
+      var dlg = document.createElement('dialog'), done = false; dlg.className = 'fdlg';
+      dlg.innerHTML = '<h3>Counter offer files in ' + esc(res.label) + '</h3><p>The counter offer letter and the counter offer quote of <b>' + esc(calc.quoteRef(root)) + '</b> are ticked. Untick what you do not want to load.</p><div class="flist">' + res.files.map(function (f, i) {
+        return '<label><input type="checkbox" data-i="' + i + '"' + (tick[i] ? ' checked' : '') + (info[i].role === 'consent' || twin[i] ? ' disabled' : '') + '><span>' + esc(f.rel.concat([f.name]).join(' \\ ')) + ' <i>(' + esc(WORD[info[i].role] + (twin[i] ? ': not read, only noticed' : '') + (loaded[i] ? '; already loaded, tick it to read it again' : '')) + ')</i></span></label>';
+      }).join('') + '</div><div class="fbtns"><button type="button" class="btn ghost small" data-no>Cancel</button><button type="button" class="btn small" data-yes>Load the ticked ones</button></div>';
+      document.body.appendChild(dlg);
+      function end(v) { if (done) return; done = true; dlg.close(); dlg.remove(); resolve(v); }
+      dlg.addEventListener('click', function (e) {
+        if (e.target.closest('[data-yes]')) end([].filter.call(dlg.querySelectorAll('input[type=checkbox]'), function (c) { return c.checked && !c.disabled; }).map(function (c) { return res.files[+c.getAttribute('data-i')]; }));
+        if (e.target.closest('[data-no]')) end([]);
+      });
+      dlg.addEventListener('cancel', function (e) { e.preventDefault(); end([]); });
+      dlg.showModal();
+    });
+  }
+  /* The letters are read first (they make the counter offer and its terms), then the revised proposals (read like any quote, into the counter offer with the same number). pool: every file of the folder (a signed copy is only noticed). */
+  function ingestCounter(files, root, pool) {
+    files = uniqueFiles([].slice.call(files)); unmatchedGuides = {};
+    var bid = schema.blockOfQuote[root.kind], log = [], count = 0, warns = 0, same = 0; lastLog = log;
+    var signed = {}; (pool || files).forEach(function (f) { if (D.counterRole(f.name).role === 'signed') signed[baseOf(f.name)] = f.name; });
+    var opts = { root: root, quote: root, signedFor: function (n) { return signed[baseOf(n)] || null; } };
+    beginSearch([bid], 'Waiting for the counter offer files');
+    var role = function (f) { return D.counterRole(f.name).role; };
+    var letters = files.filter(function (f) { var r = role(f); return r === 'letter' || r === 'other' || r === 'signed'; }), quotes = files.filter(function (f) { return role(f) === 'quote'; });
+    function seq(list, mk) { return list.reduce(function (p, f) { return p.then(function () { return intakeOne(f, mk(f)).then(function (r) { if (r.unknown || r.skip) return; if (r.dupe) same++; else count++; if (r.warn) warns++; log.push({ msg: r.msg, warn: !!r.warn }); }); }); }, Promise.resolve()); }
+    return seq(letters, function () { return Object.assign({}, opts, { block: 'counterletter' }); })
+      .then(function () { return seq(quotes, function () { return Object.assign({}, opts, { block: bid, counterOf: root.id }); }); })
+      .then(function () {
+        check.settleAll(state); touch(); redraw(); endSearch(); readFactNotes();
+        var cs = calc.counterOffers(state, root), last = cs[cs.length - 1];
+        if (count && aiOn() && !aiKey().apiKey) toastLink(count + (count === 1 ? ' file was' : ' files were') + ' recorded, not read: reading needs your Anthropic key.', 'Add the key in Settings', openSettings, 20000);
+        else toast((count ? count + (count === 1 ? ' counter offer file' : ' counter offer files') + ' loaded' + (warns ? ', ' + warns + ' to look at' : '') + (last ? ' into ' + check.qTitle(last) : '') + '.' : same ? 'Nothing new was loaded.' : 'Nothing was loaded.'), 8000);
+        refreshChrome();
+        if (last) { var el = document.querySelector('[data-counter="' + last.id + '"]'); if (el && el.scrollIntoView) el.scrollIntoView({ block: 'center' }); }
+      }).then(null, function (e) { endSearch(); toast('Loading stopped: ' + ((e && e.message) || 'an error') + '.', 8000); });
+  }
+  function addCounter(qpath) {
+    if (state.newer) return;
+    var root = store.pathGet(state, qpath); if (!root || !calc.canCounter(state, root)) return;
+    var FU = window.FF && FF.foldersUI;
+    function normalWindow() {
+      if (typeof window.showOpenFilePicker !== 'function') { toast('This browser cannot open files this way. Use Chrome or Edge.', 8000); return; }
+      window.showOpenFilePicker({ multiple: true, types: FILE_TYPES, id: 'overview-docs' }).then(function (hs) { return Promise.all(hs.map(function (h) { return h.getFile(); })); })
+        .then(function (fs) { if (fs.length) ingestCounter(fs, root, fs); }, function (e) { if (e && e.name === 'AbortError') { toast('Nothing was chosen.', 3000); return; } toast('Could not open the file window: ' + ((e && e.message) || e), 8000); });
+    }
+    if (!FU || !FU.counterFiles) { normalWindow(); return; }
+    var w = watchSearch({ stop: function (why) { counterGiveUp(why); }, again: function () { addCounter(qpath); }, reconnect: function () {
+      FU.connect().then(function (r) { drawMeta(); if (OV.view) OV.view.forget(); if (r && r.chosen && r.chosen.length) addCounter(qpath); else { w.end(); searchTok++; toast('No folder was chosen again, so nothing was loaded.', 6000); } });
+    } });
+    function counterGiveUp(why) { w.end(); searchTok++; toastLink((why ? why + ' ' : '') + 'Nothing was loaded.', 'Open the normal file window', normalWindow, 60000); }
+    FU.counterFiles({ sname: state.header.sname, fname: state.header.fname }, { onStage: w.stage, onPerm: w.perm }).then(function (res) {
+      if (w.stale()) return; w.end();
+      if (res.reason) { counterGiveUp(reasonText(res)); return; }
+      $('#toast').hidden = true;
+      if (!res.files.length) { toastLink('No counter offer files were found for this client (they are in a folder named Counter Offer Letter inside the policy folder).', 'Open the normal file window', normalWindow, 60000); return; }
+      pickCounter(res, root).then(function (picked) {
+        if (!picked.length) return;
+        Promise.all(picked.map(function (f) { return f.handle.getFile(); })).then(function (fs) { ingestCounter(fs, root, res.files); }, function (e) { toast('Could not open a file: ' + ((e && e.message) || e), 8000); });
+      });
+    }).catch(function (e) { if (w.stale()) return; counterGiveUp('Could not look through the folders (' + ((e && e.message) || e) + ').'); });
+  }
+
   /* "Upload from client folder": the client's own folder (the quotes folder where there is one) is found in the connected folders and the file window opens in it; the document picked is read and filled in.
      When the folder is not found (or not connected) the normal file window opens by itself. */
   var CLIENT_KIND = { fna: 'quote', shortfallQuote: 'quote', reduced: 'quote', comparative: 'comparative', proposed: 'proposal', goals: 'goal' };
@@ -1305,6 +1455,7 @@
     if (bm) { store.setBrokerRecord(state, bm[1], el.value); dirty = true; onDisk = false; touch(); redraw(); return; }
     if (el.tagName === 'SELECT') { typed(el); if (/\.status$|\.requested$|\.wr$|\.uw$|\.terms\.loadings\.\d+\.kind$/.test(p)) { touch(); redraw(); if (/\.uw$/.test(p)) warnAcceptance(p.replace(/\.uw$/, '')); return; } }
     if (el.tagName === 'INPUT' && /\.brokerChangedDate$/.test(p)) { typed(el); touch(); redraw(); return; }
+    if (el.tagName === 'INPUT' && /\.terms\.(loadings|exclusions)\.\d+\./.test(p)) { touch(); redraw(); return; }
     var k = el.getAttribute('data-k'), v = store.pathGet(state, p);
     if (el.tagName === 'INPUT') { el.value = dispIn(v, k); el.classList.toggle('isna', v === 'N/A' || v === 'Not found'); }
     touch(); paintComputed(); paintStatuses();
@@ -1314,10 +1465,13 @@
     e.preventDefault(); e.stopPropagation(); if (!vbn.disabled && OV.view) OV.view.open(vbn.getAttribute('data-vw'), vbn, 'studio');
   }, true);
   $('#main').addEventListener('click', function (e) {
-    var t = e.target.closest('[data-see],[data-accept],[data-addq],[data-addl],[data-addp],[data-del],[data-undo],[data-block],[data-replace],[data-upi],[data-addcmp],[data-delcmp],[data-upc],[data-addterm],[data-delterm]'); if (!t) return;
+    var t = e.target.closest('[data-see],[data-accept],[data-addq],[data-addl],[data-addp],[data-del],[data-undo],[data-block],[data-replace],[data-upi],[data-addcmp],[data-delcmp],[data-upc],[data-addterm],[data-delterm],[data-addcounter],[data-confirmterms],[data-gocounter]'); if (!t) return;
     if (t.hasAttribute('data-block')) { cur = t.getAttribute('data-block'); drawNav(); drawMain(true); refreshChrome(); window.scrollTo({ top: 0 }); return; }
     if (t.hasAttribute('data-see')) { var sk = t.getAttribute('data-see'); openSet[sk] = !isOpen(sk); drawMain(); return; }
+    if (t.hasAttribute('data-gocounter')) { var gc = pathOf(t.getAttribute('data-gocounter')); cur = gc[0]; openSet[gc[1]] = true; drawNav(); drawMain(true); refreshChrome(); var gel = document.querySelector('[data-counter="' + gc[1] + '"]'); if (gel && gel.scrollIntoView) gel.scrollIntoView({ block: 'center' }); return; }
     if (state.newer) return;
+    if (t.hasAttribute('data-addcounter')) { addCounter(t.getAttribute('data-addcounter')); return; }
+    if (t.hasAttribute('data-confirmterms')) { if (store.confirmTerms(state, t.getAttribute('data-confirmterms'))) { check.settleAll(state); touch(); redraw(); } return; }
     if (t.hasAttribute('data-addterm')) { var at2 = pathOf(t.getAttribute('data-addterm')); store.addTerm(state, at2[0], at2[1]); touch(); redraw(); return; }
     if (t.hasAttribute('data-delterm')) { var dt = pathOf(t.getAttribute('data-delterm')); store.removeTerm(state, dt[0], dt[1], +dt[2]); touch(); redraw(); return; }
     if (t.hasAttribute('data-accept')) { store.accept(state, t.getAttribute('data-accept')); touch(); paintStatuses(); return; }

@@ -7,7 +7,7 @@
   else { root.OV = root.OV || {}; root.OV.docs = factory(root.FF.util, root.OV.schema, root.OV.calc, root.OV.store); }
 })(typeof self !== 'undefined' ? self : this, function (util, schema, calc, store) {
   var ENDPOINT = 'https://api.anthropic.com/v1/messages', API_VERSION = '2023-06-01';
-  var BLOCK_LABEL = { followup: 'Follow-Up Summary Notes', policies: 'Current policies', fna: 'FNA quote', group: 'Group benefits', shortfallQuote: 'Shortfall quote', reduced: 'Reduced quote', comparative: 'Comparative quote', investments: 'Current investments', astute: 'Astute report', cmp: 'Change moment pay-out guide', proposed: 'Proposed investment', goals: 'Goal analysis report', other: 'Legacy protection plan', bremail: 'BrightRock email' };
+  var BLOCK_LABEL = { followup: 'Follow-Up Summary Notes', policies: 'Current policies', fna: 'FNA quote', group: 'Group benefits', shortfallQuote: 'Shortfall quote', reduced: 'Reduced quote', comparative: 'Comparative quote', investments: 'Current investments', astute: 'Astute report', cmp: 'Change moment pay-out guide', proposed: 'Proposed investment', goals: 'Goal analysis report', other: 'Legacy protection plan', bremail: 'BrightRock email', counterletter: 'Counter offer letter' };
   var QUOTE_OF = { fna: 'fna', shortfallQuote: 'shortfall', reduced: 'reduced', comparative: 'comparative' };
 
   /* ---------- sorting a document by its name ---------- */
@@ -83,9 +83,16 @@
     followup: 'These are Follow-Up Appointment Summary Notes written after a later meeting with a client of a South African financial adviser. Return { "date": "dd/mm/yyyy (the date of the meeting or of the notes)", "items": { "medical": "...", "gap": "...", "will": "...", "legacy": "...", "shortterm": "..." } }. ' +
       'Each item is ONE short sentence (up to about 160 characters) saying what has progressed or is still outstanding for that cover since the Fact Find, in the notes\' own words, for example: Capital Legacy to call to amend the will; everything sent to Cameron, feedback awaited; short-term R 2,539 p.m. split. ' +
       'medical = medical aid, gap = gap cover, will = the will, legacy = the legacy protection plan, shortterm = short-term insurance. Write null for an item the notes say nothing about. Never guess, never copy anything that is not about that item.',
+    counterletter: 'This is an insurer\'s COUNTER OFFER LETTER, sent after underwriting when the client accepted a quote and the insurer came back with loadings or exclusions (for BrightRock the file is called "<Name>\'s cover terms (Cover Proposal <original number> <revised number>)"). ' +
+      'Return { "originalNumber": "the original Cover Proposal or quote number as printed", "revisedNumber": "the revised Cover Proposal or quote number as printed", "origPremium": n (the original monthly premium), "revPremium": n (the revised monthly premium), "startDate": "dd/mm/yyyy (the revised policy start date)", ' +
+      '"expires": "dd/mm/yyyy (the date the revised proposal expires) or null", "termsPage": n (the page of THIS PDF file that holds the grid of underwriting terms, the first page of the file is 1), "exclusionsPage": n (the page of THIS PDF file that lists the cover exclusions) or null, ' +
+      '"cells": [ { "need": "needs" | "dread", "column": "recover" | "permanent" | "death", "decision": "the decision as printed, for example Accepted, Declined", "loading": n (the premium loading in percent, or null when there is none), "exclusions": [ "the exclusion numbers printed in that cell, as printed, for example 1*" ], "reduced": true | false } ], ' +
+      '"exclusions": [ { "no": "the exclusion number as printed, for example 1*", "type": "the type as printed, for example Medical", "what": "what it means, copied in the insurer\'s own words", "page": n } ], "notes": "anything else the letter says about a declined or reduced cover or a condition, in one or two short sentences, or null" }. ' +
+      'The grid\'s ROWS are the need groups: "needs" = cover for household, childcare, healthcare, debt and death-related needs; "dread" = cover for additional expense needs. Its three COLUMN GROUPS are: "recover" = cover that you can recover from; "permanent" = cover that is permanent; "death" = cover that is caused by death. ' +
+      'Give one cell for each row and column group the letter prints. Copy every number exactly as printed; write null for anything the letter does not print; never work anything out and never guess.',
     cmp: 'This is a BrightRock change moment pay-out guide. Return { "number": "the CP number", "activationDate": "dd/mm/yyyy", "reason": "BrightRock\'s reason, only if it gives no pay-out, else null", "rows": [ { "key": "total" | "retirement" | "childcare" | "child", "name": "child first name", "sname": "child surname", "today": n, "projected": n, "payoutDate": "dd/mm/yyyy" or null } ] }.'
   };
-  var SPEC_OF = { fna: 'quote', shortfallQuote: 'quote', reduced: 'quote', comparative: 'quote', policies: 'policy', group: 'group', investments: 'investment', astute: 'astute', cmp: 'cmp', proposed: 'proposal', goals: 'goal', other: 'policy', followup: 'followup', ffnotes: 'ffnotes', bremail: 'bremail' };
+  var SPEC_OF = { fna: 'quote', shortfallQuote: 'quote', reduced: 'quote', comparative: 'quote', policies: 'policy', group: 'group', investments: 'investment', astute: 'astute', cmp: 'cmp', proposed: 'proposal', goals: 'goal', other: 'policy', followup: 'followup', ffnotes: 'ffnotes', bremail: 'bremail', counterletter: 'counterletter' };
   /* What the Fact Find says about the client's debts and children, for the reading of a quote (the quote often prints no bank or the debt's name): Claude is asked to name each debt line from it. '' when there is nothing. */
   function factNote(state) {
     var f = state && state.factFind && state.factFind.facts; if (!f) return '';
@@ -210,16 +217,26 @@
     if (read) enrich(state, q);
     if (data.printedTotals && typeof data.printedTotals === 'object') q.printedTotals = pillarsOf(data.printedTotals);
     q.st = 'verify'; q.by = 'page'; q.src = src; q.status = 'pending';
-    if (o.replaces) { var old = store.findQuote(state, o.replaces); if (old) { old.removed = true; old.replacedBy = q.id; q.replaces = old.id; } }
-    var same = o.replaces ? null : quoteIn(state, block, q.number);                                         // the same number in the same block (not the quote that is being replaced): ONE quote, never two (Paul, 23 November)
+    if (o.counterOf) { q.counterOf = o.counterOf; q.uw = null; q.offer = q.offer || {}; if (!read) q.lines = []; var rt0 = store.findQuote(state, o.counterOf); if (rt0 && !s(data.insurer)) q.insurer = rt0.insurer; }                 // a counter offer quote (round 1.2): the same kind and block as the quote the client accepted, no lines of the Fact Find
+    var place = null;
+    if (o.replaces) {
+      var old = store.findQuote(state, o.replaces);
+      if (old) {
+        if (old.counterOf) { q.counterOf = old.counterOf; q.offer = JSON.parse(JSON.stringify(old.offer || {})); q.terms = JSON.parse(JSON.stringify(old.terms || { loadings: [], exclusions: [] })); q.uw = null; if (!read) q.lines = []; place = old; }       // a counter offer that is replaced stays a counter offer, with its letter and terms
+        calc.allQuotes(state).forEach(function (x) { if (x.counterOf === old.id) x.counterOf = q.id; });                                          // and the counter offers of a quote that is replaced follow the new quote
+        old.removed = true; old.replacedBy = q.id; q.replaces = old.id;
+      }
+    }
+    var same = o.replaces ? null : quoteIn(state, block, q.number);
+    if (same && !!o.counterOf !== !!same.counterOf) same = null;                                          // a counter offer is never merged into an ordinary quote (or the other way round)                                         // the same number in the same block (not the quote that is being replaced): ONE quote, never two (Paul, 23 November)
     if (same) {
       if (!read && quoteRead(same)) return { quote: same, read: false, duplicate: same, merged: 'kept' };   // only a name and a number: what was read is never replaced by it
-      var keep = { id: same.id, status: same.status, uw: same.uw, second: same.second, terms: same.terms, repl: same.repl, policyNo: same.policyNo, startDate: same.startDate, cmp: same.cmp, replaces: same.replaces, replacedBy: same.replacedBy };          // the adviser's choices (status, underwriting, terms, replacements) are never lost to a second reading
+      var keep = { id: same.id, status: same.status, uw: same.uw, second: same.second, counterOf: same.counterOf, offer: same.offer, terms: same.terms, repl: same.repl, policyNo: same.policyNo, startDate: same.startDate, cmp: same.cmp, replaces: same.replaces, replacedBy: same.replacedBy };          // the adviser's choices (status, underwriting, terms, replacements) are never lost to a second reading
       Object.keys(same).forEach(function (k) { delete same[k]; }); Object.assign(same, q, keep);
       return { quote: same, read: read, duplicate: same, merged: 'again' };
     }
     var dup = findQuoteByNumber(state, q.number);                                                           // a quote with this number (not removed) is already there: the caller says so
-    state.blocks[schema.blockOfQuote[kind]].quotes.push(q);
+    var arr = state.blocks[schema.blockOfQuote[kind]].quotes; if (place && arr.indexOf(place) >= 0) arr.splice(arr.indexOf(place) + 1, 0, q); else arr.push(q);          // a replaced counter offer keeps its place: replacing the older one never makes the replacement the live one
     return { quote: q, read: read, duplicate: dup || null };
   }
   /* A policy schedule fills the details of one item of block 1. Returns the item, or null when none matches (the schedule is for a policy that is not in the Fact Find). */
@@ -493,6 +510,57 @@
     it.requested = true; if (s(data.note)) it.note = s(data.note); else if (!was) it.note = '';
     it.st = 'verify'; it.by = 'page'; it.src = src; return { item: it, wasRequested: was };
   }
+  /* ---------- counter offers (round 1.2) ---------- */
+  /* What a file in a client's counter offer folder is, from its name: letter (the counter offer letter), quote (the revised proposal), consent (ignore), signed (the client's signed copy: a sign the client accepted), other. numbers: the 6 to 12 digit
+     numbers in the name, in order (BrightRock's letter names the original and the revised proposal, its quote only the revised one). */
+  function counterRole(fileName) {
+    var raw = String(fileName == null ? '' : fileName), low = raw.replace(/\.[A-Za-z0-9]{2,5}$/, '').toLowerCase(), numbers = (raw.match(/\d{6,12}/g) || []);
+    var role = /consent to release|confidential information/.test(low) ? 'consent' : /(^|[ _\-(])signed\s*\)?$/.test(low) ? 'signed' : /cover terms|counter[ _-]?offer|offer letter|terms letter|underwriting terms/.test(low) ? 'letter' : /cover proposal|proposal|quote/.test(low) ? 'quote' : 'other';
+    return { role: role, numbers: numbers };
+  }
+  /* The counter offer a letter belongs to: the one of this quote chain with the revised number, else a new one with no lines yet. */
+  function counterFor(state, root, number, file) {
+    var all = calc.counterOffers(state, root), key = qkey(number); if (key && key === qkey(root.number)) key = '';          // a revised number that is the original's is no number: it must never make a copy of the original
+    var have = key ? all.filter(function (c) { return qkey(c.number) === key; })[0] || (file ? all.filter(function (c) { return c.offer && c.offer.letter === file; })[0] : null) || null : (file ? all.filter(function (c) { return c.offer && c.offer.letter === file; })[0] || (all.filter(function (c) { return !qkey(c.number); }).length === 1 ? all.filter(function (c) { return !qkey(c.number); })[0] : null) : null);          // a letter with no number belongs to the counter offer that holds this file, else to the only one with no number
+    return have || store.addCounterOffer(state, 'blocks.' + schema.blockOfQuote[root.kind] + '.quotes.' + state.blocks[schema.blockOfQuote[root.kind]].quotes.indexOf(root), { number: key ? s(number) : '' });
+  }
+  function sameRow(a, b, kind) { return kind === 'loadings' ? a.need === b.need && a.column === b.column : s(a.no) && s(b.no) ? calc.norm(a.no) === calc.norm(b.no) : calc.norm(a.what) === calc.norm(b.what); }
+  /* A counter offer letter, read: the terms (loadings by need group and column group, exclusions as the insurer numbers them) go into the counter offer's terms, amber until the adviser has checked them; the premiums, dates and the file go into
+     its `offer`. A row the adviser has checked is never replaced by a second reading. root: the quote the client accepted. Returns { quote, loadings, exclusions }. */
+  function applyCounterLetter(state, root, data, file, o) {
+    o = o || {}; data = data || {};
+    var src = function (page) { var x = srcOf('counteroffer', file); x.page = calc.isNum(n(page)) ? n(page) : null; return x; };
+    var c = counterFor(state, root, data.revisedNumber || o.number, String(file || '')), off = c.offer = c.offer && typeof c.offer === 'object' ? c.offer : {};
+    off.letter = String(file || ''); off.originalNumber = s(data.originalNumber) || off.originalNumber || null; off.revisedNumber = s(data.revisedNumber) || off.revisedNumber || null;
+    if (data.origPremium !== undefined) off.origPremium = n(data.origPremium); if (data.revPremium !== undefined) off.revPremium = n(data.revPremium);
+    off.expires = dmy(data.expires) || off.expires || null; off.notes = s(data.notes) || off.notes || null; off.readAt = today();
+    if (o.signed) off.signed = String(o.signed);
+    if (!s(c.number) && s(data.revisedNumber) && qkey(data.revisedNumber) !== qkey(root.number)) c.number = s(data.revisedNumber);
+    off.startDate = dmy(data.startDate) || off.startDate || null;                                          // the date the letter proposes: the start date of the policy is typed when the insurer has issued it
+    if (!calc.isNum(c.premium) && calc.isNum(off.revPremium)) { /* the counter offer quote prints the loaded premium; until it is read the letter's revised premium is shown (calc.counterPremium) */ }
+    var t = c.terms = c.terms && typeof c.terms === 'object' ? c.terms : { loadings: [], exclusions: [] };
+    var made = { loadings: 0, exclusions: 0, updated: 0 }, cells = Array.isArray(data.cells) ? data.cells : [];          // a second reading works IN PLACE: a row is found again by its need and column (loading) or its number (exclusion); an amber row gets the new figures and keeps what was typed in it, a checked row is never touched, nothing is dropped
+    cells.forEach(function (cell) {
+      if (!cell || !schema.needGroupById[cell.need] || !schema.columnGroupById[cell.column]) return;
+      var pct = n(cell.loading); if (!calc.isNum(pct) || !(pct > 0)) return;
+      var row = { benefit: schema.columnGroupById[cell.column].benefit, pct: pct, kind: null, reason: '', need: cell.need, column: cell.column, st: 'verify', by: 'page', src: src(data.termsPage) };
+      var have = t.loadings.filter(function (x) { return x && x.need === row.need && x.column === row.column; })[0];
+      if (!have) { t.loadings.push(row); made.loadings++; }
+      else if (have.st === 'verify' && have.by !== 'person' && have.pct !== pct) { have.pct = pct; have.src = row.src; made.updated++; }
+    });
+    (Array.isArray(data.exclusions) ? data.exclusions : []).forEach(function (e) {
+      if (!e || (!s(e.no) && !s(e.what))) return;
+      var no = s(e.no), applies = [];
+      cells.forEach(function (cell) { if (cell && schema.needGroupById[cell.need] && schema.columnGroupById[cell.column] && Array.isArray(cell.exclusions) && no && cell.exclusions.some(function (x) { return calc.norm(x) === calc.norm(no); })) applies.push({ need: cell.need, column: cell.column }); });
+      var bens = []; applies.forEach(function (a) { var b = schema.columnGroupById[a.column].benefit; if (bens.indexOf(b) < 0) bens.push(b); });
+      var row = { no: no, benefit: bens.length ? bens.join(' and ') : '', what: s(e.what) || '', why: s(e.type) || '', applies: applies, st: 'verify', by: 'page', src: src(e.page || data.exclusionsPage), page: calc.isNum(n(e.page)) ? n(e.page) : null };
+      var hv = t.exclusions.filter(function (x) { return sameRow(x, row, 'exclusions'); })[0];
+      if (!hv) { t.exclusions.push(row); made.exclusions++; }
+      else if (hv.st === 'verify' && hv.by !== 'person') { var was = JSON.stringify([hv.applies, hv.benefit, hv.page]); hv.applies = applies; hv.benefit = row.benefit; hv.page = row.page; hv.src = row.src; if (JSON.stringify([hv.applies, hv.benefit, hv.page]) !== was) made.updated++; }          // the wording and the type may have been corrected by hand: they stay
+    });
+    c.st = c.st === 'empty' ? 'verify' : c.st; c.by = 'page'; if (!c.src) c.src = src(null);
+    return { quote: c, loadings: made.loadings, exclusions: made.exclusions, updated: made.updated };
+  }
   /* What was read has nothing in it (a document that is not the kind said, a scan that could not be read): the caller says so and only records the document. */
   function isEmptyRead(block, data) {
     if (!data || typeof data !== 'object') return true;
@@ -505,10 +573,11 @@
     if (kind === 'ffnotes') return !(data.items && typeof data.items === 'object' && Object.keys(data.items).some(function (k) { var d = data.items[k]; return d && typeof d === 'object' && (has(d.company) || has(d.product) || has(d.premium)); }));
     if (kind === 'followup') return !(data.items && typeof data.items === 'object' && Object.keys(data.items).some(function (k) { return has(data.items[k]); }));
     if (kind === 'astute') return !(data.investments && data.investments.length) && !(data.policies && data.policies.length) && !(data.group && data.group.length) && !has(data.reportDate);
+    if (kind === 'counterletter') return !(data.cells && data.cells.length) && !(data.exclusions && data.exclusions.length) && !has(data.revPremium) && !has(data.origPremium);
     if (kind === 'bremail') return !(data.quotes && data.quotes.some && data.quotes.some(function (e) { return e && calc.isNum(n(e.deathIncomePortion)); }));
     return !Object.keys(data).some(function (k) { return has(data[k]) && typeof data[k] !== 'object'; }) && !Object.keys(data).some(function (k) { var v = data[k]; return v && typeof v === 'object' && Object.keys(v).some(function (j) { return has(v[j]); }); });
   }
 
-  return { classify: classify, promptFor: promptFor, parseReply: parseReply, readWithClaude: readWithClaude, applyQuote: applyQuote, enrich: enrich, factNote: factNote, applyPolicy: applyPolicy, applyOther: applyOther, applyFollowUp: applyFollowUp, dm: dm, factNotesText: factNotesText, applyNotesRead: applyNotesRead, emailText: emailText, msgText: msgText, applyBrEmail: applyBrEmail, setAstuteDate: setAstuteDate, brightQuotes: brightQuotes, applyGroup: applyGroup, applyInvestment: applyInvestment, applyAstute: applyAstute, applyAstutePolicies: applyAstutePolicies, applyAstuteGroup: applyAstuteGroup, astuteSrc: astuteSrc, applyProposed: applyProposed, applyGoal: applyGoal, isEmptyRead: isEmptyRead,
+  return { classify: classify, promptFor: promptFor, parseReply: parseReply, readWithClaude: readWithClaude, applyQuote: applyQuote, counterRole: counterRole, applyCounterLetter: applyCounterLetter, enrich: enrich, factNote: factNote, applyPolicy: applyPolicy, applyOther: applyOther, applyFollowUp: applyFollowUp, dm: dm, factNotesText: factNotesText, applyNotesRead: applyNotesRead, emailText: emailText, msgText: msgText, applyBrEmail: applyBrEmail, setAstuteDate: setAstuteDate, brightQuotes: brightQuotes, applyGroup: applyGroup, applyInvestment: applyInvestment, applyAstute: applyAstute, applyAstutePolicies: applyAstutePolicies, applyAstuteGroup: applyAstuteGroup, astuteSrc: astuteSrc, applyProposed: applyProposed, applyGoal: applyGoal, isEmptyRead: isEmptyRead,
     applyCmp: applyCmp, matchItem: matchItem, logDoc: logDoc, findQuoteByNumber: findQuoteByNumber, quoteIn: quoteIn, quoteRead: quoteRead, SPEC_OF: SPEC_OF, BLOCK_LABEL: BLOCK_LABEL, QUOTE_OF: QUOTE_OF, ENDPOINT: ENDPOINT };
 });

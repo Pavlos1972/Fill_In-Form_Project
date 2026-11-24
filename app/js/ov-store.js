@@ -43,7 +43,7 @@
     return t === '' ? null : t;
   }
   /* An adviser's CHOICE (a quote's status, underwriting outcome, terms, replacement answers, the broker on record) is not a check of a document's figures: it never turns an amber row green (round 1.1). */
-  var CHOICE = /(^|\.)(status|uw|second|brokerRecord|brokerChangedDate)$|\.(terms|repl)\./;
+  var CHOICE = /(^|\.)(status|uw|second|brokerRecord|brokerChangedDate|counterOf)$|\.(terms|repl|offer)\./;
   function pathParts(path) { return String(path).split('.'); }
   function pathGet(state, path) { var o = state; pathParts(path).forEach(function (k) { o = o == null ? undefined : o[k]; }); return o; }
   /* Set the value at a path ("blocks.fna.quotes.0.lines.2.life.lump"). The row it belongs to becomes "confirmed" and "person" (somebody typed it). Returns the value stored. */
@@ -53,6 +53,7 @@
     var last = parts[parts.length - 1];
     o[last] = val;
     if (parts.length >= 3) { var ln = pathGet(state, parts.slice(0, -2).join('.')); if (ln && ln.via && typeof ln.via === 'object') delete ln.via[parts.slice(-2).join('.')]; }          // a figure somebody types is no longer "from the FNA quote" or "from the email"
+    var tr = /^(.*\.terms\.(?:loadings|exclusions)\.\d+)\.[A-Za-z]+$/.exec(path); if (tr) { var trow = pathGet(state, tr[1]); if (trow && typeof trow === 'object') trow.by = 'person'; }          // a figure typed in a term row is the adviser's, whatever its colour: a second reading of the letter does not overwrite it
     if (owner && !CHOICE.test(path)) { owner.st = 'confirmed'; owner.by = 'person'; delete owner.match; }                          // a person's typing is a person's check: the page's automatic match is over
     return val;
   }
@@ -61,6 +62,7 @@
   function acceptAll(state) {
     var n = 0;
     walkRows(state, function (r) { if (r.st === 'ff' || r.st === 'verify') { r.st = 'confirmed'; r.by = 'person'; n++; } });
+    schema.QUOTE_KINDS.forEach(function (k) { (state.blocks[schema.blockOfQuote[k]].quotes || []).forEach(function (q) { if (!q.removed && q.counterOf) n += confirmTerms(state, null, q); }); });          // the terms read from a letter are checked too
     return n;
   }
   /* Every row that carries a status: items, quotes and their lines. */
@@ -85,7 +87,7 @@
   /* A new quote. For an FNA, shortfall or reduced quote (BrightRock) the lines the Fact Find already knows are started for it (household, a line per child, a line per debt, death-related needs, dread) and wait for the
      quote's figures ("from the Fact Find, waiting for document"). */
   function newQuote(state, kind, o) {
-    var q = { id: uid('q'), kind: kind, insurer: kind === 'comparative' ? '' : 'BrightRock', number: '', date: null, rates: 'Non-smoker rates', servicing: false, status: 'pending', uw: null, second: false, terms: { loadings: [], exclusions: [] }, repl: { answer: null, policies: [] }, disabilityAge: state.header.disabilityAge,
+    var q = { id: uid('q'), kind: kind, insurer: kind === 'comparative' ? '' : 'BrightRock', number: '', date: null, rates: 'Non-smoker rates', servicing: false, status: 'pending', uw: null, second: false, counterOf: null, offer: null, terms: { loadings: [], exclusions: [] }, repl: { answer: null, policies: [] }, disabilityAge: state.header.disabilityAge,
       aci: null, aciText: null, premium: null, printedTotals: null, lines: [], cmp: null, policyNo: null, startDate: null, replaces: null, replacedBy: null, st: 'empty', src: null, by: 'person', removed: false };
     if (kind !== 'comparative') {
       var facts = state.factFind && state.factFind.facts, ffLine = function (l) { l.st = 'ff'; l.by = 'page'; l.src = { kind: 'factfind' }; return l; };
@@ -103,7 +105,12 @@
     schema.QUOTE_KINDS.forEach(function (k) { state.blocks[schema.blockOfQuote[k]].quotes.forEach(function (q) { if (q.id === id) hit = q; }); });
     return hit;
   }
-  function setRemoved(state, path, yes) { var o = pathGet(state, path); if (!o || typeof o !== 'object') return false; o.removed = !!yes; return true; }
+  function setRemoved(state, path, yes) {
+    var o = pathGet(state, path); if (!o || typeof o !== 'object') return false;
+    if (yes && !o.removed && Array.isArray(o.lines) && !o.counterOf) calc.counterOffers(state, o).forEach(function (c) { c.removed = true; c.removedWith = o.id; });          // the counter offers of a quote that goes go with it (and come back with it)
+    if (!yes && o.removed) schema.QUOTE_KINDS.reduce(function (a, k) { return a.concat(state.blocks[schema.blockOfQuote[k]].quotes); }, []).forEach(function (c) { if (c.removed && c.removedWith === o.id) { c.removed = false; delete c.removedWith; } });
+    o.removed = !!yes; return true;
+  }
   function addLine(state, path, type, o) { var c = pathGet(state, path); if (!c || !Array.isArray(c.lines)) return null; var l = newLine(type, o); c.lines.push(l); return l; }
   function addItem(state, blockId, item) { state.blocks[blockId].items.push(item); return item; }
   function newProposed() { return { id: uid('pi'), type: schema.PROPOSED_TYPES[0], provider: '', quote: '', contribution: 'monthly', lump: null, monthly: null, boostPct: null, netInvested: null, aci: null, st: 'empty', src: null, by: 'person', removed: false }; }
@@ -115,10 +122,10 @@
   /* The client's decision. Accepted goes to underwriting (pending) unless an outcome is already there. Returns the quote. */
   function setStatus(state, path, value) {
     var q = quoteAt(state, path); if (!q || !schema.statusLabel[value]) return null;
-    q.status = value; if (value === 'accepted' && !schema.uwLabel[q.uw]) q.uw = 'pending';
+    q.status = value; if (value === 'accepted' && !q.counterOf && !schema.uwLabel[q.uw]) q.uw = 'pending';          // a counter offer has no underwriting of its own
     return q;
   }
-  function setUw(state, path, value) { var q = quoteAt(state, path); if (!q || (value !== null && !schema.uwLabel[value])) return null; q.uw = value; return q; }
+  function setUw(state, path, value) { var q = quoteAt(state, path); if (!q || q.counterOf || (value !== null && !schema.uwLabel[value])) return null; q.uw = value; return q; }
   function setSecond(state, path, yes) { var q = quoteAt(state, path); if (!q) return null; q.second = !!yes; return q; }
   function termList(q, kind) { if (!q.terms || typeof q.terms !== 'object') q.terms = { loadings: [], exclusions: [] }; if (!Array.isArray(q.terms[kind])) q.terms[kind] = []; return q.terms[kind]; }
   function addTerm(state, path, kind) {
@@ -126,6 +133,22 @@
     var row = kind === 'loadings' ? { benefit: 'All benefits', pct: null, kind: 'medical', reason: '' } : { benefit: '', what: '', why: '' }; termList(q, kind).push(row); return row;
   }
   function removeTerm(state, path, kind, i) { var q = quoteAt(state, path); if (!q || (kind !== 'loadings' && kind !== 'exclusions')) return false; var l = termList(q, kind); if (!(i >= 0 && i < l.length)) return false; l.splice(i, 1); return true; }
+  /* A counter offer to the quote at `path` (round 1.2): a new quote of the same kind in the same block, linked by counterOf to the quote the client accepted, with NO lines (they come from the counter offer quote) and the replacements of the
+     original (a counter offer is the same replacement). o: what is known (number, date, premium, offer). Returns the new quote, or null when the quote at `path` is not one a counter offer can be added to. */
+  function addCounterOffer(state, path, o) {
+    var q = quoteAt(state, path); if (!q) return null;
+    var root = calc.parentOf(state, q) || q, kind = root.kind;
+    var c = newQuote(state, kind, Object.assign({ insurer: root.insurer, productName: root.productName || null, rates: root.rates, counterOf: root.id, status: 'pending', uw: null, lines: [], st: 'empty', by: 'page', offer: {}, disabilityAge: root.disabilityAge }, o || {}));
+    c.lines = []; c.counterOf = root.id; c.uw = null; c.offer = Object.assign({}, c.offer || {});
+    state.blocks[schema.blockOfQuote[kind]].quotes.push(c); return c;
+  }
+  /* The adviser has checked the terms a letter was read into: every amber row becomes checked. Returns how many. */
+  function confirmTerms(state, path, qq) {
+    var q = qq || quoteAt(state, path), n = 0; if (!q || !q.terms) return 0;
+    ['loadings', 'exclusions'].forEach(function (k) { (q.terms[k] || []).forEach(function (r) { if (r && r.st === 'verify') { r.st = 'confirmed'; r.by = 'person'; n++; } }); });
+    if (n && q.counterOf && !calc.activeLines(q).length && q.st === 'verify') { q.st = 'confirmed'; q.by = 'person'; }          // a counter offer known only from its letter is checked when its terms are
+    return n;
+  }
   /* Will this quote replace any of the client's existing policies? Answering No or clearing the answer drops the picks. */
   function setRepl(state, path, answer) {
     var q = quoteAt(state, path); if (!q) return null;
@@ -455,13 +478,13 @@
     schema.QUOTE_KINDS.forEach(function (k) {
       var b = state.blocks[schema.blockOfQuote[k]], at = {}, keep = [];
       (b.quotes || []).forEach(function (q) {
-        var key = q.removed ? '' : numKey(q.number);
+        var key = q.removed ? '' : (q.counterOf ? 'c' : '') + numKey(q.number);
         if (!key) { keep.push(q); return; }
         if (at[key] === undefined) { at[key] = keep.length; keep.push(q); return; }
         var cur = keep[at[key]], win = score(q) > score(cur) ? q : cur, lose = win === q ? cur : q;
-        if (win.status === 'pending' && lose.status !== 'pending') ['status', 'uw', 'second', 'terms', 'repl'].forEach(function (k) { if (lose[k] !== undefined) win[k] = lose[k]; });          // the copy that is dropped had the adviser's choices: they stay
+        if (win.status === 'pending' && lose.status !== 'pending') ['status', 'uw', 'second', 'terms', 'repl', 'counterOf', 'offer'].forEach(function (k) { if (lose[k] !== undefined && lose[k] !== null) win[k] = lose[k]; });          // the copy that is dropped had the adviser's choices: they stay
         keep[at[key]] = win; dropped++;
-        (b.quotes || []).forEach(function (x) { if (x.replacedBy === lose.id) x.replacedBy = win.id; });
+        (b.quotes || []).forEach(function (x) { if (x.replacedBy === lose.id) x.replacedBy = win.id; if (x.counterOf === lose.id) x.counterOf = win.id; });
       });
       b.quotes = keep;
     });
@@ -503,7 +526,7 @@
     return out;
   }
 
-  return { blank: blank, uid: uid, parseCell: parseCell, setPath: setPath, setStatus: setStatus, setUw: setUw, setSecond: setSecond, addTerm: addTerm, removeTerm: removeTerm, setRepl: setRepl, toggleReplaced: toggleReplaced, setBrokerRecord: setBrokerRecord, pathGet: pathGet, accept: accept, acceptAll: acceptAll, walkRows: walkRows, newLine: newLine, newQuote: newQuote, addQuote: addQuote, findQuote: findQuote,
+  return { blank: blank, uid: uid, parseCell: parseCell, setPath: setPath, setStatus: setStatus, setUw: setUw, setSecond: setSecond, addTerm: addTerm, removeTerm: removeTerm, addCounterOffer: addCounterOffer, confirmTerms: confirmTerms, setRepl: setRepl, toggleReplaced: toggleReplaced, setBrokerRecord: setBrokerRecord, pathGet: pathGet, accept: accept, acceptAll: acceptAll, walkRows: walkRows, newLine: newLine, newQuote: newQuote, addQuote: addQuote, findQuote: findQuote,
     setRemoved: setRemoved, newCmp: newCmp, addCmp: addCmp, removeCmp: removeCmp, startReview: startReview, addLine: addLine, addItem: addItem, newProposed: newProposed, factsFrom: factsFrom, diffFacts: diffFacts, syncBlocks: syncBlocks, fillFromFactFind: fillFromFactFind, fileName: fileName,
     clientName: clientName, computed: computed, dedupeQuotes: dedupeQuotes, flattenPolicyLines: flattenPolicyLines, isBright: isBright, toJSON: toJSON, fromJSON: fromJSON, rows: rows, counts: counts, pendingRows: pendingRows, ffKeyFor: ffKeyFor, APP_ID: APP_ID };
 });

@@ -72,10 +72,17 @@
     if (l.type !== 'other') need += l.accelerated === true ? '\nAccelerated' : l.accelerated === false ? '\nStandalone' : '';                  // every need line says Accelerated or Standalone (round 4)
     var isNA = function (p) { return l[p] === 'N/A'; };
     var hasIP = l.type === 'debt' && calc.isNum(l.ip && l.ip.monthly) && l.ip.monthly > 0, any = !isNA('life') || !isNA('lsd');
-    var tall = any ? (hasIP ? 22 : 17) : 9; if (l.type !== 'other' && (l.accelerated === true || l.accelerated === false)) tall = Math.max(tall, 17);           // the name, the bank and Accelerated / Standalone
+    var tall = any ? (hasIP ? 22 : 17) : 9; if (l.type !== 'other' && (l.accelerated === true || l.accelerated === false)) tall = Math.max(tall, 17);
+    var refsOf = function (p) {                                                                                           // round 1.2: the red references the quote's terms put on this cell (+10% loading, Exclusion 3*), only where it has an amount
+      if (!aci || !aci.terms || isNA(p)) return [];
+      var pl = schema.PILLARS.filter(function (x) { return x.id === p; })[0];
+      if (!pl || !pl.keys.some(function (k) { var v = calc.lineVal(l, p, k); return calc.isNum(v) && v > 0; })) return [];
+      return calc.refsAt(aci, l.type, p).map(function (r) { return r.text; });
+    };
+    var maxRefs = Math.max.apply(null, ['life', 'sev', 'lsd', 'ip'].map(function (p) { return refsOf(p).length; }).concat([0])); if (maxRefs) tall += 3.6 * maxRefs;           // the name, the bank and Accelerated / Standalone
     var pill = function (p, lump, monthly) {
       if (isNA(p)) return right('N/A', { textColor: MUTED });
-      var o = { p: p, lump: lump ? calc.lineVal(l, p, 'lump') : undefined, monthly: monthly ? calc.lineVal(l, p, 'monthly') : undefined, label: tp.monthly, protector: p === 'ip' && hasIP };
+      var o = { p: p, lump: lump ? calc.lineVal(l, p, 'lump') : undefined, monthly: monthly ? calc.lineVal(l, p, 'monthly') : undefined, label: tp.monthly, protector: p === 'ip' && hasIP, refs: refsOf(p) };
       return { content: '', ov: o, styles: { minCellHeight: tall } };
     };
     return [{ content: t(need), styles: { halign: 'left', fontStyle: 'bold', minCellHeight: tall } }, { content: t(l.term || ''), styles: { halign: 'left' } }, pill('life', true, true), pill('sev', true, false), pill('lsd', true, true), pill('ip', false, true),
@@ -97,36 +104,41 @@
     }
     function one(txt, size, color, bold) { setText(d, color, size, bold); d.text(t(txt), x, y, { align: 'right' }); y += size > 8 ? 4.5 : 3.4; }
     if (o.pol !== undefined) { one(o.pol, FS.body, INK, false); (o.desc || []).forEach(function (l) { one(l, FS.small, MUTED, false); }); return; }                  // a policy's amount with the description of the benefit under it
-    if (o.p === 'ip') { one(PM(o.monthly), FS.body, INK, false); if (o.protector) { one('Instalment Protector', FS.small, MUTED, false); one('To be ceded to the bank', FS.small, RED, true); } return; }
+    var refs = function () { (o.refs || []).forEach(function (r) { one(r, FS.small, RED, true); }); };
+    if (o.p === 'ip') { one(PM(o.monthly), FS.body, INK, false); if (o.protector) { one('Instalment Protector', FS.small, MUTED, false); one('To be ceded to the bank', FS.small, RED, true); } refs(); return; }
     if (!calc.isNum(o.lump) && !calc.isNum(o.monthly) && o.lump !== 'Not found') { one('-', FS.body, MUTED, false); return; }
     one(A(o.lump), FS.body, INK, false);
     if (o.monthly !== undefined) { one(A(o.monthly), FS.body, RED, false); one(o.label, FS.small, MUTED, false); }
+    refs();
   }
   var LINES_W = [54, 30, 32, 26, 31, 33, 20, 29, 18];
   function ageHead(age) { return age ? '\nAge ' + age : ''; }
   function linesHead(age) { return [['Need', 'Term', 'Life cover', 'Severe illness', 'Lump sum disability' + ageHead(age), 'Income protector / sickness benefit' + ageHead(age), 'Waiting period', 'ACI', 'ABI']]; }
-  function totalRows(tt, premium, rates) {
+  function totalRows(tt, premium, rates, q) {
     var tot = function (label, cells, fill, bold) { return [{ content: t(label), colSpan: 2, styles: { halign: 'left', fontStyle: 'bold', fillColor: fill } }].concat(cells.map(function (c) { return { content: t(c), styles: { halign: 'right', fontStyle: 'bold', fillColor: fill } }; }), [{ content: '', colSpan: 4, styles: { fillColor: fill } }]); };
     var rows = [tot('Total lump sum', [A(tt.life.lump), A(tt.sev.lump), A(tt.lsd.lump), ''], ORANGE), tot('Total income protected', [PM(tt.life.monthly), 'N/A', PM(tt.lsd.monthly), PM(tt.ip.monthly)], ORANGE)];
+    var rf = q && q.terms ? ['life', 'sev', 'lsd', 'ip'].map(function (p) { return calc.refsTotal(q, p).map(function (r) { return r.text; }).join('\n'); }) : [];
+    if (rf.some(Boolean)) rows.splice(2, 0, [{ content: t('Loadings and exclusions'), colSpan: 2, styles: { halign: 'left', fontStyle: 'bold', fillColor: [255, 255, 255] } }].concat(rf.map(function (c) { return { content: t(c), styles: { halign: 'right', fontStyle: 'bold', textColor: RED, fillColor: [255, 255, 255], fontSize: FS.small + 1 } }; }), [{ content: '', colSpan: 4, styles: { fillColor: [255, 255, 255] } }]));
     rows.push([{ content: t('Monthly premium' + (rates ? '   ' + rates : '')), colSpan: 3, styles: { halign: 'left', fontStyle: 'bold', fillColor: BLUE } }, { content: t(A(premium)), colSpan: 2, styles: { halign: 'right', fontStyle: 'bold', fillColor: BLUE } }, { content: '', colSpan: 4, styles: { fillColor: BLUE } }]);
     return rows;
   }
   function linesTable(doc, y, c, isPolicy, age) {
     var lines = calc.activeLines(c), body = lines.map(function (l) { return lineCells(l, isPolicy ? null : c); });
-    if (!isPolicy) body = body.concat(totalRows(calc.totals(c), c.premium, c.rates));
+    if (!isPolicy) body = body.concat(totalRows(calc.totals(c), c.premium, c.rates, c));
     if (!body.length) return y;
     return table(doc, y, { head: linesHead(age), body: body, colw: LINES_W, align: ['left', 'left'], draw: drawOv });
   }
 
   /* ---------- quotes ---------- */
   var BADGE = { pending: [[253, 239, 207], [143, 82, 0]], accepted: [[223, 240, 227], GREEN], notaccepted: [[251, 227, 224], RED], declined: [[251, 227, 224], RED], medical: [[251, 227, 224], RED], underwriting: [[225, 242, 250], DEEP] };
-  function quoteHeader(doc, y, q) {
-    var b = BADGE[calc.statusClass(q)] || BADGE.pending, label = calc.statusText(q), bw = Math.max(48, label.length * 2.5 + 8);
+  function quoteHeader(doc, y, q, state) {
+    var b = BADGE[calc.statusClass(q, state)] || BADGE.pending, got = state && calc.liveCounter(state, q), refused = !!got && calc.counterDead(state, q), label = refused ? 'Counter offer not accepted' : calc.statusText(q), bw = Math.max(48, label.length * 2.5 + 8);          // the badge stays short: a counter offer received is said in the line beside it
     doc.setFillColor.apply(doc, b[0]); doc.setDrawColor.apply(doc, b[1]); doc.setLineWidth(0.4); doc.roundedRect(M, y, bw, 8, 1.8, 1.8, 'FD');
     setText(doc, b[1], 9.5, true); doc.text(t(label), M + bw / 2, y + 5.4, { align: 'center' });
-    var n = q.number ? (/bright/i.test(q.insurer) ? 'CP ' : 'Quote ') + q.number : '', kind = { fna: 'FNA', shortfall: 'Shortfall quote', reduced: 'Reduced quote', comparative: 'Comparative quote' }[q.kind];
+    var n = q.number ? (/bright/i.test(q.insurer) ? 'CP ' : 'Quote ') + q.number : '', kind = q.counterOf ? 'Counter offer' : { fna: 'FNA', shortfall: 'Shortfall quote', reduced: 'Reduced quote', comparative: 'Comparative quote' }[q.kind];
     setText(doc, INK, FS.sub, true);
     doc.text(t([q.insurer, kind, n, q.date, q.rates, q.servicing ? 'Servicing quote' : ''].filter(Boolean).join('   |   ')), M + bw + 5, y + 5.6);
+    if (got && !refused) { setText(doc, DEEP, FS.sub, true); doc.text(t(got.status === 'accepted' ? 'Counter offer accepted' : 'Counter offer received'), M + 1, y + 13); return y + 17; }          // said on a line of its own: beside the long badge it ran off the page
     return y + 12;
   }
   function cmpTable(doc, y, q) {
@@ -146,26 +158,37 @@
   }
   /* The insurer's terms once the client has accepted and the insurer has answered (round 1.1): standard rates say just that; loadings and exclusions are listed with their reasons. Nothing for a quote still pending or declined. */
   function uwBlock(doc, y, q) {
-    var u = calc.uwOf(q); if (!u || u === 'pending' || schema.UW_DECLINED.indexOf(u) >= 0) return y;
-    setText(doc, DEEP, FS.sub, true); doc.text('Underwriting outcome', M, y + 5); y += 8;
+    var counter = !!q.counterOf, tm0 = q.terms || {}, u = counter ? ((tm0.loadings || []).length || (tm0.exclusions || []).length ? 'both' : null) : calc.uwOf(q); if (!u || u === 'pending' || schema.UW_DECLINED.indexOf(u) >= 0) return y;
+    setText(doc, DEEP, FS.sub, true); doc.text(counter ? 'Underwriting terms of the counter offer' : 'Underwriting outcome', M, y + 5); y += 8;
     if (u === 'standard') return note(doc, y, 'Accepted at standard rates.', GREEN);
-    y = note(doc, y, schema.uwLabel[u] + '.', GREEN);
+    if (!counter) y = note(doc, y, schema.uwLabel[u] + '.', GREEN);
     var tm = q.terms || {}, ls = Array.isArray(tm.loadings) ? tm.loadings : [], es = Array.isArray(tm.exclusions) ? tm.exclusions : [];
     if ((u === 'loadings' || u === 'both') && ls.length) y = table(doc, y + 1, { head: [['Loading on', 'Percentage added', 'Reason', 'The reason in words']], colw: [60, 36, 36, 141], align: ['left', 'right', 'left', 'left'],
-      body: ls.map(function (r) { return [{ content: t(r.benefit || ''), styles: { halign: 'left', fontStyle: 'bold' } }, right(calc.isNum(r.pct) ? calc.fmtPct(r.pct) : '-'), { content: t(schema.loadingKindLabel[r.kind] || ''), styles: { halign: 'left' } }, { content: t(r.reason || ''), styles: { halign: 'left' } }]; }) }) + 2;
-    if ((u === 'exclusions' || u === 'both') && es.length) y = table(doc, y + 1, { head: [['Benefit', 'What is excluded', 'Why']], colw: [60, 108, 105], align: ['left', 'left', 'left'],
+      body: ls.map(function (r) { var ng = schema.needGroupById[r.need]; return [{ content: t((calc.termBenefit(r) || '') + (ng ? '\n' + ng.l : '')), styles: { halign: 'left', fontStyle: 'bold' } }, right(calc.isNum(r.pct) ? calc.fmtPct(r.pct) : '-'), { content: t(schema.loadingKindLabel[r.kind] || ''), styles: { halign: 'left' } }, { content: t(r.reason || ''), styles: { halign: 'left' } }]; }) }) + 2;
+    var withNo = es.some(function (r) { return r && r.no; });
+    if ((u === 'exclusions' || u === 'both') && es.length) y = table(doc, y + 1, withNo ? { head: [['No.', 'Benefit', 'What is excluded', 'Type']], colw: [16, 52, 126, 79], align: ['left', 'left', 'left', 'left'],
+      body: es.map(function (r) { return [{ content: t(r.no || ''), styles: { halign: 'left', fontStyle: 'bold', textColor: RED } }, { content: t(calc.termBenefit(r)), styles: { halign: 'left', fontStyle: 'bold' } }, { content: t(r.what || ''), styles: { halign: 'left' } }, { content: t(r.why || ''), styles: { halign: 'left' } }]; }) } : { head: [['Benefit', 'What is excluded', 'Why']], colw: [60, 108, 105], align: ['left', 'left', 'left'],
       body: es.map(function (r) { return [{ content: t(r.benefit || ''), styles: { halign: 'left', fontStyle: 'bold' } }, { content: t(r.what || ''), styles: { halign: 'left' } }, { content: t(r.why || ''), styles: { halign: 'left' } }]; }) }) + 2;
+    return y;
+  }
+  /* The head of a counter offer (round 1.2): what it is, the letter, its expiry, the premium before and after, and what the letter says beyond the terms. */
+  function counterHead(doc, y, state, q) {
+    var root = calc.parentOf(state, q); if (!root) return y;
+    var off = q.offer || {}, pr = calc.counterPremium(state, q), parts = ['Counter offer to ' + calc.quoteRef(root), off.expires ? 'the revised proposal expires ' + off.expires : ''].filter(Boolean);
+    y = note(doc, y, parts.join('   |   '), DEEP);
+    if (pr && calc.isNum(pr.before) && calc.isNum(pr.after)) y = note(doc, y, 'Premium: before ' + A(pr.before) + ' p.m.   |   after ' + A(pr.after) + ' p.m.   |   difference ' + calc.fmtDiff(pr.diff) + (calc.isNum(pr.pct) ? ' (' + (pr.pct > 0 ? '+' : pr.pct < 0 ? '-' : '') + Math.abs(pr.pct) + '%)' : ''), INK);
+    if (off.notes) y = note(doc, y, 'The letter also says: ' + off.notes, RED);
     return y;
   }
   /* Which of the client's current policies a quote replaces, in red (round 1.1). A quote the client did not accept, or the insurer declined, prints nothing about it. */
   function replLines(doc, y, state, q) {
-    if (calc.dead(q)) return y;
-    var r = calc.replOf(q), ids = {}; calc.policies(state).forEach(function (e) { ids[e.item.id] = e; });
+    if (calc.dead(q) || q.counterOf || calc.counterDead(state, q)) return y;                                          // a counter offer is the same replacement: it is told once, under the quote the client accepted, naming the counter offer
+    var r = calc.replOf(q), ids = {}, live = calc.effectiveQuote(state, q); calc.policies(state).forEach(function (e) { ids[e.item.id] = e; });
     if (r.answer === 'no') return note(doc, y, 'This quote does not replace any of your existing policies.');
-    var picks = r.answer === 'yes' ? r.policies.map(function (id) { return ids[id]; }).filter(function (e) { return e && e.item.id !== q.id; }) : [];
+    var picks = r.answer === 'yes' ? r.policies.map(function (id) { return ids[id]; }).filter(function (e) { return e && !calc.chainIds(state, q)[e.item.id]; }) : [];
     if (!picks.length) return y;
     setText(doc, DEEP, FS.sub, true); doc.text('Replacing your existing policies', M, y + 5); y += 8;
-    picks.forEach(function (e) { y = note(doc, y, calc.policyRef(e.item) + ' will be replaced by ' + calc.quoteRef(q), RED); });
+    picks.forEach(function (e) { y = note(doc, y, calc.policyRef(e.item) + ' will be replaced by ' + calc.quoteRef(live), RED); });
     return y;
   }
   function quotesPage(doc, state, b) {
@@ -173,11 +196,12 @@
     if (!qs.length) return empty(doc, y, b.id === 'shortfallQuote' && !calc.hasGroupRisk(state) ? 'The client has no group risk, so no shortfall quote is needed.' : 'Nothing to show here for this client.');
     qs.forEach(function (q, i) {
       if (i) y += 6;
-      y = quoteHeader(doc, y, q);
+      y = quoteHeader(doc, y, q, state);
+      if (q.counterOf) y = counterHead(doc, y, state, q);
       y = linesTable(doc, y, q, false, q.disabilityAge || state.header.disabilityAge) + 3;
       if (calc.activeLines(q).some(function (l) { return l.type === 'debt' && calc.isNum(l.ip && l.ip.monthly) && l.ip.monthly > 0; })) y = note(doc, y, 'Instalment Protector: if you are retrenched, the insurer pays each debt\'s instalment straight to the bank, for a period set by the insurer\'s rules.') + 1;
       y = cmpTable(doc, y + 2, q);
-      y = compareTable(doc, y + 3, state, q);
+      if (!(q.counterOf && !calc.activeLines(q).length)) y = compareTable(doc, y + 3, state, q);                  // a counter offer known only from its letter compares nothing
       y = uwBlock(doc, y + 3, q);
       y = replLines(doc, y + 2, state, q);
     });
