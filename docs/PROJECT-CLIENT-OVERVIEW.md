@@ -444,3 +444,21 @@ The Fix Skills chat for Paul, 24 November 08:45, URGENT: on the **website** copy
 
 **The measurement asked of the Fix Skills chat** (a snippet for the website's Overview page console, after Ctrl+F5 and before any click; it only reads): it times loading the two stored folders and `queryPermission` for `readwrite` and `read` on each (each raced against 5 s) and prints the Chrome version. How to read it: both *granted* or *prompt* within milliseconds = Chrome answers, so the page's own code is the suspect; *NO ANSWER* for a folder = Chrome does not answer about the stored folder (restart Chrome fully, then reconnect both folders in More, then Folders…, then run it again; compare with the laptop copy, which has its own origin and stored folders); *no folder saved* = the connection is gone.
 
+
+**The snippet** (read only; paste into the console of the website page `overview.html`, or give it to the page through Claude in Chrome; it prints the result and returns it):
+
+```js
+(async () => {
+  const F = FF.folders, lines = [], ms = t => Math.round(performance.now() - t) + ' ms';
+  const race = (p, n) => Promise.race([p, new Promise(r => setTimeout(() => r('NO ANSWER after ' + n + ' ms'), n))]);
+  lines.push('Chrome: ' + ((navigator.userAgent.match(/Chrome\/[\d.]+/) || ['?'])[0]) + ' | page: ' + location.origin + ' | ' + new Date().toLocaleTimeString());
+  for (const k of ['A', 'B']) {
+    const t0 = performance.now(), h = await race(F.loadHandle(k), 5000);
+    if (!h || typeof h === 'string' || !h.queryPermission) { lines.push('Folder ' + k + ': ' + (h ? h : 'no folder saved') + ' (' + ms(t0) + ')'); continue; }
+    const r = { loaded: ms(t0) };
+    for (const mode of ['readwrite', 'read']) { const t = performance.now(); const a = await race(h.queryPermission({ mode }), 5000); r[mode] = a + ' (' + ms(t) + ')'; }
+    lines.push('Folder ' + k + ' "' + h.name + '": loaded in ' + r.loaded + '; readwrite = ' + r.readwrite + '; read = ' + r.read);
+  }
+  const out = lines.join('\n'); console.log(out); return out;
+})()
+```
