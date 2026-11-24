@@ -2,7 +2,7 @@
    "Checking" means Chrome had not answered even the first question ("is this folder open to the page?"), so 0.97, which asked its permission question only AFTER that answer, never asked it; and 0.97's own "choose the client's folder" button
    was only offered, not used. 0.98: the permission question is asked after 1.2 seconds even when Chrome has not answered the first one, and when no connected folder has said anything after 2.5 seconds the browser's folder window opens
    by itself (the click is still fresh), so the adviser chooses the client's folder and the same ticked list opens. Invented client ("View, Vera"). Screenshot (deviceScaleFactor 1): r9-auto (the list after the folder window opened by itself).
-   Run against 0.97 the checks of sections 1 to 3 FAIL. */
+   Run against 0.97 the checks of section 2 FAIL. (0.99 took out the folder window that 0.98 opened by itself: its sections 1 and 4 moved to t-overview-round099.js and now say the opposite.) */
 const { chromium } = require(process.argv[2] + '/playwright');
 const http = require('http'), fs = require('fs'), path = require('path');
 const dir = process.argv[3], out = process.argv[4];
@@ -91,22 +91,7 @@ srv.listen(0, async () => {
 
   /* ---- 0. the version ---- */
   let p = await fresh({});
-  ok(/Version 0\.98/.test(await p.evaluate(() => document.body.innerText)), '0. the header says Version 0.98');
-  await p.close();
-
-  /* ---- 1. Chrome answers neither question about the folders: the folder window opens by itself within the click's fresh moment, and the same ticked list opens ---- */
-  p = await fresh({ NB: { state: 'prompt', answer: 'never', queryHang: true }, CF: { state: 'prompt', answer: 'never', queryHang: true } });
-  await p.evaluate(async () => { const root = await navigator.storage.getDirectory(); const nb = await root.getDirectoryHandle('NB'); window.__pickNext = await nb.getDirectoryHandle('View, Vera'); });
-  let t0 = Date.now(); await click(p);
-  const listed1 = await waitList(p, 9000), ms1 = Date.now() - t0;
-  const picks1 = await p.evaluate(() => window.__picks.map(x => JSON.parse(x)));
-  ok(picks1.length === 1 && picks1[0].active === true && picks1[0].ms >= 2000 && picks1[0].ms < 4500, '1. the folder window opened by itself while the click was still fresh (after ' + (picks1[0] && picks1[0].ms) + ' ms, activation ' + (picks1[0] && picks1[0].active) + ', ' + picks1.length + ' time)');
-  ok(listed1 && ms1 < 8000, '1. and the list of the client\'s documents opened without any further click (' + ms1 + ' ms)');
-  const tk1 = await ticked(p), titles1 = await p.$$eval('dialog.fdlg[open] .flist span', els => els.map(e => e.textContent));
-  ok(tk1 >= 2 && titles1.some(t => /BR FNA - 100000091/.test(t)) && titles1.some(t => /Policy Summary Schedule - 8844/.test(t)), '1. the documents are ticked as with the connected folders (' + tk1 + ' ticked)');
-  ok(/Documents in View, Vera/.test(await p.evaluate(() => document.querySelector('dialog.fdlg[open] h3').textContent)), '1. the list is headed with the client\'s folder');
-  await p.screenshot({ path: out + '/r9-auto.png' });
-  ok(!picks1.some(x => x.hasStart), '1. no stored folder is passed to the folder window as its start');
+  ok(/Version 0\.9[89]/.test(await p.evaluate(() => document.body.innerText)), '0. the header says Version 0.98 or later');
   await p.close();
 
   /* ---- 2. Chrome does not answer the first question but WOULD answer the permission question: it is asked after 1.2 seconds and the list opens when the adviser says Allow ---- */
@@ -121,13 +106,6 @@ srv.listen(0, async () => {
   p = await fresh({ NB: { state: 'prompt', answer: 'never' }, CF: { state: 'prompt', answer: 'never' } }, { stopLink: 60000, permission: 60000 });
   await click(p); await p.waitForTimeout(4200);
   ok(await p.evaluate(() => window.__picks.length) === 0, '3. when Chrome HAS answered "not yet" (a question is waiting for the adviser) the folder window does not open over it');
-  await p.close();
-
-  /* ---- 4. the folder window opened by itself is cancelled: said, and every block is released ---- */
-  p = await fresh({ NB: { state: 'prompt', answer: 'never', queryHang: true }, CF: { state: 'prompt', answer: 'never', queryHang: true } });
-  await p.evaluate(() => { window.__pickNext = 'cancel'; });
-  await click(p);
-  ok(await waitToast(p, 'Nothing was chosen', 8000) && await barsWaiting(p) === 0, '4. cancelling the window that opened by itself says so and releases every block (a new click starts again)');
   await p.close();
 
   /* ---- 5. the old Load with everything answering still opens at once ---- */

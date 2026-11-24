@@ -84,6 +84,7 @@ srv.listen(0, async () => {
   const click = async p => { await p.evaluate(() => { window.__t0 = performance.now(); window.__calls = []; }); await p.click('#btnReadFolder'); };
   const toastText = p => p.evaluate(() => { const t = document.querySelector('#toast'); return t && !t.hidden ? t.textContent : ''; });
   const barsWaiting = p => p.evaluate(() => [...document.querySelectorAll('#nav .prog:not([hidden])')].filter(e => /waiting|searching/.test(e.className)).length);
+  const waitWin = (pg, ms) => pg.waitForSelector('dialog[data-ask][open]', { timeout: ms }).then(() => true, () => false);
   const waitToast = (p, re, ms) => p.waitForFunction(r => { const t = document.querySelector('#toast'); return t && !t.hidden && new RegExp(r).test(t.textContent); }, re, { timeout: ms }).then(() => true, () => false);
   const waitList = (p, ms) => p.waitForSelector('dialog.fdlg[open] .flist', { timeout: ms }).then(() => true, () => false);
   const ticked = p => p.evaluate(() => [...document.querySelectorAll('dialog.fdlg[open] .flist input')].filter(i => i.checked).length);
@@ -92,7 +93,7 @@ srv.listen(0, async () => {
 
   /* ---- 0. the version ---- */
   let p = await fresh({});
-  ok(/Version 0\.9[78]/.test(await p.evaluate(() => document.body.innerText)), '0. the header says Version 0.97 or later');
+  ok(/Version 0\.9[789]/.test(await p.evaluate(() => document.body.innerText)), '0. the header says Version 0.97 or later');
   await p.close();
 
   /* ---- 1. permission already granted: ONE click, the list at once (0.94's behaviour), nothing asked of Chrome ---- */
@@ -135,13 +136,13 @@ srv.listen(0, async () => {
   p = await fresh({ NB: { state: 'prompt', answer: 'never' }, CF: { state: 'prompt', answer: 'never' } }, { stopLink: 60000, permission: 60000 });
   await click(p);
   ok(await waitToast(p, 'New Business: waiting for your answer', 3000), '5. the wait names each folder and what Chrome has said: "' + (await toastText(p)).slice(0, 190) + '"');
-  ok(await waitToast(p, 'Ask Chrome again', 7000), '5. after 4 seconds (the real limit) the adviser is offered another try');
-  const btns = await p.$$eval('#toast [data-toastlink]', els => els.map(e => e.textContent));
-  ok(btns.length === 3 && /Ask Chrome again/.test(btns[0]) && /Choose the client.s folder myself/.test(btns[1]) && /normal file window/.test(btns[2]), '5. three buttons: ' + btns.join(' | '));
+  ok(await waitWin(p, 7000), '5. after 4 seconds (the real limit) the page\'s own window offers another try (0.99: it was a message with buttons before)');
+  const btns = await p.$$eval('dialog[data-ask][open] button', els => els.map(e => e.textContent));
+  ok(btns.length === 3 && /Stop/.test(btns[0]) && /Ask Chrome again/.test(btns[1]) && /Choose the client.s folder myself/.test(btns[2]), '5. three buttons: ' + btns.join(' | '));
   await p.screenshot({ path: out + '/r8-waiting.png' });
   /* "Ask Chrome again": a fresh click; Chrome answers this time */
   await p.evaluate(() => { window.__perm.NB.answer = 400; window.__perm.CF.answer = 400; window.__calls = []; window.__t0 = performance.now(); });
-  await p.click('#toast [data-toastlink="0"]');
+  await p.click('dialog[data-ask][open] >> text=Ask Chrome again');
   ok(await waitList(p, 8000), '5. “Ask Chrome again” asks again with a fresh click and the list opens when Chrome answers');
   const req5 = (await calls(p)).filter(c => c.what === 'request');
   ok(req5.length >= 1 && req5[0].active === true, '5. the second question had the click behind it (activation ' + (req5[0] && req5[0].active) + ')');
@@ -151,9 +152,9 @@ srv.listen(0, async () => {
   p = await fresh({ NB: { state: 'prompt', answer: 'never' }, CF: { state: 'prompt', answer: 'never' } }, { askAgain: 900, stopLink: 60000, permission: 60000 });
   await p.evaluate(async () => { const root = await navigator.storage.getDirectory(); const nb = await root.getDirectoryHandle('NB'); window.__pickNext = await nb.getDirectoryHandle('View, Vera'); });
   await click(p);
-  ok(await waitToast(p, 'Choose the client.s folder myself', 4000), '6. the button is offered');
+  ok(await waitWin(p, 4000), '6. the button is offered (in the page\'s own window)');
   await p.evaluate(() => { window.__calls = []; });
-  await p.click('#toast [data-toastlink="1"]');
+  await p.click('dialog[data-ask][open] >> text=Choose the client’s folder myself');
   ok(await waitList(p, 6000), '6. choosing the client’s folder opens the list of its documents');
   const tk6 = await ticked(p), titles6 = await p.$$eval('dialog.fdlg[open] .flist span', els => els.map(e => e.textContent));
   ok(tk6 >= 2 && titles6.some(t => /BR FNA - 100000091/.test(t)) && titles6.some(t => /Policy Summary Schedule - 8844/.test(t)) && !titles6.some(t => /Old note/.test(t)), '6. the same documents are listed and ticked as with the connected folders (' + tk6 + ' ticked): ' + titles6.map(t => t.slice(0, 38)).join(' | '));
@@ -166,8 +167,8 @@ srv.listen(0, async () => {
   /* ---- 7. the folder window is cancelled: said, and no block is left waiting ---- */
   p = await fresh({ NB: { state: 'prompt', answer: 'never' }, CF: { state: 'prompt', answer: 'never' } }, { askAgain: 900, stopLink: 60000, permission: 60000 });
   await p.evaluate(() => { window.__pickNext = 'cancel'; });
-  await click(p); await waitToast(p, 'Choose the client.s folder myself', 4000);
-  await p.click('#toast [data-toastlink="1"]');
+  await click(p); await waitWin(p, 4000);
+  await p.click('dialog[data-ask][open] >> text=Choose the client’s folder myself');
   ok(await waitToast(p, 'Nothing was chosen', 3000) && await barsWaiting(p) === 0, '7. cancelling the folder window says so and releases every block');
   await p.close();
 

@@ -1025,35 +1025,55 @@
   var STAGE_TEXT = { permission: 'Waiting for Chrome’s permission question: look next to the address bar and click Allow', find: 'Looking for the client’s folder in New Business and Client Files', list: 'Reading the client’s folders', walk: 'Looking through the client’s folder' };
   var searchTok = 0;
   /* act: { stop(why), again(), choose(), auto() }. auto (Client Overview Studio 0.98) runs by itself when Chrome has not answered even the first question about the connected folders after a few seconds, while the click is still fresh: it is the folder window. After a few seconds of waiting for Chrome the adviser is offered another try (a fresh click, so Chrome counts it), the client's own folder in the browser's folder window, or the normal file window. */
+  /* A question the page asks in a window of its own (Client Overview Studio 0.99: Paul asked for the page's own pop-up, not a message that sits behind things, and not the browser's file window opening by itself).
+     buttons: [{ text, cls, fn, key }]; a click closes the window and calls fn inside the same click, so a browser window the button opens still has the click behind it. Returns { el, set(html), close() }. */
+  function askWindow(title, html, buttons) {
+    var dlg = document.createElement('dialog'), done = false; dlg.className = 'fdlg'; dlg.setAttribute('data-ask', '1');
+    dlg.innerHTML = '<h3>' + esc(title) + '</h3><div data-body>' + html + '</div><div class="fbtns">' + buttons.map(function (b, i) { return '<button type="button" class="btn ' + (b.cls == null ? 'ghost' : b.cls) + ' small" data-b="' + i + '">' + esc(b.text) + '</button>'; }).join('') + '</div>';
+    var h = { el: dlg, set: function (x) { var d = dlg.querySelector('[data-body]'); if (d) d.innerHTML = x; }, close: function () { if (done) return; done = true; try { dlg.close(); } catch (e) { /* not open */ } dlg.remove(); } };
+    dlg.addEventListener('click', function (e) { var b = e.target.closest('[data-b]'); if (!b || done) return; var x = buttons[+b.getAttribute('data-b')]; h.close(); if (x.fn) x.fn(); });
+    dlg.addEventListener('cancel', function (e) { e.preventDefault(); if (done) return; var x = buttons.filter(function (b) { return b.key === 'cancel'; })[0]; h.close(); if (x && x.fn) x.fn(); });
+    document.body.appendChild(dlg); dlg.showModal();
+    return h;
+  }
   function watchSearch(act) {
-    var tok = ++searchTok, t0 = Date.now(), stage = 'permission', timer = null, autoT = null, autoDone = false, linked = '', perm = '', seen = {}, w = {};
+    var tok = ++searchTok, t0 = Date.now(), stage = 'permission', timer = null, linked = '', perm = '', seen = {}, w = {}, win = null;
     var lim = function () { return (window.FF && FF.foldersUI && FF.foldersUI.timeouts) || {}; };
     w.stale = function () { return tok !== searchTok; };
     w.since = function () { return Date.now() - t0; };
-    w.end = function () { clearInterval(timer); clearTimeout(autoT); };
+    function closeWin() { if (win) { win.close(); win = null; } }
+    w.end = function () { clearInterval(timer); closeWin(); };
     w.stage = function (st) { stage = st; show(); };
     w.perm = function (states) { seen = states; perm = Object.keys(states).map(function (k) { return k + ': ' + states[k]; }).join(', '); show(); };
-    function go(fn) { return function () { searchTok++; clearInterval(timer); clearTimeout(autoT); fn(); }; }
+    function go(fn) { return function () { searchTok++; clearInterval(timer); closeWin(); fn(); }; }
+    function wanted() { var F = window.FF && FF.folders; return F && F.clientFolderName ? F.clientFolderName(state.header.sname, state.header.fname) : ''; }
+    function asked() { return Object.keys(seen).some(function (k) { return seen[k] === 'waiting for your answer'; }); }
+    /* What the window says: what Chrome has been asked and has answered, and which folder is being looked for. */
+    function winHTML(ms) {
+      return '<p>' + (asked() ? 'Chrome has been asked and is waiting for you: look next to the address bar for <b>Edit files?</b> and click <b>Allow</b>.' : 'Chrome has not answered the page’s question about your connected folders.') + (perm ? ' (' + esc(perm) + ')' : '') + ' ' + Math.round(ms / 1000) + ' s</p>' + (asked() ? '<p>If no question shows, Chrome is not showing it: ask again, or choose the client’s folder yourself.</p>' : '') +
+        (wanted() ? '<p>The page is looking for the folder named <b>' + esc(wanted()) + '</b>.</p>' : '') + '<p>If this keeps happening, go to <b>More</b>, then <b>Folders…</b>, and choose both folders again.</p>';
+    }
     function show() {
-      if (w.stale()) { clearInterval(timer); return; }
+      if (w.stale()) { clearInterval(timer); closeWin(); return; }
       var ms = Date.now() - t0, T = lim(), t = $('#toast');
       var msg = (STAGE_TEXT[stage] || 'Looking for the client’s folder') + (stage === 'permission' && perm ? ' (' + perm + ')' : '') + '… ' + Math.round(ms / 1000) + ' s';
       var again = stage === 'permission' && !!act.again && ms >= (T.askAgain || 4000), want = again ? 'a' : ms >= (T.stopLink || 8000) ? 's' : '';
+      if (again) {                                                                                         // Chrome has had a few seconds: the page's own window, with what it can do (never the browser's file window by itself)
+        if (!win) {
+          var bs = [{ text: 'Stop', fn: function () { act.stop('Stopped.'); }, key: 'cancel' }, { text: 'Ask Chrome again', fn: act.again }];
+          if (act.choose) bs.push({ text: 'Choose the client’s folder myself', cls: '', fn: act.choose });
+          win = askWindow('The page cannot open your client folders yet', winHTML(ms), bs.map(function (b) { var f = b.fn; return Object.assign({}, b, { fn: function () { searchTok++; clearInterval(timer); win = null; f(); } }); }));
+        } else win.set(winHTML(ms));
+        toast(msg, 600000); return;
+      }
+      closeWin();
       if (!want) { linked = ''; toast(msg, 600000); return; }
       if (linked !== want) {
-        linked = want; var links = [];
-        if (again) { links.push({ text: 'Ask Chrome again', fn: go(act.again) }); if (act.choose) links.push({ text: 'Choose the client’s folder myself', fn: go(act.choose) }); }
-        links.push({ text: 'Stop and use the normal file window', fn: go(function () { act.stop('Stopped.'); }) });
-        toastLinks(msg, links, 600000);
-      } else if (t.firstChild && t.firstChild.nodeType === 3) t.firstChild.nodeValue = msg;                      // the buttons stay where they are, so a click on one is never lost to a redraw
+        linked = want;
+        toastLinks(msg, [{ text: 'Stop and use the normal file window', fn: go(function () { act.stop('Stopped.'); }) }], 600000);
+      } else if (t.firstChild && t.firstChild.nodeType === 3) t.firstChild.nodeValue = msg;                      // the button stays where it is, so a click on it is never lost to a redraw
     }
     show(); timer = setInterval(show, 1000);
-    if (act.auto) autoT = setTimeout(function () {
-      if (w.stale() || autoDone || stage !== 'permission') return;
-      var silent = Object.keys(seen).every(function (k) { return seen[k] === 'checking'; });                      // no folder has said anything: not even "not yet"
-      if (!silent) return;
-      autoDone = true; toast('Chrome is not answering about the connected folders, so the folder window is opening: choose the client’s folder.', 20000); go(act.auto)();
-    }, lim().autoPick || 2500);
     return w;
   }
   function loadFromClientFolder() {
@@ -1078,16 +1098,23 @@
         Promise.all(picked.map(function (f) { return f.handle.getFile(); })).then(function (fs) { var dirs = {}; res.files.forEach(function (f) { dirs[String(f.name).toLowerCase()] = (f.rel || []).join(' \\ '); }); ingest(fs, { pool: res.files, counted: true, dirs: dirs }); }, function (e) { abandonSearch(); toast('Could not open a file: ' + (e && e.message), 8000); });
       });
     }
-    /* Chrome would not say yes to the connected folders (or the adviser would rather not wait): the client's own folder is chosen in the browser's folder window, which is the permission, and the same list opens. */
+    /* Chrome would not say yes to the connected folders (or the adviser would rather not wait): the client's own folder is chosen in the browser's folder window (only when the adviser presses the button), which is the permission,
+       and the same list opens. The folder chosen is checked against the client (0.99: the window opens where it was last used, which may be another client's folder, and whatever was chosen was loaded): the folder of ANOTHER
+       client is refused with a button to choose again, a folder whose name is not a client's (a subfolder, say) is asked about, and the client's own folder goes straight through. */
     function chooseFolder() {
       FU.pickClientFolder().then(function (res) {
         if (res.reason === 'cancelled') { abandonSearch(); toast('Nothing was chosen.', 3000); return; }
         if (res.reason) { normal(res.reason === 'unsupported' ? 'This browser cannot open a folder window.' : res.reason === 'slow-list' ? REASONS['slow-list'] : 'The folder could not be read' + (res.why ? ' (' + res.why + ')' : '') + '.', false); return; }
-        showList(res, false);
+        var F = window.FF && FF.folders, sn = state.header.sname, fn = state.header.fname, want = F.clientFolderName(sn, fn), same = F.clientMatches(res.label, sn, fn), other = !same && !!F.parseClient(res.label);
+        if (same) { showList(res, false); return; }
+        $('#toast').hidden = true;                                                                                          // the old "waiting for Chrome" message must not sit under the question
+        var stop = { text: 'Cancel', fn: function () { abandonSearch(); toast('Nothing was loaded.', 3000); }, key: 'cancel' }, again = { text: 'Choose again', cls: '', fn: chooseFolder };
+        if (other) askWindow('That is another client’s folder', '<p>You chose <b>' + esc(res.label) + '</b>, but this overview is for <b>' + esc(want) + '</b>. Nothing was loaded.</p>', [stop, again]);
+        else askWindow('Is this the client’s folder?', '<p>You chose <b>' + esc(res.label) + '</b>. This overview is for <b>' + esc(want) + '</b>, and that folder’s name is not a client’s name. Load its documents anyway?</p>', [stop, again, { text: 'Load them anyway', cls: '', fn: function () { showList(res, false); } }]);
       }).catch(function (e) { normal('Something went wrong while reading the folder (' + ((e && e.message) || e) + ').', false); });
     }
     function run() {
-      var me = watchSearch({ stop: function (why) { normal(why, true); }, again: run, choose: FU.pickClientFolder ? chooseFolder : null, auto: FU.pickClientFolder ? chooseFolder : null });
+      var me = watchSearch({ stop: function (why) { normal(why, true); }, again: run, choose: FU.pickClientFolder ? chooseFolder : null });
       w = me;
       FU.clientFiles({ sname: state.header.sname, fname: state.header.fname }, { onStage: me.stage, onPerm: me.perm }).then(function (res) {
         if (me.stale()) return; me.end();
