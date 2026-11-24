@@ -53,3 +53,9 @@ test('the real name check works on the client\'s folder name as the page writes 
   assert.strictEqual(!!F.parseClient('Other, Olive'), true, 'another client\'s folder name reads as a client\'s name');
   assert.strictEqual(!!F.parseClient('3. Quotes'), false, 'a subfolder\'s name does not');
 });
+
+test('with no client name there is nothing to name or to check against: the window names no folder and Choose myself asks for the names first (ov-ui.js)', () => {
+  const ui = app('js/ov-ui.js');
+  assert.ok(/F\.norm\(state\.header\.sname\) !== ''/.test(ui), 'wanted() is empty with no surname');
+  assert.ok(/if \(FF\.folders\.norm\(state\.header\.sname\) === ''\) \{ abandonSearch\(\); toast\(REASONS\.names/.test(ui), 'chooseFolder stops before the folder window with no name');
+});

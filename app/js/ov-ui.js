@@ -1046,7 +1046,7 @@
     w.stage = function (st) { stage = st; show(); };
     w.perm = function (states) { seen = states; perm = Object.keys(states).map(function (k) { return k + ': ' + states[k]; }).join(', '); show(); };
     function go(fn) { return function () { searchTok++; clearInterval(timer); closeWin(); fn(); }; }
-    function wanted() { var F = window.FF && FF.folders; return F && F.clientFolderName ? F.clientFolderName(state.header.sname, state.header.fname) : ''; }
+    function wanted() { var F = window.FF && FF.folders; return F && F.clientFolderName && F.norm(state.header.sname) !== '' ? F.clientFolderName(state.header.sname, state.header.fname) : ''; }          // no surname yet: no folder to name
     function asked() { return Object.keys(seen).some(function (k) { return seen[k] === 'waiting for your answer'; }); }
     /* What the window says: what Chrome has been asked and has answered, and which folder is being looked for. */
     function winHTML(ms) {
@@ -1102,6 +1102,7 @@
        and the same list opens. The folder chosen is checked against the client (0.99: the window opens where it was last used, which may be another client's folder, and whatever was chosen was loaded): the folder of ANOTHER
        client is refused with a button to choose again, a folder whose name is not a client's (a subfolder, say) is asked about, and the client's own folder goes straight through. */
     function chooseFolder() {
+      if (FF.folders.norm(state.header.sname) === '') { abandonSearch(); toast(REASONS.names + ' The folder window was not opened.', 8000); return; }          // with no client name there is nothing to check a chosen folder against (0.99)
       FU.pickClientFolder().then(function (res) {
         if (res.reason === 'cancelled') { abandonSearch(); toast('Nothing was chosen.', 3000); return; }
         if (res.reason) { normal(res.reason === 'unsupported' ? 'This browser cannot open a folder window.' : res.reason === 'slow-list' ? REASONS['slow-list'] : 'The folder could not be read' + (res.why ? ' (' + res.why + ')' : '') + '.', false); return; }

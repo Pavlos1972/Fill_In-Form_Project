@@ -71,14 +71,14 @@ srv.listen(0, async () => {
 
   const errs = [];
   /* a fresh overview page for the invented client, the folders connected, the permissions set as the check needs */
-  const fresh = async (perm, limits) => {
+  const fresh = async (perm, limits, ffx) => {
     const p = await ctx.newPage(); p.on('pageerror', e => errs.push(String(e))); p.on('dialog', d => d.accept());
     await p.goto(addr + 'overview.html'); await p.waitForTimeout(900); await wireOn(p); if (await p.$('#restoreDraft')) await p.click('#restoreNew');
     await p.evaluate(({ ff, perm, limits }) => {
       Object.assign(FF.foldersUI.timeouts, limits || {}); window.__perm = perm || {};
       const s = OV.store.blank(); OV.store.fillFromFactFind(s, JSON.stringify(ff), 'ff.json');
       OV.app.setState(s); OV.app.openAll(); OV.app.go('policies');
-    }, { ff: FFJ, perm, limits });
+    }, { ff: ffx || FFJ, perm, limits });
     await p.waitForTimeout(500);
     return p;
   };
@@ -177,6 +177,16 @@ srv.listen(0, async () => {
   p = await fresh({ NB: { state: 'granted' }, CF: { state: 'granted' } });
   t0 = Date.now(); await click(p);
   ok(await waitList(p, 3000) && (await picksOf(p)).length === 0 && (await p.evaluate(() => document.querySelectorAll('dialog[data-ask]').length)) === 0, '5. permission given: the list opens at once (' + (Date.now() - t0) + ' ms), no folder window and no question window');
+  await p.close();
+
+  /* ---- 6. the overview has no client name yet: the window names no folder, and Choose myself says so instead of refusing every folder ---- */
+  const NONAME = JSON.parse(JSON.stringify(FFJ)); NONAME.f.fname = v(''); NONAME.f.sname = v('');
+  p = await fresh(SILENT, null, NONAME);
+  await click(p); await waitWin(p, 8000);
+  const w6 = await askWin(p);
+  ok(w6 && !/looking for the folder named/.test(w6.text) && !/, \./.test(w6.text), '6. with no client name the window does not claim to look for a folder named ", "');
+  await p.click('dialog[data-ask][open] >> text=Choose the client’s folder myself'); await p.waitForTimeout(500);
+  ok(/Fill in the client.s names first/.test(await toastText(p)) && (await picksOf(p)).length === 0 && await barsWaiting(p) === 0, '6. Choose myself says to fill in the names first, opens no folder window and releases every block');
   await p.close();
 
   ok(errs.length === 0, 'no page errors' + (errs.length ? ': ' + errs.join(' | ') : ''));
