@@ -62,7 +62,8 @@
     var role = m[4] ? 'guide' : BLOCK_ROLE[block]; if (!role) return null;
     var src = o.src || {}, ref = { path: String(path), block: block, role: role, name: '', number: '', policyNo: '', insurer: '', product: '', kind: '', bright: false, required: false, label: '' };
     if (role === 'schedule') {
-      ref.name = src.kind === 'schedule' ? String(src.file || '') : '';
+      ref.name = src.kind === 'schedule' || src.kind === 'astute' ? String(src.file || '') : '';
+      if (src.kind === 'astute') { ref.astute = true; ref.page = parseInt(src.page, 10) >= 1 ? parseInt(src.page, 10) : null; }          // round 1.1: the row's figures came from the Astute report
       if (block === 'other') { ref.insurer = String(o.company || ''); ref.product = String(o.product || ''); ref.policyNo = String(o.policyNo || ''); ref.label = ref.insurer || 'the legacy protection plan'; }
       else { ref.insurer = String(o.insurer || ''); ref.product = String(o.product || ''); ref.policyNo = String(o.policyNo || ''); ref.required = true; ref.label = [ref.insurer || 'Policy', ref.policyNo].filter(Boolean).join(' '); }
       ref.bright = /bright/i.test(ref.insurer) && block !== 'other';
@@ -76,6 +77,7 @@
       var vs = o.valueSource || {};
       ref.name = String(src.kind === 'group' || src.kind === 'schedule' || src.kind === 'astute' ? (vs.file || src.file || '') : (vs.file || '')); ref.insurer = String(o.provider || ''); ref.product = String(o.product || ''); ref.policyNo = String(o.policyNo || '');
       ref.label = [o.provider, o.product].filter(Boolean).join(' ') || 'this item';
+      if ((vs.kind || src.kind) === 'astute') { ref.astute = true; ref.page = parseInt(vs.page || src.page, 10) >= 1 ? parseInt(vs.page || src.page, 10) : null; }
     } else if (role === 'report') {
       ref.name = src.kind === 'goal' ? String(src.file || '') : ''; ref.kind = o.kind === 'egar' ? 'egar' : 'rgar'; ref.label = ref.kind === 'rgar' ? 'the retirement goal analysis report' : 'the education goal analysis report';
     }
@@ -166,12 +168,12 @@
     if (!vs.idx) return neutral;
     var key = sig(ref); if (vs.cache[key]) return vs.cache[key];
     var r = pick(ref, vs.idx.files, takenBy(app().state, ref.path));
-    return (vs.cache[key] = r.file ? { ok: true, text: TITLE[ref.role] + ': ' + r.file.name + ' (opens inside the page)' } : vs.idx.partial ? neutral : { ok: false, code: r.reason, text: r.text });
+    return (vs.cache[key] = r.file ? { ok: true, text: (ref.astute ? 'Astute report' : TITLE[ref.role]) + ': ' + r.file.name + ' (opens inside the page)' } : vs.idx.partial ? neutral : { ok: false, code: r.reason, text: r.text });
   }
   /* The HTML of a View button (mode: 'studio' or 'pres'). '' when the item has no document. */
   function button(state, path, mode) {
     var ref = refFor(state, path); if (!ref || !ref.show) return '';
-    return '<button type="button" class="dvbtn' + (mode === 'pres' ? ' dvp' : '') + '" data-vw="' + esc(path) + '" data-vm="' + (mode === 'pres' ? 'pres' : 'studio') + '" title="' + esc(statusOf(ref).text) + '">' + ICON + esc(LABEL[ref.role]) + '</button>';
+    return '<button type="button" class="dvbtn' + (mode === 'pres' ? ' dvp' : '') + '" data-vw="' + esc(path) + '" data-vm="' + (mode === 'pres' ? 'pres' : 'studio') + '" title="' + esc(statusOf(ref).text) + '">' + ICON + esc(ref.astute ? 'View Astute report' : LABEL[ref.role]) + '</button>';
   }
   /* Brings every button on the screen in line with what is known (a greyed button with its reason in Studio; no button at all in the Presentation). Asked for after every draw, so it is done at most about 8 times a second.
      It never lists the client's folder: 0.95 did, by itself, as soon as a button was on the screen, and a search of a big OneDrive folder behind the adviser's back could hold up "Load from client folder". */
@@ -289,6 +291,12 @@
           var p = { div: d, pdfPage: pg, w: vp.width, h: vp.height, scale: 1, vis: false, done: false, task: null, canvas: null }; d.__p = p; ctl.pages.push(p); paper.appendChild(d); ctl.obs.observe(d);
         });
         layout(); paper.focus({ preventScroll: true });
+        var pg = ctl.ref && parseInt(ctl.ref.page, 10);                                                       // an Astute report opens at the page where the item is listed (best effort: the page the reading gave, kept inside the file)
+        if (pg >= 1 && pg <= ctl.pages.length) {
+          var goPage = function () { if (ctl.alive) paper.scrollTop += ctl.pages[pg - 1].div.getBoundingClientRect().top - paper.getBoundingClientRect().top - 8; };          // done again one frame later: the scroll bar appearing changes the page sizes
+          goPage(); if (typeof requestAnimationFrame === 'function') requestAnimationFrame(function () { goPage(); requestAnimationFrame(goPage); });
+          ctl.setSub('Astute report: page ' + pg);
+        }
       });
     };
     function onKey(ev) {
@@ -322,13 +330,13 @@
 
   /* ---------- opening a file ---------- */
   function readFile(ctl, file, name, ref) {
-    ctl.setTitle(TITLE[ref ? ref.role : 'quote'] + ': ' + name);
+    ctl.setTitle((ref && ref.astute ? 'Astute report' : TITLE[ref ? ref.role : 'quote']) + ': ' + name);
     if (IMAGE.test(name)) { ctl.showImage(file); return Promise.resolve(); }
     return file.arrayBuffer().then(function (buf) {
       return loadPdfJs().then(function (lib) {
         return lib.getDocument({ data: new Uint8Array(buf.slice(0)), standardFontDataUrl: FONTS }).promise.then(function (pdf) {
           if (!ctl.alive) { pdf.destroy(); return; }
-          if (ref && ref.bright && ref.role === 'schedule' && pdf.numPages > 30) ctl.setSub('This file has ' + pdf.numPages + ' pages: it may be the owner’s manual, not the policy summary schedule');
+          if (ref && ref.bright && ref.role === 'schedule' && !ref.astute && pdf.numPages > 30) ctl.setSub('This file has ' + pdf.numPages + ' pages: it may be the owner’s manual, not the policy summary schedule');
           return ctl.showPdf(pdf);
         });
       }).catch(function () { if (ctl.alive) ctl.showNative(new Blob([buf], { type: 'application/pdf' })); });

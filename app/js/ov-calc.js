@@ -93,10 +93,80 @@
     var items = active(state && state.blocks && state.blocks.policies && state.blocks.policies.items), out = items.map(function (i) { return { item: i, derived: false }; });
     var have = {}; items.forEach(function (i) { if (i.policyNo) have[norm(i.policyNo)] = 1; });
     allQuotes(state).forEach(function (q) {
-      if (q.status !== 'accepted' || !q.policyNo || !q.startDate || have[norm(q.policyNo)]) return;
+      if (!issued(q) || have[norm(q.policyNo)]) return;
       out.push({ derived: true, item: { id: q.id, wr: true, insurer: q.insurer, product: q.productName || (q.kind === 'fna' ? 'FNA' : q.kind), policyNo: q.policyNo, doc: q.startDate, premium: q.premium, aci: q.aci, aciText: q.aciText || null, abi: null,
         ipAge: q.disabilityAge, benefits: q.benefits || {}, lines: q.lines || [], cmp: q.cmp || null, st: q.st, src: q.src, by: q.by, fromQuote: q.id } });
     });
+    return out;
+  }
+
+  /* ---------- a quote's state: ONE place (round 1.1, 24 November) ---------- */
+  /* The client decides first (status: pending, accepted, notaccepted); only an accepted quote goes to underwriting (uw: pending, then an outcome). Everything that needs to know whether a quote counts as accepted (the badge, the policy
+     an issued quote becomes, the one-acceptance rule, the replacement notes) asks these functions. Returns how many things settleQuote changed in a quote that was read from an older file or typed. */
+  function settleQuote(q) {
+    var n = 0; if (!q || typeof q !== 'object') return 0;
+    var lg = schema.LEGACY_STATUS[q.status];
+    if (lg) { q.status = lg[0]; if (!q.uw) q.uw = lg[1]; n++; }                                           // an older file: the insurer's answer was a status of its own
+    if (!schema.statusLabel[q.status]) { q.status = 'pending'; n++; }
+    if (q.uw != null && !schema.uwLabel[q.uw]) { q.uw = null; n++; }
+    if (q.uw === undefined) { q.uw = null; n++; }
+    if (typeof q.second !== 'boolean') { q.second = q.second === true || q.second === 'true'; n++; }
+    var t = q.terms && typeof q.terms === 'object' ? q.terms : (q.terms = { loadings: [], exclusions: [] }, n++);
+    if (!Array.isArray(t.loadings)) { t.loadings = []; n++; } if (!Array.isArray(t.exclusions)) { t.exclusions = []; n++; }
+    var r = q.repl && typeof q.repl === 'object' ? q.repl : (q.repl = { answer: null, policies: [] }, n++);
+    if (r.answer !== 'yes' && r.answer !== 'no' && r.answer !== null) { r.answer = null; n++; } if (r.answer === undefined) r.answer = null;
+    if (!Array.isArray(r.policies)) { r.policies = []; n++; }
+    return n;
+  }
+  function uwOf(q) { return q && q.status === 'accepted' && schema.uwLabel[q.uw] ? q.uw : null; }               // the underwriting step counts only for a quote the client accepted
+  function declined(q) { return schema.UW_DECLINED.indexOf(uwOf(q)) >= 0; }
+  /* "In an accepted state": the client accepted it and the insurer has not declined it (pending underwriting counts; a removed quote never does). */
+  function accepted(q) { return !!q && !q.removed && q.status === 'accepted' && !declined(q); }
+  function dead(q) { return !q || !!q.removed || q.status === 'notaccepted' || declined(q); }                  // not accepted by the client, or declined by the insurer: it will not come about
+  function issued(q) { return accepted(q) && !!q.policyNo && !!q.startDate; }                               // an accepted quote the insurer has issued as a policy
+  function statusText(q) {
+    if (!q) return '';
+    if (q.status === 'notaccepted') return schema.statusLabel.notaccepted;
+    if (q.status !== 'accepted') return schema.statusLabel.pending;
+    var u = uwOf(q); return !u ? 'Accepted' : u === 'pending' ? 'Accepted · Pending underwriting' : schema.uwLabel[u];
+  }
+  /* The class of a quote's badge (the colours already exist: pending, accepted, notaccepted, underwriting, medical, declined). */
+  function statusClass(q) {
+    if (!q || q.status === 'pending' || !schema.statusLabel[q.status]) return 'pending';
+    if (q.status === 'notaccepted') return 'notaccepted';
+    var u = uwOf(q); return u === 'pending' ? 'underwriting' : u === 'declinedHealth' ? 'medical' : u === 'declinedOther' ? 'declined' : 'accepted';
+  }
+  function acceptedQuotes(state) { return allQuotes(state).filter(accepted); }
+  /* The one-acceptance rule: across the FNA, shortfall, reduced and comparative quotes only one may be in an accepted state, unless the adviser has ticked "second policy alongside the first" on a quote. Every accepted quote that is not
+     ticked is in conflict when there are two or more of them. Returns [{ quote, others }]. */
+  function acceptanceConflicts(state) {
+    var one = acceptedQuotes(state).filter(function (q) { return !q.second; });
+    return one.length < 2 ? [] : one.map(function (q) { return { quote: q, others: one.filter(function (x) { return x !== q; }) }; });
+  }
+  /* ---------- replacements (round 1.1) ---------- */
+  function replOf(q) { var r = q && q.repl; return { answer: r && (r.answer === 'yes' || r.answer === 'no') ? r.answer : null, policies: r && Array.isArray(r.policies) ? r.policies : [] }; }
+  function quoteRef(q) { var n = q.number ? (/bright/i.test(q.insurer || '') ? 'CP ' : '') + q.number : ''; return [q.insurer, 'quote', n].filter(Boolean).join(' '); }
+  function policyRef(it) { return [it.insurer || 'Policy', it.policyNo].filter(Boolean).join(' '); }
+  /* The current policies a quote can replace: every policy of block 1 except the one the quote itself became. */
+  function replaceable(state, q) { return policies(state).filter(function (e) { return e.item.id !== (q && q.id); }); }
+  /* Which quotes replace which policy, from the quotes that are still alive (not removed, not declined by the client or the insurer); answered: at least one such quote has had its replacement question answered. */
+  function replacementInfo(state) {
+    var live = allQuotes(state).filter(function (q) { return !dead(q); }), ids = {}, by = {};
+    policies(state).forEach(function (e) { ids[e.item.id] = 1; });
+    live.forEach(function (q) { var r = replOf(q); if (r.answer !== 'yes') return; r.policies.forEach(function (id) { if (!ids[id] || id === q.id) return; (by[id] = by[id] || []).push(q); }); });
+    return { answered: live.some(function (q) { return !!replOf(q).answer; }), by: by };
+  }
+  /* The red note of a policy (the screen, the PDF and the Presentation all print this one): replaced by a quote, or "Will not be replaced" once a quote's question has been answered (never before: nothing is decided yet),
+     with the broker question for a policy of another broker. null: no note. */
+  function policyNote(state, entry, info) {
+    info = info || replacementInfo(state); var it = entry.item, by = info.by[it.id];
+    if (by && by.length) return { kind: 'replaced', red: true, text: policyRef(it) + ' will be replaced by ' + by.map(quoteRef).join(' and '), quotes: by.map(function (q) { return q.id; }) };
+    if (entry.derived || !info.answered) return null;
+    var out = { kind: 'not', red: true, text: 'Will not be replaced', broker: !it.wr, record: null, date: null, brokerText: '' };
+    if (out.broker) {
+      out.record = it.brokerRecord === 'stays' || it.brokerRecord === 'moves' ? it.brokerRecord : null; out.date = it.brokerChangedDate || null;
+      out.brokerText = out.record === 'moves' ? (out.date ? 'Broker changed on ' + out.date : 'Broker on record to be changed') : out.record === 'stays' ? 'Broker on record stays with the current broker' : '';
+    }
     return out;
   }
   /* Totals of the policies of block 1: per group (WR, other brokers) and all together, with the premium. */
@@ -201,7 +271,7 @@
   var PAGE_WHY = { shortfallQuote: 'Left out: there is no group risk, or no shortfall quote was asked for.', comparative: 'Left out: no comparative quote was asked for in the Fact Find.', proposed: 'Left out: there are no proposed investments.', goals: 'Left out: no goal analysis report was asked for.' };
   function pageWhy(id) { return PAGE_WHY[id] || ''; }
 
-  return { settleLine: settleLine, aciPoints: aciPoints, sameDebtName: sameDebtName, isNum: isNum, r2: r2, norm: norm, fmtR: fmtR, fmtPct: fmtPct, fmtAci: fmtAci, matchChildren: matchChildren, matchDebts: matchDebts, pageShown: pageShown, pageWhy: pageWhy, fmtDiff: fmtDiff, show: show, lineVal: lineVal, active: active, activeLines: activeLines, totals: totals, sumLines: sumLines,
+  return { settleQuote: settleQuote, uwOf: uwOf, declined: declined, accepted: accepted, dead: dead, issued: issued, statusText: statusText, statusClass: statusClass, acceptedQuotes: acceptedQuotes, acceptanceConflicts: acceptanceConflicts, replOf: replOf, quoteRef: quoteRef, policyRef: policyRef, replaceable: replaceable, replacementInfo: replacementInfo, policyNote: policyNote, settleLine: settleLine, aciPoints: aciPoints, sameDebtName: sameDebtName, isNum: isNum, r2: r2, norm: norm, fmtR: fmtR, fmtPct: fmtPct, fmtAci: fmtAci, matchChildren: matchChildren, matchDebts: matchDebts, pageShown: pageShown, pageWhy: pageWhy, fmtDiff: fmtDiff, show: show, lineVal: lineVal, active: active, activeLines: activeLines, totals: totals, sumLines: sumLines,
     quotes: quotes, allQuotes: allQuotes, policies: policies, policyTotals: policyTotals, groupItems: groupItems, hasGroupRisk: hasGroupRisk, groupTotals: groupTotals, investments: investments,
     personalInvestments: personalInvestments, shortfall: shortfall, compare: compare, pillars: pillarOfBlock };
 });

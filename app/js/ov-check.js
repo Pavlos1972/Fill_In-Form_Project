@@ -29,10 +29,13 @@
     function add(id, block, where, message, line, short) { out.push({ id: id, severity: 'amber', block: block, where: where, message: message, short: short || message, line: line || null }); }          // line: the id of the line the problem is about, so the screen can flag it and say why on the line (short: the words for the line)
     var differs = function (a, b) { return isNum(a) && isNum(b) && Math.abs(a - b) > tol; };
 
+    var conflicts = calc.acceptanceConflicts(state);                                                      // round 1.1: only one quote may be in an accepted state (unless ticked: a second policy alongside the first)
     schema.QUOTE_KINDS.forEach(function (kind) {
       var block = schema.blockOfQuote[kind];
       calc.quotes(state, block).forEach(function (q) {
         var where = qLabel(q), t = calc.totals(q), lines = calc.activeLines(q), figures = hasFigures(q), ffInst = {};
+        var cf = conflicts.filter(function (c) { return c.quote === q; })[0];
+        if (cf) add('accept.second', block, where, 'Another quote is also accepted (' + cf.others.map(qLabel).join(' and ') + '): only one quote can be accepted, unless this is a deliberate second policy alongside the first (tick that on the quote).');
         if (kind === 'fna' && isNum(h.netIncome) && figures) {
           [['life', t.life.monthly, 'Life cover'], ['lsd', t.lsd.monthly, 'Lump sum disability'], ['ip', t.ip.monthly, 'Income protector']].forEach(function (x) {
             if (differs(x[1], h.netIncome)) add('fna.income', block, where, x[2] + ' protects ' + fmtR(x[1]) + ' a month; the client\'s net income is ' + fmtR(h.netIncome) + '.');

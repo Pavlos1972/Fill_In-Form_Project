@@ -67,7 +67,12 @@
       '"life": { "amount": n, "endAge": "age or Whole of life as printed" }, "sev": { "amount": n, "endAge": "..." }, "lsd": { "amount": n, "endAge": "..." }, "ip": { "amount": n (a month), "endAge": "..." }, "value": n (fund value), "employer": n (a month), "employee": n (a month) }. ' +
       'Write "Not found" in endAge when the statement does not give the age a benefit ends.',
     investment: 'This is an investment or retirement annuity statement or schedule. Return { "provider": "text", "product": "text", "policyNo": "text", "valueDate": "dd/mm/yyyy", "valueKind": "schedule", "gross": n (fund value), "penalty": n (Section 14 transfer penalty), "returnRate": n (since inception), "aci": n (the yearly contribution increase; write "Not found" if the schedule does not give it), "monthly": n (the monthly premium or contribution) }.',
-    astute: 'This is an Astute report. Return { "reportDate": "dd/mm/yyyy", "investments": [ { "provider": "text", "product": "text", "policyNo": "text", "gross": n, "monthly": n } ] } with every investment and retirement annuity in it.',
+    astute: 'This is an Astute report. Return { "reportDate": "dd/mm/yyyy", "investments": [ { "provider": "text", "product": "text", "policyNo": "text", "gross": n, "monthly": n, "page": n } ], ' +
+      '"policies": [ { "insurer": "text", "product": "text", "policyNo": "text", "doc": "dd/mm/yyyy (date of commencement)", "premium": n (monthly), "life": n (life cover amount), "sev": n (severe illness amount), "lsd": n (lump sum disability amount), "ip": n (income protector, a month), "waiting": "text as printed", ' +
+      '"aci": n, "aciText": "the yearly premium increase as the report words it, or null", "abi": n, "ipAge": n, "benefits": { "life": "...", "sev": "...", "lsd": "...", "ip": "..." }, "page": n } ], ' +
+      '"group": [ { "provider": "text", "kind": "risk" | "pension" | "provident", "life": { "amount": n, "endAge": "age or Whole of life as printed" }, "sev": { "amount": n, "endAge": "..." }, "lsd": { "amount": n, "endAge": "..." }, "ip": { "amount": n (a month), "endAge": "..." }, "value": n (fund value), "employer": n (a month), "employee": n (a month), "page": n } ] } ' +
+      'with every investment and retirement annuity, every risk policy of the client (life cover, severe illness, lump sum disability and income protector: the cover amounts the report prints for each policy) and every group risk, pension or provident fund benefit in it. ' +
+      '"page" is the page of THIS PDF file on which that item is listed (the first page of the file is 1), or null when you cannot tell. Copy only what the report prints; write null for anything it does not.',
     proposal: 'This is a quote or proposal for an investment (a retirement annuity, a tax-free investment, an endowment, unit trusts, a Section 14 or pension / provident fund transfer, a living annuity). Return { "provider": "text", "type": "Tax-free investment" | "Retirement annuity (RA)" | "Endowment" | "Unit trusts (open-ended)" | "Section 14 transfer" | "Pension / provident fund transfer", "number": "the quote number as printed", ' +
       '"contribution": "lump" | "monthly" | "both" | "transfer", "lump": n (a lump sum), "monthly": n (the monthly premium), "boostPct": n (the boost or bonus on the contribution as a percentage, only if printed), "netInvested": n (the net amount invested after charges and boost, only if printed), "aci": n (the yearly contribution increase) }.',
     goal: 'This is a Retirement Goal Analysis Report (RGAR) or an Education Goal Analysis Report (EGAR). Return { "kind": "rgar" | "egar", "note": "a short reason, only if the report says it could not be done or is not applicable, else null", "currentValuePm": n (the current value in rand a month, gross), "futureValuePm": n (the future value in rand a month, gross), "aci": n, "premium": n (the monthly premium) }.',
@@ -209,7 +214,7 @@
     var same = o.replaces ? null : quoteIn(state, block, q.number);                                         // the same number in the same block (not the quote that is being replaced): ONE quote, never two (Paul, 23 November)
     if (same) {
       if (!read && quoteRead(same)) return { quote: same, read: false, duplicate: same, merged: 'kept' };   // only a name and a number: what was read is never replaced by it
-      var keep = { id: same.id, status: same.status, policyNo: same.policyNo, startDate: same.startDate, cmp: same.cmp, replaces: same.replaces, replacedBy: same.replacedBy };
+      var keep = { id: same.id, status: same.status, uw: same.uw, second: same.second, terms: same.terms, repl: same.repl, policyNo: same.policyNo, startDate: same.startDate, cmp: same.cmp, replaces: same.replaces, replacedBy: same.replacedBy };          // the adviser's choices (status, underwriting, terms, replacements) are never lost to a second reading
       Object.keys(same).forEach(function (k) { delete same[k]; }); Object.assign(same, q, keep);
       return { quote: same, read: read, duplicate: same, merged: 'again' };
     }
@@ -227,7 +232,7 @@
     /* more than one policy of this insurer (two Liberty policies): the policy number, then the premium (the Fact Find's monthly spend against the schedule's), then the one no document has filled yet */
     var prem = n(data.premium), byPrem = calc.isNum(prem) ? byName.filter(function (i) { return calc.isNum(i.premium) && Math.abs(i.premium - prem) <= 1; }) : [];
     if (byPrem.length === 1) return byPrem[0];
-    var pool = byPrem.length ? byPrem : byName, open = pool.filter(function (i) { return i.st === 'ff' || i.st === 'empty'; });
+    var pool = byPrem.length ? byPrem : byName, open = pool.filter(function (i) { return i.st === 'ff' || i.st === 'empty' || (i.src && i.src.kind === 'astute' && i.st !== 'confirmed'); });          // a policy only Astute has filled is still open to its schedule
     if (byPrem.length > 1 && open.length >= 1) return open[0];                                              // the same premium twice: the first one nothing has filled yet
     return { ambiguous: byName };
   }
@@ -383,18 +388,78 @@
     if (s(data.product)) item.product = s(data.product); if (s(data.policyNo)) item.policyNo = s(data.policyNo);
     if (dmy(data.valueDate)) item.valueDate = dmy(data.valueDate);
     ['gross', 'penalty', 'returnRate', 'aci', 'monthly'].forEach(function (k) { if (data[k] !== undefined && data[k] !== null) item[k] = n(data[k]); });
-    item.valueSource = { kind: o.kind === 'astute' ? 'astute' : 'schedule', date: dmy(data.valueDate) || (o.date || null), file: String(file || '') };
+    item.valueSource = { kind: o.kind === 'astute' ? 'astute' : 'schedule', date: dmy(data.valueDate) || (o.date || null), file: String(file || ''), page: o.kind === 'astute' && parseInt(o.page, 10) >= 1 ? parseInt(o.page, 10) : null };
     item.st = 'verify'; item.by = 'page'; item.src = src; return item;
   }
-  /* An Astute report fills the value of each investment it lists that matches one of the Fact Find's; a value from an investment schedule is never replaced by Astute (schedules first). Returns { filled, unmatched }. */
+  /* dd/mm/yyyy as a number that sorts (0 when it is not a date). */
+  function dateKey(v) { var m = /(\d{1,2})\D(\d{1,2})\D(\d{2,4})/.exec(String(v || '')); if (!m) return 0; var y = +m[3]; if (y < 100) y += 2000; return y * 10000 + (+m[2]) * 100 + (+m[1]); }
+  /* Where an Astute value came from: the report, its date and (best effort) the page of the PDF it is listed on. */
+  function astuteSrc(file, date, page) { var o = srcOf('astute', file, date || undefined), pg = parseInt(page, 10); o.page = pg >= 1 && pg < 2000 ? pg : null; return o; }
+  function newerAstute(item, date) { var cur = item && item.src && item.src.kind === 'astute' ? item.src.date : (item && item.valueSource && item.valueSource.kind === 'astute' ? item.valueSource.date : null); return !!cur && !!date && dateKey(cur) > dateKey(date); }
+  var blankBox = function (v) { return v === null || v === undefined || v === ''; };
+  /* An Astute report is the fallback for a policy the Fact Find lists and no schedule has been read for (Paul, 24 November, round 1.1): the newest Astute report fills the row's EMPTY boxes (product, policy number, DOC, premium, ACI, ABI,
+     descriptions) and its cover as ONE line (life cover, severe illness, lump sum disability, income protector, waiting period); the row says "Astute dd/mm/yyyy". A schedule ALWAYS wins: a policy whose schedule was read is left alone, a schedule read
+     later replaces what Astute filled, and nothing a person typed or checked is touched. Only policies already in the Fact Find are filled (never added). Returns { filled: [names], unmatched: [names], skipped: [names] }. */
+  function applyAstutePolicies(state, data, file, date) {
+    var res = { filled: [], unmatched: [], skipped: [] }, list = data && Array.isArray(data.policies) ? data.policies : [], items = state.blocks.policies.items;
+    list.forEach(function (r) {
+      if (!r || typeof r !== 'object') return;
+      var ins = s(r.insurer || r.provider), label = [ins, s(r.policyNo)].filter(Boolean).join(' ') || s(r.product) || 'a policy';
+      var hit = matchItem(items, { policyNo: r.policyNo, premium: r.premium, insurer: ins }, function (x) { return x.insurer; });
+      if (!hit || hit.ambiguous) { res.unmatched.push(label + (hit && hit.ambiguous ? ' (more than one policy of this insurer could be it)' : '')); return; }
+      if (hit.src && hit.src.kind === 'schedule') { res.skipped.push(label + ' (its schedule was read)'); return; }
+      if (hit.st === 'confirmed' && hit.by === 'person') { res.skipped.push(label + ' (checked by hand)'); return; }
+      if (newerAstute(hit, date)) { res.skipped.push(label + ' (an Astute report of a later date was read)'); return; }
+      var did = 0, put = function (k, v) { if (!blankBox(v) && blankBox(hit[k])) { hit[k] = v; did++; } };
+      put('product', s(r.product)); put('policyNo', s(r.policyNo)); put('doc', dmy(r.doc)); put('premium', n(r.premium)); put('aci', n(r.aci)); put('aciText', s(r.aciText)); put('abi', n(r.abi)); put('ipAge', n(r.ipAge));
+      if (r.benefits && typeof r.benefits === 'object') { hit.benefits = hit.benefits || {}; ['life', 'sev', 'lsd', 'ip'].forEach(function (k) { if (s(r.benefits[k]) && !s(hit.benefits[k])) { hit.benefits[k] = s(r.benefits[k]); did++; } }); }
+      var amounts = { life: n(r.life), sev: n(r.sev), lsd: n(r.lsd), ip: n(r.ip) }, any = ['life', 'sev', 'lsd', 'ip'].some(function (k) { return calc.isNum(amounts[k]); });
+      var own = calc.activeLines(hit).some(function (l) { return l.by === 'person' || ((l.st === 'verify' || l.st === 'confirmed') && !(l.src && l.src.kind === 'astute')); });          // a line a schedule gave, or that a person typed in or checked (also an Astute line he corrected): kept
+      if (any && !own) {
+        var src = astuteSrc(file, date, r.page);
+        hit.lines = [line({ type: 'other', label: s(r.product) || hit.product || 'Cover', life: { lump: amounts.life }, sev: { lump: amounts.sev }, lsd: { lump: amounts.lsd }, ip: { monthly: amounts.ip }, waiting: s(r.waiting) }, src)];
+        did++;
+      }
+      if (!did) { res.skipped.push(label + ' (nothing new in the report)'); return; }
+      hit.src = astuteSrc(file, date, r.page); hit.st = 'verify'; hit.by = 'page'; res.filled.push(label);
+    });
+    return res;
+  }
+  /* The same fallback for group benefits: only the empty boxes of an item the Fact Find lists whose statement has not been read. */
+  function applyAstuteGroup(state, data, file, date) {
+    var res = { filled: [], unmatched: [], skipped: [] }, list = data && Array.isArray(data.group) ? data.group : [];
+    list.forEach(function (r) {
+      if (!r || typeof r !== 'object') return;
+      var kind = ['risk', 'pension', 'provident'].indexOf(r.kind) >= 0 ? r.kind : null, label = s(r.provider) || 'a group benefit';
+      var hit = matchItem(state.blocks.group.items.filter(function (g) { return !kind || g.kind === kind; }), { policyNo: '', premium: null, provider: s(r.provider) }, function (x) { return x.provider; });
+      if (!hit || hit.ambiguous) { res.unmatched.push(label + (hit && hit.ambiguous ? ' (more than one item could be it)' : '')); return; }
+      if (hit.src && hit.src.kind === 'group') { res.skipped.push(label + ' (its statement was read)'); return; }
+      if (hit.st === 'confirmed' && hit.by === 'person') { res.skipped.push(label + ' (checked by hand)'); return; }
+      if (newerAstute(hit, date)) { res.skipped.push(label + ' (an Astute report of a later date was read)'); return; }
+      var did = 0;
+      if (hit.kind === 'risk') schema.PILLARS.forEach(function (p) {
+        var c = r[p.id]; if (!c || typeof c !== 'object') return; hit[p.id] = hit[p.id] || { amount: null, endAge: null };
+        if (blankBox(hit[p.id].amount) && calc.isNum(n(c.amount))) { hit[p.id].amount = n(c.amount); did++; }
+        if (blankBox(hit[p.id].endAge) && s(c.endAge)) { hit[p.id].endAge = String(c.endAge).trim(); did++; }
+      });
+      else ['value', 'employer', 'employee'].forEach(function (k) { if (blankBox(hit[k]) && calc.isNum(n(r[k]))) { hit[k] = n(r[k]); did++; } });
+      if (!did) { res.skipped.push(label + ' (nothing new in the report)'); return; }
+      hit.src = astuteSrc(file, date, r.page); hit.st = 'verify'; hit.by = 'page'; res.filled.push(label);
+    });
+    return res;
+  }
+  /* An Astute report fills the value of each investment it lists that matches one of the Fact Find's; a value from an investment schedule is never replaced by Astute (schedules first). It is also the fallback for the current policies
+     and group benefits that have no schedule or statement (applyAstutePolicies, applyAstuteGroup). Returns { filled, unmatched (investments), policies, group }. */
   function applyAstute(state, data, file) {
-    var res = { filled: 0, unmatched: [] }, date = dmy(data.reportDate);
+    var res = { filled: 0, unmatched: [], policies: null, group: null }, date = dmy(data.reportDate);
     (data.investments || []).forEach(function (r) {
       var hit = matchItem(state.blocks.investments.items, r, function (x) { return x.provider; });
       if (!hit || hit.ambiguous) { res.unmatched.push(r.provider || r.product || 'an investment'); return; }
       if (hit.valueSource && hit.valueSource.kind === 'schedule' && (hit.st === 'verify' || hit.st === 'confirmed')) return;
-      applyInvestment(state, hit, { product: hit.product, valueDate: date, gross: r.gross, monthly: r.monthly, policyNo: r.policyNo }, file, { kind: 'astute', date: date }); res.filled++;
+      if (newerAstute(hit, date)) return;
+      applyInvestment(state, hit, { product: hit.product, valueDate: date, gross: r.gross, monthly: r.monthly, policyNo: r.policyNo }, file, { kind: 'astute', date: date, page: r.page }); res.filled++;
     });
+    res.policies = applyAstutePolicies(state, data, file, date); res.group = applyAstuteGroup(state, data, file, date);
     return res;
   }
   function applyCmp(state, data, file) {
@@ -439,11 +504,11 @@
     if (kind === 'cmp') return !(data.rows && data.rows.length) && !has(data.reason);
     if (kind === 'ffnotes') return !(data.items && typeof data.items === 'object' && Object.keys(data.items).some(function (k) { var d = data.items[k]; return d && typeof d === 'object' && (has(d.company) || has(d.product) || has(d.premium)); }));
     if (kind === 'followup') return !(data.items && typeof data.items === 'object' && Object.keys(data.items).some(function (k) { return has(data.items[k]); }));
-    if (kind === 'astute') return !(data.investments && data.investments.length) && !has(data.reportDate);
+    if (kind === 'astute') return !(data.investments && data.investments.length) && !(data.policies && data.policies.length) && !(data.group && data.group.length) && !has(data.reportDate);
     if (kind === 'bremail') return !(data.quotes && data.quotes.some && data.quotes.some(function (e) { return e && calc.isNum(n(e.deathIncomePortion)); }));
     return !Object.keys(data).some(function (k) { return has(data[k]) && typeof data[k] !== 'object'; }) && !Object.keys(data).some(function (k) { var v = data[k]; return v && typeof v === 'object' && Object.keys(v).some(function (j) { return has(v[j]); }); });
   }
 
-  return { classify: classify, promptFor: promptFor, parseReply: parseReply, readWithClaude: readWithClaude, applyQuote: applyQuote, enrich: enrich, factNote: factNote, applyPolicy: applyPolicy, applyOther: applyOther, applyFollowUp: applyFollowUp, dm: dm, factNotesText: factNotesText, applyNotesRead: applyNotesRead, emailText: emailText, msgText: msgText, applyBrEmail: applyBrEmail, setAstuteDate: setAstuteDate, brightQuotes: brightQuotes, applyGroup: applyGroup, applyInvestment: applyInvestment, applyAstute: applyAstute, applyProposed: applyProposed, applyGoal: applyGoal, isEmptyRead: isEmptyRead,
+  return { classify: classify, promptFor: promptFor, parseReply: parseReply, readWithClaude: readWithClaude, applyQuote: applyQuote, enrich: enrich, factNote: factNote, applyPolicy: applyPolicy, applyOther: applyOther, applyFollowUp: applyFollowUp, dm: dm, factNotesText: factNotesText, applyNotesRead: applyNotesRead, emailText: emailText, msgText: msgText, applyBrEmail: applyBrEmail, setAstuteDate: setAstuteDate, brightQuotes: brightQuotes, applyGroup: applyGroup, applyInvestment: applyInvestment, applyAstute: applyAstute, applyAstutePolicies: applyAstutePolicies, applyAstuteGroup: applyAstuteGroup, astuteSrc: astuteSrc, applyProposed: applyProposed, applyGoal: applyGoal, isEmptyRead: isEmptyRead,
     applyCmp: applyCmp, matchItem: matchItem, logDoc: logDoc, findQuoteByNumber: findQuoteByNumber, quoteIn: quoteIn, quoteRead: quoteRead, SPEC_OF: SPEC_OF, BLOCK_LABEL: BLOCK_LABEL, QUOTE_OF: QUOTE_OF, ENDPOINT: ENDPOINT };
 });

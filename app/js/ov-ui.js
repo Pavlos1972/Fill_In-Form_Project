@@ -298,20 +298,75 @@
       (m.st === 'verify' ? '<p class="foot">Read from ' + esc((m.src && m.src.file) || 'a document') + ': check the figures.</p>' : '');
   }
 
+  /* ---------- what happens to a quote: acceptance, underwriting terms, replacements (round 1.1) ---------- */
+  function conflictOf(q) { return calc.acceptanceConflicts(state).filter(function (c) { return c.quote === q; })[0] || null; }
+  function acceptWarn(q, p) {
+    var c = conflictOf(q);
+    if (!c && !q.second) return '';
+    var names = c ? c.others.map(check.qLabel).join(' and ') : '';
+    return '<div class="acceptbox' + (c ? ' bad' : '') + '">' + (c ? '<p class="rednote">Another quote is also accepted (' + esc(names) + '). Only one quote can be accepted at a time, unless this is a deliberate second policy alongside the first.</p>' : '') +
+      '<label class="chk"><input type="checkbox" data-second="' + p + '"' + (q.second ? ' checked' : '') + (state.newer ? ' disabled' : '') + '> Second policy alongside the first (a deliberate two-policy case)</label></div>';
+  }
+  /* The insurer's terms, once the client has accepted and the insurer has answered: standard rates say just that; loadings and exclusions are typed here (the skill never writes them). Shown on the screen, in the PDF and in the Presentation. */
+  function termsBlock(q, p) {
+    var u = calc.uwOf(q); if (!u || u === 'pending' || schema.UW_DECLINED.indexOf(u) >= 0) return '';
+    if (u === 'standard') return '<div class="uwblock"><h4>Underwriting outcome</h4><p class="uwline">Accepted at standard rates.</p></div>';
+    var t = q.terms || {}, dis = state.newer ? ' disabled' : '', h = '<div class="uwblock"><h4>Underwriting outcome: ' + esc(schema.uwLabel[u]) + '</h4>';
+    if (u === 'loadings' || u === 'both') {
+      var ls = Array.isArray(t.loadings) ? t.loadings : [];
+      h += '<div class="ovw"><table class="ovt terms ld"><thead><tr><th>Loading on</th><th>Percentage added</th><th>Reason</th><th>The reason in words</th><th></th></tr></thead><tbody>' +
+        (ls.map(function (r, i) { var rp = p + '.terms.loadings.' + i; return '<tr><td>' + sel(rp + '.benefit', schema.TERM_BENEFITS, 'text', false) + '</td><td>' + inp(rp + '.pct', 'pct') + '</td><td>' + sel(rp + '.kind', schema.LOADING_KINDS, 'text', false) + '</td><td>' + inp(rp + '.reason', 'text', '', 'e.g. raised blood pressure') + '</td><td><button type="button" class="x" data-delterm="' + p + '|loadings|' + i + '"' + dis + '>Remove</button></td></tr>'; }).join('') || '<tr><td colspan="5" class="empty">No loading typed yet.</td></tr>') +
+        '</tbody></table></div><div class="adders"><button type="button" class="addrow" data-addterm="' + p + '|loadings"' + dis + '>+ A loading</button></div>';
+    }
+    if (u === 'exclusions' || u === 'both') {
+      var es = Array.isArray(t.exclusions) ? t.exclusions : [];
+      h += '<div class="ovw"><table class="ovt terms ex"><thead><tr><th>Benefit</th><th>What is excluded</th><th>Why</th><th></th></tr></thead><tbody>' +
+        (es.map(function (r, i) { var rp = p + '.terms.exclusions.' + i; return '<tr><td>' + sel(rp + '.benefit', schema.TERM_BENEFITS, 'text', true) + '</td><td>' + inp(rp + '.what', 'text', '', 'the condition or benefit excluded') + '</td><td>' + inp(rp + '.why', 'text', '', 'e.g. a back injury in 2023') + '</td><td><button type="button" class="x" data-delterm="' + p + '|exclusions|' + i + '"' + dis + '>Remove</button></td></tr>'; }).join('') || '<tr><td colspan="4" class="empty">No exclusion typed yet.</td></tr>') +
+        '</tbody></table></div><div class="adders"><button type="button" class="addrow" data-addterm="' + p + '|exclusions"' + dis + '>+ An exclusion</button></div>';
+    }
+    return h + '</div>';
+  }
+  /* Will this quote replace any of the client's existing policies? The answer and the picks are the adviser's. */
+  function replBlock(q, p) {
+    var r = calc.replOf(q), list = calc.replaceable(state, q), dis = state.newer ? ' disabled' : '';
+    var h = '<div class="replblock"><h4>Replacing existing policies</h4><label class="f"><span class="l">Will this quote replace any of the client&rsquo;s existing policies?</span><div class="box"><select data-replans="' + p + '"' + dis + '><option value="">&nbsp;</option><option value="yes"' + (r.answer === 'yes' ? ' selected' : '') + '>Yes</option><option value="no"' + (r.answer === 'no' ? ' selected' : '') + '>No</option></select></div></label>';
+    if (r.answer === 'yes') {
+      h += '<p class="foot">Tick every current policy this quote replaces. Each gets a red note on Current policies, in the PDF and in the Presentation.</p><div class="picks">' +
+        (list.map(function (e) { var it = e.item; return '<label class="chk"><input type="checkbox" data-replpick="' + p + '|' + esc(it.id) + '"' + (r.policies.indexOf(it.id) >= 0 ? ' checked' : '') + dis + '> ' + esc(calc.policyRef(it)) + (it.product ? ' <small>' + esc(it.product) + '</small>' : '') + '</label>'; }).join('') || '<small class="foot">There are no current policies to pick from yet.</small>') + '</div>';
+    }
+    return h + '</div>';
+  }
+  function quoteStates(q, p) { return acceptWarn(q, p) + termsBlock(q, p) + replBlock(q, p); }
+  /* The red note under a current policy: replaced by a quote, or "will not be replaced" with the question about the broker on record. */
+  function polNote(e, ri) {
+    var n = calc.policyNote(state, e, ri); if (!n) return '';
+    var at = state.blocks.policies.items.indexOf(e.item), p = 'blocks.policies.items.' + at, h = '<span class="rednote">' + esc(n.text) + '</span>';
+    if (n.kind === 'not' && n.broker && at >= 0) {
+      h += ' <span class="brk"><label>Broker on record: ' + sel(p + '.brokerRecord', schema.BROKER_RECORD, 'text', true) + '</label>' + (n.record === 'moves' ? ' <label>Broker changed on ' + inp(p + '.brokerChangedDate', 'date') + '</label>' : '') + '</span>' +
+        (n.record === 'moves' && !n.date ? ' <span class="brknote rednote">' + esc(n.brokerText) + '</span>' : '');                                   // the choice and the date boxes already say the rest
+    }
+    return '<tbody class="rnote"><tr><td colspan="9">' + h + '</td></tr></tbody>';
+  }
+  /* A warning the moment a second quote is marked accepted (the card keeps showing it until it is resolved). */
+  function warnAcceptance(qpath) {
+    var q = store.pathGet(state, qpath), c = q && conflictOf(q);
+    if (c) toast('Another quote is already accepted (' + c.others.map(check.qLabel).join(' and ') + '). Only one quote can be accepted, unless you tick “Second policy alongside the first” on this one.', 12000);
+  }
+
   /* ---------- quotes ---------- */
   function quoteCard(q, i, bid) {
     var p = 'blocks.' + bid + '.quotes.' + i, title = check.qTitle(q) + (q.date ? ' · ' + q.date : '') + (q.rates ? ' · ' + q.rates : ''), open = isOpen(q.id);
-    var head = '<header><span class="statusbadge s-' + esc(q.status) + '" data-statusfor="' + p + '">' + esc(schema.statusLabel[q.status]) + '</span><h3 data-titlefor="' + p + '">' + esc(title) + '</h3>' + stb(p) + vb(p) +
+    var head = '<header><span class="statusbadge s-' + esc(calc.statusClass(q)) + '" data-statusfor="' + p + '">' + esc(calc.statusText(q)) + '</span><h3 data-titlefor="' + p + '">' + esc(title) + '</h3>' + stb(p) + vb(p) +
       '<span class="grow"></span>' + (open ? '<button type="button" class="x" data-replace="' + bid + '|' + q.id + '">Replace quote&hellip;</button><button type="button" class="x" data-del="' + p + '">Remove quote</button>' : '') + seeBtn(q.id) + '</header>';
     if (!open) return '<article class="qcard folded" data-row="' + p + '">' + head + '</article>';
     return '<article class="qcard" data-row="' + p + '">' + head +
       '<div class="grid qh">' + lab('Insurer', inp(p + '.insurer', 'text', '', 'e.g. BrightRock')) + lab(/bright/i.test(q.insurer) ? 'CP number' : 'Quote number', inp(p + '.number', 'text')) + lab('Quote date', inp(p + '.date', 'date')) +
-      lab('Rates', inp(p + '.rates', 'text')) + lab('Kind of quote', boolSel(p + '.servicing', 'Servicing', 'New business')) + lab('Status', sel(p + '.status', schema.STATUS, 'text', false)) +
+      lab('Rates', inp(p + '.rates', 'text')) + lab('Kind of quote', boolSel(p + '.servicing', 'Servicing', 'New business')) + lab('Client decision', sel(p + '.status', schema.STATUS, 'text', false)) + (q.status === 'accepted' ? lab('Underwriting', sel(p + '.uw', schema.UW, 'text', false)) : '') +
       lab('Disability to age', sel(p + '.disabilityAge', [{ id: 65, l: '65' }, { id: 70, l: '70' }], 'num')) + lab('ACI (%)', inp(p + '.aci', 'pct')) + lab('ACI as the quote words it', inp(p + '.aciText', 'text', '', 'e.g. 7.5% + age rater')) + lab('ACI in short points', taLines(p + '.aciPoints')) + lab('Monthly premium (R)', inp(p + '.premium', 'money')) +
-      (q.status === 'accepted' ? lab('Policy number', inp(p + '.policyNo', 'text')) + lab('Start date', inp(p + '.startDate', 'date')) : '') + '</div>' +
-      (q.status === 'accepted' && q.policyNo && q.startDate ? '<p class="blue">This quote has been issued as a policy, so it is also shown under Current policies as a current policy of ours.</p>' : '') +
-      (q.status === 'accepted' && !(q.policyNo && q.startDate) ? '<p class="blue">Accepted. When the insurer has issued the policy, type its policy number and start date above: the quote then moves to Current policies as a current policy of ours.</p>' : '') +
-      (q.kind === 'comparative' ? '<p class="blue">This is what the other insurer\'s quote prints, read from the document: often one whole-of-life amount for each benefit. The four benefit columns, the totals and the comparison follow it.</p>' : '') + linesTable(p, q, false) + breBox(q) + '<div class="under">' + cmpHTML(q, p) + '<h4>Compared with what you have now</h4><div data-comp="cmp|' + q.id + '">' + compareHTML(q) + '</div></div></article>';
+      (calc.accepted(q) ? lab('Policy number', inp(p + '.policyNo', 'text')) + lab('Start date', inp(p + '.startDate', 'date')) : '') + '</div>' +
+      (calc.issued(q) ? '<p class="blue">This quote has been issued as a policy, so it is also shown under Current policies as a current policy of ours.</p>' : '') +
+      (calc.accepted(q) && !(q.policyNo && q.startDate) ? '<p class="blue">Accepted. When the insurer has issued the policy, type its policy number and start date above: the quote then moves to Current policies as a current policy of ours.</p>' : '') +
+      (q.kind === 'comparative' ? '<p class="blue">This is what the other insurer\'s quote prints, read from the document: often one whole-of-life amount for each benefit. The four benefit columns, the totals and the comparison follow it.</p>' : '') + linesTable(p, q, false) + breBox(q) + quoteStates(q, p) + '<div class="under">' + cmpHTML(q, p) + '<h4>Compared with what you have now</h4><div data-comp="cmp|' + q.id + '">' + compareHTML(q) + '</div></div></article>';
   }
   function quotesBlock(b) {
     var list = (state.blocks[b.id].quotes || []), live = list.filter(function (q) { return !q.removed; }), gone = list.filter(function (q) { return q.removed; });
@@ -326,7 +381,7 @@
   function policyRow(e, idx) {
     var it = e.item, t = calc.totals(it), has = calc.activeLines(it).length, tick = it.wr ? '<span class="tick">&#10003;</span>' : '<span class="cross">&#10007;</span>', w = (calc.activeLines(it).filter(function (l) { return l.waiting && l.waiting !== 'N/A'; })[0] || {}).waiting;
     var b = it.benefits || {}, bd = function (k) { return b[k] ? '<small class="d bd">' + esc(b[k]) + '</small>' : ''; }, at = state.blocks.policies.items.indexOf(it), p = 'blocks.policies.items.' + at;
-    return '<tr class="pol"' + (at >= 0 ? ' data-row="' + p + '"' : '') + '><td>' + (at >= 0 ? stb(p) : '') + tick + ' <b>' + esc(it.insurer || 'Policy') + '</b>' + (it.policyNo ? ' <small>' + esc(it.policyNo) + '</small>' : '') + '<small class="d">' + esc([it.product, it.doc ? 'DOC ' + it.doc : ''].filter(Boolean).join(' · ')) + (e.derived ? ' · from the accepted quote' : '') + '</small>' + (at >= 0 ? '<span class="dvrow">' + vb(p) + seeBtn(it.id) + '</span>' : '') + '</td>' +
+    return '<tr class="pol"' + (at >= 0 ? ' data-row="' + p + '"' : '') + '><td>' + (at >= 0 ? stb(p) : '') + tick + ' <b>' + esc(it.insurer || 'Policy') + '</b>' + (it.policyNo ? ' <small>' + esc(it.policyNo) + '</small>' : '') + '<small class="d">' + esc([it.product, it.doc ? 'DOC ' + it.doc : ''].filter(Boolean).join(' · ')) + (e.derived ? ' · from the accepted quote' : '') + (it.src && it.src.kind === 'astute' ? ' · Astute' + (it.src.date ? ' ' + esc(it.src.date) : '') : '') + '</small>' + (at >= 0 ? '<span class="dvrow">' + vb(p) + seeBtn(it.id) + '</span>' : '') + '</td>' +
       '<td class="c">' + (has ? amt(t.life.lump) : amt(null)) + bd('life') + '</td><td class="c">' + (has ? amt(t.sev.lump) : amt(null)) + bd('sev') + '</td><td class="c">' + (has ? amt(t.lsd.lump) : amt(null)) + bd('lsd') + '</td><td class="c">' + (has ? pm(t.ip.monthly) : amt(null)) + bd('ip') + '</td>' +
       '<td class="c">' + esc(w || '') + '</td><td class="c">' + aciShow(it) + '</td><td class="c">' + pctShow(it.abi) + '</td><td class="c">' + (calc.isNum(it.premium) ? '<span class="a">' + R(it.premium) + '</span>' : amt(null)) + '</td></tr>';
   }
@@ -339,10 +394,10 @@
   }
   /* The summary stays at the top; a row's See more opens that policy's whole detail directly under it. Each row and the totals are redrawn as you type; the detail you are typing in is not. */
   function policyTable() {
-    var ps = calc.policies(state), age = ageOf({}) ? ' (Age ' + ageOf({}) + ')' : '';
+    var ps = calc.policies(state), age = ageOf({}) ? ' (Age ' + ageOf({}) + ')' : '', ri = calc.replacementInfo(state);
     var rows = ps.map(function (e, i) {
       var at = state.blocks.policies.items.indexOf(e.item);
-      return '<tbody data-comp="polrow|' + i + '">' + policyRow(e, i) + '</tbody>' + (at >= 0 && isOpen(e.item.id) ? '<tbody class="dtl"><tr><td colspan="9">' + policyCard(e.item, at) + '</td></tr></tbody>' : '');
+      return '<tbody data-comp="polrow|' + i + '">' + policyRow(e, i) + '</tbody>' + polNote(e, ri) + (at >= 0 && isOpen(e.item.id) ? '<tbody class="dtl"><tr><td colspan="9">' + policyCard(e.item, at) + '</td></tr></tbody>' : '');
     }).join('') || '<tbody><tr><td colspan="9" class="empty">No policies in the Fact Find yet.</td></tr></tbody>';
     return '<div class="ovw"><table class="ovt pols"><colgroup><col class="p-name"><col><col><col><col><col class="p-w"><col class="p-aci"><col class="p-s"><col></colgroup><thead><tr><th>Policy</th><th>Life cover</th><th>Severe illness</th><th>Lump sum disability' + age + '</th><th>Income protector / sickness benefit' + age + '</th><th>Waiting period</th><th>ACI</th><th>ABI</th><th>Premium</th></tr></thead>' + rows +
       '<tbody data-comp="poltot|">' + policyTots() + '</tbody></table></div>';
@@ -350,7 +405,7 @@
   function policyCard(it, i) {
     var p = 'blocks.policies.items.' + i;
     return '<article class="qcard" data-row="' + p + '"><header><span class="' + (it.wr ? 'tick' : 'cross') + '">' + (it.wr ? '&#10003;' : '&#10007;') + '</span><h3>' + esc(it.insurer || 'Policy') + (it.policyNo ? ' · ' + esc(it.policyNo) : '') + '</h3>' + stb(p) + vb(p) +
-      '<span class="grow"></span><span class="src">' + (it.wr ? 'We are the broker' : 'Another broker: ' + esc(it.broker || '')) + '</span><button type="button" class="x" data-upi="' + p + '|policies">Upload policy schedule&hellip;</button></header><div class="grid qh">' +
+      '<span class="grow"></span><span class="src">' + (it.wr ? 'We are the broker' : 'Another broker: ' + esc(it.broker || '')) + (it.src && it.src.kind === 'astute' ? ' · figures from the Astute report' + (it.src.date ? ' ' + esc(it.src.date) : '') : '') + '</span><button type="button" class="x" data-upi="' + p + '|policies">Upload policy schedule&hellip;</button></header><div class="grid qh">' +
       lab('Insurer', inp(p + '.insurer', 'text')) + lab('Product', inp(p + '.product', 'text')) + lab('Policy number', inp(p + '.policyNo', 'text')) + lab('Date of commencement', inp(p + '.doc', 'date')) + lab('Monthly premium (R)', inp(p + '.premium', 'money')) +
       lab('ACI (%)', inp(p + '.aci', 'pct')) + lab('ACI as the schedule words it', inp(p + '.aciText', 'text', '', 'e.g. 7.5% + age rater')) + lab('ACI in short points', taLines(p + '.aciPoints')) + lab('ABI (%)', inp(p + '.abi', 'pct')) + lab('Disability to age', sel(p + '.ipAge', [{ id: 65, l: '65' }, { id: 70, l: '70' }], 'num')) +
       lab('Life cover description', inp(p + '.benefits.life', 'text', '', 'e.g. Whole of life')) + lab('Severe illness description', inp(p + '.benefits.sev', 'text', '', 'e.g. Living Lifestyle Plus, standalone')) + lab('Lump sum disability description', inp(p + '.benefits.lsd', 'text', '', 'e.g. Absolute Protector Plus, OOD, to age 65')) + lab('Income protector description', inp(p + '.benefits.ip', 'text', '', 'e.g. after 24 months, to age 65')) +
@@ -368,7 +423,7 @@
     var rows = items.map(function (g) {
       var prem = g.kind === 'risk' ? g.monthlyCost : (calc.isNum(g.employer) || calc.isNum(g.employee) ? calc.r2((g.employer || 0) + (g.employee || 0)) : g.contribTotal);
       if (calc.isNum(prem)) totalPrem = calc.r2(totalPrem + prem);
-      var label = '<b>' + esc(schema.GROUP_KINDS[g.kind] || g.kind) + '</b> ' + esc(g.provider || '') + (g.statementDate ? '<small class="d">Statement ' + esc(g.statementDate) + (g.paidBy ? ' · paid by ' + esc(g.paidBy) : '') + '</small>' : (g.paidBy ? '<small class="d">Paid by ' + esc(g.paidBy) + '</small>' : ''));
+      var label = '<b>' + esc(schema.GROUP_KINDS[g.kind] || g.kind) + '</b> ' + esc(g.provider || '') + (g.statementDate ? '<small class="d">Statement ' + esc(g.statementDate) + (g.paidBy ? ' · paid by ' + esc(g.paidBy) : '') + '</small>' : (g.paidBy ? '<small class="d">Paid by ' + esc(g.paidBy) + '</small>' : '')) + (g.src && g.src.kind === 'astute' ? '<small class="d">Astute ' + esc(g.src.date || '') + '</small>' : '');
       if (g.kind === 'risk') return '<tr><td>' + label + '</td>' + pcell(g, 'life') + pcell(g, 'sev') + pcell(g, 'lsd') + pcell(g, 'ip') + '<td class="c">' + esc(g.ipWaiting || '') + '</td><td class="c">' + pctShow(g.aci) + '</td><td class="c">' + pctShow(g.abi) + '</td><td class="c">' + (calc.isNum(prem) ? '<span class="a">' + R(prem) + '</span>' : amt(null)) + '</td></tr>';
       return '<tr><td>' + label + '<small class="d">' + (calc.isNum(g.value) ? 'Fund value ' + R(g.value) + ' · ' : '') + (calc.isNum(g.employer) || calc.isNum(g.employee) ? 'employer ' + R(g.employer || 0) + ', employee ' + R(g.employee || 0) : 'POI needed') + '</small></td><td class="c">' + amt(null) + '</td><td class="c">' + amt(null) + '</td><td class="c">' + amt(null) + '</td><td class="c">' + amt(null) +
         '</td><td class="c"><span class="na">N/A</span></td><td class="c">' + pctShow(g.aci) + '</td><td class="c"><span class="na">N/A</span></td><td class="c">' + (calc.isNum(prem) ? '<span class="a">' + R(prem) + '</span>' : amt(null)) + '</td></tr>';
@@ -538,7 +593,7 @@
       el.classList.remove('s-empty', 's-ff', 's-verify', 's-confirmed'); el.classList.add('s-' + (o.st || 'empty'));
       var b = el.querySelector('[data-stfor="' + el.getAttribute('data-row') + '"]'); if (b) b.innerHTML = badgeHTML(el.getAttribute('data-row'), o.st, el.tagName === 'TR', o);
     });
-    document.querySelectorAll('[data-statusfor]').forEach(function (el) { var q = store.pathGet(state, el.getAttribute('data-statusfor')); if (q) { el.textContent = schema.statusLabel[q.status] || ''; el.className = 'statusbadge s-' + q.status; } });
+    document.querySelectorAll('[data-statusfor]').forEach(function (el) { var q = store.pathGet(state, el.getAttribute('data-statusfor')); if (q) { el.textContent = calc.statusText(q); el.className = 'statusbadge s-' + calc.statusClass(q); } });
     document.querySelectorAll('[data-titlefor]').forEach(function (el) { var q = store.pathGet(state, el.getAttribute('data-titlefor')); if (q) el.textContent = check.qTitle(q) + (q.date ? ' \u00b7 ' + q.date : '') + (q.rates ? ' \u00b7 ' + q.rates : ''); });
     document.querySelectorAll('[data-tickfor]').forEach(function (el) { var o = store.pathGet(state, el.getAttribute('data-tickfor')); if (o) { el.className = o.wr ? 'tick' : 'cross'; el.innerHTML = o.wr ? '&#10003;' : '&#10007;'; } });
   }
@@ -793,6 +848,12 @@
     } else if (block === 'astute') {
       var a = D.applyAstute(state, data, name);
       res.msg = name + ': Astute values filled in for ' + a.filled + (a.filled === 1 ? ' investment' : ' investments') + (a.unmatched.length ? '; not in the Fact Find: ' + a.unmatched.join(', ') + '.' : '.') + (astuteSet ? ' The Astute report date ' + astuteSet + ' was filled into Client details.' : ''); if (a.unmatched.length) res.warn = true;
+      [[a.policies, 'current policies'], [a.group, 'group benefits']].forEach(function (g) {                          // round 1.1: the fallback for what has no schedule or statement
+        var r = g[0]; if (!r) return;
+        if (r.filled.length) res.msg += ' Filled from this Astute report (no ' + (g[1] === 'current policies' ? 'schedule' : 'statement') + ' was read for them): ' + r.filled.join(', ') + '.';
+        if (r.skipped.length) res.msg += ' Left as they are: ' + r.skipped.join('; ') + '.';
+        if (r.unmatched.length) { res.msg += ' In Astute but not in the Fact Find\u2019s ' + g[1] + ': ' + r.unmatched.join(', ') + '.'; res.warn = true; }
+      });
     } else {
       var item = o.target || D.matchItem(listOf(block), data, nameOf(block));
       if (item && item.ambiguous) { res.msg = name + ': more than one item could be this one (' + item.ambiguous.map(function (x) { return (x.insurer || x.provider || 'item') + (x.policyNo ? ' ' + x.policyNo : '') + (calc.isNum(x.premium) ? ' R' + x.premium : ''); }).join(', ') + '). Use the Upload button on the right item.'; res.warn = true; }
@@ -965,15 +1026,22 @@
     var ended = false, finish = function () { if (ended) return; ended = true; return endSearch(); };
     var isGuide = function (f) { var c = D.classify(f.name); return o.block === 'cmp' || (!o.block && c && c.block === 'cmp'); };
     var isEmail = function (f) { var c = D.classify(f.name, o.dirs && o.dirs[String(f.name).toLowerCase()]); return o.block === 'bremail' || (!o.block && c && c.block === 'bremail'); };
+    var astuteOf = function (f) { return D.classify(f.name, (o.dirs && o.dirs[String(f.name).toLowerCase()]) || (f.rel || []).join(' \\ ')); };
+    var isAstute = function (f) { var c = astuteOf(f); return o.block === 'astute' || (!o.block && c && c.block === 'astute'); };          // Astute is the FALLBACK: it is read after the schedules and statements, the newest report last (round 1.1)
     function one(f, oo) {
       var num = (D.classify(f.name) || {}).number;
       if (oo.block === 'cmp' || (!oo.block && isGuide(f))) { if (num && o.guides[num]) { count++; return Promise.resolve(); } }          // its quote has read it already
       return intakeOne(f, oo).then(function (r) { if (r.unknown) { unknown.push(f); return; } if (r.skip) return; if (r.dupe) same++; else count++; if (r.warn) warns++; log.push({ msg: r.msg, warn: !!r.warn }); });
     }
     function chain(list, mk) { return list.reduce(function (p, f) { return p.then(function () { return one(f, mk(f)); }); }, Promise.resolve()); }
-    return chain(files.filter(function (f) { return !isGuide(f) && !isEmail(f); }), function () { return o; })
+    return chain(files.filter(function (f) { return !isGuide(f) && !isEmail(f) && !isAstute(f); }), function () { return o; })
       .then(function () { return chain(files.filter(isGuide), function () { return o; }); })
       .then(function () { return chain(files.filter(isEmail), function () { return o; }); })
+      .then(function () {                                                                                // only the NEWEST Astute report is read: an older one would fill boxes the newer one then could not change
+        var as = files.filter(isAstute).map(function (f, i) { return { f: f, i: i, k: dkey((astuteOf(f) || {}).date) }; }).sort(function (a, b) { return a.k - b.k || a.i - b.i; }).map(function (x) { return x.f; });
+        as.slice(0, -1).forEach(function (f) { log.push({ msg: 'Astute report ' + f.name + ' was not read: a newer Astute report (' + as[as.length - 1].name + ') was read instead.', warn: false }); });
+        return chain(as.slice(-1), function () { return o; });
+      })
       .then(function () {
         if (!unknown.length) return null;
         return askBlocks(unknown).then(function (picked) {
@@ -1001,13 +1069,19 @@
     files.forEach(function (f) { var c = D.classify(f.name); if (!c || c.block !== 'followup') return; var k = dkey(c.date); if (k && k > base && k > bk) { best = f; bk = k; } });
     return best;
   }
+  /* Of the Astute reports in the list, the NEWEST (by the date in its name) is the one that is ticked; with no dates to tell them apart every one is ticked. */
+  function newestAstute(files) {
+    var best = null, bk = 0, any = 0;
+    files.forEach(function (f) { var c = D.classify(f.name, (f.rel || []).join(' \\ ')); if (!c || c.block !== 'astute') return; any++; var k = dkey(c.date); if (k && k > bk) { best = f; bk = k; } });
+    return { best: best, any: any };
+  }
   function pickList(res) {
-    var tickFu = newestFollowUp(res.files);
+    var tickFu = newestFollowUp(res.files), tickAs = newestAstute(res.files);
     return new Promise(function (resolve) {
       var dlg = document.createElement('dialog'), done = false; dlg.className = 'fdlg';
       dlg.innerHTML = '<h3>Documents in ' + esc(res.label) + '</h3><p>Choose what to load into the overview. Ones the page can sort by their name are ticked; the others will ask you what they are. The quotes are read first, then their change moment pay-out guides.</p>' + (res.skipped && res.skipped.length ? '<p class="fnote">' + esc(res.skipped.join(' and ')) + (res.skipped.length > 1 ? ' were' : ' was') + ' not open to this page yet, so only the other connected folder was searched.</p>' : '') + '<div class="flist">' + res.files.map(function (f, i) {
         var c = D.classify(f.name, (f.rel || []).join(' \\ '));
-        return '<label><input type="checkbox" data-i="' + i + '"' + (c && (c.block !== 'followup' || f === tickFu) ? ' checked' : '') + '><span>' + esc(f.rel.concat([f.name]).join(' \\ ')) + (c ? ' <i>(' + esc(c.label) + ')</i>' : '') + '</span></label>';
+        return '<label><input type="checkbox" data-i="' + i + '"' + (c && (c.block !== 'followup' || f === tickFu) && (c.block !== 'astute' || !tickAs.best || f === tickAs.best) ? ' checked' : '') + '><span>' + esc(f.rel.concat([f.name]).join(' \\ ')) + (c ? ' <i>(' + esc(c.label) + ')</i>' : '') + '</span></label>';
       }).join('') + '</div><div class="fbtns"><button type="button" class="btn ghost small" data-no>Cancel</button><button type="button" class="btn small" data-yes>Load the ticked ones</button></div>';
       document.body.appendChild(dlg);
       function end(v) { if (done) return; done = true; dlg.close(); dlg.remove(); resolve(v); }
@@ -1217,8 +1291,20 @@
   var softT = null;
   function refreshChromeSoft() { clearTimeout(softT); softT = setTimeout(refreshChrome, 250); }
   $('#main').addEventListener('change', function (e) {
-    var el = e.target, p = el.getAttribute('data-p'); if (!p) return;
-    if (el.tagName === 'SELECT') { typed(el); if (/\.status$|\.requested$|\.wr$/.test(p)) { touch(); redraw(); return; } }
+    var el = e.target;
+    var pick = el.getAttribute && el.getAttribute('data-replpick'), sec = el.getAttribute && el.getAttribute('data-second'), ans = el.getAttribute && el.getAttribute('data-replans');
+    if (pick || sec || ans) {                                                                                  // the adviser's answers about a quote (round 1.1): never a check of the quote's figures
+      if (state.newer) return;
+      if (pick) { var pp = pathOf(pick); store.toggleReplaced(state, pp[0], pp[1], el.checked); } else if (sec) store.setSecond(state, sec, el.checked); else store.setRepl(state, ans, el.value);
+      dirty = true; onDisk = false; touch(); redraw(); return;
+    }
+    var p = el.getAttribute('data-p'); if (!p) return;
+    var sm = el.tagName === 'SELECT' && /^(blocks\.\w+\.quotes\.\d+)\.status$/.exec(p);
+    if (sm) { store.setStatus(state, sm[1], el.value); dirty = true; onDisk = false; touch(); redraw(); warnAcceptance(sm[1]); return; }          // Accepted goes to underwriting by itself
+    var bm = el.tagName === 'SELECT' && /^(blocks\.policies\.items\.\d+)\.brokerRecord$/.exec(p);
+    if (bm) { store.setBrokerRecord(state, bm[1], el.value); dirty = true; onDisk = false; touch(); redraw(); return; }
+    if (el.tagName === 'SELECT') { typed(el); if (/\.status$|\.requested$|\.wr$|\.uw$|\.terms\.loadings\.\d+\.kind$/.test(p)) { touch(); redraw(); if (/\.uw$/.test(p)) warnAcceptance(p.replace(/\.uw$/, '')); return; } }
+    if (el.tagName === 'INPUT' && /\.brokerChangedDate$/.test(p)) { typed(el); touch(); redraw(); return; }
     var k = el.getAttribute('data-k'), v = store.pathGet(state, p);
     if (el.tagName === 'INPUT') { el.value = dispIn(v, k); el.classList.toggle('isna', v === 'N/A' || v === 'Not found'); }
     touch(); paintComputed(); paintStatuses();
@@ -1228,10 +1314,12 @@
     e.preventDefault(); e.stopPropagation(); if (!vbn.disabled && OV.view) OV.view.open(vbn.getAttribute('data-vw'), vbn, 'studio');
   }, true);
   $('#main').addEventListener('click', function (e) {
-    var t = e.target.closest('[data-see],[data-accept],[data-addq],[data-addl],[data-addp],[data-del],[data-undo],[data-block],[data-replace],[data-upi],[data-addcmp],[data-delcmp],[data-upc]'); if (!t) return;
+    var t = e.target.closest('[data-see],[data-accept],[data-addq],[data-addl],[data-addp],[data-del],[data-undo],[data-block],[data-replace],[data-upi],[data-addcmp],[data-delcmp],[data-upc],[data-addterm],[data-delterm]'); if (!t) return;
     if (t.hasAttribute('data-block')) { cur = t.getAttribute('data-block'); drawNav(); drawMain(true); refreshChrome(); window.scrollTo({ top: 0 }); return; }
     if (t.hasAttribute('data-see')) { var sk = t.getAttribute('data-see'); openSet[sk] = !isOpen(sk); drawMain(); return; }
     if (state.newer) return;
+    if (t.hasAttribute('data-addterm')) { var at2 = pathOf(t.getAttribute('data-addterm')); store.addTerm(state, at2[0], at2[1]); touch(); redraw(); return; }
+    if (t.hasAttribute('data-delterm')) { var dt = pathOf(t.getAttribute('data-delterm')); store.removeTerm(state, dt[0], dt[1], +dt[2]); touch(); redraw(); return; }
     if (t.hasAttribute('data-accept')) { store.accept(state, t.getAttribute('data-accept')); touch(); paintStatuses(); return; }
     if (t.hasAttribute('data-upc')) { fromClientFolder(t.getAttribute('data-upc')); return; }
     if (t.hasAttribute('data-replace')) { var rp = pathOf(t.getAttribute('data-replace')); pending = { block: rp[0], replaces: rp[1] }; $('#docOne').click(); return; }

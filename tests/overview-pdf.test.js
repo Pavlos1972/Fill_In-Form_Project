@@ -182,7 +182,7 @@ test('what is for Sitamah and Paul only is never printed: the checks, the amber 
 });
 
 test('a removed quote is not printed; a second quote of the same kind gets its own table, status and comparison', () => {
-  const s = filled(); const q2 = store.addQuote(s, 'fna'); q2.number = '100000002'; q2.status = 'declined'; q2.premium = 3100;
+  const s = filled(); const q2 = store.addQuote(s, 'fna'); q2.number = '100000002'; q2.status = 'accepted'; q2.uw = 'declinedOther'; q2.premium = 3100;
   PDF.build(s);
   const t = page(FNA);
   assert.ok(t.includes('CP 100000002') && t.includes('Declined') && (t.match(/Compared with what you have now/g) || []).length === 2 && (t.match(/Total lump sum/g) || []).length === 2);

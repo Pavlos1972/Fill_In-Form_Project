@@ -91,7 +91,7 @@ srv.listen(0, async () => {
 
   /* ---- 0. the version ---- */
   let p = await fresh({});
-  ok(/Version (0\.9[89]|1\.0)/.test(await p.evaluate(() => document.body.innerText)), '0. the header says Version 0.98 or later');
+  ok(/Version (0\.9[89]|1\.[01])/.test(await p.evaluate(() => document.body.innerText)), '0. the header says Version 0.98 or later');
   await p.close();
 
   /* ---- 2. Chrome does not answer the first question but WOULD answer the permission question: it is asked after 1.2 seconds and the list opens when the adviser says Allow ---- */

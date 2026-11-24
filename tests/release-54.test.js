@@ -43,10 +43,11 @@ function fnaFilled(s) {
   return q;
 }
 
-test('the schema: eleven blocks in the fixed order, four pillars, six statuses, Paul\'s standards', () => {
+test('the schema: eleven blocks in the fixed order, four pillars, three decisions, seven underwriting steps, Paul\'s standards', () => {
   assert.deepStrictEqual(schema.BLOCKS.map(b => b.n + ' ' + b.title), ['1 Current policies', '2 FNA quote', '3 Group benefits & personal investments', '4 Shortfall', '5 Shortfall quote', '6 Reduced quotes', '7 Comparative quotes', '8 Current investments', '9 Proposed investments', '10 Goal analysis reports', '11 Medical aid, will & short-term']);
   assert.deepStrictEqual(schema.PILLARS.map(p => p.id), ['life', 'sev', 'lsd', 'ip']);
-  assert.deepStrictEqual(schema.STATUS.map(s => s.l), ['Pending client decision', 'Accepted', 'Not accepted', 'Declined', 'Medical decline', 'Pending underwriting']);
+  assert.deepStrictEqual(schema.STATUS.map(s => s.l), ['Pending client decision', 'Accepted', 'Not accepted']);
+  assert.deepStrictEqual(schema.UW.map(s => s.l), ['Pending underwriting', 'Accepted at standard rates', 'Accepted with loadings', 'Accepted with exclusions', 'Accepted with loadings and exclusions', 'Declined (health)', 'Declined (other)']);
   assert.deepStrictEqual(schema.STANDARDS, { aci: 10, abi: { child: 5, household: 5, debt: 0, death: 3, dread: 3 } });
   assert.deepStrictEqual(schema.BLOCKS.filter(b => b.ff).map(b => b.id), ['policies', 'group', 'investments'], 'blocks 1, 3 and 8 follow the Fact Find');
   assert.strictEqual(schema.version, '0.1');
