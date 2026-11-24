@@ -414,7 +414,7 @@
       put('product', s(r.product)); put('policyNo', s(r.policyNo)); put('doc', dmy(r.doc)); put('premium', n(r.premium)); put('aci', n(r.aci)); put('aciText', s(r.aciText)); put('abi', n(r.abi)); put('ipAge', n(r.ipAge));
       if (r.benefits && typeof r.benefits === 'object') { hit.benefits = hit.benefits || {}; ['life', 'sev', 'lsd', 'ip'].forEach(function (k) { if (s(r.benefits[k]) && !s(hit.benefits[k])) { hit.benefits[k] = s(r.benefits[k]); did++; } }); }
       var amounts = { life: n(r.life), sev: n(r.sev), lsd: n(r.lsd), ip: n(r.ip) }, any = ['life', 'sev', 'lsd', 'ip'].some(function (k) { return calc.isNum(amounts[k]); });
-      var own = calc.activeLines(hit).some(function (l) { return (l.st === 'verify' || l.st === 'confirmed') && !(l.src && l.src.kind === 'astute'); });          // a line a schedule or a person gave: kept
+      var own = calc.activeLines(hit).some(function (l) { return l.by === 'person' || ((l.st === 'verify' || l.st === 'confirmed') && !(l.src && l.src.kind === 'astute')); });          // a line a schedule gave, or that a person typed in or checked (also an Astute line he corrected): kept
       if (any && !own) {
         var src = astuteSrc(file, date, r.page);
         hit.lines = [line({ type: 'other', label: s(r.product) || hit.product || 'Cover', life: { lump: amounts.life }, sev: { lump: amounts.sev }, lsd: { lump: amounts.lsd }, ip: { monthly: amounts.ip }, waiting: s(r.waiting) }, src)];

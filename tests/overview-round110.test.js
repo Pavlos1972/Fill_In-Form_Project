@@ -74,7 +74,7 @@ test('the store: Accepted goes to underwriting by itself, an outcome is kept, pi
   ['status', 'uw', 'second'].forEach(k => { store.setPath(s, p + '.' + k, k === 'second' ? 'true' : (k === 'uw' ? 'standard' : 'accepted'), 'text'); assert.strictEqual(q.st, 'verify', k + ' is a choice, not a check'); });
   store.setPath(s, p + '.repl.answer', 'no', 'text'); store.setPath(s, p + '.terms.loadings.0.pct', '25', 'pct'); assert.strictEqual(q.st, 'verify');
   store.setPath(s, 'blocks.policies.items.0.brokerRecord', 'stays', 'text'); assert.strictEqual(s.blocks.policies.items[0].st, 'ff', 'a policy\'s broker question does not confirm the row');
-  store.setPath(s, p + '.premium', '5 100', 'rand'); assert.strictEqual(q.st, 'confirmed', 'a typed figure is a check');
+  store.setPath(s, p + '.premium', '5 100', 'money'); assert.strictEqual(q.st, 'confirmed', 'a typed figure is a check');
 });
 
 test('the one-acceptance rule: two accepted quotes conflict across the FNA, shortfall, reduced and comparative pages unless the adviser ticks the second; declined, not accepted and removed quotes are not in it', () => {
@@ -191,6 +191,22 @@ test('a schedule always beats Astute: a policy whose schedule was read is left a
   assert.ok(lib);
 });
 
+test('a figure the adviser corrected on an Astute line is kept when the same report is applied again (a line he typed or checked is never replaced)', () => {
+  const s = fresh(), bud = pol(s, 'Budget Insurance'); docs.applyAstute(s, ASTUTE(), 'a.pdf');
+  assert.strictEqual(bud.lines[0].life.lump, 750000); store.setPath(s, 'blocks.policies.items.0.lines.0.life.lump', '900000', 'money');
+  assert.deepStrictEqual([bud.lines[0].st, bud.lines[0].by], ['confirmed', 'person'], 'typing is a person\'s check');
+  docs.applyAstute(s, ASTUTE(), 'a.pdf'); assert.strictEqual(bud.lines[0].life.lump, 900000, 'the correction stands'); assert.strictEqual(bud.src.kind, 'astute');
+  const s2 = fresh(), b2 = pol(s2, 'Budget Insurance'); docs.applyAstute(s2, ASTUTE(), 'a.pdf'); docs.applyAstute(s2, ASTUTE({ policies: [{ insurer: 'Budget Insurance', policyNo: '100200300', life: 1, ip: 2 }] }), 'b.pdf');
+  assert.strictEqual(b2.lines[0].life.lump, 1, 'an untouched Astute line is replaced by the next report');
+});
+
+test('a schedule read after Astute replaces what both give (product, premium, lines) and the row becomes a schedule row', () => {
+  const s = fresh(); docs.applyAstute(s, ASTUTE(), 'a.pdf'); const b = pol(s, 'Budget Insurance');
+  const hit = docs.matchItem(s.blocks.policies.items, { policyNo: '100200300', premium: 900, insurer: 'Budget Insurance' }, x => x.insurer);
+  docs.applyPolicy(s, hit, { insurer: 'Budget Insurance', policyNo: '100200300', product: 'Schedule product', premium: 905, lines: [{ type: 'other', label: 'Cover', life: { lump: 111111 } }] }, 'sched.pdf');
+  assert.deepStrictEqual([b.src.kind, b.product, b.premium, b.lines.length, b.lines[0].life.lump, b.lines[0].src.kind], ['schedule', 'Schedule product', 905, 1, 111111, 'schedule']);
+});
+
 test('Astute is the fallback for group benefits too: only empty boxes of an item the Fact Find lists whose statement was not read', () => {
   const s = fresh(); s.blocks.group.items.push({ id: 'g1', kind: 'risk', provider: 'Test Group Scheme', statementDate: null, life: { amount: null, endAge: null }, sev: { amount: null, endAge: null }, lsd: { amount: null, endAge: null }, ip: { amount: null, endAge: null }, st: 'ff', src: { kind: 'factfind' } });
   const g = s.blocks.group.items[0], data = ASTUTE({ policies: [], group: [{ provider: 'Test Group Scheme', kind: 'risk', life: { amount: 1200000, endAge: '65' }, sev: { amount: 300000, endAge: '65' }, page: 6 }] });
@@ -211,12 +227,15 @@ test('an Astute investment value keeps its page (the View button opens the repor
 
 test('the code: Astute is read in its own last phase, newest report last, and only the newest is ticked in the pick list; View opens the Astute report at its page; every screen asks the one state function', () => {
   const ui = app('js/ov-ui.js'), view = app('js/ov-view.js'), pdf = app('js/ov-pdf.js'), pres = app('js/ov-present.js');
-  assert.ok(/\.then\(function \(\) \{ return chain\(files\.filter\(isAstute\)\.map\(function \(f, i\) \{ return \{ f: f, i: i, k: dkey\(/.test(ui) && /sort\(function \(a, b\) \{ return a\.k - b\.k \|\| a\.i - b\.i; \}\)/.test(ui), 'the Astute files are read last, oldest first (the newest is applied last and wins)');
+  assert.ok(/var as = files\.filter\(isAstute\)\.map\(function \(f, i\) \{ return \{ f: f, i: i, k: dkey\(/.test(ui) && /sort\(function \(a, b\) \{ return a\.k - b\.k \|\| a\.i - b\.i; \}\)/.test(ui), 'the Astute files are read in their own last phase, sorted by the date in the name (the newest is the one that is read)');
   assert.ok(/!isGuide\(f\) && !isEmail\(f\) && !isAstute\(f\)/.test(ui), 'not read with the schedules');
   assert.ok(/f === tickAs\.best/.test(ui), 'only the newest Astute report is ticked');
   assert.ok(/ref\.astute = true/.test(view) && /View Astute report/.test(view) && /Astute report: page /.test(view), 'View names the report and goes to its page');
   [ui, pdf, pres].forEach(src => assert.ok(/calc\.statusText\(/.test(src), 'status text from calc'));
   [ui, pdf, pres].forEach(src => assert.ok(!/schema\.statusLabel\[q\.status\]/.test(src), 'no screen reads the old status label'));
   assert.ok(/calc\.replacementInfo\(/.test(ui) && /calc\.replacementInfo\(/.test(pdf) && /calc\.replacementInfo\(/.test(pres), 'every screen takes the replacement notes from the one function');
+  assert.ok(/as\.slice\(0, -1\)\.forEach\(function \(f\) \{ log\.push\(\{ msg: 'Astute report ' \+ f\.name \+ ' was not read: a newer Astute report/.test(ui) && /return chain\(as\.slice\(-1\)/.test(ui), 'only the NEWEST Astute report of a load is read, the others are said to be skipped');
+  assert.ok(!/c\.y \+ 13\.6/.test(pdf) && /noteRows\(e\)/.test(pdf) && /colSpan: 9/.test(pdf), 'the PDF prints a policy\'s red notes as a table row of their own (nothing drawn over the policy\'s text)');
+  assert.ok(/\['uw', 'Underwriting and replacements'\]/.test(pres) && /if \(sub === 'uw'\) return out \+ extra;/.test(pres) && !/return out \+ uwView\(q\) \+ replView\(q\);/.test(pres), 'the Presentation gives the terms and the replacements a sub-tab of their own');
   const names = (ui.match(/^\s{2,4}function ([A-Za-z0-9_]+)\(/gm) || []).map(x => x.replace(/^\s*function /, '').replace(/\($/, '')); assert.deepStrictEqual(names.filter((n, i) => names.indexOf(n) !== i), [], 'no function name twice in ov-ui.js');
 });

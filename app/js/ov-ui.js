@@ -1037,7 +1037,11 @@
     return chain(files.filter(function (f) { return !isGuide(f) && !isEmail(f) && !isAstute(f); }), function () { return o; })
       .then(function () { return chain(files.filter(isGuide), function () { return o; }); })
       .then(function () { return chain(files.filter(isEmail), function () { return o; }); })
-      .then(function () { return chain(files.filter(isAstute).map(function (f, i) { return { f: f, i: i, k: dkey((astuteOf(f) || {}).date) }; }).sort(function (a, b) { return a.k - b.k || a.i - b.i; }).map(function (x) { return x.f; }), function () { return o; }); })
+      .then(function () {                                                                                // only the NEWEST Astute report is read: an older one would fill boxes the newer one then could not change
+        var as = files.filter(isAstute).map(function (f, i) { return { f: f, i: i, k: dkey((astuteOf(f) || {}).date) }; }).sort(function (a, b) { return a.k - b.k || a.i - b.i; }).map(function (x) { return x.f; });
+        as.slice(0, -1).forEach(function (f) { log.push({ msg: 'Astute report ' + f.name + ' was not read: a newer Astute report (' + as[as.length - 1].name + ') was read instead.', warn: false }); });
+        return chain(as.slice(-1), function () { return o; });
+      })
       .then(function () {
         if (!unknown.length) return null;
         return askBlocks(unknown).then(function (picked) {

@@ -92,9 +92,7 @@
     var o = data.cell && data.cell.raw && data.cell.raw.ov; if (!o || data.section !== 'body') return;
     var d = data.doc, c = data.cell, x = c.x + c.width - 2.2, y = c.y + 4.6;
     if (o.tick !== undefined) {
-      var nn = o.notes || [];
-      mark(d, o.center ? c.x + c.width / 2 - 2 : c.x + 2.6, nn.length ? c.y + 3.2 : c.y + c.height / 2 - 1.7, o.tick);
-      nn.forEach(function (x, i) { setText(d, x.red ? RED : MUTED, FS.small + 0.5, !!x.red); d.text(t(x.s), c.x + 9, c.y + 13.6 + 3.5 * i); });                // the red notes under the policy's name
+      mark(d, o.center ? c.x + c.width / 2 - 2 : c.x + 2.6, c.y + c.height / 2 - 1.7, o.tick);
       return;
     }
     function one(txt, size, color, bold) { setText(d, color, size, bold); d.text(t(txt), x, y, { align: 'right' }); y += size > 8 ? 4.5 : 3.4; }
@@ -192,13 +190,16 @@
     if (!ps.length) return empty(doc, y, 'No current policies.');
     var ri = calc.replacementInfo(state);
     var tickCell = function (e) {
-      var it = e.item, pn = calc.policyNote(state, e, ri), nl = [];
-      if (pn) {
-        setText(doc, RED, FS.small + 0.5, true); doc.splitTextToSize(t(pn.text), 36).forEach(function (x) { nl.push({ s: x, red: true }); });
-        if (pn.brokerText) doc.splitTextToSize(t(pn.brokerText), 36).forEach(function (x) { nl.push({ s: x, red: pn.record === 'moves' && !pn.date }); });
-      }
+      var it = e.item;
       var src = it.src && it.src.kind === 'astute' ? 'Astute' + (it.src.date ? ' ' + it.src.date : '') : '';
-      return { content: t((it.insurer || 'Policy') + (it.policyNo ? '   ' + it.policyNo : '') + '\n' + [it.product, it.doc ? 'DOC ' + it.doc : '', src].filter(Boolean).join('  |  ')), ov: { tick: !!it.wr, notes: nl }, styles: { halign: 'left', fontStyle: 'bold', valign: nl.length ? 'top' : 'middle', minCellHeight: nl.length ? 13 + 3.5 * nl.length : undefined, cellPadding: { top: 2, bottom: 2, left: 9, right: 2 } } };
+      return { content: t((it.insurer || 'Policy') + (it.policyNo ? '   ' + it.policyNo : '') + '\n' + [it.product, it.doc ? 'DOC ' + it.doc : '', src].filter(Boolean).join('  |  ')), ov: { tick: !!it.wr }, styles: { halign: 'left', fontStyle: 'bold', cellPadding: { top: 2, bottom: 2, left: 9, right: 2 } } };
+    };
+    /* the red notes of a policy (replaced by a quote / will not be replaced, then the broker on record) are a table row of their own under it, so the table makes the room and nothing is drawn over the policy's text (round 1.1) */
+    var noteRows = function (e) {
+      var pn = calc.policyNote(state, e, ri), out = [], mk = function (txt, red) { return [{ content: t(txt), colSpan: 9, styles: { halign: 'left', fontStyle: red ? 'bold' : 'normal', textColor: red ? RED : MUTED, fontSize: FS.small + 1, fillColor: [255, 255, 255], cellPadding: { top: 1.2, bottom: 1.6, left: 9, right: 2 } } }]; };
+      if (!pn) return out;
+      out.push(mk(pn.text, true)); if (pn.brokerText) out.push(mk(pn.brokerText, pn.record === 'moves' && !pn.date));
+      return out;
     };
     var rows = ps.map(function (e) {
       var tt = calc.totals(e.item), has = calc.activeLines(e.item).length, w = (calc.activeLines(e.item).filter(function (l) { return l.waiting && l.waiting !== 'N/A'; })[0] || {}).waiting;
@@ -206,8 +207,8 @@
       var bn = e.item.benefits || {}, cw = { life: 32, sev: 32, lsd: 32, ip: 34 }, dl = {}, most = 0;
       ['life', 'sev', 'lsd', 'ip'].forEach(function (k) { dl[k] = []; if (bn[k]) { setText(doc, MUTED, FS.small, false); dl[k] = doc.splitTextToSize(t(bn[k]), cw[k] - 3.5); if (dl[k].length > 3) { dl[k] = dl[k].slice(0, 3); dl[k][2] = dl[k][2].replace(/\s*\S*$/, '') + '...'; } } most = Math.max(most, dl[k].length); });
       var amtCell = function (k, txt) { return most ? { content: '', ov: { pol: txt, desc: dl[k] }, styles: { minCellHeight: 7.6 + 3.4 * most } } : right(txt); };
-      return [tickCell(e), amtCell('life', has ? A(tt.life.lump) : '-'), amtCell('sev', has ? A(tt.sev.lump) : '-'), amtCell('lsd', has ? A(tt.lsd.lump) : '-'), amtCell('ip', has ? PM(tt.ip.monthly) : '-'), right(w || '-'), right(AC(e.item)), right(PC(e.item.abi)), right(A(e.item.premium))];
-    });
+      return [[tickCell(e), amtCell('life', has ? A(tt.life.lump) : '-'), amtCell('sev', has ? A(tt.sev.lump) : '-'), amtCell('lsd', has ? A(tt.lsd.lump) : '-'), amtCell('ip', has ? PM(tt.ip.monthly) : '-'), right(w || '-'), right(AC(e.item)), right(PC(e.item.abi)), right(A(e.item.premium))]].concat(noteRows(e));
+    }).reduce(function (a, b) { return a.concat(b); }, []);
     var tot = function (label, tt, prem, fill) { var f = function (s) { return right(s, { fontStyle: 'bold', fillColor: fill }); }; return [{ content: t(label), styles: { halign: 'left', fontStyle: 'bold', fillColor: fill } }, f(A(tt.life.lump)), f(A(tt.sev.lump)), f(A(tt.lsd.lump)), f(PM(tt.ip.monthly)), f(''), f(''), f(''), f(A(prem))]; };
     if (pt.count.wr) rows.push(tot('Total: policies where we are the broker', pt.wr, pt.premium.wr, BLUE)); if (pt.count.other) rows.push(tot('Total: other brokers', pt.other, pt.premium.other, BLUE));
     rows.push(tot('Grand total (all policies)', pt.all, pt.premium.all, ORANGE));

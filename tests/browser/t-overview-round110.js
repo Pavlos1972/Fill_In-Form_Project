@@ -186,6 +186,10 @@ srv.listen(0, async () => {
 
   /* ---- 7. the Presentation ---- */
   await p.evaluate(() => OV.present.open()); await p.waitForTimeout(400); await p.evaluate(() => OV.present.go('fna')); await p.waitForTimeout(500);
+  const subsList = await p.$$eval('#pres .psub', es => es.map(e => e.textContent.trim()));
+  ok(subsList.join('|') === 'The quote|Compared with what you have now|Underwriting and replacements', '7. the terms and the replacements have a sub-tab of their own, so the quote page itself stays readable: ' + subsList.join(' | '));
+  ok(!(await p.$('#pres .uwv')), '7. and "The quote" page itself carries none of them');
+  await p.click('#pres .psub[data-s=uw]'); await p.waitForTimeout(500);
   const pq = await p.evaluate(() => { const e = document.querySelector('#pres'); return { t: e.innerText.replace(/\s+/g, ' '), badge: [...e.querySelectorAll('.badge')].map(b => b.textContent.trim()), uwv: !!e.querySelector('.uwv'), tables: e.querySelectorAll('.uwv table').length, w: e.scrollWidth, cw: e.clientWidth }; });
   ok(/Underwriting outcome/.test(pq.t) && /Accepted with loadings and exclusions/.test(pq.t) && pq.uwv && pq.tables === 2, '7. the Presentation shows the badge and both tables (loadings, exclusions): ' + pq.badge.join(', '));
   ok(/Replacing your existing policies/.test(pq.t) && /Budget Insurance 100200300 will be replaced by BrightRock quote CP 400500600/.test(pq.t), '7. and which policy the quote replaces');

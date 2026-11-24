@@ -144,16 +144,17 @@
   function quotesView(b) {
     var qs = calc.quotes(state(), b.id);
     if (!qs.length) return head(b) + empty(b.id === 'shortfallQuote' && !calc.hasGroupRisk(state()) ? 'The client has no group risk, so no shortfall quote is needed.' : 'Nothing to show here for this client.');
-    var cur = Math.min(ps.qi, qs.length - 1), q = qs[cur], hasCmp = !!q.cmp, sub = ps.sub === 'cmp' && !hasCmp ? 'quote' : ps.sub;
+    var cur = Math.min(ps.qi, qs.length - 1), q = qs[cur], hasCmp = !!q.cmp, extra = uwView(q) + replView(q), sub = (ps.sub === 'cmp' && !hasCmp) || (ps.sub === 'uw' && !extra) ? 'quote' : ps.sub;
     var chips = qs.length > 1 ? '<span class="sp"></span><span class="pchips">' + qs.map(function (x, i) { return '<button type="button" class="pchip' + (i === cur ? ' on' : '') + '" data-act="q" data-i="' + i + '">' + esc((x.insurer || 'Quote') + (x.number ? ' ' + x.number : '')) + '</button>'; }).join('') + '</span>' : '';
-    var subs = [['quote', 'The quote']].concat(hasCmp ? [['cmp', 'Your change moment pay-out']] : [], [['cmpr', 'Compared with what you have now']]);
-    var qpath = idxOf(b.id, 'quotes', q), out = head(b, sub !== 'cmp' ? hb(true) : '') + quoteHead(q, (sub === 'cmp' ? vp(qpath && qpath + '.cmp') : vp(qpath)) + chips);
+    var subs = [['quote', 'The quote']].concat(hasCmp ? [['cmp', 'Your change moment pay-out']] : [], [['cmpr', 'Compared with what you have now']], extra ? [['uw', 'Underwriting and replacements']] : []);          // the terms and the replacements have a tab of their own: on the quote page they made the page too small to read (round 1.1)
+    var qpath = idxOf(b.id, 'quotes', q), out = head(b, sub !== 'cmp' && sub !== 'uw' ? hb(true) : '') + quoteHead(q, (sub === 'cmp' ? vp(qpath && qpath + '.cmp') : vp(qpath)) + chips);
     out += tools('<span class="psubs">' + subs.map(function (s) { return '<button type="button" class="psub' + (s[0] === sub ? ' on' : '') + '" data-act="sub" data-s="' + s[0] + '">' + s[1] + '</button>'; }).join('') + '</span>');
     if (sub === 'cmp') return out + cmpView(q);
     if (sub === 'cmpr') return out + compareView(q);
+    if (sub === 'uw') return out + extra;
     out += linesTable(q, false, q.disabilityAge || state().header.disabilityAge);
     if (calc.activeLines(q).some(function (l) { return l.type === 'debt' && calc.isNum(l.ip && l.ip.monthly) && l.ip.monthly > 0; })) out += note('Instalment Protector: if you are retrenched, the insurer pays each debt\'s instalment straight to the bank, for a period set by the insurer\'s rules.');
-    return out + uwView(q) + replView(q);
+    return out;
   }
   /* The insurer's terms, and which of the client's policies a quote replaces (round 1.1): the same words as the screen and the PDF. */
   function uwView(q) {
