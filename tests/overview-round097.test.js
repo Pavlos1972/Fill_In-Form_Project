@@ -7,11 +7,11 @@ const fs = require('node:fs');
 const path = require('node:path');
 const app = f => fs.readFileSync(path.join(__dirname, '..', 'app', f), 'utf8');
 
-test('the page version moves on with the fixes (0.98 now), the layout is still 0.1 and the saved file gains no key', () => {
+test('the page version moves on with the fixes (0.99 now), the layout is still 0.1 and the saved file gains no key', () => {
   const schema = require('../app/js/ov-schema.js');
-  assert.strictEqual(schema.pageVersion, '0.98'); assert.strictEqual(schema.version, '0.1');
-  assert.ok(/ov-schema\.js\?v=20261124[fg]/.test(app('overview.html')) && /ov-ui\.js\?v=20261124[fg]/.test(app('overview.html')) && /folders-ui\.js\?v=20261124[fg]/.test(app('overview.html')), 'the changed scripts have new ?v= tags');
-  ['index.html', 'short-risk.html', 'capture-sheet.html'].forEach(f => assert.ok(/folders-ui\.js\?v=20261124[fg]/.test(app(f)), f));
+  assert.strictEqual(schema.pageVersion, '0.99'); assert.strictEqual(schema.version, '0.1');
+  assert.ok(/ov-schema\.js\?v=20261124[fgh]/.test(app('overview.html')) && /ov-ui\.js\?v=20261124[fgh]/.test(app('overview.html')) && /folders-ui\.js\?v=20261124[fgh]/.test(app('overview.html')), 'the changed scripts have new ?v= tags');
+  ['index.html', 'short-risk.html', 'capture-sheet.html'].forEach(f => assert.ok(/folders-ui\.js\?v=20261124[fgh]/.test(app(f)), f));
 });
 
 test('every connected folder is asked about at the same moment, the click is behind the first question, and the list opens as soon as ONE folder is open (folders-ui.js)', () => {
