@@ -97,7 +97,7 @@ srv.listen(0, async () => {
 
   const p = await ctx.newPage(); p.on('pageerror', e => errs.push(String(e))); p.on('dialog', d => d.accept());
   await p.goto(addr + 'overview.html'); await p.waitForTimeout(900); await wireOn(p); if (await p.$('#restoreDraft')) await p.click('#restoreNew');
-  await setup(p); await p.waitForTimeout(500); await p.evaluate(() => OV.app.go('policies')); await p.waitForTimeout(800);
+  await setup(p); await p.waitForTimeout(500); await p.evaluate(() => OV.app.go('policies')); await p.evaluate(() => OV.view.warm()); await p.waitForTimeout(1200);          // 0.96: the page never lists the folder by itself; the Presentation or a View click does, here the call it makes
   const polIdx = no => p.evaluate(n => OV.app.state.blocks.policies.items.findIndex(i => i.policyNo === n), no);
   const bt = async path => p.$eval('[data-vw="' + path + '"]', e => ({ dis: e.disabled, off: e.classList.contains('off'), hidden: e.hidden, t: e.title, text: e.textContent.trim() })).catch(() => null);
 

@@ -338,12 +338,14 @@
   }
 
   /* Every PDF and picture in a client's folder and in the folders inside it (the View buttons of the Client Overview Studio 0.95 find a document here by its file name, number or insurer). Only reads; at most `depth` levels down
-     (default 4) and `cap` entries looked at (default 4000), so a huge folder cannot hold the page up. Returns [{ name, rel: [folder names below the client's folder], handle }]. */
+     (default 4), `cap` entries looked at (default 2500) and `ms` milliseconds (default 12000), so a huge or slow folder cannot hold the page up (0.96). Returns [{ name, rel: [folder names below the client's folder], handle }] with `.partial` true when it stopped early;
+     `lim.sink` is an array the files are pushed into as they are found, so a caller that gives up still has them. */
   async function viewableFiles(client, lim) {
-    lim = lim || {}; var maxDepth = lim.depth || 4, cap = lim.cap || 4000, out = [], seen = 0;
+    lim = lim || {}; var maxDepth = lim.depth || 4, cap = lim.cap || 2500, stop = Date.now() + (lim.ms || 12000), out = lim.sink || [], seen = 0; out.partial = false;      // out.partial: the walk stopped (time or count) before it was over
     async function look(dir, rel, depth) {
       for await (var e of dir.entries()) {
-        if (++seen > cap) return;
+        if (out.partial) return;
+        if (++seen > cap || Date.now() > stop) { out.partial = true; return; }
         if (e[1].kind === 'file') { if (/\.(pdf|png|jpe?g)$/i.test(e[0])) out.push({ name: e[0], rel: rel, handle: e[1] }); }
         else if (e[1].kind === 'directory' && depth < maxDepth) await look(e[1], rel.concat([e[0]]), depth + 1);
       }

@@ -20,11 +20,19 @@
   function norm(s) { return String(s == null ? '' : s).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim(); }
   function alnum(s) { return String(s == null ? '' : s).toLowerCase().replace(/[^a-z0-9]/g, ''); }
   function words(s) { return norm(s).split(' ').filter(function (w) { return w.length >= 3 && !STOP[w]; }); }
-  function hit(name, who) {                                                                      // does the file name name this insurer or provider (its words, or the short name the folders use)
-    var n = ' ' + norm(name) + ' ', ws = words(who), al = ALIAS[norm(who)] || ALIAS[norm(who).split(' ')[0]] || [], i;
-    for (i = 0; i < ws.length; i++) if (n.indexOf(' ' + ws[i] + ' ') >= 0 || n.indexOf(ws[i]) >= 0) return true;
-    for (i = 0; i < al.length; i++) if (n.indexOf(' ' + al[i] + ' ') >= 0) return true;
+  function whoInfo(who) { var n = norm(who), has = Object.prototype.hasOwnProperty; return { ws: words(who), al: (has.call(ALIAS, n) && ALIAS[n]) || (has.call(ALIAS, n.split(' ')[0]) && ALIAS[n.split(' ')[0]]) || [] }; }
+  function hitN(padded, wi) {                                                                    // does the (padded, normalised) file name name this insurer or provider (its words, or the short name the folders use)
+    var i;
+    for (i = 0; i < wi.ws.length; i++) if (padded.indexOf(wi.ws[i]) >= 0) return true;
+    for (i = 0; i < wi.al.length; i++) if (padded.indexOf(' ' + wi.al[i] + ' ') >= 0) return true;
     return false;
+  }
+  function hit(name, who) { return hitN(' ' + norm(name) + ' ', whoInfo(who)); }
+  /* What the page needs to know about a file name, worked out once and kept on the file (0.96: a page of 40 buttons over 4,000 files took 283 ms for every redraw). */
+  function K(f) {
+    if (f._k) return f._k;
+    var nm = String(f.name == null ? '' : f.name), n = norm(nm);
+    return (f._k = { low: nm.toLowerCase(), n: n, p: ' ' + n + ' ', a: alnum(nm), manual: MANUAL.test(nm), ok: VIEWABLE.test(nm), rel: norm((f.rel || []).join(' ')), runs: strip(nm).match(/\d{4,}/g) || [] });
   }
   function hasNum(name, num) { var d = alnum(num); return d.length >= 4 && alnum(name).indexOf(d) >= 0; }
   /* A number in a file name that is not this item's: another policy's or quote's (dates and bare years do not count). A file that carries one is never offered for an item whose own number is not in it. */
@@ -78,35 +86,37 @@
   var WHAT = { schedule: 'policy schedule', quote: 'quote', statement: 'statement', guide: 'change moment pay-out guide', report: 'goal analysis report' };
   /* Which of the client's files (pool: [{ name, rel, handle }]) is this item's. Returns { file, how } or { reason, text }. The file name the overview holds wins; with no name (or a name that is gone) the number or insurer in the file name decides. */
   function pick(ref, pool, taken) {
-    taken = taken || {};
-    pool = (pool || []).filter(function (f) { return f && VIEWABLE.test(f.name); });
-    var low = function (s) { return String(s || '').toLowerCase(); }, exact = ref.name ? pool.filter(function (f) { return low(f.name) === low(ref.name); }) : [];
+    taken = taken || {}; pool = pool || [];
+    var files = [], i;
+    for (i = 0; i < pool.length; i++) if (pool[i] && K(pool[i]).ok) files.push(pool[i]);
+    var lowName = String(ref.name || '').toLowerCase(), exact = ref.name ? files.filter(function (f) { return K(f).low === lowName; }) : [];
     var sawManual = null;
     if (exact.length) {
-      if (ref.bright && ref.role === 'schedule' && MANUAL.test(exact[0].name)) sawManual = exact[0].name;
+      if (ref.bright && ref.role === 'schedule' && K(exact[0]).manual) sawManual = exact[0].name;
       else return { file: exact[0], how: 'name' };
     }
-    var best = null, score = 0, rel = function (f) { return norm((f.rel || []).join(' ')); };
-    pool.forEach(function (f) {
-      var n = norm(f.name), s = 0, manual = MANUAL.test(f.name);
-      if (taken[String(f.name).toLowerCase()]) return;                                           // another item's own file
+    var best = null, score = 0, dp = alnum(ref.policyNo), dn = alnum(ref.number), wIns = whoInfo(ref.insurer), wProd = ref.product ? whoInfo(ref.product) : null;
+    var hasP = function (k) { return dp.length >= 4 && k.a.indexOf(dp) >= 0; }, hasN = function (k) { return dn.length >= 4 && k.a.indexOf(dn) >= 0; };
+    files.forEach(function (f) {
+      var k = K(f), n = k.n, s = 0, manual = k.manual;
+      if (taken[k.low]) return;                                                                  // another item's own file
       if (ref.role === 'schedule') {
-        if (ref.bright && manual) { if ((hasNum(f.name, ref.policyNo) || hit(f.name, ref.insurer)) && !sawManual) sawManual = f.name; return; }
-        var num = hasNum(f.name, ref.policyNo), who = hit(f.name, ref.insurer);
+        if (ref.bright && manual) { if ((hasP(k) || hitN(k.p, wIns)) && !sawManual) sawManual = f.name; return; }
+        var num = hasP(k), who = hitN(k.p, wIns);
         if (!num && !who) return;
-        if (!num && ref.policyNo && foreign(f.name, ref.policyNo)) return;                       // another policy's schedule
-        s = (num ? 6 : 0) + (who ? 3 : 0) + (/summary/.test(n) ? (ref.bright ? 5 : 2) : 0) + (/schedule/.test(n) ? 2 : 0) + (/policy schedules/.test(rel(f)) ? 1 : 0) - (manual ? 3 : 0);
+        if (!num && dp && k.runs.some(function (r) { return dp.indexOf(r) < 0; })) return;       // another policy's schedule
+        s = (num ? 6 : 0) + (who ? 3 : 0) + (/summary/.test(n) ? (ref.bright ? 5 : 2) : 0) + (/schedule/.test(n) ? 2 : 0) + (/policy schedules/.test(k.rel) ? 1 : 0) - (manual ? 3 : 0);
         if (ref.bright && !/summary|schedule/.test(n) && !num) return;
         if (s < 5) return;
       } else if (ref.role === 'quote') {
-        if (!hasNum(f.name, ref.number) || /cmpo|pay ?out/.test(n)) return;
-        s = 5 + (/fna|shortfall|reduced|quote/.test(n) ? 2 : 0) + (hit(f.name, ref.insurer) ? 1 : 0);
+        if (!hasN(k) || /cmpo|pay ?out/.test(n)) return;
+        s = 5 + (/fna|shortfall|reduced|quote/.test(n) ? 2 : 0) + (hitN(k.p, wIns) ? 1 : 0);
       } else if (ref.role === 'guide') {
-        if (!hasNum(f.name, ref.number) || !/cmpo|pay ?out|change moment/.test(n)) return;
+        if (!hasN(k) || !/cmpo|pay ?out|change moment/.test(n)) return;
         s = 8;
       } else if (ref.role === 'statement') {
-        if (!hasNum(f.name, ref.policyNo)) return;                                                 // a statement is only ever found again by its policy number: a provider's name alone is not enough to show a client's document
-        s = 6 + (hit(f.name, ref.insurer) ? 4 : 0) + (/statement|benefit|schedule|astute|valuation|fund|summary/.test(n) ? 2 : 0) + (ref.product && hit(f.name, ref.product) ? 2 : 0) - (manual ? 3 : 0);
+        if (!hasP(k)) return;                                                                    // a statement is only found again by its policy number: a provider's name alone is not enough to show a client's document
+        s = 6 + (hitN(k.p, wIns) ? 4 : 0) + (/statement|benefit|schedule|astute|valuation|fund|summary/.test(n) ? 2 : 0) + (wProd && hitN(k.p, wProd) ? 2 : 0) - (manual ? 3 : 0);
       } else if (ref.role === 'report') {
         var kindRe = ref.kind === 'egar' ? /egar|education/ : /rgar|retirement/;
         if (!kindRe.test(n)) return;
@@ -122,59 +132,80 @@
     connect: 'The client’s folders are not connected, so the page cannot open the file. Use More → Folders… to connect them.',
     access: 'Chrome has not been given permission to read the client’s folders in this visit. Click to open it: Chrome will ask.',
     names: 'Type the client’s first names and surname first, so the page can find the client’s folder.',
-    client: 'The client’s folder was not found in the connected folders.'
+    client: 'The client’s folder was not found in the connected folders.',
+    'slow-permission': 'Chrome did not get an answer to its permission question in time. Look next to the address bar for “Edit files?” and click Allow, then click again.',
+    'slow-find': 'Looking through your client folders took too long (OneDrive may still be fetching the folder lists). Try again in a minute.',
+    'slow-list': 'Reading the client’s folders took too long (OneDrive may still be fetching them). Try again in a minute.'
   };
 
   /* ---------- 2. the buttons ---------- */
-  var vs = { key: '', idx: null, err: null, loading: null };                                      // what is known about the client's files, for this visit
+  var vs = { key: '', idx: null, err: null, loading: null, cache: {}, stateRef: null };          // what is known about the client's files, for this visit (idx: { label, files, partial, seeded })
   function app() { return typeof window !== 'undefined' && window.OV && window.OV.app && window.OV.app.state ? window.OV.app : null; }
   function fu() { return typeof window !== 'undefined' && window.FF && window.FF.foldersUI && window.FF.foldersUI.clientIndex ? window.FF.foldersUI : null; }
   function info() { var a = app(), h = a && a.state.header || {}; return { sname: h.sname || '', fname: h.fname || '' }; }
   function keyOf() { var i = info(); return norm(i.sname) + '|' + norm(i.fname); }
-  function sameClient() { var k = keyOf(); if (vs.key !== k) { vs.key = k; vs.idx = null; vs.err = null; vs.loading = null; } }
-  function forget() { vs.idx = null; vs.err = null; vs.loading = null; vs.key = ''; if (fu() && fu().forgetIndex) fu().forgetIndex(); }
+  function sameClient() {
+    var k = keyOf(), a = app();
+    if (vs.key !== k) { vs.key = k; vs.idx = null; vs.err = null; vs.loading = null; vs.cache = {}; }
+    if (a && vs.stateRef !== a.state) { vs.stateRef = a.state; vs.cache = {}; }
+  }
+  function forget() { vs.idx = null; vs.err = null; vs.loading = null; vs.key = ''; vs.cache = {}; if (fu() && fu().forgetIndex) fu().forgetIndex(); }
+  function setIdx(idx) { vs.idx = idx; vs.err = null; vs.cache = {}; }
+  function invalidate() { vs.cache = {}; }                                                          // the overview changed (a load, a fill): which file is whose has to be worked out again
   function connected() { var f = fu(); return !!f && (!f.connected || f.connected().length > 0); }
 
   var ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/></svg>';
   var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
-  /* The state of one item's button right now, from what is known: { ok, text }. Before the client's files have been listed it is "ok" (a click looks for the file). */
+  function sig(ref) { return [ref.role, ref.name, ref.number, ref.policyNo, ref.insurer, ref.product, ref.kind, ref.bright ? 1 : 0].join('|'); }
+  /* The state of one item's button right now, from what is known: { ok, text }. Until the client's files have been listed it is "ok" (a click looks for the file); a list that covers only some folders (a Load's, or a walk cut short)
+     never greys a button, because the file may be in a folder it did not look in. */
   function statusOf(ref) {
     if (!connected()) return { ok: false, code: 'connect', text: REASONS.connect };
     if (vs.err === 'client' || vs.err === 'names') return { ok: false, code: vs.err, text: REASONS[vs.err] };
-    if (vs.idx) {
-      var r = pick(ref, vs.idx.files, takenBy(app().state, ref.path));
-      return r.file ? { ok: true, text: TITLE[ref.role] + ': ' + r.file.name + ' (opens inside the page)' } : { ok: false, code: r.reason, text: r.text };
-    }
-    return { ok: true, text: vs.err === 'access' ? REASONS.access : (ref.name ? 'Opens “' + ref.name + '” from the client’s folder' : 'Opens the ' + WHAT[ref.role] + ' from the client’s folder') };
+    var neutral = { ok: true, text: vs.err === 'access' ? REASONS.access : (ref.name ? 'Opens “' + ref.name + '” from the client’s folder' : 'Opens the ' + WHAT[ref.role] + ' from the client’s folder') };
+    if (!vs.idx) return neutral;
+    var key = sig(ref); if (vs.cache[key]) return vs.cache[key];
+    var r = pick(ref, vs.idx.files, takenBy(app().state, ref.path));
+    return (vs.cache[key] = r.file ? { ok: true, text: TITLE[ref.role] + ': ' + r.file.name + ' (opens inside the page)' } : vs.idx.partial ? neutral : { ok: false, code: r.reason, text: r.text });
   }
   /* The HTML of a View button (mode: 'studio' or 'pres'). '' when the item has no document. */
   function button(state, path, mode) {
     var ref = refFor(state, path); if (!ref || !ref.show) return '';
     return '<button type="button" class="dvbtn' + (mode === 'pres' ? ' dvp' : '') + '" data-vw="' + esc(path) + '" data-vm="' + (mode === 'pres' ? 'pres' : 'studio') + '" title="' + esc(statusOf(ref).text) + '">' + ICON + esc(LABEL[ref.role]) + '</button>';
   }
-  /* Brings every button on the screen in line with what is known (a greyed button with its reason in Studio; no button at all in the Presentation), and, when Chrome already allows it, lists the client's files once so the buttons are true. */
-  function paint() {
+  /* Brings every button on the screen in line with what is known (a greyed button with its reason in Studio; no button at all in the Presentation). Asked for after every draw, so it is done at most about 8 times a second.
+     It never lists the client's folder: 0.95 did, by itself, as soon as a button was on the screen, and a search of a big OneDrive folder behind the adviser's back could hold up "Load from client folder". */
+  var paintT = null;
+  function paint() { if (typeof document === 'undefined' || paintT) return; paintT = setTimeout(function () { paintT = null; paintNow(); }, 120); }
+  function paintNow() {
     if (typeof document === 'undefined') return;
-    var a = app(); if (!a) return; sameClient();
+    var a = app(); if (!a) return; sameClient(); vs.paints = (vs.paints || 0) + 1;
     [].forEach.call(document.querySelectorAll('.dvbtn[data-vw]'), function (b) {
       var ref = refFor(a.state, b.getAttribute('data-vw')), pres = b.getAttribute('data-vm') === 'pres';
       if (!ref) { b.hidden = true; return; }
       var st = statusOf(ref); b.title = st.text;
       if (pres) { b.hidden = !st.ok; b.disabled = false; } else { b.hidden = false; b.disabled = !st.ok; b.classList.toggle('off', !st.ok); }
     });
-    ensure(false);
   }
-  function ensure(ask) {
-    var f = fu(); sameClient();
-    var idle = !f || vs.idx || vs.loading || (vs.err && !ask) || !connected() || (!ask && !document.querySelector('.dvbtn[data-vw]'));      // nothing to list yet, or nothing to do
-    if (idle) return vs.loading || Promise.resolve(vs.idx);
+  /* Lists the client's files for the buttons WITHOUT asking Chrome anything. Started by a click (the Presentation opens), never by the page by itself; stops after the walk's time limit (folders-ui TIMEOUTS.walk). */
+  function warm() {
+    var f = fu(); if (!f) return Promise.resolve(null); sameClient();
+    if (vs.loading) return vs.loading;
+    if (vs.idx && !vs.idx.seeded) return Promise.resolve(vs.idx);
+    if (!connected()) return Promise.resolve(null);
     var key = vs.key;
-    vs.loading = f.clientIndex(info(), !!ask).then(function (idx) {
+    vs.loading = f.clientIndex(info(), { ask: false }).then(function (idx) {
       if (vs.key !== key) return null; vs.loading = null;
-      if (idx && idx.reason) { vs.err = idx.reason; vs.idx = null; } else { vs.idx = idx; vs.err = null; }
-      paint(); return idx;
+      if (idx && idx.reason) { if (/^(connect|access|names|client)$/.test(idx.reason)) { vs.err = idx.reason; vs.idx = null; } vs.cache = {}; } else setIdx(idx);
+      paintNow(); return idx;
     }, function () { vs.loading = null; vs.err = 'error'; return null; });
     return vs.loading;
+  }
+  /* The files a "Load from client folder" has just listed: the buttons use them at once, with no second walk of the folder. That list covers only the folders the page reads documents from, so a file that is not in it is looked
+     for in the whole client folder when its button is clicked. */
+  function seed(label, files) {
+    sameClient(); if (vs.idx && !vs.idx.seeded && !vs.idx.partial) return;
+    setIdx({ label: label, files: files || [], partial: true, seeded: true }); paint();
   }
 
   /* ---------- the window ---------- */
@@ -205,6 +236,7 @@
     var ctl = { el: el, alive: true, zi: ZOOMS.indexOf(1), pdf: null, pages: [], obs: null, blobUrl: null, opener: o.opener, native: false, ref: o.ref || null };
     var scrollY = window.scrollY, mainEl = document.getElementById('main'), mainTop = mainEl ? mainEl.scrollTop : 0;
     ctl.setSub = function (s) { sub.textContent = s || ''; }; ctl.setTitle = function (s) { t.textContent = s; el.setAttribute('aria-label', s); };
+    ctl.say = function (text) { var m = paper.querySelector('.dvmsg'); if (m && !m.classList.contains('bad')) m.textContent = text; };
     ctl.message = function (text, bad) { paper.innerHTML = ''; var d = document.createElement('div'); d.className = 'dvmsg' + (bad ? ' bad' : ''); d.textContent = text; paper.appendChild(d); el.classList.add('nodoc'); };
     ctl.close = function () {
       if (!ctl.alive) return; ctl.alive = false; cur = null;
@@ -302,25 +334,30 @@
       }).catch(function () { if (ctl.alive) ctl.showNative(new Blob([buf], { type: 'application/pdf' })); });
     });
   }
-  function resolve(ref, ask) {
+  function resolve(ref, ask, say) {
     var f = fu(); sameClient();
     if (!f) return Promise.resolve({ reason: 'connect', text: REASONS.connect });
-    var go = function () {
-      return f.clientIndex(info(), !!ask).then(function (idx) {
-        if (idx && idx.reason) { vs.err = idx.reason; vs.idx = null; return { reason: idx.reason, text: REASONS[idx.reason] || 'The client’s folder could not be read.' }; }
-        vs.idx = idx; vs.err = null; var r = pick(ref, idx.files, takenBy(app() && app().state, ref.path)); return r.file ? r : { reason: r.reason, text: r.text };
-      }, function (e) { return { reason: 'error', text: 'Could not look through the client’s folders (' + (e && e.message ? e.message : 'unknown error') + ').' }; });
-    };
-    return go();
+    var taken = takenBy(app() && app().state, ref.path);
+    function answer(idx) {
+      var r = pick(ref, idx.files, taken); if (r.file) return r;
+      if (idx.partial) return { reason: 'partial', text: 'The client’s folder is big: its list was cut short, and ' + (ref.name ? '“' + ref.name + '”' : 'the ' + WHAT[ref.role]) + ' was not in what was found. Open it from your own folder instead.' };
+      return { reason: r.reason, text: r.text };
+    }
+    if (vs.idx) { var r0 = pick(ref, vs.idx.files, taken); if (r0.file) return Promise.resolve(r0); if (!vs.idx.seeded) return Promise.resolve(answer(vs.idx)); }   // a list from a Load covers only some folders: look in the whole folder
+    return f.clientIndex(info(), { ask: !!ask, onStage: say }).then(function (idx) {
+      if (idx && idx.reason) { if (/^(connect|access|names|client)$/.test(idx.reason)) { vs.err = idx.reason; vs.idx = null; vs.cache = {}; } return { reason: idx.reason, text: REASONS[idx.reason] || 'The client’s folder could not be read.' }; }
+      setIdx(idx); return answer(idx);
+    }, function (e) { return { reason: 'error', text: 'Could not look through the client’s folders (' + (e && e.message ? e.message : 'unknown error') + ').' }; });
   }
   /* A click on a View button (path of the item, the button, 'studio' or 'pres'). The window opens at once ("Opening...") so the click is answered while the folder is searched and Chrome asks for permission. */
   function open(path, opener, mode) {
     var a = app(); if (!a) return Promise.resolve();
     var ref = refFor(a.state, path); if (!ref) return Promise.resolve();
     var ctl = show({ title: TITLE[ref.role], sub: mode === 'pres' ? '' : 'Opened from the client’s folder · Close (or Esc) brings you back to where you were', mode: mode, opener: opener, ref: ref });
-    var again = false;
+    var again = false, STAGE = { permission: 'Waiting for Chrome’s permission question (look next to the address bar)…', find: 'Looking for the client’s folder…', walk: 'Looking through the client’s folder…' }, t0 = Date.now(), base = 'Opening…';
+    var tick = setInterval(function () { if (!ctl.alive) return clearInterval(tick); ctl.say(base + ' ' + Math.round((Date.now() - t0) / 1000) + ' s'); }, 1000);
     function attempt() {
-      return resolve(ref, true).then(function (r) {
+      return resolve(ref, true, function (st) { base = STAGE[st] || 'Opening…'; if (ctl.alive) ctl.say(base); }).then(function (r) {
         if (!ctl.alive) return;
         if (r.reason) { ctl.message(r.text, true); ctl.setSub(''); ctl.setTitle(TITLE[ref.role] + ': not opened'); paint(); return; }
         return r.file.handle.getFile().then(function (file) { paint(); return readFile(ctl, file, r.file.name, ref); }, function (e) {
@@ -329,11 +366,11 @@
         });
       });
     }
-    return attempt().catch(function (e) { if (ctl.alive) ctl.message('The document could not be opened (' + (e && e.message ? e.message : 'unknown error') + ').', true); });
+    return attempt().catch(function (e) { if (ctl.alive) ctl.message('The document could not be opened (' + (e && e.message ? e.message : 'unknown error') + ').', true); }).then(function () { clearInterval(tick); });
   }
 
   return {
-    VIEWABLE: VIEWABLE, LABEL: LABEL, TITLE: TITLE, MANUAL: MANUAL, ZOOMS: ZOOMS, REASONS: REASONS, norm: norm, hit: hit, hasNum: hasNum, foreign: foreign, takenBy: takenBy, refFor: refFor, pick: pick, statusOf: statusOf, button: button, paint: paint, ensure: ensure, forget: forget,
+    VIEWABLE: VIEWABLE, LABEL: LABEL, TITLE: TITLE, MANUAL: MANUAL, ZOOMS: ZOOMS, REASONS: REASONS, norm: norm, hit: hit, hasNum: hasNum, foreign: foreign, takenBy: takenBy, refFor: refFor, pick: pick, statusOf: statusOf, button: button, paint: paint, paintNow: paintNow, warm: warm, ensure: warm, seed: seed, invalidate: invalidate, forget: forget,
     open: open, show: show, loadPdfJs: loadPdfJs, state: vs, current: function () { return cur; }
   };
 });
