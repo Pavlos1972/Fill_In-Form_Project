@@ -513,7 +513,7 @@
     paintStatuses(); fitTables(); paintView();
     if (toTop) $('#main').scrollTop = 0; else { $('#main').scrollTop = keepTop; window.scrollTo(0, keepY); }
   }
-  function redraw() { last = check.run(state, runOpts()); drawNav(); drawMain(true); refreshChrome(); }
+  function redraw() { last = check.run(state, runOpts()); if (OV.view) OV.view.invalidate(); drawNav(); drawMain(true); refreshChrome(); }
   /* An amount never touches or runs into the next column (round 2, 23 November): where a figure of a table is wider than its cell, its type is made smaller (down to 9px) until it fits. */
   function fitTables() {
     [].forEach.call(document.querySelectorAll('#main .ovt td.c'), function (td) {
@@ -610,7 +610,10 @@
 
   /* ---------- documents ---------- */
   var D = OV.docs, AI_KEY = 'wr-overview-read', pending = null, unmatchedGuides = {}, lastLog = [];
-  var REASONS = { connect: 'Your client folders are not connected yet (More, then Folders…).', access: 'Chrome has not given this page access to your client folders (More, then Folders…, then choose them again and Allow).', names: 'Fill in the client’s names first, so the folder can be found.', client: 'No folder for this client was found in your connected folders.' };
+  var REASONS = { connect: 'Your client folders are not connected yet (More, then Folders…).', access: 'Chrome has not given this page access to your client folders (More, then Folders…, then choose them again and Allow).', names: 'Fill in the client’s names first, so the folder can be found.', client: 'No folder for this client was found in your connected folders.',
+    'slow-permission': 'Chrome did not get an answer to its permission question in time (look next to the address bar for “Edit files?” and click Allow).',
+    'slow-find': 'Looking through your client folders took too long (OneDrive may still be fetching the folder lists).',
+    'slow-list': 'Reading the client’s folders took too long (OneDrive may still be fetching them).' };
   function aiOn() { try { return localStorage.getItem(AI_KEY) !== '0'; } catch (e) { return true; } }          // ON unless the adviser switched it off (Paul, 22 November: reading is the default); the switch is in Settings
   function aiSet(v) { try { localStorage.setItem(AI_KEY, v ? '1' : '0'); } catch (e) { /* kept for this visit only */ } }
   function aiKey() { var s = window.FF && FF.lookup && FF.lookup.getSettings ? FF.lookup.getSettings() : {}; return { apiKey: s.apiKey || '', model: s.model || (FF.lookup && FF.lookup.DEFAULT_MODEL) || '' }; }
@@ -1009,23 +1012,53 @@
     });
   }
   /* The ONE top button: the client's folder is found, what it holds is listed, and what is ticked is read and sorted. When the folder cannot be found or the browser has no folder access, the normal file window opens by itself (several files). */
+  /* A folder search that waits for something (Chrome's permission question, a slow OneDrive folder) says where it is and for how long, offers to stop, and always ends (Client Overview Studio 0.96: 0.95 had no limit, and "Looking for the
+     client's folder…" could stay on the screen for good, every block "Waiting to search"). The limits are in FF.foldersUI.timeouts. */
+  var STAGE_TEXT = { permission: 'Waiting for Chrome’s permission question: look next to the address bar and click Allow', find: 'Looking for the client’s folder in New Business and Client Files', list: 'Reading the client’s folders', walk: 'Looking through the client’s folder' };
+  var searchTok = 0;
+  function watchSearch(onStop) {
+    var tok = ++searchTok, t0 = Date.now(), stage = 'permission', timer = null, linked = false, w = {};
+    var after = function () { var T = window.FF && FF.foldersUI && FF.foldersUI.timeouts; return (T && T.stopLink) || 8000; };
+    w.stale = function () { return tok !== searchTok; };
+    w.since = function () { return Date.now() - t0; };
+    w.end = function () { clearInterval(timer); };
+    w.stage = function (st) { stage = st; show(); };
+    function show() {
+      if (w.stale()) { clearInterval(timer); return; }
+      var msg = (STAGE_TEXT[stage] || 'Looking for the client’s folder') + '… ' + Math.round((Date.now() - t0) / 1000) + ' s', t = $('#toast');
+      if (Date.now() - t0 >= after()) {
+        if (!linked) { linked = true; toastLink(msg, 'Stop and use the normal file window', function () { searchTok++; clearInterval(timer); onStop('Stopped.'); }, 600000); }
+        else if (t.firstChild && t.firstChild.nodeType === 3) t.firstChild.nodeValue = msg;                                 // the link stays where it is, so a click on it is never lost to a redraw
+      } else toast(msg, 600000);
+    }
+    show(); timer = setInterval(show, 1000);
+    return w;
+  }
   function loadFromClientFolder() {
     if (state.newer) return;
     var FU = window.FF && FF.foldersUI;
     if (!FU || !FU.clientFiles) { $('#docIn').click(); return; }
     beginSearch();                                                                                       // every block waits: none says "nothing found" before its search is over
-    toast('Looking for the client’s folder…', 30000);
-    function normal(why) { abandonSearch(); toast((why ? why + ' ' : '') + 'The normal file window is opening instead.', 8000); $('#docIn').click(); }
-    FU.clientFiles({ sname: state.header.sname, fname: state.header.fname }).then(function (res) {
+    var w = watchSearch(function (why) { normal(why, true); });
+    /* The normal file window opens at once when a click is still fresh; after a long wait the browser would refuse it, so the message carries a button for the click that is needed. */
+    function normal(why, click) {
+      w.end(); searchTok++; abandonSearch();
+      if (click || w.since() < 4000) { toast((why ? why + ' ' : '') + 'The normal file window is opening instead.', 8000); $('#docIn').click(); }
+      else toastLink((why ? why + ' ' : '') + 'Nothing was loaded.', 'Open the normal file window', function () { $('#docIn').click(); }, 60000);
+    }
+    var info = { sname: state.header.sname, fname: state.header.fname };
+    FU.clientFiles(info, { onStage: w.stage }).then(function (res) {
+      if (w.stale()) return; w.end();
       if (res.reason) { normal(REASONS[res.reason] || 'The folder could not be read.'); return; }
       res.files = uniqueFiles(res.files);
       if (!res.files.length) { normal('No documents were found in ' + res.label + '.'); return; }
       $('#toast').hidden = true; searching();
+      if (OV.view && OV.view.seed) OV.view.seed(res.label, res.files);                                    // the View buttons use this list: no second walk of the folder
       pickList(res).then(function (picked) {
         if (!picked.length) { abandonSearch(); return; }
         Promise.all(picked.map(function (f) { return f.handle.getFile(); })).then(function (fs) { var dirs = {}; res.files.forEach(function (f) { dirs[String(f.name).toLowerCase()] = (f.rel || []).join(' \\ '); }); ingest(fs, { pool: res.files, counted: true, dirs: dirs }); }, function (e) { abandonSearch(); toast('Could not open a file: ' + (e && e.message), 8000); });
       });
-    }, function (e) { normal('Could not look through the folders (' + (e && e.message) + ').'); });
+    }).catch(function (e) { if (w.stale()) return; normal('Something went wrong while looking for the client’s folder (' + ((e && e.message) || e) + ').'); });
   }
 
   /* "Upload from client folder": the client's own folder (the quotes folder where there is one) is found in the connected folders and the file window opens in it; the document picked is read and filled in.
@@ -1058,16 +1091,22 @@
     if (state.newer) return;
     var FU = window.FF && FF.foldersUI;
     if (!FU || !FU.clientFolder || typeof window.showOpenFilePicker !== 'function') { pickAny(block); return; }
-    toast('Looking for the client’s folder…', 30000);
-    FU.clientFolder({ sname: state.header.sname, fname: state.header.fname }, CLIENT_KIND[block]).then(function (res) {
-      if (res.reason) { toast((REASONS[res.reason] || 'Could not read the folder.') + ' The normal file window is opening instead.', 8000); pickAny(block); return null; }
+    var w = watchSearch(function (why) { giveUp(why, true); });
+    function giveUp(why, click) {                                                                           // the same as Load: a fresh click opens the normal window at once, a late one is asked for
+      w.end(); searchTok++;
+      if (click || w.since() < 4000) { toast((why ? why + ' ' : '') + 'The normal file window is opening instead.', 8000); pickAny(block); }
+      else toastLink((why ? why + ' ' : '') + 'Nothing was loaded.', 'Open the normal file window', function () { pickAny(block); }, 60000);
+    }
+    FU.clientFolder({ sname: state.header.sname, fname: state.header.fname }, CLIENT_KIND[block], { onStage: w.stage }).then(function (res) {
+      if (w.stale()) return null; w.end();
+      if (res.reason) { giveUp(REASONS[res.reason] || 'Could not read the folder.'); return null; }
       $('#toast').hidden = true;
       var go = function (file) { if (file) ingest([file], { block: block, dir: res.handle }); };
       return pickIn(res.handle).then(go, function (e) {
         if (e && e.name === 'AbortError') { toast('Nothing was chosen.', 3000); return; }
         return askToChoose(res.label).then(function (yes) { if (yes) return pickIn(res.handle).then(go, function (e2) { if (!(e2 && e2.name === 'AbortError')) toast('Could not open the file window: ' + (e2 && e2.message), 8000); }); });
       });
-    }, function (e) { toast('Could not look through the folders (' + (e && e.message) + '). The normal file window is opening instead.', 8000); pickAny(block); });
+    }).catch(function (e) { if (w.stale()) return; giveUp('Could not look through the folders (' + ((e && e.message) || e) + ').'); });
   }
 
   /* ---------- events ---------- */
@@ -1130,7 +1169,7 @@
   $('#btnPdf').addEventListener('click', savePdf);
   $('#btnPreview').addEventListener('click', previewPdf);
   $('#btnFolders').addEventListener('click', function () { FF.foldersUI.connect().then(function () { drawMeta(); if (OV.view) { OV.view.forget(); OV.view.paint(); } }); });
-  if (window.FF && FF.foldersUI) FF.foldersUI.init(drawMeta);
+  if (window.FF && FF.foldersUI) FF.foldersUI.init(function () { drawMeta(); paintView(); });                // when the connected folders are known the View buttons say so
   $('#btnNew').addEventListener('click', newOverview);
   $('#btnReview').addEventListener('click', newReview);
   $('#btnOpen').addEventListener('click', chooseFile);

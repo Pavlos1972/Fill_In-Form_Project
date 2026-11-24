@@ -168,35 +168,46 @@
   }
   /* A write into the folder failed: an empty file this save created is removed, and the folder is looked for again next time. */
   function failed(folder) { if (!folder) return Promise.resolve(false); delete cache[folder.key]; delete cache[folder.key + '|ok']; return folder.created ? F.discardEmpty(folder.apps, folder.name) : Promise.resolve(false); }
-  /* The documents of the client's folder for the Client Overview's "Read client folder" (stage 4): the connected folders are searched for the client, as for a Save, and the files that can be read are listed. Reads only.
-     Resolves { label, files: [{ name, rel, handle }] } or { reason: 'connect' | 'access' | 'names' | 'client' }. */
-  async function clientFiles(info) {
-    await load();
+  /* How long each step of a folder search may take before the page says so instead of waiting for ever (milliseconds; Client Overview Studio 0.96: the search had no limit, and a permission question Chrome was still waiting on, or a slow OneDrive
+     folder, left "Looking for the client's folder..." on the screen for good). The tests make them short. */
+  var TIMEOUTS = { permission: 45000, find: 45000, list: 60000, walk: 15000, stopLink: 8000 };
+  var SLOW = { slow: true };
+  function race(p, ms) { return new Promise(function (resolve, reject) { var t = setTimeout(function () { resolve(SLOW); }, ms); Promise.resolve(p).then(function (v) { clearTimeout(t); resolve(v); }, function (e) { clearTimeout(t); reject(e); }); }); }
+  /* The connected folders Chrome lets this page read: { live } or { reason }. Asking (ask true) needs a click behind it; a question Chrome never gets an answer to ends as 'slow-permission'. */
+  async function liveRoots(ask, say) {
+    var T = TIMEOUTS; say('permission');
+    var o = await race(load(), T.find); if (o === SLOW) return { reason: 'slow-find' };
     var all = withPaths(), keys = Object.keys(all);
     if (!F.enabled() || !keys.length) return { reason: 'connect' };
     var live = {};
-    for (var i = 0; i < keys.length; i++) { if ((await F.permission(all[keys[i]].handle, true)) === 'granted') live[keys[i]] = all[keys[i]]; }
+    for (var i = 0; i < keys.length; i++) { var q = await race(F.permission(all[keys[i]].handle, !!ask), T.permission); if (q === SLOW) return { reason: 'slow-permission' }; if (q === 'granted') live[keys[i]] = all[keys[i]]; }
     if (!Object.keys(live).length) return { reason: 'access' };
+    return { live: live };
+  }
+  /* The documents of the client's folder for the Client Overview's "Load from client folder": the connected folders are searched for the client, as for a Save, and the files that can be read are listed. Reads only.
+     opts.onStage(stage) hears 'permission', 'find' and 'list' as the search goes on. Resolves { label, files: [{ name, rel, handle }] } or { reason: 'connect' | 'access' | 'names' | 'client' | 'slow-permission' | 'slow-find' | 'slow-list' }. */
+  async function clientFiles(info, opts) {
+    var say = (opts && opts.onStage) || function () {}, T = TIMEOUTS, r = await liveRoots(true, say);
+    if (r.reason) return { reason: r.reason };
     if (F.norm(info.sname) === '') return { reason: 'names' };
-    var clients = await F.findClients(live, info.sname, info.fname);
+    say('find'); var clients = await race(F.findClients(r.live, info.sname, info.fname), T.find);
+    if (clients === SLOW) return { reason: 'slow-find' };
     if (!clients.length) return { reason: 'client' };
-    var files = [];
-    for (var c = 0; c < clients.length; c++) files = files.concat(await F.clientDocuments(clients[c]));
+    say('list'); var files = [];
+    for (var c = 0; c < clients.length; c++) { var fs = await race(F.clientDocuments(clients[c]), T.list); if (fs === SLOW) return { reason: 'slow-list' }; files = files.concat(fs); }
     return { label: clients[0].parts.join(' \\ '), files: files };
   }
   /* The client's subfolder for a kind of document, for "Upload from client folder" (Client Overview Studio 0.6): the connected folders are searched for the client, as for a Save, and the folder where that kind of
-     document is kept (or the client's folder) is returned so the file window can open in it. Reads only. Resolves { handle, label, several } or { reason: 'connect' | 'access' | 'names' | 'client' }. */
-  async function clientFolder(info, kind) {
-    await load();
-    var all = withPaths(), keys = Object.keys(all);
-    if (!F.enabled() || !keys.length) return { reason: 'connect' };
-    var live = {};
-    for (var i = 0; i < keys.length; i++) { if ((await F.permission(all[keys[i]].handle, true)) === 'granted') live[keys[i]] = all[keys[i]]; }
-    if (!Object.keys(live).length) return { reason: 'access' };
+     document is kept (or the client's folder) is returned so the file window can open in it. Reads only. Resolves { handle, label, several } or { reason: 'connect' | 'access' | 'names' | 'client' | 'slow-permission' | 'slow-find' | 'slow-list' }. */
+  async function clientFolder(info, kind, opts) {
+    var say = (opts && opts.onStage) || function () {}, T = TIMEOUTS, r = await liveRoots(true, say);
+    if (r.reason) return { reason: r.reason };
     if (F.norm(info.sname) === '') return { reason: 'names' };
-    var clients = await F.findClients(live, info.sname, info.fname);
+    say('find'); var clients = await race(F.findClients(r.live, info.sname, info.fname), T.find);
+    if (clients === SLOW) return { reason: 'slow-find' };
     if (!clients.length) return { reason: 'client' };
-    var sub = await F.clientSubfolder(clients[0], kind);
+    say('list'); var sub = await race(F.clientSubfolder(clients[0], kind), T.list);
+    if (sub === SLOW) return { reason: 'slow-list' };
     return { handle: sub.handle, label: sub.parts.join(' \\ '), several: clients.length > 1 };
   }
   /* A small file kept at the top of a connected folder (the Presentation's key-points library, `wr-keypoints.json`): New Business first, then Client Files. Reads only. The browser is asked for a folder's permission
@@ -207,29 +218,31 @@
     if (!F.enabled() || !keys.length) return null;
     for (var i = 0; i < keys.length; i++) {
       var h = all[keys[i]].handle;
-      if ((await F.permission(h, !!ask)) !== 'granted') continue;
+      var q = await race(F.permission(h, !!ask), TIMEOUTS.permission); if (q === SLOW) return null;                      // a question Chrome is still waiting on never holds the page up
+      if (q !== 'granted') continue;
       try { var f = await (await h.getFileHandle(name)).getFile(); return { text: await f.text(), from: LABEL[keys[i]] }; } catch (e) { /* not in this folder */ }
     }
     return null;
   }
-  /* The client's files for the View buttons (Client Overview Studio 0.95): the connected folders are searched for the client, as for a Save, and every PDF and picture under the client's folder is listed. Reads only; kept for the visit
-     (forgetIndex or a new client starts again). The browser is asked for a folder's permission only when ask is true (a click is behind it). Resolves { label, files: [{ name, rel, handle }] } or { reason: 'connect' | 'access' | 'names' | 'client' }. */
+  /* The client's files for the View buttons (Client Overview Studio 0.95): the connected folders are searched for the client, as for a Save, and the PDFs and pictures under the client's folder are listed. Reads only; kept for the visit
+     (forgetIndex or a new client starts again). The browser is asked for a folder's permission only when opts.ask is true (a click is behind it). **0.96: the walk stops after TIMEOUTS.walk milliseconds** and hands back what it found with
+     partial: true. Resolves { label, files: [{ name, rel, handle }], partial } or { reason: 'connect' | 'access' | 'names' | 'client' | 'slow-permission' | 'slow-find' }. */
   var idxCache = {};
-  async function clientIndex(info, ask) {
-    await load();
-    var all = withPaths(), keys = Object.keys(all);
-    if (!F.enabled() || !keys.length) return { reason: 'connect' };
-    var live = {};
-    for (var i = 0; i < keys.length; i++) { if ((await F.permission(all[keys[i]].handle, !!ask)) === 'granted') live[keys[i]] = all[keys[i]]; }
-    if (!Object.keys(live).length) return { reason: 'access' };
+  async function clientIndex(info, opts) {
+    var ask = opts === true || !!(opts && opts.ask), say = (opts && opts.onStage) || function () {}, T = TIMEOUTS, r = await liveRoots(ask, say);
+    if (r.reason) return { reason: r.reason };
     if (F.norm(info.sname) === '') return { reason: 'names' };
     var key = F.norm(info.sname) + '|' + F.norm(info.fname);
     if (idxCache[key]) return idxCache[key];
-    var clients = await F.findClients(live, info.sname, info.fname);
+    say('find'); var clients = await race(F.findClients(r.live, info.sname, info.fname), T.find);
+    if (clients === SLOW) return { reason: 'slow-find' };
     if (!clients.length) return { reason: 'client' };
-    var files = [];
-    for (var c = 0; c < clients.length; c++) files = files.concat(await F.viewableFiles(clients[c]));
-    return (idxCache[key] = { label: clients[0].parts.join(' \\ '), files: files });
+    say('walk'); var files = [], partial = false;
+    for (var c = 0; c < clients.length; c++) {
+      var sink = [], one = await race(F.viewableFiles(clients[c], { sink: sink, ms: T.walk }), T.walk + 2000);
+      files = files.concat(one === SLOW ? sink : one); if (one === SLOW || one.partial) partial = true;
+    }
+    return (idxCache[key] = { label: clients[0].parts.join(' \\ '), files: files, partial: partial });
   }
   function forgetIndex() { idxCache = {}; }
   function forget() { cache = {}; idxCache = {}; }
@@ -238,5 +251,5 @@
     return (lastFolder ? '<div>Saved in <b>' + esc(lastFolder) + '</b></div>' : '') + (line ? '<div class="fnote">' + line + '</div>' : '');
   }
 
-  FF.foldersUI = { init: init, connect: connect, open: open, clientFiles: clientFiles, clientFolder: clientFolder, clientIndex: clientIndex, forgetIndex: forgetIndex, rootFile: rootFile, failed: failed, forget: forget, metaHTML: metaHTML, ask: ask, connected: function () { return Object.keys(roots); } };
+  FF.foldersUI = { init: init, connect: connect, open: open, clientFiles: clientFiles, clientFolder: clientFolder, clientIndex: clientIndex, forgetIndex: forgetIndex, timeouts: TIMEOUTS, rootFile: rootFile, failed: failed, forget: forget, metaHTML: metaHTML, ask: ask, connected: function () { return Object.keys(roots); } };
 })();

@@ -460,6 +460,7 @@
     open = true; prevOverflow = document.body.style.overflow; document.body.style.overflow = 'hidden'; root.hidden = false;
     ps = { tab: 'map', qi: 0, sub: 'quote', pil: null, rows: [], pol: null, keys: true };
     render(); setTimeout(fit, 30); paintFs();
+    if (OV.view && OV.view.warm) OV.view.warm();                                                          // a click opened this: the client's files are listed (no question to Chrome) so a button that cannot open its file is not shown
     if (wantFull === true) enterFs();                                                                   // "Present full screen": this click is what lets the browser do it
     refreshKeyPoints(!kp);                                                                          // the click that opened this is what lets the browser ask, and only when nothing is kept yet
   }
