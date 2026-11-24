@@ -256,6 +256,18 @@
     for (var c = 0; c < clients.length; c++) { var fs = await race(F.clientDocuments(clients[c]), T.list); if (fs === SLOW) return { reason: 'slow-list' }; files = files.concat(fs); }
     return { label: clients[0].parts.join(' \\ '), files: files, skipped: f.skipped };
   }
+  /* The counter offer files of the client (round 1.2): found like clientFiles (the same early start, the same limits), but the list is what is in the policy folders' "Counter Offer Letter" subfolders. Reads only. */
+  async function counterFiles(info, opts) {
+    var say = (opts && opts.onStage) || function () {}, T = TIMEOUTS, r = await liveRoots(true, say, { early: true, onPerm: opts && opts.onPerm });
+    if (r.reason) return { reason: r.reason, why: r.why };
+    if (F.norm(info.sname) === '') return { reason: 'names' };
+    var f = await findInOpen(r, info, say);
+    if (f.slow) return { reason: 'slow-find' };
+    if (!f.clients.length) return { reason: 'client', skipped: f.skipped };
+    say('list'); var files = [];
+    for (var c = 0; c < f.clients.length; c++) { var fs = await race(F.counterOfferDocuments(f.clients[c]), T.list); if (fs === SLOW) return { reason: 'slow-list' }; files = files.concat(fs); }
+    return { label: f.clients[0].parts.join(' \\ '), files: files, skipped: f.skipped };
+  }
   /* The adviser picks the client's OWN folder in the browser's folder window (a click behind it, a button the adviser presses: 0.99 never opens it by itself): choosing it is the permission, so Chrome asks nothing else. For when Chrome will not ask about the connected folders. No starting folder is passed (a stored folder is the thing Chrome may not be answering about): Chrome opens the window where it was last used. Resolves { label, files, picked: true } or { reason: 'cancelled' | 'unsupported' | 'error' | 'slow-list', why }. */
   async function pickClientFolder() {
     if (!F.enabled()) return { reason: 'unsupported' };
@@ -321,5 +333,5 @@
     return (lastFolder ? '<div>Saved in <b>' + esc(lastFolder) + '</b></div>' : '') + (line ? '<div class="fnote">' + line + '</div>' : '');
   }
 
-  FF.foldersUI = { init: init, connect: connect, open: open, clientFiles: clientFiles, clientFolder: clientFolder, pickClientFolder: pickClientFolder, clientIndex: clientIndex, forgetIndex: forgetIndex, timeouts: TIMEOUTS, rootFile: rootFile, failed: failed, forget: forget, metaHTML: metaHTML, ask: ask, connected: function () { return Object.keys(roots); } };
+  FF.foldersUI = { init: init, connect: connect, open: open, clientFiles: clientFiles, counterFiles: counterFiles, clientFolder: clientFolder, pickClientFolder: pickClientFolder, clientIndex: clientIndex, forgetIndex: forgetIndex, timeouts: TIMEOUTS, rootFile: rootFile, failed: failed, forget: forget, metaHTML: metaHTML, ask: ask, connected: function () { return Object.keys(roots); } };
 })();

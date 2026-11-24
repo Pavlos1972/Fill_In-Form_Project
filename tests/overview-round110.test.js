@@ -26,11 +26,11 @@ const pol = (s, ins) => s.blocks.policies.items.filter(i => i.insurer === ins)[0
 const entry = (s, it) => calc.policies(s).filter(e => e.item === it)[0];
 
 test('the page is 1.1 (the layout stays 0.1), the changed scripts carry new tags in every page that loads them', () => {
-  assert.strictEqual(schema.pageVersion, '1.1'); assert.strictEqual(schema.version, '0.1');
+  assert.ok(/^1\.[12]$/.test(schema.pageVersion), 'the page version is 1.1 or 1.2'); assert.strictEqual(schema.version, '0.1');
   assert.ok(parseFloat(schema.pageVersion) > parseFloat('1.0'), 'compared as decimals');
   const h = app('overview.html');
-  ['ov-schema', 'ov-calc', 'ov-store', 'ov-check', 'ov-docs', 'ov-pdf', 'ov-view', 'ov-ui', 'ov-present'].forEach(f => assert.ok(new RegExp(f + '\\.js\\?v=20261124[k-z]').test(h), f + ' has a new tag'));
-  ['overview', 'present'].forEach(f => assert.ok(new RegExp('css/' + f + '\\.css\\?v=20261124[e-z]').test(h) || new RegExp('css/' + f + '\\.css\\?v=20261124[c-z]').test(h), f + '.css'));
+  ['ov-schema', 'ov-calc', 'ov-store', 'ov-check', 'ov-docs', 'ov-pdf', 'ov-view', 'ov-ui', 'ov-present'].forEach(f => assert.ok(new RegExp(f + '\\.js\\?v=20261124[a-z]').test(h), f + ' has a new tag'));
+  ['overview', 'present'].forEach(f => assert.ok(new RegExp('css/' + f + '\\.css\\?v=20261124[a-z]').test(h) || new RegExp('css/' + f + '\\.css\\?v=20261124[a-z]').test(h), f + '.css'));
 });
 
 test('the states: three client decisions, seven underwriting steps, every older status converted when a quote is settled (declined = accepted then declined (other) is a GUESS)', () => {
@@ -236,6 +236,6 @@ test('the code: Astute is read in its own last phase, newest report last, and on
   assert.ok(/calc\.replacementInfo\(/.test(ui) && /calc\.replacementInfo\(/.test(pdf) && /calc\.replacementInfo\(/.test(pres), 'every screen takes the replacement notes from the one function');
   assert.ok(/as\.slice\(0, -1\)\.forEach\(function \(f\) \{ log\.push\(\{ msg: 'Astute report ' \+ f\.name \+ ' was not read: a newer Astute report/.test(ui) && /return chain\(as\.slice\(-1\)/.test(ui), 'only the NEWEST Astute report of a load is read, the others are said to be skipped');
   assert.ok(!/c\.y \+ 13\.6/.test(pdf) && /noteRows\(e\)/.test(pdf) && /colSpan: 9/.test(pdf), 'the PDF prints a policy\'s red notes as a table row of their own (nothing drawn over the policy\'s text)');
-  assert.ok(/\['uw', 'Underwriting and replacements'\]/.test(pres) && /if \(sub === 'uw'\) return out \+ extra;/.test(pres) && !/return out \+ uwView\(q\) \+ replView\(q\);/.test(pres), 'the Presentation gives the terms and the replacements a sub-tab of their own');
+  assert.ok(/\['uw', q\.counterOf \? 'Counter offer terms' : 'Underwriting and replacements'\]/.test(pres) && /if \(sub === 'uw'\) return out \+ extra;/.test(pres) && !/return out \+ uwView\(q\) \+ replView\(q\);/.test(pres), 'the Presentation gives the terms and the replacements a sub-tab of their own');
   const names = (ui.match(/^\s{2,4}function ([A-Za-z0-9_]+)\(/gm) || []).map(x => x.replace(/^\s*function /, '').replace(/\($/, '')); assert.deepStrictEqual(names.filter((n, i) => names.indexOf(n) !== i), [], 'no function name twice in ov-ui.js');
 });

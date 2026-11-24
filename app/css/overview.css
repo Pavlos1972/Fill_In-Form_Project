@@ -270,7 +270,22 @@ tbody.rnote td { padding: 4px 12px 9px 38px; font-size: 12.5px; border-bottom: 1
 .qcard .uwblock table.terms { table-layout: fixed; width: 100%; }
 .qcard .uwblock table.terms.ld th:nth-child(1) { width: 19%; } .qcard .uwblock table.terms.ld th:nth-child(2) { width: 12%; } .qcard .uwblock table.terms.ld th:nth-child(3) { width: 15%; } .qcard .uwblock table.terms.ld th:nth-child(5) { width: 12%; }
 .qcard .uwblock table.terms.ex th:nth-child(1) { width: 19%; } .qcard .uwblock table.terms.ex th:nth-child(4) { width: 12%; }
+/* Counter offers (round 1.2): the red references a quote's terms put under a cell, the amber terms to check, the counter offer's head */
+.ovt small.rednote.ref { display: block; margin-top: 3px; font-size: 11px; line-height: 1.25; font-weight: 700; color: var(--bad); text-align: center; white-space: normal; }
+.ovt tr.tot.refs td { border-top: 0; padding-top: 2px; padding-bottom: 6px; }
+.qcard .uwblock table.terms tr.tocheck td { background: var(--warn-soft, #fdf3d8); }
+.qcard .uwblock table.terms.ex.withno th:nth-child(1) { width: 9%; } .qcard .uwblock table.terms.ex.withno th:nth-child(2) { width: 19%; } .qcard .uwblock table.terms.ex.withno th:nth-child(4) { width: 14%; }
+.qcard .uwblock table.terms td small.foot { display: block; margin-top: 3px; }
+.qcard .counterblock p { margin: 0 0 6px; }
+.qcard .counterblock .premline { color: var(--ink); }
+.qcard p.amberline { margin: 6px 0 0; padding: 7px 10px; border-radius: 10px; background: var(--warn-soft, #fdf3d8); color: var(--warn); font-weight: 600; }
+.qcard .counterlist .uwline { margin: 0 0 4px; font-weight: 600; color: var(--ink); }
 label.chk { display: flex; gap: 8px; align-items: flex-start; font-size: 13.5px; line-height: 1.35; }
 label.chk input { margin-top: 3px; flex: none; }
 .qcard .replblock .picks { display: grid; gap: 6px; margin: 8px 0 2px; }
 .qcard .replblock .f { max-width: 520px; }
+
+/* the counter offer's terms: roomy first columns (the benefit's name is long), the letter line quiet */
+.qcard .uwblock table.terms.ld.cnt th:nth-child(1) { width: 29%; } .qcard .uwblock table.terms.ld.cnt th:nth-child(2) { width: 11%; } .qcard .uwblock table.terms.ld.cnt th:nth-child(3) { width: 13%; } .qcard .uwblock table.terms.ld.cnt th:nth-child(5) { width: 9%; }
+.qcard .uwblock table.terms.ex.withno th:nth-child(1) { width: 8%; } .qcard .uwblock table.terms.ex.withno th:nth-child(2) { width: 29%; } .qcard .uwblock table.terms.ex.withno th:nth-child(4) { width: 14%; } .qcard .uwblock table.terms.ex.withno th:nth-child(5) { width: 9%; }
+.qcard .counterblock .uwline:not(.premline) { color: var(--muted); font-weight: 500; }

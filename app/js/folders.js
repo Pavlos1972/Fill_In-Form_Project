@@ -304,6 +304,23 @@
     return out;
   }
 
+  /* The counter offer files of a client (round 1.2): in each policy (deal) folder a subfolder named exactly "Counter Offer Letter" (capitals and extra spaces ignored; also one directly in the client's folder). Only reads, no deeper than that.
+     Returns [{ name, rel: [folder names], handle }] of every file in them (the page sorts them by their names); the numbered standard folders are not looked into. */
+  var COUNTER_FOLDER = /^counter offer letters?$/;
+  async function counterOfferDocuments(client) {
+    var out = [], isDoc = function (n) { return /\.(pdf|png|jpe?g)$/i.test(n); };
+    async function files(dir, rel) { for await (var e of dir.entries()) if (e[1].kind === 'file' && isDoc(e[0])) out.push({ name: e[0], rel: rel, handle: e[1] }); }
+    var kids = await listDirs(client.handle);
+    for (var i = 0; i < kids.length; i++) {
+      var k = kids[i];
+      if (COUNTER_FOLDER.test(norm(k.name))) { await files(k.handle, [k.name]); continue; }
+      if (isStandard(k.name)) continue;
+      var inner = await listDirs(k.handle);
+      for (var j = 0; j < inner.length; j++) if (COUNTER_FOLDER.test(norm(inner[j].name))) await files(inner[j].handle, [k.name, inner[j].name]);
+    }
+    return out;
+  }
+
   /* The folder of a client's own folder where a kind of document is kept, for "Upload from client folder" in the Client Overview Studio (0.6): the numbered standard folder whose name says so (quotes, goal analysis,
      proposals), for comparative quotes the `Comparative Quotes` folder of a deal folder, else the client's folder itself. Only reads. kind: quote | comparative | goal | proposal.
      Returns { handle, parts } (parts: the folder names from the connected folder down). */
@@ -384,7 +401,7 @@
   return {
     MAX_PATH: MAX_PATH, SWAP: SWAP, RULES: RULES, ALIASES: ALIASES, norm: norm, tokens: tokens, clientFolderName: clientFolderName, parseClient: parseClient, clientMatches: clientMatches, letterOf: letterOf, letterFolder: letterFolder,
     isLetterFolder: isLetterFolder, isStandard: isStandard, nameIs: nameIs, insurerWords: insurerWords, productWords: productWords, numbersIn: numbersIn, hasWord: hasWord, scoreDeal: scoreDeal, chooseDeal: chooseDeal, pathCheck: pathCheck, tooLongText: tooLongText,
-    listDirs: listDirs, clientSubfolder: clientSubfolder, findFiles: findFiles, viewableFiles: viewableFiles, findClients: findClients, clientFromFile: clientFromFile, dirOfFile: dirOfFile, dealCandidates: dealCandidates, resolveTarget: resolveTarget, factFindCandidates: factFindCandidates, resolveFactFind: resolveFactFind, overviewCandidate: overviewCandidate, clientDocuments: clientDocuments, resolveOverview: resolveOverview, ensureOverview: ensureOverview, relOf: relOf, labelOf: labelOf, probeFile: probeFile, makeFile: makeFile, discardEmpty: discardEmpty,
+    listDirs: listDirs, clientSubfolder: clientSubfolder, findFiles: findFiles, viewableFiles: viewableFiles, findClients: findClients, clientFromFile: clientFromFile, dirOfFile: dirOfFile, dealCandidates: dealCandidates, resolveTarget: resolveTarget, factFindCandidates: factFindCandidates, resolveFactFind: resolveFactFind, overviewCandidate: overviewCandidate, clientDocuments: clientDocuments, counterOfferDocuments: counterOfferDocuments, resolveOverview: resolveOverview, ensureOverview: ensureOverview, relOf: relOf, labelOf: labelOf, probeFile: probeFile, makeFile: makeFile, discardEmpty: discardEmpty,
     saveHandle: saveHandle, loadHandle: loadHandle, getPaths: getPaths, setPath: setPath, permission: permission, enabled: enabled
   };
 });

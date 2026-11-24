@@ -87,13 +87,91 @@
   function quotes(state, blockId) { return active(state && state.blocks && state.blocks[blockId] && state.blocks[blockId].quotes); }
   function allQuotes(state) { return schema.QUOTE_KINDS.reduce(function (a, k) { return a.concat(quotes(state, schema.blockOfQuote[k])); }, []); }
 
+  /* ---------- counter offers (round 1.2, 24 November) ---------- */
+  /* A counter offer is a quote of the same kind and block (counterOf = the id of the quote the client accepted, which is the ROOT of the chain). Everything that must treat a quote and its counter offers as one thing asks these. */
+  function parentOf(state, q) {
+    var cur = q, seen = {}, n = 0;
+    while (cur && cur.counterOf && !seen[cur.id] && n++ < 20) {                                                // a counter offer of a counter offer belongs to the root; a loop (a hand-edited file) belongs to nobody
+      seen[cur.id] = 1; var hit = null; allQuotes(state).forEach(function (x) { if (x.id === cur.counterOf && x !== cur) hit = x; });
+      if (!hit) return null;                                                                                   // a counter offer whose quote is gone is an ordinary quote again
+      if (!hit.counterOf) return hit;
+      cur = hit;
+    }
+    return null;
+  }
+  function isCounter(state, q) { return !!parentOf(state, q); }
+  function mainQuotes(state, blockId) { return (blockId ? quotes(state, blockId) : allQuotes(state)).filter(function (q) { return !parentOf(state, q); }); }
+  /* The counter offers of a quote, oldest first (the order of the block's list); the last one is the live one. */
+  function counterOffers(state, root) { return !root ? [] : allQuotes(state).filter(function (x) { return x !== root && parentOf(state, x) === root; }); }
+  function liveCounter(state, root) { var c = counterOffers(state, root); return c.length ? c[c.length - 1] : null; }
+  function effectiveQuote(state, root) { return liveCounter(state, root) || root; }                            // the quote that will become the policy: the newest counter offer, else the quote itself
+  function counterDead(state, root) { var c = liveCounter(state, root); return !!c && dead(c); }               // the client did not accept the counter offer: nothing comes of the quote
+  function chainIds(state, q) { var root = (q && parentOf(state, q)) || q, o = {}; if (!root) return o; o[root.id] = 1; counterOffers(state, root).forEach(function (c) { o[c.id] = 1; }); return o; }
+  /* The quote that has become a policy: the live counter offer when it is accepted (policy number and start date from it, else from the quote it came from), or the quote itself when it has no counter offer. null: none. */
+  function chainIssued(state, root) {
+    var c = liveCounter(state, root);
+    if (!c) return issued(root) ? root : null;
+    if (!accepted(c) || !accepted(root)) return null;
+    var no = c.policyNo || root.policyNo, sd = c.startDate; if (!no || !sd) return null;                           // the same policy number; the start date is the counter offer's own (the letter's proposed date is in offer.startDate)
+    var own = activeLines(c).length > 0, off = c.offer || {};                                                  // a counter offer known only from its letter has no lines yet: the policy keeps the quote's lines, benefits and ACI so it is not an empty policy
+    return Object.assign({}, c, { policyNo: no, startDate: sd, insurer: c.insurer || root.insurer, productName: c.productName || root.productName,
+      lines: own ? c.lines : root.lines, aci: own ? c.aci : root.aci, aciText: own ? c.aciText : root.aciText, benefits: own ? c.benefits : root.benefits, cmp: c.cmp || (own ? null : root.cmp),
+      premium: isNum(c.premium) ? c.premium : isNum(off.revPremium) ? off.revPremium : root.premium });
+  }
+  /* Whether a quote can have a counter offer added: the client accepted it and underwriting came back with loadings, exclusions or both. */
+  function canCounter(state, q) { var u = uwOf(q); return !!q && !q.counterOf && !parentOf(state, q) && accepted(q) && (u === 'loadings' || u === 'exclusions' || u === 'both'); }
+  /* Before, after and the difference of a counter offer's premium: the quote before it in the chain (else the letter's original premium), and the counter offer's own premium (else the letter's revised premium). */
+  function counterPremium(state, c) {
+    var root = parentOf(state, c); if (!root) return null;
+    var chain = [root].concat(counterOffers(state, root)), prev = chain[Math.max(0, chain.indexOf(c) - 1)], off = c.offer || {};
+    var before = isNum(prev.premium) ? prev.premium : isNum(off.origPremium) ? off.origPremium : null, after = isNum(c.premium) ? c.premium : isNum(off.revPremium) ? off.revPremium : null;
+    var diff = isNum(before) && isNum(after) ? r2(after - before) : null;
+    return { before: before, after: after, diff: diff, pct: isNum(diff) && before > 0 ? Math.round(diff / before * 10000) / 100 : null, prev: prev };
+  }
+  /* The red references a quote's terms put on the pillar columns: [{ kind, text, need, pillars }]. A loading belongs to a need group and a column group (BrightRock's letter), or to a benefit a person typed; an exclusion is
+     numbered as the insurer numbers it and lists the cells it applies to. Derived: nothing is stored per line. */
+  function pctText(p) { return (Math.round(p * 100) / 100) + '%'; }
+  function termRefs(q) {
+    var out = [], t = q && q.terms || {};
+    (t.loadings || []).forEach(function (l) {
+      if (!l || !isNum(l.pct) || !(l.pct > 0)) return;
+      var col = schema.columnGroupById[l.column], pil = col ? col.pillars : (schema.BENEFIT_PILLARS[l.benefit] || schema.BENEFIT_PILLARS['All benefits']);
+      out.push({ kind: 'loading', text: '+' + pctText(l.pct) + ' loading', need: schema.needGroupById[l.need] ? l.need : null, pillars: pil });
+    });
+    (t.exclusions || []).forEach(function (e, i) {
+      if (!e) return;
+      var label = 'Exclusion ' + (String(e.no == null ? '' : e.no).trim() || (i + 1)), cells = Array.isArray(e.applies) ? e.applies.filter(function (a) { return a && schema.columnGroupById[a.column]; }) : [];
+      if (!cells.length) { out.push({ kind: 'exclusion', text: label, need: null, pillars: schema.BENEFIT_PILLARS[e.benefit] || schema.BENEFIT_PILLARS['All benefits'] }); return; }
+      cells.forEach(function (a) { out.push({ kind: 'exclusion', text: label, need: schema.needGroupById[a.need] ? a.need : null, pillars: schema.columnGroupById[a.column].pillars }); });
+    });
+    return out;
+  }
+  /* The references that belong in one cell: the line type's need group and the pillar. Duplicates (the same text) are shown once. */
+  function refsAt(q, lineType, pillarId) {
+    var g = schema.needGroupOfLine[lineType] || 'needs', seen = {}, out = [];
+    termRefs(q).forEach(function (r) { if ((r.need && r.need !== g) || r.pillars.indexOf(pillarId) < 0 || seen[r.text]) return; seen[r.text] = 1; out.push(r); });
+    return out;
+  }
+  function refsTotal(q, pillarId) { var seen = {}, out = []; termRefs(q).forEach(function (r) { if (r.pillars.indexOf(pillarId) < 0 || seen[r.text]) return; seen[r.text] = 1; out.push(r); }); return out; }
+  /* The benefit a term row is about, DERIVED from the column group (a loading) or the cells it applies to (an exclusion), so a correction of the mapping reaches every file; a typed row keeps what was typed. */
+  function termBenefit(r) {
+    if (!r) return '';
+    if (r.column && schema.columnGroupById[r.column]) return schema.columnGroupById[r.column].benefit;
+    var cells = Array.isArray(r.applies) ? r.applies.filter(function (a) { return a && schema.columnGroupById[a.column]; }) : [];
+    if (cells.length) { var out = []; cells.forEach(function (a) { var b = schema.columnGroupById[a.column].benefit; if (out.indexOf(b) < 0) out.push(b); }); return out.join(' and '); }
+    return r.benefit || '';
+  }
+  /* The terms a counter offer read from the letter that nobody has checked yet. */
+  function termsToCheck(q) { var t = q && q.terms || {}, n = 0; ['loadings', 'exclusions'].forEach(function (k) { (t[k] || []).forEach(function (r) { if (r && r.st === 'verify') n++; }); }); return n; }
+
   /* Block 1: the policies that are not removed, and every accepted quote that has been issued (policy number and start date): it is shown here as a WR policy and no longer as a quote.
      A schedule with the same policy number wins over the quote. Each entry is { item, derived }. */
   function policies(state) {
     var items = active(state && state.blocks && state.blocks.policies && state.blocks.policies.items), out = items.map(function (i) { return { item: i, derived: false }; });
     var have = {}; items.forEach(function (i) { if (i.policyNo) have[norm(i.policyNo)] = 1; });
-    allQuotes(state).forEach(function (q) {
-      if (!issued(q) || have[norm(q.policyNo)]) return;
+    mainQuotes(state).forEach(function (root) {
+      var q = chainIssued(state, root);                                                                       // round 1.2: when the insurer sent a counter offer, the policy that issues is the counter offer the client accepted
+      if (!q || have[norm(q.policyNo)]) return;
       out.push({ derived: true, item: { id: q.id, wr: true, insurer: q.insurer, product: q.productName || (q.kind === 'fna' ? 'FNA' : q.kind), policyNo: q.policyNo, doc: q.startDate, premium: q.premium, aci: q.aci, aciText: q.aciText || null, abi: null,
         ipAge: q.disabilityAge, benefits: q.benefits || {}, lines: q.lines || [], cmp: q.cmp || null, st: q.st, src: q.src, by: q.by, fromQuote: q.id } });
     });
@@ -111,6 +189,8 @@
     if (q.uw != null && !schema.uwLabel[q.uw]) { q.uw = null; n++; }
     if (q.uw === undefined) { q.uw = null; n++; }
     if (typeof q.second !== 'boolean') { q.second = q.second === true || q.second === 'true'; n++; }
+    if (q.counterOf === undefined) q.counterOf = null; else if (q.counterOf === '' || (q.counterOf !== null && typeof q.counterOf !== 'string')) { q.counterOf = null; n++; }          // an older file has no counterOf: that is not a change worth counting
+    if (q.counterOf) { if (q.uw) { q.uw = null; n++; } if (!q.offer || typeof q.offer !== 'object') { q.offer = {}; n++; } } else if (q.offer === undefined) q.offer = null;
     var t = q.terms && typeof q.terms === 'object' ? q.terms : (q.terms = { loadings: [], exclusions: [] }, n++);
     if (!Array.isArray(t.loadings)) { t.loadings = []; n++; } if (!Array.isArray(t.exclusions)) { t.exclusions = []; n++; }
     var r = q.repl && typeof q.repl === 'object' ? q.repl : (q.repl = { answer: null, policies: [] }, n++);
@@ -118,25 +198,27 @@
     if (!Array.isArray(r.policies)) { r.policies = []; n++; }
     return n;
   }
-  function uwOf(q) { return q && q.status === 'accepted' && schema.uwLabel[q.uw] ? q.uw : null; }               // the underwriting step counts only for a quote the client accepted
+  function uwOf(q) { return q && !q.counterOf && q.status === 'accepted' && schema.uwLabel[q.uw] ? q.uw : null; }               // the underwriting step counts only for a quote the client accepted
   function declined(q) { return schema.UW_DECLINED.indexOf(uwOf(q)) >= 0; }
   /* "In an accepted state": the client accepted it and the insurer has not declined it (pending underwriting counts; a removed quote never does). */
   function accepted(q) { return !!q && !q.removed && q.status === 'accepted' && !declined(q); }
   function dead(q) { return !q || !!q.removed || q.status === 'notaccepted' || declined(q); }                  // not accepted by the client, or declined by the insurer: it will not come about
   function issued(q) { return accepted(q) && !!q.policyNo && !!q.startDate; }                               // an accepted quote the insurer has issued as a policy
-  function statusText(q) {
+  function statusText(q, state) {
     if (!q) return '';
-    if (q.status === 'notaccepted') return schema.statusLabel.notaccepted;
-    if (q.status !== 'accepted') return schema.statusLabel.pending;
-    var u = uwOf(q); return !u ? 'Accepted' : u === 'pending' ? 'Accepted · Pending underwriting' : schema.uwLabel[u];
+    if (q.counterOf) return 'Counter offer · ' + (schema.statusLabel[q.status] || schema.statusLabel.pending);               // a counter offer carries only the client's decision
+    var base = q.status === 'notaccepted' ? schema.statusLabel.notaccepted : q.status !== 'accepted' ? schema.statusLabel.pending : (function () { var u = uwOf(q); return !u ? 'Accepted' : u === 'pending' ? 'Accepted · Pending underwriting' : schema.uwLabel[u]; })();
+    var live = state && liveCounter(state, q);
+    return live ? base + (live.status === 'accepted' ? ' · Counter offer accepted' : live.status === 'notaccepted' ? ' · Counter offer not accepted' : ' · Counter offer received') : base;
   }
   /* The class of a quote's badge (the colours already exist: pending, accepted, notaccepted, underwriting, medical, declined). */
-  function statusClass(q) {
+  function statusClass(q, state) {
     if (!q || q.status === 'pending' || !schema.statusLabel[q.status]) return 'pending';
+    if (state && counterDead(state, q)) return 'notaccepted';                                                        // the client turned the counter offer down: nothing comes of the quote
     if (q.status === 'notaccepted') return 'notaccepted';
     var u = uwOf(q); return u === 'pending' ? 'underwriting' : u === 'declinedHealth' ? 'medical' : u === 'declinedOther' ? 'declined' : 'accepted';
   }
-  function acceptedQuotes(state) { return allQuotes(state).filter(accepted); }
+  function acceptedQuotes(state) { return mainQuotes(state).filter(function (q) { return accepted(q) && !counterDead(state, q); }); }          // a quote and its counter offers are ONE acceptance; a counter offer the client did not accept ends it
   /* The one-acceptance rule: across the FNA, shortfall, reduced and comparative quotes only one may be in an accepted state, unless the adviser has ticked "second policy alongside the first" on a quote. Every accepted quote that is not
      ticked is in conflict when there are two or more of them. Returns [{ quote, others }]. */
   function acceptanceConflicts(state) {
@@ -148,12 +230,15 @@
   function quoteRef(q) { var n = q.number ? (/bright/i.test(q.insurer || '') ? 'CP ' : '') + q.number : ''; return [q.insurer, 'quote', n].filter(Boolean).join(' '); }
   function policyRef(it) { return [it.insurer || 'Policy', it.policyNo].filter(Boolean).join(' '); }
   /* The current policies a quote can replace: every policy of block 1 except the one the quote itself became. */
-  function replaceable(state, q) { return policies(state).filter(function (e) { return e.item.id !== (q && q.id); }); }
+  function replaceable(state, q) { var ids = chainIds(state, q); return policies(state).filter(function (e) { return !ids[e.item.id]; }); }
   /* Which quotes replace which policy, from the quotes that are still alive (not removed, not declined by the client or the insurer); answered: at least one such quote has had its replacement question answered. */
   function replacementInfo(state) {
-    var live = allQuotes(state).filter(function (q) { return !dead(q); }), ids = {}, by = {};
+    var live = mainQuotes(state).filter(function (q) { return !dead(q) && !counterDead(state, q); }), ids = {}, by = {};
     policies(state).forEach(function (e) { ids[e.item.id] = 1; });
-    live.forEach(function (q) { var r = replOf(q); if (r.answer !== 'yes') return; r.policies.forEach(function (id) { if (!ids[id] || id === q.id) return; (by[id] = by[id] || []).push(q); }); });
+    live.forEach(function (q) {
+      var r = replOf(q), eff = effectiveQuote(state, q), own = chainIds(state, q); if (r.answer !== 'yes') return;                // the answer is given on the quote the client accepted; a counter offer is the same replacement, named by its own number
+      r.policies.forEach(function (id) { if (!ids[id] || own[id]) return; (by[id] = by[id] || []).push(eff.number ? eff : q); });
+    });
     return { answered: live.some(function (q) { return !!replOf(q).answer; }), by: by };
   }
   /* The red note of a policy (the screen, the PDF and the Presentation all print this one): replaced by a quote, or "Will not be replaced" once a quote's question has been answered (never before: nothing is decided yet),
@@ -196,7 +281,7 @@
   }
   /* Block 4, the shortfall: the FNA less what the client already has. Personal investments reduce the life pillar only (Paul's worked example). Never below nothing. */
   function shortfall(state) {
-    var f = quotes(state, 'fna')[0];
+    var f = quotes(state, 'fna').filter(function (x) { return !x.counterOf; })[0];                            // never a counter offer (even one whose quote was removed): the need is the quote the client was first given
     if (!f) return { has: false, fna: null, group: groupTotals(state), pi: personalInvestments(state), short: null };
     var t = totals(f), g = groupTotals(state), pi = personalInvestments(state), floor = function (n) { return Math.max(0, r2(n)); };
     var fna = { life: t.life.lump, sev: t.sev.lump, lsd: t.lsd.lump, ip: t.ip.monthly };
@@ -271,7 +356,7 @@
   var PAGE_WHY = { shortfallQuote: 'Left out: there is no group risk, or no shortfall quote was asked for.', comparative: 'Left out: no comparative quote was asked for in the Fact Find.', proposed: 'Left out: there are no proposed investments.', goals: 'Left out: no goal analysis report was asked for.' };
   function pageWhy(id) { return PAGE_WHY[id] || ''; }
 
-  return { settleQuote: settleQuote, uwOf: uwOf, declined: declined, accepted: accepted, dead: dead, issued: issued, statusText: statusText, statusClass: statusClass, acceptedQuotes: acceptedQuotes, acceptanceConflicts: acceptanceConflicts, replOf: replOf, quoteRef: quoteRef, policyRef: policyRef, replaceable: replaceable, replacementInfo: replacementInfo, policyNote: policyNote, settleLine: settleLine, aciPoints: aciPoints, sameDebtName: sameDebtName, isNum: isNum, r2: r2, norm: norm, fmtR: fmtR, fmtPct: fmtPct, fmtAci: fmtAci, matchChildren: matchChildren, matchDebts: matchDebts, pageShown: pageShown, pageWhy: pageWhy, fmtDiff: fmtDiff, show: show, lineVal: lineVal, active: active, activeLines: activeLines, totals: totals, sumLines: sumLines,
+  return { settleQuote: settleQuote, parentOf: parentOf, isCounter: isCounter, mainQuotes: mainQuotes, counterOffers: counterOffers, liveCounter: liveCounter, effectiveQuote: effectiveQuote, counterDead: counterDead, chainIds: chainIds, chainIssued: chainIssued, canCounter: canCounter, counterPremium: counterPremium, termRefs: termRefs, termBenefit: termBenefit, refsAt: refsAt, refsTotal: refsTotal, termsToCheck: termsToCheck, uwOf: uwOf, declined: declined, accepted: accepted, dead: dead, issued: issued, statusText: statusText, statusClass: statusClass, acceptedQuotes: acceptedQuotes, acceptanceConflicts: acceptanceConflicts, replOf: replOf, quoteRef: quoteRef, policyRef: policyRef, replaceable: replaceable, replacementInfo: replacementInfo, policyNote: policyNote, settleLine: settleLine, aciPoints: aciPoints, sameDebtName: sameDebtName, isNum: isNum, r2: r2, norm: norm, fmtR: fmtR, fmtPct: fmtPct, fmtAci: fmtAci, matchChildren: matchChildren, matchDebts: matchDebts, pageShown: pageShown, pageWhy: pageWhy, fmtDiff: fmtDiff, show: show, lineVal: lineVal, active: active, activeLines: activeLines, totals: totals, sumLines: sumLines,
     quotes: quotes, allQuotes: allQuotes, policies: policies, policyTotals: policyTotals, groupItems: groupItems, hasGroupRisk: hasGroupRisk, groupTotals: groupTotals, investments: investments,
     personalInvestments: personalInvestments, shortfall: shortfall, compare: compare, pillars: pillarOfBlock };
 });

@@ -7,12 +7,12 @@
   var isNum = calc.isNum, fmtR = calc.fmtR, norm = calc.norm;
   function qLabel(q) {
     var n = q.number ? (/bright/i.test(q.insurer) ? 'CP ' : 'Quote ') + q.number : '';
-    return [q.insurer, { fna: 'FNA', shortfall: 'shortfall quote', reduced: 'reduced quote', comparative: 'quote' }[q.kind], n].filter(Boolean).join(' ');
+    return [q.insurer, q.counterOf ? 'counter offer' : { fna: 'FNA', shortfall: 'shortfall quote', reduced: 'reduced quote', comparative: 'quote' }[q.kind], n].filter(Boolean).join(' ');
   }
   /* The heading of a quote as the screen shows it: "BrightRock Reduced Quote CP 100000051". */
   function qTitle(q) {
     var n = q.number ? (/bright/i.test(q.insurer) ? 'CP ' : 'Quote ') + q.number : '';
-    return [q.insurer, { fna: 'FNA', shortfall: 'Shortfall Quote', reduced: 'Reduced Quote', comparative: 'Comparative Quote' }[q.kind], n].filter(Boolean).join(' ');
+    return [q.insurer, q.counterOf ? 'Counter Offer' : { fna: 'FNA', shortfall: 'Shortfall Quote', reduced: 'Reduced Quote', comparative: 'Comparative Quote' }[q.kind], n].filter(Boolean).join(' ');
   }
   /* Checks that stay in the Checks panel as notes but never hold a block's dot or a quote's row amber (Paul, 23 November: only real line differences, a missing pay-out guide or missing figures do): the quote's income against the client's net income,
      an increase that differs from the standard settings, a premium above the budget. */
@@ -63,7 +63,7 @@
           md.missing.forEach(function (d) { if (figures || md.pairs.length || md.extra.length) add('quote.debts', block, where, (d.desc || d.type || 'A debt') + ' is in the Fact Find, not in the quote.'); });
           md.extra.forEach(function (l) { if (l.debt) add('quote.debts', block, where, l.debt + ' is in the quote, not in the Fact Find.', l.id); });
         }
-        if (kind === 'shortfall') {
+        if (kind === 'shortfall' && !q.counterOf) {
           var sf = calc.shortfall(state);
           if (sf.has && figures) {
             [['life', t.life.lump, sf.short.life, 'Life cover'], ['sev', t.sev.lump, sf.short.sev, 'Severe illness'], ['lsd', t.lsd.lump, sf.short.lsd, 'Lump sum disability'], ['ip', t.ip.monthly, sf.short.ip, 'Income protector']].forEach(function (x) {
@@ -97,8 +97,9 @@
           });
         }
         if (isNum(q.disabilityAge) && isNum(h.disabilityAge) && q.disabilityAge !== h.disabilityAge) add('age', block, where, 'The quote covers disability to age ' + q.disabilityAge + '; the Fact Find says ' + h.disabilityAge + '.');
-        if (kind === 'reduced' && isNum(q.premium) && isNum(h.premiumBudget) && q.premium > h.premiumBudget + tol) add('budget', block, where, 'The premium of ' + fmtR(q.premium) + ' is above the client\'s budget of ' + fmtR(h.premiumBudget) + '.');
+        if (kind === 'reduced' && !q.counterOf && isNum(q.premium) && isNum(h.premiumBudget) && q.premium > h.premiumBudget + tol) add('budget', block, where, 'The premium of ' + fmtR(q.premium) + ' is above the client\'s budget of ' + fmtR(h.premiumBudget) + '.');
         if (kind !== 'comparative' && /bright/i.test(q.insurer) && figures && !q.cmp) add('gaps', block, where, 'No change moment pay-out guide found for CP ' + (q.number || '(no number yet)') + '.');
+        if (q.counterOf) { var nt = calc.termsToCheck(q); if (nt) add('counter.terms', block, where, nt + (nt === 1 ? ' term' : ' terms') + ' read from the counter offer letter ' + (nt === 1 ? 'is' : 'are') + ' to check (the Terms checked button confirms them).'); }          // round 1.2
         if (q.cmp && q.cmp.number && q.number && norm(q.cmp.number) !== norm(q.number)) add('cmp.match', block, where, 'The change moment pay-out is for CP ' + q.cmp.number + ', not for this quote (CP ' + q.number + ').');
       });
     });
@@ -247,7 +248,7 @@
         if (distinct.length === 1) pick = cands[0];
         else if (cands.length) pick = cands.filter(function (c) { return calc.isNum(c.lump) && calc.isNum(l.life.lump) && Math.abs(c.lump - l.life.lump) < 1; })[0] || null;
         var v = null, from = '';
-        if (pick) { v = pick.v; from = 'from the ' + (KIND_WORD[pick.o.kind] || 'other quote') + (pick.o.number ? ' CP ' + pick.o.number : ''); }
+        if (pick) { v = pick.v; from = 'from the ' + (pick.o.counterOf ? 'counter offer' : (KIND_WORD[pick.o.kind] || 'other quote')) + (pick.o.number ? ' CP ' + pick.o.number : ''); }
         else if (ffOf[l.id] && calc.isNum(ffOf[l.id].inst)) { v = ffOf[l.id].inst; from = 'from the Fact Find'; }
         if (v == null) return;
         l.life.monthly = v; l.via = l.via || {}; l.via['life.monthly'] = from; n++;

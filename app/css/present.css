@@ -200,6 +200,12 @@
 .pres .rednote { color: var(--red); font-weight: 600; }
 .pres small.rednote, .pres small.bnote { display: block; margin-top: 2px; font-size: 12.5px; }
 .pres .ptbl small.rednote { color: var(--red); font-weight: 700; white-space: normal; font-size: 12.5px; line-height: 1.25; margin-top: 3px; }
+/* Counter offers (round 1.2): the red references in the pillar columns, the premium line, the numbered exclusions */
+.pres .ptbl small.rednote.ref { text-align: center; }
+.pres .ptbl tr.refs td { padding-top: 2px; padding-bottom: 8px; }
+.pres .cprem { margin: 10px 0 0; font-weight: 700; color: var(--ink, #25292e); }
+.pres .redno { color: var(--red); }
+.pres .counterv .uwok { margin: 4px 0; }
 .pres .ptbl small.bnote { white-space: normal; font-size: 12.5px; line-height: 1.25; }
 .pres .bnote { color: var(--muted, #5b6b78); }
 .pres .uwv { margin-top: 14px; }

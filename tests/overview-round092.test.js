@@ -150,6 +150,6 @@ test('the Presentation\'s current policies table is roomy: its own class, taller
 
 /* ---------- the contract ---------- */
 test('the contract: revision k, the page version 0.92, the layout still 0.1; no key added', () => {
-  assert.ok(/^1\.[01]$/.test(schema.pageVersion), 'the page version is 1.0 or 1.1'); assert.strictEqual(schema.version, '0.1');
+  assert.ok(/^1\.[012]$/.test(schema.pageVersion), 'the page version is 1.0, 1.1 or 1.2'); assert.strictEqual(schema.version, '0.1');
   assert.ok(/Revision k/.test(fs.readFileSync(path.join(__dirname, '..', 'docs', 'OVERVIEW-DATA-CONTRACT.md'), 'utf8')), 'written in the contract');
 });

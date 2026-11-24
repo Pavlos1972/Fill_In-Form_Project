@@ -90,17 +90,25 @@
     var tp = schema.lineTypesById[l.type] || schema.lineTypesById.other, name = l.type === 'child' ? ((l.name || '') + ' ' + (l.sname || '')).trim() : l.type === 'debt' ? (l.debt || l.bank || '') : '';
     return (l.type === 'other' ? (l.label || tp.l) : tp.l) + (name ? ' · ' + name : '');
   }
-  function pillCell(l, p, monthly) {
+  /* The red references a quote's terms put on a cell (round 1.2), only where the cell has an amount. */
+  function refSmall(r) { return '<small class="rednote ref">' + esc(r.text) + '</small>'; }
+  function cellRefs(q, l, p) {
+    if (!q || !q.terms || l[p] === 'N/A') return '';
+    var pl = schema.PILLARS.filter(function (x) { return x.id === p; })[0];
+    if (!pl || !pl.keys.some(function (k) { var v = calc.lineVal(l, p, k); return calc.isNum(v) && v > 0; })) return '';
+    return calc.refsAt(q, l.type, p).map(refSmall).join('');
+  }
+  function pillCell(l, p, monthly, q) {
     var tp = schema.lineTypesById[l.type] || schema.lineTypesById.other, hasIP = l.type === 'debt' && calc.isNum(l.ip && l.ip.monthly) && l.ip.monthly > 0;
     if (l[p] === 'N/A') return td('<span class="na">N/A</span>', '', p);
-    if (p === 'ip') return td(PM(calc.lineVal(l, 'ip', 'monthly')) + (hasIP ? '<small>Instalment Protector</small><small class="red">To be ceded to the bank</small>' : ''), '', 'ip');
+    if (p === 'ip') return td(PM(calc.lineVal(l, 'ip', 'monthly')) + (hasIP ? '<small>Instalment Protector</small><small class="red">To be ceded to the bank</small>' : '') + cellRefs(q, l, 'ip'), '', 'ip');
     var L = calc.lineVal(l, p, 'lump'), M = monthly ? calc.lineVal(l, p, 'monthly') : undefined;
     if (!calc.isNum(L) && !calc.isNum(M) && L !== 'Not found') return td('<span class="none">&ndash;</span>', '', p);
-    return td(A(L) + (monthly ? A(M, 'red') + '<small>' + esc(tp.monthly) + '</small>' : ''), '', p);
+    return td(A(L) + (monthly ? A(M, 'red') + '<small>' + esc(tp.monthly) + '</small>' : '') + cellRefs(q, l, p), '', p);
   }
   function lineRow(l, aci) {
     var isNA = function (k) { return l[k] === 'N/A'; };
-    return '<tr data-keys="' + esc(P.lineKeys(l).join('|')) + '" data-ben="' + esc(P.lineBenefits(l).join(',')) + '" data-label="' + esc(lineLabel(l)) + '">' + needCell(l) + td(esc(l.term || ''), 'l term') + pillCell(l, 'life', true) + pillCell(l, 'sev', false) + pillCell(l, 'lsd', true) + pillCell(l, 'ip', true) +
+    return '<tr data-keys="' + esc(P.lineKeys(l).join('|')) + '" data-ben="' + esc(P.lineBenefits(l).join(',')) + '" data-label="' + esc(lineLabel(l)) + '">' + needCell(l) + td(esc(l.term || ''), 'l term') + pillCell(l, 'life', true, aci) + pillCell(l, 'sev', false, aci) + pillCell(l, 'lsd', true, aci) + pillCell(l, 'ip', true, aci) +
       td(isNA('waiting') ? '<span class="na">N/A</span>' : esc(l.waiting || '-')) + td(aci ? AC(aci) : '<span class="none">&ndash;</span>', '', 'aci') + td(PC(l.abi), '', 'abi') + '</tr>';
   }
   var LINE_W = [15, 13, 12, 9, 12, 14, 7, 11, 7];
@@ -110,8 +118,8 @@
   function linesTable(c, isPolicy, age) {
     var lines = calc.activeLines(c), body = lines.map(function (l) { return lineRow(l, isPolicy ? null : c); }).join('');
     if (!isPolicy) {
-      var tt = calc.totals(c);
-      body += '<tr class="tot" data-keys="total-lump"><td class="l" colspan="2">Total lump sum</td>' + td(A(tt.life.lump), '', 'life') + td(A(tt.sev.lump), '', 'sev') + td(A(tt.lsd.lump), '', 'lsd') + td('', '', 'ip') + '<td></td>' + td('', '', 'aci') + td('', '', 'abi') + '</tr>' +
+      var tt = calc.totals(c), rf = c.terms ? ['life', 'sev', 'lsd', 'ip'].map(function (pid) { return calc.refsTotal(c, pid).map(refSmall).join(''); }) : [];
+      body += (rf.some(Boolean) ? '<tr class="tot refs" data-keys="total-refs"><td class="l" colspan="2">Loadings and exclusions</td>' + td(rf[0], '', 'life') + td(rf[1], '', 'sev') + td(rf[2], '', 'lsd') + td(rf[3], '', 'ip') + '<td></td>' + td('', '', 'aci') + td('', '', 'abi') + '</tr>' : '') + '<tr class="tot" data-keys="total-lump"><td class="l" colspan="2">Total lump sum</td>' + td(A(tt.life.lump), '', 'life') + td(A(tt.sev.lump), '', 'sev') + td(A(tt.lsd.lump), '', 'lsd') + td('', '', 'ip') + '<td></td>' + td('', '', 'aci') + td('', '', 'abi') + '</tr>' +
         '<tr class="tot" data-keys="total-ip"><td class="l" colspan="2">Total income protected</td>' + td(PM(tt.life.monthly), '', 'life') + td('<span class="na">N/A</span>', '', 'sev') + td(PM(tt.lsd.monthly), '', 'lsd') + td(PM(tt.ip.monthly), '', 'ip') + '<td></td>' + td('', '', 'aci') + td('', '', 'abi') + '</tr>' +
         '<tr class="prem" data-keys="total-premium"><td class="l" colspan="5">Monthly premium' + (c.rates ? ' \u00b7 ' + esc(c.rates) : '') + '</td><td colspan="4">' + A(c.premium) + '</td></tr>';
     }
@@ -122,7 +130,7 @@
   var KIND = { fna: 'FNA', shortfall: 'Shortfall quote', reduced: 'Reduced quote', comparative: 'Comparative quote' };
   function quoteHead(q, right) {
     var n = q.number ? (/bright/i.test(q.insurer) ? 'CP ' : 'Quote ') + q.number : '';
-    return '<div class="qhead"><span class="badge ' + esc(calc.statusClass(q)) + '">' + esc(calc.statusText(q)) + '</span><span class="qinfo">' + esc([q.insurer, KIND[q.kind], n, q.date, q.rates, q.servicing ? 'Servicing quote' : ''].filter(Boolean).join('   |   ')) + '</span>' + (right || '') + '</div>';
+    return '<div class="qhead"><span class="badge ' + esc(calc.statusClass(q, state())) + '">' + esc(calc.counterDead(state(), q) && calc.liveCounter(state(), q) ? 'Counter offer not accepted' : calc.statusText(q)) + '</span><span class="qinfo">' + esc([q.insurer, q.counterOf ? 'Counter offer' : KIND[q.kind], n, q.date, q.rates, q.servicing ? 'Servicing quote' : '', (function () { var g = calc.liveCounter(state(), q); return g && g.status !== 'notaccepted' ? (g.status === 'accepted' ? 'Counter offer accepted' : 'Counter offer received') : ''; })()].filter(Boolean).join('   |   ')) + '</span>' + (right || '') + '</div>';
   }
   function cmpView(q) {
     var m = q.cmp; if (!m) return '';
@@ -144,34 +152,49 @@
   function quotesView(b) {
     var qs = calc.quotes(state(), b.id);
     if (!qs.length) return head(b) + empty(b.id === 'shortfallQuote' && !calc.hasGroupRisk(state()) ? 'The client has no group risk, so no shortfall quote is needed.' : 'Nothing to show here for this client.');
-    var cur = Math.min(ps.qi, qs.length - 1), q = qs[cur], hasCmp = !!q.cmp, extra = uwView(q) + replView(q), sub = (ps.sub === 'cmp' && !hasCmp) || (ps.sub === 'uw' && !extra) ? 'quote' : ps.sub;
-    var chips = qs.length > 1 ? '<span class="sp"></span><span class="pchips">' + qs.map(function (x, i) { return '<button type="button" class="pchip' + (i === cur ? ' on' : '') + '" data-act="q" data-i="' + i + '">' + esc((x.insurer || 'Quote') + (x.number ? ' ' + x.number : '')) + '</button>'; }).join('') + '</span>' : '';
-    var subs = [['quote', 'The quote']].concat(hasCmp ? [['cmp', 'Your change moment pay-out']] : [], [['cmpr', 'Compared with what you have now']], extra ? [['uw', 'Underwriting and replacements']] : []);          // the terms and the replacements have a tab of their own: on the quote page they made the page too small to read (round 1.1)
+    var cur = Math.min(ps.qi, qs.length - 1), q = qs[cur], hasCmp = !!q.cmp, extra = counterView(q) + uwView(q) + replView(q), sub = (ps.sub === 'cmp' && !hasCmp) || (ps.sub === 'uw' && !extra) ? 'quote' : ps.sub;
+    var chips = qs.length > 1 ? '<span class="sp"></span><span class="pchips">' + qs.map(function (x, i) { return '<button type="button" class="pchip' + (i === cur ? ' on' : '') + '" data-act="q" data-i="' + i + '">' + esc((x.counterOf ? 'Counter offer' : (x.insurer || 'Quote')) + (x.number ? ' ' + x.number : '')) + '</button>'; }).join('') + '</span>' : '';
+    var subs = [['quote', 'The quote']].concat(hasCmp ? [['cmp', 'Your change moment pay-out']] : [], (q.counterOf && !calc.activeLines(q).length ? [] : [['cmpr', 'Compared with what you have now']]), extra ? [['uw', q.counterOf ? 'Counter offer terms' : 'Underwriting and replacements']] : []);          // the terms and the replacements have a tab of their own: on the quote page they made the page too small to read (round 1.1)
     var qpath = idxOf(b.id, 'quotes', q), out = head(b, sub !== 'cmp' && sub !== 'uw' ? hb(true) : '') + quoteHead(q, (sub === 'cmp' ? vp(qpath && qpath + '.cmp') : vp(qpath)) + chips);
     out += tools('<span class="psubs">' + subs.map(function (s) { return '<button type="button" class="psub' + (s[0] === sub ? ' on' : '') + '" data-act="sub" data-s="' + s[0] + '">' + s[1] + '</button>'; }).join('') + '</span>');
     if (sub === 'cmp') return out + cmpView(q);
     if (sub === 'cmpr') return out + compareView(q);
     if (sub === 'uw') return out + extra;
     out += linesTable(q, false, q.disabilityAge || state().header.disabilityAge);
+    if (q.counterOf) out += counterPrem(q);
     if (calc.activeLines(q).some(function (l) { return l.type === 'debt' && calc.isNum(l.ip && l.ip.monthly) && l.ip.monthly > 0; })) out += note('Instalment Protector: if you are retrenched, the insurer pays each debt\'s instalment straight to the bank, for a period set by the insurer\'s rules.');
     return out;
   }
   /* The insurer's terms, and which of the client's policies a quote replaces (round 1.1): the same words as the screen and the PDF. */
+  /* A counter offer (round 1.2): premium before and after, and what its letter says beyond the terms. */
+  function premP(pr) {
+    if (!pr || !calc.isNum(pr.before) || !calc.isNum(pr.after)) return '';
+    return 'Premium: before ' + calc.fmtR(pr.before) + ' p.m.   |   after ' + calc.fmtR(pr.after) + ' p.m.   |   difference ' + calc.fmtDiff(pr.diff) + (calc.isNum(pr.pct) ? ' (' + (pr.pct > 0 ? '+' : pr.pct < 0 ? '\u2212' : '') + Math.abs(pr.pct) + '%)' : '');
+  }
+  function counterPrem(q) { var t = premP(calc.counterPremium(state(), q)); return t ? '<p class="cprem">' + esc(t) + '</p>' : ''; }
+  function counterView(q) {
+    var root = calc.parentOf(state(), q); if (!root) return '';
+    var off = q.offer || {}, h = '<div class="uwv counterv"><h4>Counter offer to ' + esc(calc.quoteRef(root)) + '</h4>' + (off.expires ? '<p class="uwok">The revised proposal expires ' + esc(off.expires) + '.</p>' : '') + counterPrem(q);
+    if (off.notes) h += '<p class="rednote">' + esc('The letter also says: ' + off.notes) + '</p>';
+    return h + '</div>';
+  }
   function uwView(q) {
-    var u = calc.uwOf(q); if (!u || u === 'pending' || schema.UW_DECLINED.indexOf(u) >= 0) return '';
-    var h = '<div class="uwv"><h4>Underwriting outcome</h4><p class="uwok">' + esc(u === 'standard' ? 'Accepted at standard rates.' : schema.uwLabel[u] + '.') + '</p>', tm = q.terms || {}, ls = Array.isArray(tm.loadings) ? tm.loadings : [], es = Array.isArray(tm.exclusions) ? tm.exclusions : [];
+    var counter = !!q.counterOf, tm0 = q.terms || {}, u = counter ? ((tm0.loadings || []).length || (tm0.exclusions || []).length ? 'both' : null) : calc.uwOf(q); if (!u || u === 'pending' || schema.UW_DECLINED.indexOf(u) >= 0) return '';
+    var h = '<div class="uwv"><h4>' + (counter ? 'Underwriting terms of the counter offer' : 'Underwriting outcome') + '</h4>' + (counter ? '' : '<p class="uwok">' + esc(u === 'standard' ? 'Accepted at standard rates.' : schema.uwLabel[u] + '.') + '</p>'), tm = q.terms || {}, ls = Array.isArray(tm.loadings) ? tm.loadings : [], es = Array.isArray(tm.exclusions) ? tm.exclusions : [];
     if ((u === 'loadings' || u === 'both') && ls.length) h += tbl([24, 14, 14, 48], th('Loading on', '', 'l') + th('Percentage added') + th('Reason') + th('The reason in words', '', 'l'),
-      ls.map(function (r) { return '<tr>' + td('<b>' + esc(r.benefit || '') + '</b>', 'l') + td(calc.isNum(r.pct) ? esc(calc.fmtPct(r.pct)) : '-') + td(esc(schema.loadingKindLabel[r.kind] || '')) + td(esc(r.reason || ''), 'l') + '</tr>'; }).join(''), 'terms');
-    if ((u === 'exclusions' || u === 'both') && es.length) h += tbl([24, 38, 38], th('Benefit', '', 'l') + th('What is excluded', '', 'l') + th('Why', '', 'l'),
+      ls.map(function (r) { var ng = schema.needGroupById[r.need]; return '<tr>' + td('<b>' + esc(calc.termBenefit(r) || '') + '</b>' + (ng ? '<small>' + esc(ng.l) + '</small>' : ''), 'l') + td(calc.isNum(r.pct) ? esc(calc.fmtPct(r.pct)) : '-') + td(esc(schema.loadingKindLabel[r.kind] || '')) + td(esc(r.reason || ''), 'l') + '</tr>'; }).join(''), 'terms');
+    var withNo = es.some(function (r) { return r && r.no; });
+    if ((u === 'exclusions' || u === 'both') && es.length) h += withNo ? tbl([8, 22, 46, 24], th('No.', '', 'l') + th('Benefit', '', 'l') + th('What is excluded', '', 'l') + th('Type', '', 'l'),
+      es.map(function (r) { return '<tr>' + td('<b class="redno">' + esc(r.no || '') + '</b>', 'l') + td('<b>' + esc(calc.termBenefit(r)) + '</b>', 'l') + td(esc(r.what || ''), 'l') + td(esc(r.why || ''), 'l') + '</tr>'; }).join(''), 'terms') : tbl([24, 38, 38], th('Benefit', '', 'l') + th('What is excluded', '', 'l') + th('Why', '', 'l'),
       es.map(function (r) { return '<tr>' + td('<b>' + esc(r.benefit || '') + '</b>', 'l') + td(esc(r.what || ''), 'l') + td(esc(r.why || ''), 'l') + '</tr>'; }).join(''), 'terms');
     return h + '</div>';
   }
   function replView(q) {
-    if (calc.dead(q)) return '';
-    var r = calc.replOf(q), ids = {}; calc.policies(state()).forEach(function (e) { ids[e.item.id] = e; });
+    if (calc.dead(q) || q.counterOf || calc.counterDead(state(), q)) return '';                                       // a counter offer is the same replacement, told under the quote the client accepted, naming the counter offer
+    var r = calc.replOf(q), ids = {}, live = calc.effectiveQuote(state(), q); calc.policies(state()).forEach(function (e) { ids[e.item.id] = e; });
     if (r.answer === 'no') return note('This quote does not replace any of your existing policies.');
-    var picks = r.answer === 'yes' ? r.policies.map(function (id) { return ids[id]; }).filter(function (e) { return e && e.item.id !== q.id; }) : [];
-    return picks.length ? '<div class="uwv"><h4>Replacing your existing policies</h4>' + picks.map(function (e) { return '<p class="rednote">' + esc(calc.policyRef(e.item) + ' will be replaced by ' + calc.quoteRef(q)) + '</p>'; }).join('') + '</div>' : '';
+    var picks = r.answer === 'yes' ? r.policies.map(function (id) { return ids[id]; }).filter(function (e) { return e && !calc.chainIds(state(), q)[e.item.id]; }) : [];
+    return picks.length ? '<div class="uwv"><h4>Replacing your existing policies</h4>' + picks.map(function (e) { return '<p class="rednote">' + esc(calc.policyRef(e.item) + ' will be replaced by ' + calc.quoteRef(live)) + '</p>'; }).join('') + '</div>' : '';
   }
 
   /* ---------- the other blocks ---------- */

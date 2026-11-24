@@ -144,7 +144,7 @@ test('the monthly figure under a BrightRock lump sum says what it is: "Income po
 });
 
 test('the page version is 0.9 and the saved file\'s layout is still 0.1 (revisions f and g add keys, remove none)', () => {
-  assert.ok(/^1\.[01]$/.test(schema.pageVersion), 'the page version is 1.0 or 1.1'); assert.strictEqual(schema.version, '0.1');
+  assert.ok(/^1\.[012]$/.test(schema.pageVersion), 'the page version is 1.0, 1.1 or 1.2'); assert.strictEqual(schema.version, '0.1');
   const s = store.blank(); store.fillFromFactFind(s, ff(), 'ff.json'); const j = JSON.parse(store.toJSON(s));
   assert.ok('asked' in j.factFind.facts, 'factFind.facts.asked'); assert.ok('aciText' in j.blocks.fna.quotes.concat([store.newQuote(s, 'fna')])[0] || true);
   const q = store.newQuote(s, 'fna'); assert.ok('aciText' in q);

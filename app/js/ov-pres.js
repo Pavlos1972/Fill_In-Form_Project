@@ -65,9 +65,13 @@
     headingNoName: 'Here’s what we’ll cover today',
     policies: { none: 'You have no personal policies in place right now.', one: 'You have one policy with {insurers} right now. We’ll show you what it covers.', many: 'You have {count} policies with {insurers} right now. We’ll show you what they cover.',
       oneNoName: 'You have one policy in place right now. We’ll show you what it covers.', manyNoName: 'You have {count} policies in place right now. We’ll show you what they cover.' },
-    fna: { some: 'Based on our last meeting, we’ll show you what you ideally need to take out.' },
+    fna: { some: 'Based on our last meeting, we’ll show you what you ideally need to take out.', accepted: 'You accepted this cover. The insurer is now assessing your application.', standard: 'You accepted this cover and the insurer approved it at standard rates.',
+      terms: 'You accepted this cover. The insurer has come back with its terms, and we’ll go through them with you.', counter: 'The insurer has sent a counter offer for this cover, and we’ll go through it with you.', counteraccepted: 'You accepted the insurer’s counter offer for this cover.',
+      counterrefused: 'You decided not to take up the insurer’s counter offer for this cover.', declined: 'The insurer was not able to offer this cover.', notaccepted: 'You decided not to take out this cover.' },
     shortfall: { some: 'We’ll show you the gap between what you have and what you need.' },
-    reduced: { some: 'A more affordable way to close that gap.' },
+    reduced: { some: 'A more affordable way to close that gap.', accepted: 'You accepted this more affordable cover. The insurer is now assessing your application.', standard: 'You accepted this more affordable cover and the insurer approved it at standard rates.',
+      terms: 'You accepted this more affordable cover. The insurer has come back with its terms, and we’ll go through them with you.', counter: 'The insurer has sent a counter offer for this more affordable cover, and we’ll go through it with you.', counteraccepted: 'You accepted the insurer’s counter offer for this more affordable cover.',
+      counterrefused: 'You decided not to take up the insurer’s counter offer for this more affordable cover.', declined: 'The insurer was not able to offer this more affordable cover.', notaccepted: 'You decided not to take out this more affordable cover.' },
     group: { none: 'You have no group benefits in place. Your employer doesn’t cover you for anything.', some: 'Your employer covers you for {cover}.', someNoAmounts: 'You have group benefits through your employer.', fundOnly: 'Your employer provides a retirement fund, but no group risk cover.' },
     groupCover: { life: 'life cover', sev: 'severe illness cover', lsd: 'disability cover', ip: 'income protection' },
     retirement: { has: 'You already have a retirement annuity.', cannotAfford: 'You can’t afford an RA right now.', asked: 'We’ll show you what a retirement annuity could do for you.', none: 'You don’t have a retirement annuity.' },
@@ -98,6 +102,20 @@
     { id: 'shortterm', head: 'Short-term insurance', icon: 'home', opens: null }
   ];
   var W = WORDING;
+  /* Where the client's decision on a quote has got to, from the Studio's own state (round 1.2): the card for a quote block says what was decided, not the first-meeting wording. The most advanced quote of the block counts. */
+  var DECISION_RANK = ['counteraccepted', 'standard', 'counter', 'terms', 'accepted', 'some', 'declined', 'counterrefused', 'notaccepted'];
+  function decisionOf(state, q) {
+    if (q.status === 'notaccepted') return 'notaccepted';
+    if (q.status !== 'accepted') return 'some';
+    var u = calc.uwOf(q); if (u === 'declinedHealth' || u === 'declinedOther') return 'declined';
+    var c = calc.liveCounter(state, q); if (c) return c.status === 'accepted' ? 'counteraccepted' : c.status === 'notaccepted' ? 'counterrefused' : 'counter';
+    return u === 'standard' ? 'standard' : u === 'loadings' || u === 'exclusions' || u === 'both' ? 'terms' : 'accepted';
+  }
+  function decisionState(state, blockId) {
+    var ds = calc.mainQuotes(state, blockId).map(function (q) { return decisionOf(state, q); }), best = null;
+    DECISION_RANK.forEach(function (k) { if (!best && ds.indexOf(k) >= 0) best = k; });
+    return best;
+  }
   function sentenceFor(state, id) {
     var f = facts(state), a = answers(state), B = (state && state.blocks) || {}, o = (f && f.other) || {}, none = W.notDiscussed;
     if (id === 'policies') {
@@ -106,9 +124,9 @@
       if (ps.length === 1) return ins.length ? fill(W.policies.one, { insurers: listOf(ins) }) : W.policies.oneNoName;
       return ins.length ? fill(W.policies.many, { count: words(ps.length), insurers: listOf(ins) }) : fill(W.policies.manyNoName, { count: words(ps.length) });
     }
-    if (id === 'fna') return calc.quotes(state, 'fna').length ? W.fna.some : none;
+    if (id === 'fna') { var fd = decisionState(state, 'fna'); return fd ? W.fna[fd] : none; }
     if (id === 'shortfall') return calc.shortfall(state).has ? W.shortfall.some : none;
-    if (id === 'reduced') return calc.quotes(state, 'reduced').length ? W.reduced.some : none;
+    if (id === 'reduced') { var rd = decisionState(state, 'reduced'); return rd ? W.reduced[rd] : none; }
     if (id === 'group') {
       var gi = calc.groupItems(state), risk = gi.filter(function (g) { return g.kind === 'risk'; });
       if (risk.length) {
@@ -280,6 +298,6 @@
   }
 
   return { TABS: TABS, ORDER: ORDER, TAB_OF: TAB_OF, hasContent: hasContent, blockOn: blockOn, tabOn: tabOn, firstBlock: firstBlock, tabBlocks: tabBlocks, shownOrder: shownOrder, lineKeys: lineKeys,
-    WORDING: WORDING, AREAS: AREAS, sentenceFor: sentenceFor, cover: cover, heading: heading, parseKeyPoints: parseKeyPoints, pointsFor: pointsFor, lineBenefits: lineBenefits, benefitsFor: benefitsFor, aciCard: aciCard, placeholdersFor: placeholdersFor, keyCards: keyCards,
+    WORDING: WORDING, AREAS: AREAS, decisionOf: decisionOf, decisionState: decisionState, sentenceFor: sentenceFor, cover: cover, heading: heading, parseKeyPoints: parseKeyPoints, pointsFor: pointsFor, lineBenefits: lineBenefits, benefitsFor: benefitsFor, aciCard: aciCard, placeholdersFor: placeholdersFor, keyCards: keyCards,
     KP_BENEFITS: KP_BENEFITS, KP_SECTIONS: KP_SECTIONS, KP_FILE: KP_FILE, KP_MAX: KP_MAX, KP_LONG: KP_LONG, PLACEHOLDERS: PLACEHOLDERS, PLACEHOLDER_SOURCE: PLACEHOLDER_SOURCE };
 });

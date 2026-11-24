@@ -9,7 +9,7 @@
   else { root.OV = root.OV || {}; root.OV.view = factory(root.OV.schema, root.OV.calc); }
 })(typeof self !== 'undefined' ? self : this, function (schema, calc) {
   var VIEWABLE = /\.(pdf|png|jpe?g)$/i, IMAGE = /\.(png|jpe?g)$/i;
-  var LABEL = { schedule: 'View policy schedule', quote: 'View quote', statement: 'View statement', guide: 'View guide', report: 'View report' };
+  var LABEL = { schedule: 'View policy schedule', quote: 'View quote', statement: 'View statement', guide: 'View guide', report: 'View report', letter: 'View letter' };
   var TITLE = { schedule: 'Policy schedule', quote: 'Quote', statement: 'Statement', guide: 'Change moment pay-out guide', report: 'Goal analysis report' };
   var BLOCK_ROLE = { policies: 'schedule', fna: 'quote', shortfallQuote: 'quote', reduced: 'quote', comparative: 'quote', group: 'statement', investments: 'statement', proposed: 'quote', goals: 'report', other: 'schedule' };
   /* A BrightRock policy is shown by its POLICY SUMMARY SCHEDULE, never by the long owner's manual (about 78 pages): a file whose name says one of these words is never opened for it. (The file names are my guess: one table.) */
@@ -48,6 +48,7 @@
           if (!o || o.removed) return; var p = 'blocks.' + b + '.' + l + '.' + i;
           if (p !== path) { add(o.src && o.src.file); add(o.valueSource && o.valueSource.file); }
           if (o.cmp && p + '.cmp' !== path) add(o.cmp.src && o.cmp.src.file);
+          if (o.offer && o.offer.letter && p + '.letter' !== path) add(o.offer.letter);                       // the counter offer letter belongs to its counter offer, never to another item
         });
       });
     });
@@ -57,9 +58,9 @@
   /* ---------- 1. which file belongs to an item ---------- */
   /* The thing to open for the item at `path` ("blocks.fna.quotes.0", "blocks.policies.items.1", "...quotes.0.cmp" for a pay-out guide): its role, the file name the overview holds, and what a search can use. null when the item has no such document. */
   function refFor(state, path) {
-    var m = /^blocks\.([A-Za-z]+)\.(items|quotes)\.(\d+)(\.cmp)?$/.exec(String(path || '')); if (!m || !state || !state.blocks) return null;
-    var block = m[1], list = state.blocks[block] && state.blocks[block][m[2]], o = list && list[+m[3]]; if (!o || o.removed || (m[4] && !o.cmp)) return null;
-    var role = m[4] ? 'guide' : BLOCK_ROLE[block]; if (!role) return null;
+    var m = /^blocks\.([A-Za-z]+)\.(items|quotes)\.(\d+)(\.cmp|\.letter)?$/.exec(String(path || '')); if (!m || !state || !state.blocks) return null;
+    var block = m[1], list = state.blocks[block] && state.blocks[block][m[2]], o = list && list[+m[3]]; if (!o || o.removed || (m[4] === '.cmp' && !o.cmp) || (m[4] === '.letter' && !(o.offer && o.offer.letter))) return null;
+    var role = m[4] === '.cmp' ? 'guide' : m[4] === '.letter' ? 'letter' : BLOCK_ROLE[block]; if (!role) return null;
     var src = o.src || {}, ref = { path: String(path), block: block, role: role, name: '', number: '', policyNo: '', insurer: '', product: '', kind: '', bright: false, required: false, label: '' };
     if (role === 'schedule') {
       ref.name = src.kind === 'schedule' || src.kind === 'astute' ? String(src.file || '') : '';
@@ -71,6 +72,8 @@
       ref.name = src.kind === 'quote' || src.kind === 'proposal' ? String(src.file || '') : '';
       if (block === 'proposed') { ref.number = String(o.quote || ''); ref.insurer = String(o.provider || ''); ref.label = [o.type, o.provider].filter(Boolean).join(' '); }
       else { ref.number = String(o.number || ''); ref.insurer = String(o.insurer || ''); ref.required = true; ref.label = [o.insurer, ({ fna: 'FNA', shortfall: 'shortfall quote', reduced: 'reduced quote', comparative: 'quote' })[o.kind], o.number].filter(Boolean).join(' '); }
+    } else if (role === 'letter') {
+      ref.name = String(o.offer.letter); ref.number = String(o.number || ''); ref.insurer = String(o.insurer || ''); ref.required = true; ref.label = 'the counter offer letter of ' + (o.number || 'this counter offer');
     } else if (role === 'guide') {
       var cs = o.cmp.src || {}; ref.name = String(cs.file || ''); ref.number = String(o.cmp.number || o.number || ''); ref.insurer = String(o.insurer || ''); ref.label = 'the change moment pay-out of ' + (o.number || o.policyNo || o.insurer || 'this quote');
     } else if (role === 'statement') {
@@ -85,7 +88,7 @@
     return ref;
   }
 
-  var WHAT = { schedule: 'policy schedule', quote: 'quote', statement: 'statement', guide: 'change moment pay-out guide', report: 'goal analysis report' };
+  var WHAT = { schedule: 'policy schedule', quote: 'quote', statement: 'statement', guide: 'change moment pay-out guide', report: 'goal analysis report', letter: 'counter offer letter' };
   /* Which of the client's files (pool: [{ name, rel, handle }]) is this item's. Returns { file, how } or { reason, text }. The file name the overview holds wins; with no name (or a name that is gone) the number or insurer in the file name decides. */
   function pick(ref, pool, taken) {
     taken = taken || {}; pool = pool || [];
@@ -113,6 +116,9 @@
       } else if (ref.role === 'quote') {
         if (!hasN(k) || /cmpo|pay ?out/.test(n)) return;
         s = 5 + (/fna|shortfall|reduced|quote/.test(n) ? 2 : 0) + (hitN(k.p, wIns) ? 1 : 0);
+      } else if (ref.role === 'letter') {
+        if (!hasN(k) || !/cover terms|counter ?offer|terms/.test(n)) return;
+        s = 8;
       } else if (ref.role === 'guide') {
         if (!hasN(k) || !/cmpo|pay ?out|change moment/.test(n)) return;
         s = 8;
