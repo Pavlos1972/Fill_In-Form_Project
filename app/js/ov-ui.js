@@ -423,7 +423,7 @@
       lab('Disability to age', sel(p + '.disabilityAge', [{ id: 65, l: '65' }, { id: 70, l: '70' }], 'num')) + lab('ACI (%)', inp(p + '.aci', 'pct')) + lab('ACI as the quote words it', inp(p + '.aciText', 'text', '', 'e.g. 7.5% + age rater')) + lab('ACI in short points', taLines(p + '.aciPoints')) + lab('Monthly premium (R)', inp(p + '.premium', 'money')) +
       (calc.accepted(q) ? lab('Policy number', inp(p + '.policyNo', 'text')) + lab('Start date', inp(p + '.startDate', 'date')) : '') + '</div>' +
       issuedNotes(q) +
-      (q.kind === 'comparative' ? '<p class="blue">This is what the other insurer\'s quote prints, read from the document: often one whole-of-life amount for each benefit. The four benefit columns, the totals and the comparison follow it.</p>' : '') + linesTable(p, q, false) + breBox(q) + quoteStates(q, p) + '<div class="under">' + (q.counterOf ? '' : cmpHTML(q, p)) + (q.counterOf && !calc.activeLines(q).length ? '' : '<h4>Compared with what you have now</h4><div data-comp="cmp|' + q.id + '">' + compareHTML(q) + '</div>') + '</div></article>';
+      (q.kind === 'comparative' ? '<p class="blue">This is what the other insurer\'s quote prints, read from the document: often one whole-of-life amount for each benefit. The four benefit columns, the totals and the comparison follow it.</p>' : '') + linesTable(p, q, false) + breBox(q) + quoteStates(q, p) + '<div class="under">' + cmpHTML(q, p) + (q.counterOf && !calc.activeLines(q).length ? '' : '<h4>Compared with what you have now</h4><div data-comp="cmp|' + q.id + '">' + compareHTML(q) + '</div>') + '</div></article>';
   }
   function quotesBlock(b) {
     var list = (state.blocks[b.id].quotes || []), live = list.filter(function (q) { return !q.removed; }), gone = list.filter(function (q) { return q.removed; });
@@ -972,7 +972,7 @@
       progStep(nb, 80, 'Filling it in…');
       var r = put(file, block, cls, data, o);
       if (failure) { r.msg = file.name + ': ' + failure + ' It was recorded; type the figures from it.'; r.warn = true; }
-      var then = r.quote && data && !o.counterOf ? autoGuide(r.quote, o).then(function (m) { if (m) { r.msg += ' ' + m.msg; if (m.warn) r.warn = true; } }) : Promise.resolve();
+      var then = r.quote && data ? autoGuide(r.quote, o).then(function (m) { if (m) { r.msg += ' ' + m.msg; if (m.warn) r.warn = true; } }) : Promise.resolve();
       return then.then(function () { progEnd(nb, failure ? 'error' : data ? 'done' : 'recorded', failure ? 'Could not read it: ' + failure : notice); return r; });
     });
   }
@@ -1331,7 +1331,7 @@
     files = uniqueFiles([].slice.call(files)); unmatchedGuides = {};
     var bid = schema.blockOfQuote[root.kind], log = [], count = 0, warns = 0, same = 0; lastLog = log;
     var signed = {}; (pool || files).forEach(function (f) { if (D.counterRole(f.name).role === 'signed') signed[baseOf(f.name)] = f.name; });
-    var opts = { root: root, quote: root, signedFor: function (n) { return signed[baseOf(n)] || null; } };
+    var opts = { root: root, quote: root, pool: pool || files, signedFor: function (n) { return signed[baseOf(n)] || null; } };
     beginSearch([bid], 'Waiting for the counter offer files');
     var role = function (f) { return D.counterRole(f.name).role; };
     var letters = files.filter(function (f) { var r = role(f); return r === 'letter' || r === 'other' || r === 'signed'; }), quotes = files.filter(function (f) { return role(f) === 'quote'; });

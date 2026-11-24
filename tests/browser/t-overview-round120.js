@@ -19,7 +19,7 @@ function pdf(pages) {                                                           
 }
 const L_NAME = 'Sam Scene cover terms (Cover Proposal 400500600 400500777).pdf', Q_NAME = 'Sam Scene Cover Proposal 400500777.pdf', C_NAME = 'Consent to release confidential information (Cover Proposal 400500777).pdf', S_NAME = 'Sam Scene cover terms (Cover Proposal 400500600 400500777) - signed.pdf';
 const TREE = {
-  NB: { 'Scene, Sam': { '1. Overview': {}, '2. Fact Find': {}, '3. Quotes': { 'BR FNA - 400500600 - 19.11.26.pdf': pdf(['BrightRock FNA quote CP 400500600']) }, '6. Policy Schedules': {},
+  NB: { 'Scene, Sam': { '1. Overview': {}, '2. Fact Find': {}, '3. Quotes': { 'BR FNA - 400500600 - 19.11.26.pdf': pdf(['BrightRock FNA quote CP 400500600']), 'BR CMPO - 400500777.pdf': pdf(['CMPODOC change moment guide 400500777']) }, '6. Policy Schedules': {},
     'BR Personal Covers - 700800900': { Applications: {}, 'Counter Offer Letter': { [L_NAME]: pdf(['LETTERDOC counter offer letter 400500777', 'terms grid']), [Q_NAME]: pdf(['COUNTERQUOTEDOC revised proposal 400500777']), [C_NAME]: pdf(['CONSENTDOC']), [S_NAME]: pdf(['SIGNEDDOC']) } },
     'Liberty Cover - L-900': { 'Counter Offer Letter': { 'Sam Scene cover terms (Cover Proposal 600700800 600700801).pdf': pdf(['OTHERLETTERDOC']), 'Sam Scene Cover Proposal 600700801.pdf': pdf(['OTHERQUOTEDOC']) } } }, '1. ON HOLD': {}, '2. Awaiting compliance from client': {} },
   CF: { 'Z - Files': {} }
@@ -29,11 +29,15 @@ const FFJ = { app: 'wr-fact-find', schema: '5.5', f: { fname: v('Sam'), sname: v
   l: { kids: [], debts: [], risk: [{ d: { prov: 'Budget Insurance', spend: 'R 900.00', broker: 'Other broker' } }, { d: { prov: 'Liberty', spend: 'R 500.00', broker: 'Other broker' } }] } };
 const LINE = { type: 'household', life: { lump: 500000, monthly: 4000 }, sev: { lump: 200000 }, lsd: { lump: 300000, monthly: 2000 }, ip: { monthly: 15000 }, abi: 5 };
 const DREAD = { type: 'dread', sev: { lump: 150000 }, abi: 3 };
+const CHILD = { type: 'child', name: 'Ann', sname: 'Scene', life: { lump: 100000, monthly: 3000 }, abi: 5 };
+const DEBT = { type: 'debt', debt: 'Home loan', bank: 'Test Bank', life: { lump: 1000000, monthly: 14000 }, ip: { monthly: 14000 }, abi: 0, accelerated: false };
+const DEATH = { type: 'death', life: { lump: 500000, monthly: 2500 }, abi: 3 };
 const READ = {
+  CMPODOC: { number: '400500777', activationDate: '01/12/2026', rows: [{ key: 'total', today: 1000000, projected: 2000000, payoutDate: '01/12/2040' }, { key: 'child', name: 'Ann', sname: 'Scene', today: 100000, projected: 150000, payoutDate: '01/12/2035' }] },
   LETTERDOC: { originalNumber: '400500600', revisedNumber: '400500777', origPremium: 5000, revPremium: 5420, startDate: '01/12/2026', expires: '20/12/2026', termsPage: 1, exclusionsPage: 2,
     cells: [{ need: 'needs', column: 'recover', loading: 10, exclusions: ['3*'] }, { need: 'needs', column: 'permanent', loading: 15, exclusions: [] }, { need: 'needs', column: 'death', loading: null, exclusions: [] }, { need: 'dread', column: 'recover', loading: 10, exclusions: ['3*'] }],
     exclusions: [{ no: '3*', type: 'Medical', what: 'No cover for conditions of the lower back', page: 2 }], notes: 'Cover for additional expense needs is reduced.' },
-  COUNTERQUOTEDOC: { insurer: 'BrightRock', number: '400500777', date: '28/11/2026', premium: 5420.01, lines: [LINE, DREAD] }
+  COUNTERQUOTEDOC: { insurer: 'BrightRock', number: '400500777', date: '28/11/2026', premium: 5420.01, aciText: 'Premiums rise with the age adjuster', lines: [LINE, CHILD, DEBT, DEATH, DREAD] }
 };
 srv.listen(0, async () => {
   const addr = 'http://localhost:' + srv.address().port + '/';
@@ -71,7 +75,7 @@ srv.listen(0, async () => {
   await rp.fill('dialog.fdlg [data-key="A"] [data-path]', 'C:\\Users\\tester\\Company\\New Business'); await rp.fill('dialog.fdlg [data-key="B"] [data-path]', 'C:\\Users\\tester\\Company\\Client Files');
   await rp.click('dialog.fdlg [data-done]'); await rp.waitForTimeout(300);
 
-  const p = await ctx.newPage(); p.on('pageerror', e => errs.push(String(e))); p.on('dialog', d => d.accept());
+  const p = await ctx.newPage(); p.on('console', m => { if (m.type() === 'error') console.log('CONSOLE', m.text().slice(0, 300)); }); p.on('pageerror', e => { errs.push(String(e)); console.log('PAGEERROR', String(e).slice(0, 400)); }); p.on('dialog', d => d.accept());
   await p.goto(addr + 'overview.html'); await p.waitForTimeout(900); await wireOn(p); if (await p.$('#restoreDraft')) await p.click('#restoreNew');
   await p.evaluate(() => FF.lookup.saveSettings({ apiKey: 'sk-test-key', model: 'claude-test' }));
   await p.evaluate(ff => {
@@ -113,11 +117,11 @@ srv.listen(0, async () => {
   await p.click('dialog.fdlg [data-yes]'); await waitDone(); await p.waitForTimeout(900);
 
   /* ---- 3. one counter offer in the same block, from the letter and the quote ---- */
-  const api = await p.evaluate(() => window.__api.map(t => ['LETTERDOC', 'COUNTERQUOTEDOC', 'CONSENTDOC', 'SIGNEDDOC', 'OTHERLETTERDOC', 'OTHERQUOTEDOC'].filter(k => t.indexOf(k) >= 0)[0]));
-  ok(api.length === 2 && api.indexOf('LETTERDOC') >= 0 && api.indexOf('COUNTERQUOTEDOC') >= 0, '3. only the letter and the counter offer quote were read (not the consent form, the signed copy or the other policy\u2019s files): ' + api.join(', '));
+  const api = await p.evaluate(() => window.__api.map(t => ['LETTERDOC', 'COUNTERQUOTEDOC', 'CMPODOC', 'CONSENTDOC', 'SIGNEDDOC', 'OTHERLETTERDOC', 'OTHERQUOTEDOC'].filter(k => t.indexOf(k) >= 0)[0]));
+  ok(api.length === 3 && api.indexOf('LETTERDOC') >= 0 && api.indexOf('COUNTERQUOTEDOC') >= 0 && api.indexOf('CMPODOC') >= 0, '3. only the letter, the counter offer quote and its pay-out guide were read (not the consent form, the signed copy or the other policy\u2019s files): ' + api.join(', '));
   let S = await st(); const root = S.blocks.fna.quotes[0], cnt = S.blocks.fna.quotes[1];
   ok(S.blocks.fna.quotes.length === 2 && cnt && cnt.counterOf === root.id && cnt.number === '400500777' && cnt.kind === 'fna', '3. ONE counter offer, in the same block as the accepted quote, linked to it, with the revised number');
-  ok(cnt.lines.length === 2 && cnt.premium === 5420.01 && cnt.offer.startDate === '01/12/2026' && cnt.startDate === null && cnt.uw === null && cnt.status === 'pending', '3. its lines and loaded premium came from the quote, the letter\u2019s start date is only proposed, the client has not decided: ' + cnt.lines.length + ' lines, R' + cnt.premium);
+  ok(cnt.lines.length === 5 && cnt.premium === 5420.01 && cnt.offer.startDate === '01/12/2026' && cnt.startDate === null && cnt.uw === null && cnt.status === 'pending', '3. its lines and loaded premium came from the quote, the letter\u2019s start date is only proposed, the client has not decided: ' + cnt.lines.length + ' lines, R' + cnt.premium);
   ok(cnt.terms.loadings.length === 3 && cnt.terms.exclusions.length === 1 && cnt.terms.loadings.every(l => l.st === 'verify') && cnt.terms.exclusions[0].no === '3*', '3. the terms from the letter are there, all amber, the exclusion with the insurer\u2019s number');
   ok(cnt.offer.signed === S_NAME && cnt.offer.letter === L_NAME && cnt.offer.expires === '20/12/2026', '3. the signed copy is noticed (not read) and the expiry date kept');
   const head = await txt('[data-statusfor="blocks.fna.quotes.0"]'), head2 = await txt('[data-statusfor="blocks.fna.quotes.1"]');
@@ -125,11 +129,21 @@ srv.listen(0, async () => {
   await p.evaluate(() => document.querySelector('[data-counter]').scrollIntoView({ block: 'start' })); await p.waitForTimeout(250);
   const refs = await p.evaluate(() => { const rows = [...document.querySelectorAll('[data-row="blocks.fna.quotes.1"] tr.ln')]; return rows.map(r => [...r.querySelectorAll('td.c')].map(td => [...td.querySelectorAll('small.rednote.ref')].map(x => x.textContent).join('+'))); });
   ok(refs[0].join('|') === '||+10% loading+Exclusion 3*|+15% loading|+10% loading+Exclusion 3*|'.replace(/^\|/, '') || JSON.stringify(refs[0]) === JSON.stringify(['', '+10% loading+Exclusion 3*', '+15% loading', '+10% loading+Exclusion 3*']), '3. the household line shows its red references under severe illness, lump sum disability and income protector only: ' + JSON.stringify(refs[0]));
-  ok(JSON.stringify(refs[1]) === JSON.stringify(['', '+10% loading+Exclusion 3*', '', '']) || (refs[1][1] === '+10% loading+Exclusion 3*' && !refs[1][0] && !refs[1][2]), '3. the additional expense line shows its own under severe illness: ' + JSON.stringify(refs[1]));
+  const lastR = refs[refs.length - 1]; ok(lastR[1] === '+10% loading+Exclusion 3*' && !lastR[0] && !lastR[2], '3. the additional expense line shows its own under severe illness: ' + JSON.stringify(lastR));
   ok(await p.evaluate(() => !document.querySelector('[data-row="blocks.fna.quotes.0"] small.rednote.ref')), '3. the original quote (no terms typed) shows no references');
   ok(/The insurer.s terms are on the counter offer below/.test(await txt('[data-row="blocks.fna.quotes.0"] .uwblock')) && !/No loading typed yet/.test(await txt('[data-row="blocks.fna.quotes.0"]')), '3. the original quote does not offer empty typing tables: it says the terms are on the counter offer');
   ok(/The letter proposes the start date 01\/12\/2026/.test(await txt('[data-counter]')) && (await st()).blocks.fna.quotes[1].startDate === null, '3. the letter\u2019s start date is shown as a proposal and is not the policy\u2019s start date');
   const prem = await txt('[data-counter] .premline'); ok(/before R5,?000 p\.m\..*after R5,?420\.01 p\.m\..*difference \+R420\.01 \(\+8\.4%\)/.test(prem), '3. premium before, after and the difference: "' + prem + '"');
+  /* Paul 19:12: the counter offer is drawn like every other quote: the same table line by line, the same pay-out, nothing cut down */
+  const tbl = await p.evaluate(() => { const one = n => { const c = document.querySelector('[data-row="blocks.fna.quotes.' + n + '"]'); return { head: [...c.querySelectorAll('table.qlines thead th')].map(t => t.textContent.trim()), needs: [...c.querySelectorAll('table.qlines tr.ln td.need > b')].map(b => b.textContent.trim()), acc: c.querySelectorAll('table.qlines .accsel select').length, ticks: c.querySelectorAll('table.qlines tr.ln .stb').length, tot: [...c.querySelectorAll('table.qlines tr.tot')].map(r => r.textContent.replace(/\s+/g, ' ').trim().slice(0, 28)), text: c.querySelector('table.qlines').textContent.replace(/\s+/g, ' '), cmp: [...c.querySelectorAll('.under table tr[data-row*=".cmp.rows."]')].length, aci: (c.querySelector('[data-aci]') || { textContent: '' }).textContent.trim() }; }; return { orig: one(0), cnt: one(1) }; });
+  ok(JSON.stringify(tbl.orig.head) === JSON.stringify(tbl.cnt.head) && tbl.cnt.head.length >= 9, '3. the counter offer\u2019s table has the same columns as the FNA quote\u2019s: ' + tbl.cnt.head.length + ' headings');
+  ok(JSON.stringify(tbl.cnt.needs) === JSON.stringify(['Household needs', 'Child care', 'Debt', 'Death-related needs', 'Additional expense needs (dread)']), '3. every need is its own line: ' + tbl.cnt.needs.join(' | '));
+  ok(tbl.cnt.acc === 5 && tbl.cnt.ticks === 5, '3. each line has its Accelerated / Standalone choice and its status tick (' + tbl.cnt.acc + ' choices, ' + tbl.cnt.ticks + ' ticks)');
+  ok(/Instalment Protector/.test(tbl.cnt.text) && /To be ceded to the bank/.test(tbl.cnt.text) && /Income portion p\.m\./.test(tbl.cnt.text) && /Monthly instalment/.test(tbl.cnt.text), '3. the debt line carries its Instalment Protector note and the monthly instalment, the others the income portion');
+  ok(tbl.cnt.tot.length >= 4 && /Total lump sum/.test(tbl.cnt.tot.join('|')) && /Total income protected/.test(tbl.cnt.tot.join('|')) && /Monthly premium/.test(tbl.cnt.tot.join('|')), '3. the Total lump sum, Total income protected and premium rows are there: ' + tbl.cnt.tot.join(' | '));
+  ok((await st()).blocks.fna.quotes[1].cmp && (await st()).blocks.fna.quotes[1].cmp.rows.length === 2 && tbl.cnt.cmp === 2, '3. its change moment pay-out was found by the revised proposal\u2019s CP number and is filled in under it (' + tbl.cnt.cmp + ' rows)');
+  ok((await st()).blocks.fna.quotes[1].aciText === 'Premiums rise with the age adjuster', '3. the ACI wording came with the counter offer quote');
+  ok(await p.evaluate(() => { const c = document.querySelector('[data-counter]'), t = document.querySelector('[data-row="blocks.fna.quotes.1"] table.qlines'); return !!(t.compareDocumentPosition(c) & Node.DOCUMENT_POSITION_FOLLOWING); }), '3. the premium before and after and the terms are UNDER the table');
   ok(/to check/.test(await txt('[data-counter] .amberline')) && /A signed copy of the letter/.test(await txt('[data-counter]')) && /Cover for additional expense needs is reduced/.test(await txt('[data-counter]')), '3. the terms to check, the signed-copy hint and what the letter says beyond the terms are on the card');
   ok(/Counter offers \(1\)/.test(await txt('#nav [data-block="counters"]')) && /Counter offers\s+\(1\)/.test(await p.evaluate(() => document.querySelector('#nav [data-block="counters"]').innerText)), '3. the Counter offers entry is in the menu: ' + await txt('#nav [data-block="counters"]'));
   await p.screenshot({ path: out + '/r15-counter.png' });
@@ -183,6 +197,8 @@ srv.listen(0, async () => {
   await p.click('#pres .pchip[data-act=q][data-i="1"]'); await p.waitForTimeout(500);
   const pq = await p.evaluate(() => { const e = document.querySelector('#pres'); return { text: e.innerText.replace(/\s+/g, ' '), refs: [...e.querySelectorAll('.ptbl small.rednote.ref')].map(x => x.textContent), red: getComputedStyle(e.querySelector('.ptbl small.rednote.ref') || e).color, sw: e.scrollWidth, cw: e.clientWidth, sh: e.scrollHeight, ch: e.clientHeight, prem: (e.querySelector('.cprem') || { textContent: '' }).textContent }; });
   ok(pq.refs.indexOf('+10% loading') >= 0 && pq.refs.indexOf('Exclusion 3*') >= 0 && pq.refs.indexOf('+15% loading') >= 0 && /Loadings and exclusions/.test(pq.text), '6. the Presentation\u2019s quote table has the red references in its cells and in the totals: ' + pq.refs.length + ' references');
+  const pr2 = await p.evaluate(() => ({ rows: [...document.querySelectorAll('#pres .ptbl tr[data-label]')].map(r => r.getAttribute('data-label')), text: document.querySelector('#pres .ptbl').textContent.replace(/\s+/g, ' '), subs: [...document.querySelectorAll('#pres .psub')].map(b => b.textContent.trim()), tot: document.querySelectorAll('#pres .ptbl tr.tot, #pres .ptbl tr.prem').length, tick: !!document.querySelector('#pres .ptbl .na, #pres .ptbl td') }));
+  ok(pr2.rows.length === 5 && /Child care/.test(pr2.rows.join('|')) && /Debt/.test(pr2.rows.join('|')) && /Instalment Protector/.test(pr2.text) && /To be ceded to the bank/.test(pr2.text) && pr2.tot >= 3 && pr2.subs.indexOf('Your change moment pay-out') >= 0 && pr2.subs.indexOf('Compared with what you have now') >= 0, '6. the Presentation draws it like any quote: ' + pr2.rows.length + ' lines, the Instalment Protector note, the totals, and the tabs ' + pr2.subs.join(' | '));
   ok(pq.red === 'rgb(192, 57, 43)' && /before R5,?000 p\.m\..*after R5,?420\.01/.test(pq.prem.replace(/\s+/g, ' ')) && pq.sw <= pq.cw + 1 && pq.sh <= pq.ch + 1, '6. they are really red, the premium line is there and the page fits the screen (' + pq.sw + '/' + pq.cw + ', ' + pq.sh + '/' + pq.ch + ', colour ' + pq.red + ', premium line "' + pq.prem + '")');
   await p.screenshot({ path: out + '/r15-pres-quote.png' });
   await p.click('#pres .psub[data-s=uw]'); await p.waitForTimeout(500);
@@ -197,6 +213,10 @@ srv.listen(0, async () => {
   ok(qp > 0 && /Underwriting terms of the counter offer/.test(qt) && /\+10% loading/.test(qt) && /Exclusion 3\*/.test(qt) && /\+15% loading/.test(qt) && /Loadings and exclusions/.test(qt), '6. the PDF quote page has the counter offer with its red references in the cells and the totals (page ' + qp + ')');
   ok(/Premium: before R ?5,?000 p\.m\. \| after R ?5,?420\.01 p\.m\. \| difference \+R ?420\.01 \(\+8\.4%\)/.test(qt) && /expires 20\/12\/2026/.test(qt) && /The letter also says: Cover for additional expense needs is reduced/.test(qt) && /Counter offer \u00b7 Accepted|Counter offer . Accepted|Counter offer Accepted/.test(qt), '6. the PDF prints the premium before and after, the expiry, what the letter says and the client\u2019s decision');
   ok(/3\* Severe illness and income protector No cover for conditions of the lower back Medical/.test(qt), '6. the exclusion is printed with its number, benefit, wording and type');
+  const afterC = qt.indexOf('Counter offer \u00b7 Accepted'), cq = afterC >= 0 ? qt.slice(afterC) : '';
+  ok(/Household needs/.test(cq) && /Child care Ann Scene/.test(cq) && /Debt Home loan - Test Bank/.test(cq) && /Standalone/.test(cq) && /Death-related needs/.test(cq) && /Additional expense needs/.test(cq) && /Instalment Protector/.test(cq) && /To be ceded to the bank/.test(cq), '6. the PDF draws the counter offer\u2019s table line by line like any quote: every need, the lender, Standalone, the Instalment Protector note');
+  ok(/Total lump sum/.test(cq) && /Total income protected/.test(cq) && /Monthly premium/.test(cq) && /Your change moment pay-out/.test(cq) && /Total for all your needs/.test(cq) && /Compared with what you have now/.test(cq), '6. with its totals, its change moment pay-out and the comparison');
+  ok(cq.indexOf('Premium: before') > cq.lastIndexOf('Total income protected') && cq.indexOf('Premium: before') < cq.indexOf('Your change moment pay-out') && cq.indexOf('Underwriting terms of the counter offer') > cq.indexOf('Compared with what you have now'), '6. the premium before and after sits under the table and the terms under the comparison, as the PDF has the terms of every quote');
   ok(pp > 0 && /Budget Insurance 100200300 will be replaced by BrightRock quote CP 400500777/.test(raw(pp)) && !/will be replaced by BrightRock quote CP 400500600/.test(raw(pp)), '6. the PDF\u2019s policy note names the counter offer: page ' + pp);
   const info = cp.execFileSync('pdfinfo', ['-f', String(qp), '-l', String(qp), pdfFile]).toString(), size = /Page\s+\d+ size:\s+([\d.]+) x ([\d.]+)/.exec(info); ok(!!size && parseFloat(size[2]) > 0, '6. the page is made to fit its content (' + (size ? size[1] + ' x ' + size[2] : '?') + ' pt)');
   if (qp) cp.execFileSync('pdftoppm', ['-f', String(qp), '-l', String(qp), '-r', '80', '-png', '-singlefile', pdfFile, out + '/r15-pdf-quote']);
@@ -211,6 +231,23 @@ srv.listen(0, async () => {
   /* ---- 8. saved and opened again ---- */
   const json = await p.evaluate(() => OV.store.toJSON(OV.app.state)); await p.evaluate(j => OV.app.setState(OV.store.fromJSON(j)), json); await p.evaluate(() => OV.app.go('fna')); await p.waitForTimeout(400);
   S = await st(); ok(S.blocks.fna.quotes[1].counterOf === S.blocks.fna.quotes[0].id && S.blocks.fna.quotes[1].terms.loadings.length === 3 && /Counter offer/.test(await txt('[data-statusfor="blocks.fna.quotes.1"]')), '8. the counter offer survives saving and opening the file');
+
+  /* ---- 9. a counter offer of ANOTHER insurer's quote is drawn the way that insurer's quotes are drawn ---- */
+  await p.evaluate(() => {
+    const s = OV.store.blank(); s.header.fname = 'Sam'; s.header.sname = 'Scene';
+    const l = { type: 'other', label: 'Cover', term: 'Whole of life', life: { lump: 2000000 }, sev: { lump: 500000 }, ip: { monthly: 10000 }, abi: 5 };
+    const q = OV.docs.applyQuote(s, 'comparative', { insurer: 'Liberty', number: 'LQ-77', date: '19/11/2026', premium: 4000, lines: [l] }, 'Liberty quote.pdf').quote;
+    OV.store.setStatus(s, 'blocks.comparative.quotes.0', 'accepted'); OV.store.setUw(s, 'blocks.comparative.quotes.0', 'loadings');
+    OV.docs.applyQuote(s, 'comparative', { insurer: 'Liberty', number: 'LQ-78', date: '28/11/2026', premium: 4400, lines: [l] }, 'Liberty counter.pdf', { counterOf: q.id });
+    OV.app.setState(s); OV.app.openAll();
+  });
+  await p.evaluate(() => OV.app.go('comparative')); await p.waitForTimeout(500);
+  const oth = await p.evaluate(() => { const one = n => { const c = document.querySelector('[data-row="blocks.comparative.quotes.' + n + '"]'); return { head: [...c.querySelectorAll('table.qlines thead th')].map(t => t.textContent.trim()), rows: c.querySelectorAll('table.qlines tr.ln').length, label: (c.querySelector('table.qlines tr.ln td.need input') || {}).value, term: (c.querySelector('table.qlines tr.ln input[data-p$=".term"]') || {}).value, acc: c.querySelectorAll('.accsel').length, note: /what the other insurer/.test(c.textContent), tot: c.querySelectorAll('table.qlines tr.tot, table.qlines tr.prem').length }; }; return { a: one(0), b: one(1) }; });
+  ok(JSON.stringify(oth.a.head) === JSON.stringify(oth.b.head) && oth.a.rows === oth.b.rows && oth.b.rows === 1 && oth.a.label === oth.b.label && oth.b.label === 'Cover' && oth.a.term === oth.b.term && oth.b.term === 'Whole of life' && oth.a.acc === oth.b.acc && oth.a.note && oth.b.note && oth.a.tot === oth.b.tot, '9. Liberty\u2019s counter offer is drawn exactly as Liberty\u2019s quote is: ' + JSON.stringify(oth.b));
+  await p.screenshot({ path: out + '/r15-other-insurer.png', fullPage: true });
+  const bytes2 = await p.evaluate(() => Array.from(new Uint8Array(OV.app.makePdf().output('arraybuffer')))); fs.writeFileSync(out + '/r15-other.pdf', Buffer.from(bytes2));
+  const n2 = parseInt(/Pages:\s+(\d+)/.exec(cp.execFileSync('pdfinfo', [out + '/r15-other.pdf']).toString())[1], 10); let ot = ''; for (let i = 1; i <= n2; i++) { const t = cp.execFileSync('pdftotext', ['-f', String(i), '-l', String(i), '-raw', out + '/r15-other.pdf', '-']).toString().replace(/\s+/g, ' '); if (/Counter offer/.test(t) && /Liberty/.test(t)) ot = t; }
+  ok((ot.match(/Whole of life/g) || []).length >= 2 && (ot.match(/Total lump sum/g) || []).length >= 2 && (ot.match(/Monthly premium/g) || []).length >= 2, '9. the PDF draws both Liberty quotes with the same table (a whole-of-life line, the totals, the premium)');
 
   ok(errs.length === 0, 'no page errors' + (errs.length ? ': ' + errs.join(' | ') : ''));
   await b.close(); srv.close(); console.log(bad ? bad + ' FAILED' : 'ALL PASSED'); process.exit(bad ? 1 : 0);

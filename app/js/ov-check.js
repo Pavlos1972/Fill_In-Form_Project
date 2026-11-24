@@ -98,7 +98,7 @@
         }
         if (isNum(q.disabilityAge) && isNum(h.disabilityAge) && q.disabilityAge !== h.disabilityAge) add('age', block, where, 'The quote covers disability to age ' + q.disabilityAge + '; the Fact Find says ' + h.disabilityAge + '.');
         if (kind === 'reduced' && !q.counterOf && isNum(q.premium) && isNum(h.premiumBudget) && q.premium > h.premiumBudget + tol) add('budget', block, where, 'The premium of ' + fmtR(q.premium) + ' is above the client\'s budget of ' + fmtR(h.premiumBudget) + '.');
-        if (kind !== 'comparative' && !q.counterOf && /bright/i.test(q.insurer) && figures && !q.cmp) add('gaps', block, where, 'No change moment pay-out guide found for CP ' + (q.number || '(no number yet)') + '.');
+        if (kind !== 'comparative' && /bright/i.test(q.insurer) && figures && !q.cmp) add('gaps', block, where, 'No change moment pay-out guide found for CP ' + (q.number || '(no number yet)') + '.');
         if (q.counterOf) { var nt = calc.termsToCheck(q); if (nt) add('counter.terms', block, where, nt + (nt === 1 ? ' term' : ' terms') + ' read from the counter offer letter ' + (nt === 1 ? 'is' : 'are') + ' to check (the Terms checked button confirms them).'); }          // round 1.2
         if (q.cmp && q.cmp.number && q.number && norm(q.cmp.number) !== norm(q.number)) add('cmp.match', block, where, 'The change moment pay-out is for CP ' + q.cmp.number + ', not for this quote (CP ' + q.number + ').');
       });
@@ -232,7 +232,7 @@
   var KIND_WORD = { fna: 'FNA quote', shortfall: 'shortfall quote', reduced: 'reduced quote' };
   function fillInstalments(state) {
     var n = 0, facts = state.factFind && state.factFind.facts, ffDebts = (facts && facts.debts) || [], all = [];
-    schema.QUOTE_KINDS.forEach(function (k) { calc.quotes(state, schema.blockOfQuote[k]).forEach(function (q) { if (q.kind !== 'comparative' && !q.counterOf && /bright/i.test(q.insurer || '')) all.push(q); }); });
+    schema.QUOTE_KINDS.forEach(function (k) { calc.quotes(state, schema.blockOfQuote[k]).forEach(function (q) { if (q.kind !== 'comparative' && /bright/i.test(q.insurer || '')) all.push(q); }); });
     all.forEach(function (q) {
       var lines = calc.activeLines(q), ffOf = {};
       calc.matchDebts(lines, ffDebts).pairs.forEach(function (p) { ffOf[p.line.id] = p.ff; });
@@ -248,7 +248,7 @@
         if (distinct.length === 1) pick = cands[0];
         else if (cands.length) pick = cands.filter(function (c) { return calc.isNum(c.lump) && calc.isNum(l.life.lump) && Math.abs(c.lump - l.life.lump) < 1; })[0] || null;
         var v = null, from = '';
-        if (pick) { v = pick.v; from = 'from the ' + (KIND_WORD[pick.o.kind] || 'other quote') + (pick.o.number ? ' CP ' + pick.o.number : ''); }
+        if (pick) { v = pick.v; from = 'from the ' + (pick.o.counterOf ? 'counter offer' : (KIND_WORD[pick.o.kind] || 'other quote')) + (pick.o.number ? ' CP ' + pick.o.number : ''); }
         else if (ffOf[l.id] && calc.isNum(ffOf[l.id].inst)) { v = ffOf[l.id].inst; from = 'from the Fact Find'; }
         if (v == null) return;
         l.life.monthly = v; l.via = l.via || {}; l.via['life.monthly'] = from; n++;

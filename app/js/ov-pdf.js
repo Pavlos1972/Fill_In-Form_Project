@@ -197,9 +197,9 @@
     qs.forEach(function (q, i) {
       if (i) y += 6;
       y = quoteHeader(doc, y, q, state);
-      if (q.counterOf) y = counterHead(doc, y, state, q);
       y = linesTable(doc, y, q, false, q.disabilityAge || state.header.disabilityAge) + 3;
       if (calc.activeLines(q).some(function (l) { return l.type === 'debt' && calc.isNum(l.ip && l.ip.monthly) && l.ip.monthly > 0; })) y = note(doc, y, 'Instalment Protector: if you are retrenched, the insurer pays each debt\'s instalment straight to the bank, for a period set by the insurer\'s rules.') + 1;
+      if (q.counterOf) y = counterHead(doc, y + 2, state, q);                                                    // the premium before and after sits UNDER the quote's own table, like the terms
       y = cmpTable(doc, y + 2, q);
       if (!(q.counterOf && !calc.activeLines(q).length)) y = compareTable(doc, y + 3, state, q);                  // a counter offer known only from its letter compares nothing
       y = uwBlock(doc, y + 3, q);

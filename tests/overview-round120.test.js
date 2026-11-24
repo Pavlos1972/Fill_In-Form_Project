@@ -198,10 +198,11 @@ test('the letter’s reading: its own specification asks for the grid, the exclu
   assert.strictEqual(docs.SPEC_OF.counterletter, 'counterletter');
 });
 
-test('the check: unchecked terms hold the counter offer amber; "Terms checked" confirms them; a counter offer is not asked for a pay-out guide', () => {
+test('the check: unchecked terms hold the counter offer amber; "Terms checked" confirms them; a counter offer is asked for its pay-out guide like every BrightRock quote', () => {
   const s = fresh(), q = accepted(s, quote(s, 'fna', '400500600')), c = docs.applyCounterLetter(s, q, LETTER, 'letter.pdf').quote;
   let ps = check.run(s, { ran: true, done: { fna: true } }).problems; assert.ok(ps.some(p => p.id === 'counter.terms' && /4 terms/.test(p.message)));
-  assert.ok(!ps.some(p => p.id === 'gaps' && /400500777/.test(p.message)), 'no pay-out guide is asked for a counter offer');
+  assert.ok(!ps.some(p => p.id === 'gaps' && /400500777/.test(p.message)), 'a counter offer known only from its letter has no figures yet, so no guide is asked for');
+  c.lines = [LINE]; assert.ok(check.run(s, { ran: true, done: { fna: true } }).problems.some(p => p.id === 'gaps' && /400500777/.test(p.message)), 'once it has figures it is asked for its pay-out guide, like every BrightRock quote'); c.lines = [];
   assert.strictEqual(c.st, 'verify'); store.confirmTerms(s, qpath(s, c)); assert.strictEqual(c.st, 'confirmed', 'a counter offer known only from its letter is checked when its terms are');
   ps = check.run(s, { ran: true, done: { fna: true } }).problems; assert.ok(!ps.some(p => p.id === 'counter.terms'));
   assert.strictEqual(check.qTitle(c), 'BrightRock Counter Offer CP 400500777'); assert.notStrictEqual(check.qLabel(c), check.qLabel(q));
@@ -361,8 +362,42 @@ test('review findings: a hand-edited file cannot crash the page (a loop of count
   assert.strictEqual(schema.needGroupById.constructor, undefined); assert.strictEqual(schema.BENEFIT_PILLARS.constructor, undefined);
 });
 
-test('review findings: the checks leave a counter offer out of the shortfall, budget and instalment rules of an ordinary quote', () => {
+test('review findings: the checks leave a counter offer out of the shortfall and budget rules of an ordinary quote', () => {
   const s = fresh(), q = quote(s, 'shortfallQuote', '400500650'); accepted(s, q, 'both'); const c = docs.applyCounterLetter(s, q, LETTER, 'letter.pdf').quote; c.lines = [Object.assign({}, LINE, { life: { lump: 1, monthly: 1 } })];
   const ps = check.run(s, { ran: true, done: { shortfallQuote: true, fna: true } }).problems;
   assert.ok(!ps.some(p => p.id === 'shortfall.match' && /counter offer/.test(p.where)), 'no shortfall difference is flagged on the counter offer');
+});
+
+test('Paul 19:12: a counter offer is shown EXACTLY like every other quote of its insurer: the same lines read the same way, the same pay-out guide, the same instalment fill, the same checks', () => {
+  const s = fresh(); store.fillFromFactFind(s, JSON.stringify(Object.assign({}, FFJ, { l: Object.assign({}, FFJ.l, { kids: [{ d: { name: 'Ann', sname: 'Test', cost: 'R 3 000.00' } }], debts: [{ d: { desc: 'Home loan', prov: 'Test Bank', inst: 'R 14 000.00', bal: 'R 1 000 000.00' } }] }) })), 'ff.json');
+  const FULL = [LINE, { type: 'child', name: 'Ann', sname: 'Test', life: { lump: 100000, monthly: 3000 }, abi: 5 }, { type: 'debt', debt: 'Home loan', bank: 'Test Bank', life: { lump: 1000000, monthly: 'Not found' }, ip: { monthly: 14000 }, abi: 0, accelerated: false }, { type: 'death', life: { lump: 500000, monthly: 2500 }, abi: 3 }, DREAD];
+  const q = accepted(s, quote(s, 'fna', '400500600', { lines: FULL })), c = docs.applyCounterLetter(s, q, LETTER, 'letter.pdf').quote;
+  const r = docs.applyQuote(s, 'fna', { insurer: 'BrightRock', number: '400500777', date: '28/11/2026', premium: 5420.01, aciText: 'Premiums rise with the age adjuster', lines: FULL }, 'counter quote.pdf', { counterOf: q.id });
+  assert.strictEqual(r.quote, c);
+  const shape = x => calc.activeLines(x).map(l => [l.type, l.name || l.debt || '', l.src && l.src.kind, l.accelerated, !!(l.ip && l.ip.monthly), l.st]);
+  assert.deepStrictEqual(shape(c), shape(Object.assign({}, q, { lines: q.lines })), 'every line is read into the counter offer the way the original\u2019s was: child care per child, each debt with its lender, Accelerated / Standalone, the instalment protector');
+  check.settleAll(s);
+  assert.ok(calc.activeLines(c).some(l => l.type === 'debt' && l.life.monthly === 14000 && l.via && /Fact Find|quote/.test(l.via['life.monthly'])), 'a debt instalment the counter offer quote did not print is filled like any quote\u2019s (from the other quote or the Fact Find)');
+  assert.deepStrictEqual(calc.totals(c), calc.totals(q)); assert.strictEqual(c.aciText, 'Premiums rise with the age adjuster');
+  // its change moment pay-out: found and filled like any quote's
+  const m = docs.applyCmp(s, { number: '400500777', rows: [{ key: 'total', today: 1000000, projected: 2000000 }] }, 'BR CMPO - 400500777.pdf');
+  assert.strictEqual(m, c, 'the pay-out guide goes to the counter offer with that CP number'); assert.ok(c.cmp && c.cmp.rows.length === 1);
+  const ps = check.run(s, { ran: true, done: { fna: true } }).problems; assert.ok(!ps.some(p => p.id === 'gaps' && /400500777/.test(p.message)), 'and then nothing is missing');
+});
+
+test('Paul 19:12: a counter offer of ANOTHER insurer\u2019s quote is shown the way that insurer\u2019s quotes are shown (one whole-of-life line, the comparative card)', () => {
+  const s = fresh(), l = { type: 'other', label: 'Cover', term: 'Whole of life', life: { lump: 2000000 }, sev: { lump: 500000 }, ip: { monthly: 10000 } };
+  const q = docs.applyQuote(s, 'comparative', { insurer: 'Liberty', number: 'LQ-77', premium: 4000, lines: [l] }, 'Liberty quote.pdf').quote; accepted(s, q, 'loadings');
+  const c = docs.applyQuote(s, 'comparative', { insurer: 'Liberty', number: 'LQ-78', premium: 4400, lines: [l] }, 'Liberty counter.pdf', { counterOf: q.id }).quote;
+  assert.strictEqual(c.kind, 'comparative'); assert.strictEqual(c.insurer, 'Liberty'); assert.strictEqual(calc.parentOf(s, c), q); assert.deepStrictEqual(calc.activeLines(c).map(x => [x.type, x.label, x.term]), [['other', 'Cover', 'Whole of life']]);
+  assert.deepStrictEqual(calc.totals(c), calc.totals(q)); assert.strictEqual(calc.counterPremium(s, c).diff, 400); assert.strictEqual(s.blocks.comparative.quotes.length, 2, 'in the same block');
+  const ui = app('js/ov-ui.js'); assert.ok(/q\.kind === 'comparative' \? '<p class="blue">This is what the other insurer/.test(ui) && !/q\.counterOf \? ''  *: *cmpHTML/.test(ui), 'the card is the same quote card for both');
+});
+
+test('Paul 19:12: nothing in the three views is a summary: the screen, the PDF and the Presentation draw a counter offer with the same functions as every other quote', () => {
+  const ui = app('js/ov-ui.js'), pdf = app('js/ov-pdf.js'), pr = app('js/ov-present.js');
+  assert.ok(/linesTable\(p, q, false\)/.test(ui) && /cmpHTML\(q, p\)/.test(ui) && !/q\.counterOf \? ''\s*:\s*cmpHTML/.test(ui), 'the screen: the same lines table and pay-out');
+  assert.ok(/y = linesTable\(doc, y, q, false/.test(pdf) && /y = cmpTable\(doc, y \+ 2, q\)/.test(pdf) && /y = uwBlock\(doc, y \+ 3, q\)/.test(pdf), 'the PDF: the same table, pay-out and terms for every quote');
+  assert.ok(/out \+= linesTable\(q, false/.test(pr) && /hasCmp \? \[\['cmp', 'Your change moment pay-out'\]\]/.test(pr), 'the Presentation: the same lines table and pay-out tab');
+  const i1 = pdf.indexOf("y = linesTable(doc, y, q, false"), i2 = pdf.indexOf('counterHead(doc, y + 2, state, q)'), i3 = pdf.indexOf('y = cmpTable(doc, y + 2, q)'); assert.ok(i1 > 0 && i1 < i2 && i2 < i3, 'the premium before and after sits under the table, before the pay-out');
 });
