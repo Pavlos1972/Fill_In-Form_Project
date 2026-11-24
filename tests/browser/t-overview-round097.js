@@ -92,7 +92,7 @@ srv.listen(0, async () => {
 
   /* ---- 0. the version ---- */
   let p = await fresh({});
-  ok(/Version 0\.97/.test(await p.evaluate(() => document.body.innerText)), '0. the header says Version 0.97');
+  ok(/Version 0\.9[78]/.test(await p.evaluate(() => document.body.innerText)), '0. the header says Version 0.97 or later');
   await p.close();
 
   /* ---- 1. permission already granted: ONE click, the list at once (0.94's behaviour), nothing asked of Chrome ---- */
@@ -159,7 +159,7 @@ srv.listen(0, async () => {
   ok(tk6 >= 2 && titles6.some(t => /BR FNA - 100000091/.test(t)) && titles6.some(t => /Policy Summary Schedule - 8844/.test(t)) && !titles6.some(t => /Old note/.test(t)), '6. the same documents are listed and ticked as with the connected folders (' + tk6 + ' ticked): ' + titles6.map(t => t.slice(0, 38)).join(' | '));
   ok(!(await calls(p)).some(c => c.what === 'request'), '6. and Chrome is not asked a second time');
   const picks6 = await p.evaluate(() => window.__picks.slice());
-  ok(picks6.length === 1 && /"mode":"read"/.test(picks6[0]) && /"hasStart":true/.test(picks6[0]), '6. the folder window asks for read access only and opens in New Business: ' + picks6[0]);
+  ok(picks6.length === 1 && /"mode":"read"/.test(picks6[0]) && /"hasStart":false/.test(picks6[0]), '6. the folder window asks for read access only and passes no stored folder as its start: ' + picks6[0]);
   ok(await p.evaluate(() => !!OV.view.state.idx && OV.view.state.idx.seeded === true), '6. the list serves the View buttons too');
   await p.close();
 

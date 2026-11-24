@@ -1024,16 +1024,16 @@
      client's folder…" could stay on the screen for good, every block "Waiting to search"). The limits are in FF.foldersUI.timeouts. */
   var STAGE_TEXT = { permission: 'Waiting for Chrome’s permission question: look next to the address bar and click Allow', find: 'Looking for the client’s folder in New Business and Client Files', list: 'Reading the client’s folders', walk: 'Looking through the client’s folder' };
   var searchTok = 0;
-  /* act: { stop(why), again(), choose() }. After a few seconds of waiting for Chrome the adviser is offered another try (a fresh click, so Chrome counts it), the client's own folder in the browser's folder window, or the normal file window. */
+  /* act: { stop(why), again(), choose(), auto() }. auto (Client Overview Studio 0.98) runs by itself when Chrome has not answered even the first question about the connected folders after a few seconds, while the click is still fresh: it is the folder window. After a few seconds of waiting for Chrome the adviser is offered another try (a fresh click, so Chrome counts it), the client's own folder in the browser's folder window, or the normal file window. */
   function watchSearch(act) {
-    var tok = ++searchTok, t0 = Date.now(), stage = 'permission', timer = null, linked = '', perm = '', w = {};
+    var tok = ++searchTok, t0 = Date.now(), stage = 'permission', timer = null, autoT = null, autoDone = false, linked = '', perm = '', seen = {}, w = {};
     var lim = function () { return (window.FF && FF.foldersUI && FF.foldersUI.timeouts) || {}; };
     w.stale = function () { return tok !== searchTok; };
     w.since = function () { return Date.now() - t0; };
-    w.end = function () { clearInterval(timer); };
+    w.end = function () { clearInterval(timer); clearTimeout(autoT); };
     w.stage = function (st) { stage = st; show(); };
-    w.perm = function (states) { perm = Object.keys(states).map(function (k) { return k + ': ' + states[k]; }).join(', '); show(); };
-    function go(fn) { return function () { searchTok++; clearInterval(timer); fn(); }; }
+    w.perm = function (states) { seen = states; perm = Object.keys(states).map(function (k) { return k + ': ' + states[k]; }).join(', '); show(); };
+    function go(fn) { return function () { searchTok++; clearInterval(timer); clearTimeout(autoT); fn(); }; }
     function show() {
       if (w.stale()) { clearInterval(timer); return; }
       var ms = Date.now() - t0, T = lim(), t = $('#toast');
@@ -1048,6 +1048,12 @@
       } else if (t.firstChild && t.firstChild.nodeType === 3) t.firstChild.nodeValue = msg;                      // the buttons stay where they are, so a click on one is never lost to a redraw
     }
     show(); timer = setInterval(show, 1000);
+    if (act.auto) autoT = setTimeout(function () {
+      if (w.stale() || autoDone || stage !== 'permission') return;
+      var silent = Object.keys(seen).every(function (k) { return seen[k] === 'checking'; });                      // no folder has said anything: not even "not yet"
+      if (!silent) return;
+      autoDone = true; toast('Chrome is not answering about the connected folders, so the folder window is opening: choose the client’s folder.', 20000); go(act.auto)();
+    }, lim().autoPick || 2500);
     return w;
   }
   function loadFromClientFolder() {
@@ -1081,7 +1087,7 @@
       }).catch(function (e) { normal('Something went wrong while reading the folder (' + ((e && e.message) || e) + ').', false); });
     }
     function run() {
-      var me = watchSearch({ stop: function (why) { normal(why, true); }, again: run, choose: FU.pickClientFolder ? chooseFolder : null });
+      var me = watchSearch({ stop: function (why) { normal(why, true); }, again: run, choose: FU.pickClientFolder ? chooseFolder : null, auto: FU.pickClientFolder ? chooseFolder : null });
       w = me;
       FU.clientFiles({ sname: state.header.sname, fname: state.header.fname }, { onStage: me.stage, onPerm: me.perm }).then(function (res) {
         if (me.stale()) return; me.end();

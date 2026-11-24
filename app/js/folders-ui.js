@@ -170,7 +170,7 @@
   function failed(folder) { if (!folder) return Promise.resolve(false); delete cache[folder.key]; delete cache[folder.key + '|ok']; return folder.created ? F.discardEmpty(folder.apps, folder.name) : Promise.resolve(false); }
   /* How long each step of a folder search may take before the page says so instead of waiting for ever (milliseconds; Client Overview Studio 0.96: the search had no limit, and a permission question Chrome was still waiting on, or a slow OneDrive
      folder, left "Looking for the client's folder..." on the screen for good). The tests make them short. */
-  var TIMEOUTS = { permission: 45000, find: 45000, list: 60000, walk: 15000, stopLink: 8000, askAgain: 4000, askNext: 3000 };
+  var TIMEOUTS = { permission: 45000, find: 45000, list: 60000, walk: 15000, stopLink: 8000, askAgain: 4000, askNext: 3000, queryWait: 1200, autoPick: 2500 };
   var SLOW = { slow: true };
   function race(p, ms) { return new Promise(function (resolve, reject) { var t = setTimeout(function () { resolve(SLOW); }, ms); Promise.resolve(p).then(function (v) { clearTimeout(t); resolve(v); }, function (e) { clearTimeout(t); reject(e); }); }); }
   /* One connected folder's state, asked for NOW (in the click's own turn): 'granted', 'prompt' or 'denied'; fail(text) hears why Chrome refused (Client Overview Studio 0.97). */
@@ -197,14 +197,19 @@
     function tell() { if (opts && opts.onPerm) { var sv = {}; keys.forEach(function (k) { sv[LABEL[k]] = PERM_WORD[st[k]] || st[k]; }); opts.onPerm(sv, why); } }
     var queries = keys.map(function (k) { st[k] = 'asking'; return race(queryRoot(all[k].handle, function (t) { why[k] = t; }), left()); });
     tell();
+    var WAIT = { wait: true };
     var asks = keys.map(function (k, i) {
-      return queries[i].then(function (q) {
-        if (q === SLOW || q === 'granted' || !ask) return q;
-        st[k] = 'prompt'; tell();
-        var gate = last ? Promise.race([last, new Promise(function (r) { setTimeout(r, T.askNext || 3000); })]) : Promise.resolve();          // the next folder is asked after this one has answered, or after a few seconds, so a question Chrome never shows cannot hold the next one back
+      var q = queries[i], quick = Promise.race([q, new Promise(function (r) { setTimeout(function () { r(WAIT); }, T.queryWait || 1200); })]);
+      return quick.then(function (first) {
+        if (first === SLOW || first === 'granted') return first;
+        if (!ask) return first === WAIT ? q : first;
+        /* Chrome says "not yet", or has not answered "is this folder open?" at all (Client Overview Studio 0.98: on Paul's screen both folders stayed at "checking" and, because the question was only asked after that answer, it was never asked):
+           the question is asked now, while the click is still fresh, and whichever answer comes first counts. */
+        if (first !== WAIT) { st[k] = 'prompt'; tell(); }
+        var gate = first === WAIT || !last ? Promise.resolve() : Promise.race([last, new Promise(function (r) { setTimeout(r, T.askNext || 3000); })]);          // the next folder is asked after this one has answered, or after a few seconds, so a question Chrome never shows cannot hold the next one back
         var mine = gate.then(function () { return race(requestRoot(all[k].handle, function (t) { why[k] = t; }), left()); });
         last = mine.then(function () {}, function () {});
-        return mine;
+        return first === WAIT ? Promise.race([q.then(function (x) { return x === 'granted' ? x : mine; }), mine]) : mine;
       }).then(function (q) { q = q === SLOW ? 'slow' : q; st[k] = q; if (q === 'granted') live[k] = all[k]; tell(); return q; });
     });
     var finished = Promise.all(asks), firstOpen = new Promise(function (res) { asks.forEach(function (p) { p.then(function (q) { if (q === 'granted') res(); }); }); });
@@ -244,11 +249,10 @@
     for (var c = 0; c < clients.length; c++) { var fs = await race(F.clientDocuments(clients[c]), T.list); if (fs === SLOW) return { reason: 'slow-list' }; files = files.concat(fs); }
     return { label: clients[0].parts.join(' \\ '), files: files, skipped: f.skipped };
   }
-  /* The adviser picks the client's OWN folder in the browser's folder window (a click behind it): choosing it is the permission, so Chrome asks nothing else. For when Chrome will not ask about the connected folders. The window opens in
-     New Business when that is connected. Resolves { label, files, picked: true } or { reason: 'cancelled' | 'unsupported' | 'error' | 'slow-list', why }. */
+  /* The adviser picks the client's OWN folder in the browser's folder window (a click behind it): choosing it is the permission, so Chrome asks nothing else. For when Chrome will not ask about the connected folders. No starting folder is passed (a stored folder is the thing Chrome may not be answering about): Chrome opens the window where it was last used. Resolves { label, files, picked: true } or { reason: 'cancelled' | 'unsupported' | 'error' | 'slow-list', why }. */
   async function pickClientFolder() {
     if (!F.enabled()) return { reason: 'unsupported' };
-    var opts = { id: 'wr-client-folder', mode: 'read' }; try { if (roots.A && roots.A.handle) opts.startIn = roots.A.handle; } catch (e) { /* no hint */ }
+    var opts = { id: 'wr-client-folder', mode: 'read' };                                       // no starting folder is passed: a stored folder is the very thing Chrome may not be answering about; Chrome opens the window where it was last used for this id
     var h; try { h = await window.showDirectoryPicker(opts); } catch (e) { return e && e.name === 'AbortError' ? { reason: 'cancelled' } : { reason: 'error', why: whyText(e) }; }
     var files = await race(F.clientDocuments({ handle: h, parts: [h.name] }), TIMEOUTS.list);
     if (files === SLOW) return { reason: 'slow-list' };
