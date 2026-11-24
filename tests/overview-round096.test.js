@@ -64,10 +64,10 @@ test('pick: 40 buttons over 4,000 files are chosen in well under a quarter of a 
 
 test('every step of a folder search has a limit and a name: permission, find, list, walk (folders-ui.js)', () => {
   const ui = app('js/folders-ui.js');
-  assert.ok(/var TIMEOUTS = \{ permission: 45000, find: 45000, list: 60000, walk: 15000, stopLink: 8000 \}/.test(ui), 'the limits');
+  assert.ok(/var TIMEOUTS = \{ permission: 45000, find: 45000, list: 60000, walk: 15000, stopLink: 8000, askAgain: 4000, askNext: 3000 \}/.test(ui), 'the limits');
   assert.ok(/function race\(p, ms\)/.test(ui) && /resolve\(SLOW\)/.test(ui), 'a promise that does not answer in time gives SLOW');
   ['slow-permission', 'slow-find', 'slow-list'].forEach(r => assert.ok(ui.indexOf("'" + r + "'") >= 0, r));
-  assert.ok(/F\.permission\(all\[keys\[i\]\]\.handle, !!ask\), T\.permission/.test(ui) && /race\(F\.findClients\(r\.live, info\.sname, info\.fname\), T\.find\)/.test(ui) && /race\(F\.clientDocuments\(clients\[c\]\), T\.list\)/.test(ui) && /race\(F\.clientSubfolder\(clients\[0\], kind\), T\.list\)/.test(ui), 'Load, Upload and the View list all race their waits');
+  assert.ok(/race\(requestRoot\(all\[k\]\.handle, function \(t\) \{ why\[k\] = t; \}\), left\(\)\)/.test(ui) && /deadline = Date\.now\(\) \+ T\.permission/.test(ui) && /race\(F\.findClients\(r\.live, info\.sname, info\.fname\), T\.find\)/.test(ui) && /race\(F\.clientDocuments\(clients\[c\]\), T\.list\)/.test(ui) && /race\(F\.clientSubfolder\(clients\[0\], kind\), T\.list\)/.test(ui), 'Load, Upload and the View list all race their waits');
   assert.ok(/say\('permission'\)/.test(ui) && /say\('find'\)/.test(ui) && /say\('list'\)/.test(ui) && /say\('walk'\)/.test(ui), 'each stage is announced');
   assert.ok(/race\(F\.permission\(h, !!ask\), TIMEOUTS\.permission\)/.test(ui), 'the key-points library never waits for ever on a question either');
   assert.ok(/timeouts: TIMEOUTS/.test(ui), 'the limits are in FF.foldersUI.timeouts, for the tests');
@@ -75,11 +75,11 @@ test('every step of a folder search has a limit and a name: permission, find, li
 
 test('the screen: Load and Upload watch their search (the stage and the seconds, a Stop link, an end that always comes), an error in the load shows a message, and a late result of a stopped search is ignored', () => {
   const ui = app('js/ov-ui.js');
-  assert.ok(/function watchSearch\(onStop\)/.test(ui) && /Stop and use the normal file window/.test(ui) && /var searchTok = 0;/.test(ui));
+  assert.ok(/function watchSearch\(act\)/.test(ui) && /Stop and use the normal file window/.test(ui) && /var searchTok = 0;/.test(ui));
   assert.ok(/Waiting for Chrome’s permission question: look next to the address bar and click Allow/.test(ui), 'the wait says what it waits for');
-  assert.ok(/FU\.clientFiles\(info, \{ onStage: w\.stage \}\)/.test(ui) && /FU\.clientFolder\(\{ sname: state\.header\.sname, fname: state\.header\.fname \}, CLIENT_KIND\[block\], \{ onStage: w\.stage \}\)/.test(ui), 'both searches report their stage');
-  assert.ok(/if \(w\.stale\(\)\) return;/.test(ui), 'a result that comes after the search was stopped changes nothing');
-  assert.ok(/\.catch\(function \(e\) \{ if \(w\.stale\(\)\) return; normal\('Something went wrong while looking for the client’s folder/.test(ui), 'an error in the success handler is told');
+  assert.ok(/FU\.clientFiles\(\{ sname: state\.header\.sname, fname: state\.header\.fname \}, \{ onStage: me\.stage, onPerm: me\.perm \}\)/.test(ui) && /FU\.clientFolder\(\{ sname: state\.header\.sname, fname: state\.header\.fname \}, CLIENT_KIND\[block\], \{ onStage: w\.stage, onPerm: w\.perm \}\)/.test(ui), 'both searches report their stage');
+  assert.ok(/if \(me\.stale\(\)\) return;/.test(ui), 'a result that comes after the search was stopped changes nothing');
+  assert.ok(/\.catch\(function \(e\) \{ if \(me\.stale\(\)\) return; normal\('Something went wrong while looking for the client’s folder/.test(ui), 'an error in the success handler is told');
   assert.ok(/toastLink\(\(why \? why \+ ' ' : ''\) \+ 'Nothing was loaded\.', 'Open the normal file window'/.test(ui), 'after a long wait the browser would refuse the window, so the message carries the button for the click that is needed');
   ['slow-permission', 'slow-find', 'slow-list'].forEach(r => assert.ok(ui.indexOf("'" + r + "'") >= 0, r + ' has its words'));
   const names = (ui.match(/^\s{2,4}function ([A-Za-z0-9_]+)\(/gm) || []).map(x => x.replace(/^\s*function /, '').replace(/\($/, '')); assert.deepStrictEqual(names.filter((n, i) => names.indexOf(n) !== i), [], 'no name twice');
@@ -101,6 +101,6 @@ test('a list that covers only some folders never greys a button; a complete one 
   assert.ok(/idx\.partial\) return \{ reason: 'partial'/.test(src) && /The client’s folder is big: its list was cut short/.test(src), 'and a click on a button whose file was not found in a cut-short list says so');
 });
 
-test('the page version is 0.96, the layout is still 0.1 and the saved file gains no key', () => {
-  const schema = require('../app/js/ov-schema.js'); assert.strictEqual(schema.pageVersion, '0.96'); assert.strictEqual(schema.version, '0.1');
+test('the page version moves on with the fixes (0.97 now), the layout is still 0.1 and the saved file gains no key', () => {
+  const schema = require('../app/js/ov-schema.js'); assert.strictEqual(schema.pageVersion, '0.97'); assert.strictEqual(schema.version, '0.1');
 });

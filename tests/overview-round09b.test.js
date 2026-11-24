@@ -49,7 +49,7 @@ test('the screen: a waiting bar for every block before the folder is searched, a
   assert.ok(/check\.run\(state, runOpts\(\)\)/.test(ui) && !/check\.run\(state, \{ ran: ran \}\)/.test(ui), 'every check of the screen carries the list of finished blocks');
   assert.ok(/if \(loading\) \{ deferred = true; return Promise\.resolve\(\); \}/.test(ui), 'a check asked for while a search runs is held until the search has ended');
   assert.ok(/function busy\(id\)[^\n]*'waiting'[^\n]*'searching'/.test(ui), 'a waiting or searching block shows no note');
-  assert.ok(/beginSearch\(\);\s+\/\/ every block waits/.test(ui) && /abandonSearch\(\);\s+if \(click \|\| w\.since\(\) < 4000\) \{ toast\(\(why/.test(ui) && /counted: true/.test(ui), 'the folder load starts the search, falls back without a verdict, and hands the count to ingest');
+  assert.ok(/beginSearch\(\);\s+\/\/ every block waits/.test(ui) && /abandonSearch\(\);\s+if \(click === true \|\| \(click !== false && w\.since\(\) < 4000\)\) \{ toast\(\(why/.test(ui) && /counted: true/.test(ui), 'the folder load starts the search, falls back without a verdict, and hands the count to ingest');
   assert.ok(/fillFactFind[\s\S]{0,400}checkPass\(\)/.test(ui) && /\{ explicit: true \}/.test(ui), 'Fill from Fact Find checks (held while loading); only the Check all blocks button counts as a search of the documents');
   const css = app('css/overview.css'); assert.ok(/\.nav \.prog\.waiting/.test(css) && /\.nav \.prog\.searching/.test(css), 'styled');
 });
@@ -211,7 +211,7 @@ test('the Presentation\'s tables: a figure never runs into the next column (it i
 
 /* ---------- the contract ---------- */
 test('the contract: revision j, the page version 0.92, the layout still 0.1; new: benefits.sev, match "quote", src.kind "followup"', () => {
-  assert.strictEqual(schema.pageVersion, '0.96'); assert.strictEqual(schema.version, '0.1');
+  assert.strictEqual(schema.pageVersion, '0.97'); assert.strictEqual(schema.version, '0.1');
   assert.ok(/Revision j/.test(fs.readFileSync(path.join(__dirname, '..', 'docs', 'OVERVIEW-DATA-CONTRACT.md'), 'utf8')), 'written in the contract');
 });
 

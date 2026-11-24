@@ -170,42 +170,100 @@
   function failed(folder) { if (!folder) return Promise.resolve(false); delete cache[folder.key]; delete cache[folder.key + '|ok']; return folder.created ? F.discardEmpty(folder.apps, folder.name) : Promise.resolve(false); }
   /* How long each step of a folder search may take before the page says so instead of waiting for ever (milliseconds; Client Overview Studio 0.96: the search had no limit, and a permission question Chrome was still waiting on, or a slow OneDrive
      folder, left "Looking for the client's folder..." on the screen for good). The tests make them short. */
-  var TIMEOUTS = { permission: 45000, find: 45000, list: 60000, walk: 15000, stopLink: 8000 };
+  var TIMEOUTS = { permission: 45000, find: 45000, list: 60000, walk: 15000, stopLink: 8000, askAgain: 4000, askNext: 3000 };
   var SLOW = { slow: true };
   function race(p, ms) { return new Promise(function (resolve, reject) { var t = setTimeout(function () { resolve(SLOW); }, ms); Promise.resolve(p).then(function (v) { clearTimeout(t); resolve(v); }, function (e) { clearTimeout(t); reject(e); }); }); }
-  /* The connected folders Chrome lets this page read: { live } or { reason }. Asking (ask true) needs a click behind it; a question Chrome never gets an answer to ends as 'slow-permission'. */
-  async function liveRoots(ask, say) {
-    var T = TIMEOUTS; say('permission');
+  /* One connected folder's state, asked for NOW (in the click's own turn): 'granted', 'prompt' or 'denied'; fail(text) hears why Chrome refused (Client Overview Studio 0.97). */
+  function whyText(e) { return ((e && e.name) || 'Error') + (e && e.message ? ': ' + e.message : ''); }
+  function queryRoot(h, fail) {
+    try { return Promise.resolve(h.queryPermission ? h.queryPermission({ mode: 'readwrite' }) : 'granted').catch(function (e) { if (fail) fail(whyText(e)); return 'denied'; }); }
+    catch (e) { if (fail) fail(whyText(e)); return Promise.resolve('denied'); }
+  }
+  function requestRoot(h, fail) {
+    try { return Promise.resolve(h.requestPermission({ mode: 'readwrite' })).catch(function (e) { if (fail) fail(whyText(e)); return 'denied'; }); }
+    catch (e) { if (fail) fail(whyText(e)); return Promise.resolve('denied'); }
+  }
+  var PERM_WORD = { asking: 'checking', prompt: 'waiting for your answer', granted: 'allowed', denied: 'not allowed', slow: 'no answer' };
+  /* The connected folders Chrome lets this page read. 0.97: every folder is asked about at the same moment, so a folder that is already open never waits behind one Chrome is still asking about; with ask true (a click behind it) a folder that
+     is not open is then asked for, one after the other as before. opts.early: resolves as soon as ONE folder is open ({ live, rest } where rest is a promise of the final set); otherwise when every folder has answered.
+     opts.onPerm(states, why) hears each folder's state as it changes ({ 'New Business': 'allowed', ... }; why: what Chrome said when it refused).
+     Resolves { live, rest, why } or { reason: 'connect' | 'access' | 'slow-find' | 'slow-permission', why }. */
+  async function liveRoots(ask, say, opts) {
+    var T = TIMEOUTS, early = !!(opts && opts.early); say('permission');
     var o = await race(load(), T.find); if (o === SLOW) return { reason: 'slow-find' };
     var all = withPaths(), keys = Object.keys(all);
     if (!F.enabled() || !keys.length) return { reason: 'connect' };
-    var live = {};
-    for (var i = 0; i < keys.length; i++) { var q = await race(F.permission(all[keys[i]].handle, !!ask), T.permission); if (q === SLOW) return { reason: 'slow-permission' }; if (q === 'granted') live[keys[i]] = all[keys[i]]; }
-    if (!Object.keys(live).length) return { reason: 'access' };
-    return { live: live };
+    var live = {}, st = {}, why = {}, last = null, deadline = Date.now() + T.permission, left = function () { return Math.max(1, deadline - Date.now()); };      // one limit for all the questions together
+    function tell() { if (opts && opts.onPerm) { var sv = {}; keys.forEach(function (k) { sv[LABEL[k]] = PERM_WORD[st[k]] || st[k]; }); opts.onPerm(sv, why); } }
+    var queries = keys.map(function (k) { st[k] = 'asking'; return race(queryRoot(all[k].handle, function (t) { why[k] = t; }), left()); });
+    tell();
+    var asks = keys.map(function (k, i) {
+      return queries[i].then(function (q) {
+        if (q === SLOW || q === 'granted' || !ask) return q;
+        st[k] = 'prompt'; tell();
+        var gate = last ? Promise.race([last, new Promise(function (r) { setTimeout(r, T.askNext || 3000); })]) : Promise.resolve();          // the next folder is asked after this one has answered, or after a few seconds, so a question Chrome never shows cannot hold the next one back
+        var mine = gate.then(function () { return race(requestRoot(all[k].handle, function (t) { why[k] = t; }), left()); });
+        last = mine.then(function () {}, function () {});
+        return mine;
+      }).then(function (q) { q = q === SLOW ? 'slow' : q; st[k] = q; if (q === 'granted') live[k] = all[k]; tell(); return q; });
+    });
+    var finished = Promise.all(asks), firstOpen = new Promise(function (res) { asks.forEach(function (p) { p.then(function (q) { if (q === 'granted') res(); }); }); });
+    await (early ? Promise.race([firstOpen, finished]) : finished);
+    if (Object.keys(live).length) return { live: Object.assign({}, live), rest: finished.then(function () { return Object.assign({}, live); }), why: why };
+    return { reason: keys.some(function (k) { return st[k] === 'slow'; }) ? 'slow-permission' : 'access', why: why };
+  }
+  /* The client's folders in the folders that are open; when there are none there and some folders are still being asked about, those are waited for (up to the permission limit) and searched too.
+     Resolves { clients, skipped } (skipped: the folders that were not open, by name) or { slow: true }. */
+  async function findInOpen(r, info, say) {
+    var T = TIMEOUTS; say('find');
+    var clients = await race(F.findClients(r.live, info.sname, info.fname), T.find);
+    if (clients === SLOW) return { slow: true };
+    var final = r.live;
+    if (!clients.length && r.rest) {
+      say('permission'); var fin = await race(r.rest, T.permission);
+      if (fin !== SLOW) {
+        final = fin; var more = {};
+        Object.keys(fin).forEach(function (k) { if (!r.live[k]) more[k] = fin[k]; });
+        if (Object.keys(more).length) { say('find'); var extra = await race(F.findClients(more, info.sname, info.fname), T.find); if (extra === SLOW) return { slow: true }; clients = extra; }
+      }
+    }
+    return { clients: clients, skipped: Object.keys(withPaths()).filter(function (k) { return !final[k]; }).map(function (k) { return LABEL[k]; }) };
   }
   /* The documents of the client's folder for the Client Overview's "Load from client folder": the connected folders are searched for the client, as for a Save, and the files that can be read are listed. Reads only.
-     opts.onStage(stage) hears 'permission', 'find' and 'list' as the search goes on. Resolves { label, files: [{ name, rel, handle }] } or { reason: 'connect' | 'access' | 'names' | 'client' | 'slow-permission' | 'slow-find' | 'slow-list' }. */
+     opts.onStage(stage) hears 'permission', 'find' and 'list' as the search goes on; opts.onPerm(states, why) hears what Chrome says about each folder. The list opens as soon as ONE connected folder is open (0.97).
+     Resolves { label, files: [{ name, rel, handle }], skipped } or { reason: 'connect' | 'access' | 'names' | 'client' | 'slow-permission' | 'slow-find' | 'slow-list', why, skipped }. */
   async function clientFiles(info, opts) {
-    var say = (opts && opts.onStage) || function () {}, T = TIMEOUTS, r = await liveRoots(true, say);
-    if (r.reason) return { reason: r.reason };
+    var say = (opts && opts.onStage) || function () {}, T = TIMEOUTS, r = await liveRoots(true, say, { early: true, onPerm: opts && opts.onPerm });
+    if (r.reason) return { reason: r.reason, why: r.why };
     if (F.norm(info.sname) === '') return { reason: 'names' };
-    say('find'); var clients = await race(F.findClients(r.live, info.sname, info.fname), T.find);
-    if (clients === SLOW) return { reason: 'slow-find' };
-    if (!clients.length) return { reason: 'client' };
+    var f = await findInOpen(r, info, say);
+    if (f.slow) return { reason: 'slow-find' };
+    var clients = f.clients;
+    if (!clients.length) return { reason: 'client', skipped: f.skipped };
     say('list'); var files = [];
     for (var c = 0; c < clients.length; c++) { var fs = await race(F.clientDocuments(clients[c]), T.list); if (fs === SLOW) return { reason: 'slow-list' }; files = files.concat(fs); }
-    return { label: clients[0].parts.join(' \\ '), files: files };
+    return { label: clients[0].parts.join(' \\ '), files: files, skipped: f.skipped };
+  }
+  /* The adviser picks the client's OWN folder in the browser's folder window (a click behind it): choosing it is the permission, so Chrome asks nothing else. For when Chrome will not ask about the connected folders. The window opens in
+     New Business when that is connected. Resolves { label, files, picked: true } or { reason: 'cancelled' | 'unsupported' | 'error' | 'slow-list', why }. */
+  async function pickClientFolder() {
+    if (!F.enabled()) return { reason: 'unsupported' };
+    var opts = { id: 'wr-client-folder', mode: 'read' }; try { if (roots.A && roots.A.handle) opts.startIn = roots.A.handle; } catch (e) { /* no hint */ }
+    var h; try { h = await window.showDirectoryPicker(opts); } catch (e) { return e && e.name === 'AbortError' ? { reason: 'cancelled' } : { reason: 'error', why: whyText(e) }; }
+    var files = await race(F.clientDocuments({ handle: h, parts: [h.name] }), TIMEOUTS.list);
+    if (files === SLOW) return { reason: 'slow-list' };
+    return { label: h.name, files: files, picked: true };
   }
   /* The client's subfolder for a kind of document, for "Upload from client folder" (Client Overview Studio 0.6): the connected folders are searched for the client, as for a Save, and the folder where that kind of
-     document is kept (or the client's folder) is returned so the file window can open in it. Reads only. Resolves { handle, label, several } or { reason: 'connect' | 'access' | 'names' | 'client' | 'slow-permission' | 'slow-find' | 'slow-list' }. */
+     document is kept (or the client's folder) is returned so the file window can open in it. Reads only. Resolves { handle, label, several } or { reason: 'connect' | 'access' | 'names' | 'client' | 'slow-permission' | 'slow-find' | 'slow-list', why, skipped }. */
   async function clientFolder(info, kind, opts) {
-    var say = (opts && opts.onStage) || function () {}, T = TIMEOUTS, r = await liveRoots(true, say);
-    if (r.reason) return { reason: r.reason };
+    var say = (opts && opts.onStage) || function () {}, T = TIMEOUTS, r = await liveRoots(true, say, { early: true, onPerm: opts && opts.onPerm });
+    if (r.reason) return { reason: r.reason, why: r.why };
     if (F.norm(info.sname) === '') return { reason: 'names' };
-    say('find'); var clients = await race(F.findClients(r.live, info.sname, info.fname), T.find);
-    if (clients === SLOW) return { reason: 'slow-find' };
-    if (!clients.length) return { reason: 'client' };
+    var f = await findInOpen(r, info, say);
+    if (f.slow) return { reason: 'slow-find' };
+    var clients = f.clients;
+    if (!clients.length) return { reason: 'client', skipped: f.skipped };
     say('list'); var sub = await race(F.clientSubfolder(clients[0], kind), T.list);
     if (sub === SLOW) return { reason: 'slow-list' };
     return { handle: sub.handle, label: sub.parts.join(' \\ '), several: clients.length > 1 };
@@ -229,14 +287,15 @@
      partial: true. Resolves { label, files: [{ name, rel, handle }], partial } or { reason: 'connect' | 'access' | 'names' | 'client' | 'slow-permission' | 'slow-find' }. */
   var idxCache = {};
   async function clientIndex(info, opts) {
-    var ask = opts === true || !!(opts && opts.ask), say = (opts && opts.onStage) || function () {}, T = TIMEOUTS, r = await liveRoots(ask, say);
-    if (r.reason) return { reason: r.reason };
+    var ask = opts === true || !!(opts && opts.ask), say = (opts && opts.onStage) || function () {}, T = TIMEOUTS, r = await liveRoots(ask, say, { early: true, onPerm: opts && opts.onPerm });
+    if (r.reason) return { reason: r.reason, why: r.why };
     if (F.norm(info.sname) === '') return { reason: 'names' };
     var key = F.norm(info.sname) + '|' + F.norm(info.fname);
     if (idxCache[key]) return idxCache[key];
-    say('find'); var clients = await race(F.findClients(r.live, info.sname, info.fname), T.find);
-    if (clients === SLOW) return { reason: 'slow-find' };
-    if (!clients.length) return { reason: 'client' };
+    var fi = await findInOpen(r, info, say);
+    if (fi.slow) return { reason: 'slow-find' };
+    var clients = fi.clients;
+    if (!clients.length) return { reason: 'client', skipped: fi.skipped };
     say('walk'); var files = [], partial = false;
     for (var c = 0; c < clients.length; c++) {
       var sink = [], one = await race(F.viewableFiles(clients[c], { sink: sink, ms: T.walk }), T.walk + 2000);
@@ -251,5 +310,5 @@
     return (lastFolder ? '<div>Saved in <b>' + esc(lastFolder) + '</b></div>' : '') + (line ? '<div class="fnote">' + line + '</div>' : '');
   }
 
-  FF.foldersUI = { init: init, connect: connect, open: open, clientFiles: clientFiles, clientFolder: clientFolder, clientIndex: clientIndex, forgetIndex: forgetIndex, timeouts: TIMEOUTS, rootFile: rootFile, failed: failed, forget: forget, metaHTML: metaHTML, ask: ask, connected: function () { return Object.keys(roots); } };
+  FF.foldersUI = { init: init, connect: connect, open: open, clientFiles: clientFiles, clientFolder: clientFolder, pickClientFolder: pickClientFolder, clientIndex: clientIndex, forgetIndex: forgetIndex, timeouts: TIMEOUTS, rootFile: rootFile, failed: failed, forget: forget, metaHTML: metaHTML, ask: ask, connected: function () { return Object.keys(roots); } };
 })();
