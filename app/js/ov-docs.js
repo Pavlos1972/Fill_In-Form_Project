@@ -54,7 +54,8 @@
       'EVERY need line (household, each child, each debt, death-related needs, additional expense needs / dread) says whether its cover is ACCELERATED ("accelerated": true: it is paid out of, and reduces, the life cover) or STANDALONE ("accelerated": false: a separate benefit on top of the life cover); BrightRock prints it in brackets after the need\'s name, for example HOUSEHOLD (Standalone), CHILD CARE - name (Standalone), DEATH RELATED NEEDS (WOL - Standalone), ADDITIONAL EXPENSE NEEDS (DREAD) (Standalone): copy it exactly; when the quote does not say, write null. ' +
       'EVERY line has its own "abi": the annual benefit increase (annual base increase) of that need, as a number. BrightRock prints it for each need, or once for the whole quote: when it is printed once, copy it onto every line it covers (and also give it as "abi" of the quote). ' +
       'When the quote prints no annual benefit increase for a line, write "Not found" in that line\'s "abi", never null. Severe illness has an amount only on the lines where the quote gives one (the additional expense needs line); leave it null on the others. ' +
-      'For a quote that does not list needs separately (other insurers), give one line of type "other" for each benefit with its label. printedTotals is only what the document itself prints as totals; leave it null if it prints none.',
+      'For a quote that does not list needs separately (other insurers), give one line of type "other" for each benefit with its label. printedTotals is only what the document itself prints as totals; leave it null if it prints none. ' +
+      'A quote\'s own Underwriting terms grid (additional charge, exclusions) is never read here: loadings and exclusion numbers come from the insurer\'s counter offer letter only.',
     policy: 'This is a policy schedule from ANY insurer. Return { "insurer": "text", "product": "text", "policyNo": "text", "doc": "dd/mm/yyyy (date of commencement)", "premium": n (monthly), "aci": n, "aciText": "the yearly premium increase exactly as the schedule words it, or null when it only gives a figure", "abi": n, "ipAge": n, "benefits": { "life": "...", "sev": "...", "lsd": "...", "ip": "..." }, "lines": [ ' + LINE + ' ] }. ' +
       '"aciPoints" is the yearly premium increase in ONE to THREE very short points, at most 40 characters each, the gist only (for example "Reviewed yearly after year 1", "Extra cover priced pro rata"); NEVER a paragraph; null when the schedule only gives a percentage. ' +
       'The four "benefits" are a very short description of each benefit, read from the schedule, for ANY insurer: ONE or TWO short lines each (about 60 characters), no amounts, null for a benefit the policy does not have. ' +
@@ -86,10 +87,12 @@
     counterletter: 'This is an insurer\'s COUNTER OFFER LETTER, sent after underwriting when the client accepted a quote and the insurer came back with loadings or exclusions (for BrightRock the file is called "<Name>\'s cover terms (Cover Proposal <original number> <revised number>)"). ' +
       'Return { "originalNumber": "the original Cover Proposal or quote number as printed", "revisedNumber": "the revised Cover Proposal or quote number as printed", "origPremium": n (the original monthly premium), "revPremium": n (the revised monthly premium), "startDate": "dd/mm/yyyy (the revised policy start date)", ' +
       '"expires": "dd/mm/yyyy (the date the revised proposal expires) or null", "termsPage": n (the page of THIS PDF file that holds the grid of underwriting terms, the first page of the file is 1), "exclusionsPage": n (the page of THIS PDF file that lists the cover exclusions) or null, ' +
-      '"cells": [ { "need": "needs" | "dread", "column": "recover" | "permanent" | "death", "decision": "the decision as printed, for example Accepted, Declined", "loading": n (the premium loading in percent, or null when there is none), "exclusions": [ "the exclusion numbers printed in that cell, as printed, for example 1*" ], "reduced": true | false } ], ' +
-      '"exclusions": [ { "no": "the exclusion number as printed, for example 1*", "type": "the type as printed, for example Medical", "what": "what it means, copied in the insurer\'s own words", "page": n } ], "notes": "anything else the letter says about a declined or reduced cover or a condition, in one or two short sentences, or null" }. ' +
+      '"cells": [ { "need": "needs" | "dread", "column": "recover" | "permanent" | "death", "decision": "the decision as printed, for example Accepted, Declined", "loading": n (the premium loading in percent, or null when there is none), "exclusions": [ "the exclusion numbers printed in that cell, as printed, for example 4*" ], "reduced": true | false } ], ' +
+      '"exclusions": [ { "no": "the exclusion number as printed, for example 4*", "type": "the type as printed, for example Medical", "what": "what it means, copied in the insurer\'s own words", "page": n } ], "notes": "anything else the letter says about a declined or reduced cover or a condition, in one or two short sentences, or null" }. ' +
       'The grid\'s ROWS are the need groups: "needs" = cover for household, childcare, healthcare, debt and death-related needs; "dread" = cover for additional expense needs. Its three COLUMN GROUPS are: "recover" = cover that you can recover from; "permanent" = cover that is permanent; "death" = cover that is caused by death. ' +
-      'Give one cell for each row and column group the letter prints. Copy every number exactly as printed; write null for anything the letter does not print; never work anything out and never guess.',
+      'Give one cell for each row and column group the letter prints. Copy every number exactly as printed; write null for anything the letter does not print; never work anything out and never guess. ' +
+      'The text of a BrightRock PDF can show the two letters "ti" as odd characters (for example "underwri?ng"): write them as "ti". The exclusion number (for example 4*) can be printed in the middle of the paragraph that explains the exclusion: it is never part of the wording, leave it out of "what". ' +
+      'Read the loadings, the exclusion numbers and the premiums from THIS letter only.',
     cmp: 'This is a BrightRock change moment pay-out guide. Return { "number": "the CP number", "activationDate": "dd/mm/yyyy", "reason": "BrightRock\'s reason, only if it gives no pay-out, else null", "rows": [ { "key": "total" | "retirement" | "childcare" | "child", "name": "child first name", "sname": "child surname", "today": n, "projected": n, "payoutDate": "dd/mm/yyyy" or null } ] }.'
   };
   var SPEC_OF = { fna: 'quote', shortfallQuote: 'quote', reduced: 'quote', comparative: 'quote', policies: 'policy', group: 'group', investments: 'investment', astute: 'astute', cmp: 'cmp', proposed: 'proposal', goals: 'goal', other: 'policy', followup: 'followup', ffnotes: 'ffnotes', bremail: 'bremail', counterletter: 'counterletter' };
@@ -203,6 +206,7 @@
   /* A quote. data: what was read (or, with reading off, { number, date } from the file name). o: { replaces: id } */
   function applyQuote(state, block, data, file, o) {
     o = o || {}; data = data || {};
+    var rt1 = o.counterOf ? store.findQuote(state, o.counterOf) : null; if (/bright/i.test(s(data.insurer) || (rt1 && rt1.insurer) || '')) glyphs(data);
     var kind = QUOTE_OF[block], src = srcOf('quote', file), q = store.newQuote(state, kind), read = !!(data.lines && data.lines.length);
     if (s(data.insurer)) q.insurer = s(data.insurer);
     q.number = s(data.number) || ''; q.date = dmy(data.date); if (s(data.rates)) q.rates = s(data.rates);
@@ -232,11 +236,12 @@
     if (same) {
       if (!read && quoteRead(same)) return { quote: same, read: false, duplicate: same, merged: 'kept' };   // only a name and a number: what was read is never replaced by it
       var keep = { id: same.id, status: same.status, uw: same.uw, second: same.second, counterOf: same.counterOf, offer: same.offer, terms: same.terms, repl: same.repl, policyNo: same.policyNo, startDate: same.startDate, cmp: same.cmp, replaces: same.replaces, replacedBy: same.replacedBy };          // the adviser's choices (status, underwriting, terms, replacements) are never lost to a second reading
-      Object.keys(same).forEach(function (k) { delete same[k]; }); Object.assign(same, q, keep);
+      Object.keys(same).forEach(function (k) { delete same[k]; }); Object.assign(same, q, keep); alignPremium(same);
       return { quote: same, read: read, duplicate: same, merged: 'again' };
     }
     var dup = findQuoteByNumber(state, q.number);                                                           // a quote with this number (not removed) is already there: the caller says so
     var arr = state.blocks[schema.blockOfQuote[kind]].quotes; if (place && arr.indexOf(place) >= 0) arr.splice(arr.indexOf(place) + 1, 0, q); else arr.push(q);          // a replaced counter offer keeps its place: replacing the older one never makes the replacement the live one
+    alignPremium(q);
     return { quote: q, read: read, duplicate: dup || null };
   }
   /* A policy schedule fills the details of one item of block 1. Returns the item, or null when none matches (the schedule is for a policy that is not in the Fact Find). */
@@ -511,6 +516,19 @@
     it.st = 'verify'; it.by = 'page'; it.src = src; return { item: it, wasRequested: was };
   }
   /* ---------- counter offers (round 1.2) ---------- */
+  /* Round 1.3 (24 November, from the Fix Skills chat's test on a real BrightRock letter; the page itself has not been seen to meet either fault, these are safety nets). BrightRock's PDF font draws the two letters "ti" as the private
+     characters U+E000 and U+E001 (the text of those PDFs reads "underwri?ng"): a reading of a BrightRock document that copies them is put right. Only BrightRock's: another insurer's font may use these code points for something else. */
+  function glyphs(v) {
+    if (typeof v === 'string') return v.replace(/[\uE000\uE001]/g, 'ti');
+    if (Array.isArray(v)) { for (var i = 0; i < v.length; i++) v[i] = glyphs(v[i]); return v; }
+    if (v && typeof v === 'object') { Object.keys(v).forEach(function (k) { v[k] = glyphs(v[k]); }); return v; }
+    return v;
+  }
+  /* The letter's revised premium and the counter offer quote's premium are the same figure a cent apart (rounding): the letter's wins, so a card never prints two premiums. A real difference is left alone and checked (ov-check). */
+  function alignPremium(c) {
+    var off = c && c.offer; if (!off || !calc.isNum(c.premium) || !calc.isNum(off.revPremium)) return;
+    if (c.premium !== off.revPremium && Math.abs(c.premium - off.revPremium) <= 0.05) c.premium = off.revPremium;
+  }
   /* What a file in a client's counter offer folder is, from its name: letter (the counter offer letter), quote (the revised proposal), consent (ignore), signed (the client's signed copy: a sign the client accepted), other. numbers: the 6 to 12 digit
      numbers in the name, in order (BrightRock's letter names the original and the revised proposal, its quote only the revised one). */
   function counterRole(fileName) {
@@ -529,6 +547,7 @@
      its `offer`. A row the adviser has checked is never replaced by a second reading. root: the quote the client accepted. Returns { quote, loadings, exclusions }. */
   function applyCounterLetter(state, root, data, file, o) {
     o = o || {}; data = data || {};
+    if (/bright/i.test(s(root && root.insurer) || s(o.insurer) || '')) glyphs(data);
     var src = function (page) { var x = srcOf('counteroffer', file); x.page = calc.isNum(n(page)) ? n(page) : null; return x; };
     var c = counterFor(state, root, data.revisedNumber || o.number, String(file || '')), off = c.offer = c.offer && typeof c.offer === 'object' ? c.offer : {};
     off.letter = String(file || ''); off.originalNumber = s(data.originalNumber) || off.originalNumber || null; off.revisedNumber = s(data.revisedNumber) || off.revisedNumber || null;
@@ -543,7 +562,7 @@
     cells.forEach(function (cell) {
       if (!cell || !schema.needGroupById[cell.need] || !schema.columnGroupById[cell.column]) return;
       var pct = n(cell.loading); if (!calc.isNum(pct) || !(pct > 0)) return;
-      var row = { benefit: schema.columnGroupById[cell.column].benefit, pct: pct, kind: null, reason: '', need: cell.need, column: cell.column, st: 'verify', by: 'page', src: src(data.termsPage) };
+      var row = { benefit: schema.cellOf(cell.need, cell.column).benefit, pct: pct, kind: null, reason: '', need: cell.need, column: cell.column, st: 'verify', by: 'page', src: src(data.termsPage) };
       var have = t.loadings.filter(function (x) { return x && x.need === row.need && x.column === row.column; })[0];
       if (!have) { t.loadings.push(row); made.loadings++; }
       else if (have.st === 'verify' && have.by !== 'person' && have.pct !== pct) { have.pct = pct; have.src = row.src; made.updated++; }
@@ -552,13 +571,13 @@
       if (!e || (!s(e.no) && !s(e.what))) return;
       var no = s(e.no), applies = [];
       cells.forEach(function (cell) { if (cell && schema.needGroupById[cell.need] && schema.columnGroupById[cell.column] && Array.isArray(cell.exclusions) && no && cell.exclusions.some(function (x) { return calc.norm(x) === calc.norm(no); })) applies.push({ need: cell.need, column: cell.column }); });
-      var bens = []; applies.forEach(function (a) { var b = schema.columnGroupById[a.column].benefit; if (bens.indexOf(b) < 0) bens.push(b); });
-      var row = { no: no, benefit: bens.length ? bens.join(' and ') : '', what: s(e.what) || '', why: s(e.type) || '', applies: applies, st: 'verify', by: 'page', src: src(e.page || data.exclusionsPage), page: calc.isNum(n(e.page)) ? n(e.page) : null };
+      var row = { no: no, benefit: schema.cellsBenefit(applies), what: calc.ownNumberOut(s(e.what), no) || '', why: s(e.type) || '', applies: applies, st: 'verify', by: 'page', src: src(e.page || data.exclusionsPage), page: calc.isNum(n(e.page)) ? n(e.page) : null };
       var hv = t.exclusions.filter(function (x) { return sameRow(x, row, 'exclusions'); })[0];
       if (!hv) { t.exclusions.push(row); made.exclusions++; }
-      else if (hv.st === 'verify' && hv.by !== 'person') { var was = JSON.stringify([hv.applies, hv.benefit, hv.page]); hv.applies = applies; hv.benefit = row.benefit; hv.page = row.page; hv.src = row.src; if (JSON.stringify([hv.applies, hv.benefit, hv.page]) !== was) made.updated++; }          // the wording and the type may have been corrected by hand: they stay
+      else if (hv.st === 'verify' && hv.by !== 'person') { var was = JSON.stringify([hv.applies, hv.benefit, hv.page]); hv.applies = applies; hv.benefit = row.benefit; hv.page = row.page; hv.src = row.src; if (row.what && hv.by !== 'person') hv.what = row.what; if (JSON.stringify([hv.applies, hv.benefit, hv.page]) !== was) made.updated++; }          // an amber row nobody has typed in takes the cleaned wording (a row of an earlier reading had the number in it); what a person typed stays
     });
     c.st = c.st === 'empty' ? 'verify' : c.st; c.by = 'page'; if (!c.src) c.src = src(null);
+    alignPremium(c);
     return { quote: c, loadings: made.loadings, exclusions: made.exclusions, updated: made.updated };
   }
   /* What was read has nothing in it (a document that is not the kind said, a scan that could not be read): the caller says so and only records the document. */
@@ -578,6 +597,6 @@
     return !Object.keys(data).some(function (k) { return has(data[k]) && typeof data[k] !== 'object'; }) && !Object.keys(data).some(function (k) { var v = data[k]; return v && typeof v === 'object' && Object.keys(v).some(function (j) { return has(v[j]); }); });
   }
 
-  return { classify: classify, promptFor: promptFor, parseReply: parseReply, readWithClaude: readWithClaude, applyQuote: applyQuote, counterRole: counterRole, applyCounterLetter: applyCounterLetter, enrich: enrich, factNote: factNote, applyPolicy: applyPolicy, applyOther: applyOther, applyFollowUp: applyFollowUp, dm: dm, factNotesText: factNotesText, applyNotesRead: applyNotesRead, emailText: emailText, msgText: msgText, applyBrEmail: applyBrEmail, setAstuteDate: setAstuteDate, brightQuotes: brightQuotes, applyGroup: applyGroup, applyInvestment: applyInvestment, applyAstute: applyAstute, applyAstutePolicies: applyAstutePolicies, applyAstuteGroup: applyAstuteGroup, astuteSrc: astuteSrc, applyProposed: applyProposed, applyGoal: applyGoal, isEmptyRead: isEmptyRead,
+  return { glyphs: glyphs, alignPremium: alignPremium, classify: classify, promptFor: promptFor, parseReply: parseReply, readWithClaude: readWithClaude, applyQuote: applyQuote, counterRole: counterRole, applyCounterLetter: applyCounterLetter, enrich: enrich, factNote: factNote, applyPolicy: applyPolicy, applyOther: applyOther, applyFollowUp: applyFollowUp, dm: dm, factNotesText: factNotesText, applyNotesRead: applyNotesRead, emailText: emailText, msgText: msgText, applyBrEmail: applyBrEmail, setAstuteDate: setAstuteDate, brightQuotes: brightQuotes, applyGroup: applyGroup, applyInvestment: applyInvestment, applyAstute: applyAstute, applyAstutePolicies: applyAstutePolicies, applyAstuteGroup: applyAstuteGroup, astuteSrc: astuteSrc, applyProposed: applyProposed, applyGoal: applyGoal, isEmptyRead: isEmptyRead,
     applyCmp: applyCmp, matchItem: matchItem, logDoc: logDoc, findQuoteByNumber: findQuoteByNumber, quoteIn: quoteIn, quoteRead: quoteRead, SPEC_OF: SPEC_OF, BLOCK_LABEL: BLOCK_LABEL, QUOTE_OF: QUOTE_OF, ENDPOINT: ENDPOINT };
 });

@@ -120,11 +120,11 @@
   }
   /* Whether a quote can have a counter offer added: the client accepted it and underwriting came back with loadings, exclusions or both. */
   function canCounter(state, q) { var u = uwOf(q); return !!q && !q.counterOf && !parentOf(state, q) && accepted(q) && (u === 'loadings' || u === 'exclusions' || u === 'both'); }
-  /* Before, after and the difference of a counter offer's premium: the quote before it in the chain (else the letter's original premium), and the counter offer's own premium (else the letter's revised premium). */
+  /* Before, after and the difference of a counter offer's premium: the letter's original and revised premium (the letter is the source), else the premium of the quote before it in the chain and the counter offer's own premium. */
   function counterPremium(state, c) {
     var root = parentOf(state, c); if (!root) return null;
     var chain = [root].concat(counterOffers(state, root)), prev = chain[Math.max(0, chain.indexOf(c) - 1)], off = c.offer || {};
-    var before = isNum(prev.premium) ? prev.premium : isNum(off.origPremium) ? off.origPremium : null, after = isNum(c.premium) ? c.premium : isNum(off.revPremium) ? off.revPremium : null;
+    var before = isNum(off.origPremium) ? off.origPremium : isNum(prev.premium) ? prev.premium : null, after = isNum(off.revPremium) ? off.revPremium : isNum(c.premium) ? c.premium : null;          // round 1.3: the LETTER is the source of before and after (the contract); the quotes fill in only what the letter does not print
     var diff = isNum(before) && isNum(after) ? r2(after - before) : null;
     return { before: before, after: after, diff: diff, pct: isNum(diff) && before > 0 ? Math.round(diff / before * 10000) / 100 : null, prev: prev };
   }
@@ -135,14 +135,14 @@
     var out = [], t = q && q.terms || {};
     (t.loadings || []).forEach(function (l) {
       if (!l || !isNum(l.pct) || !(l.pct > 0)) return;
-      var col = schema.columnGroupById[l.column], pil = col ? col.pillars : (schema.BENEFIT_PILLARS[l.benefit] || schema.BENEFIT_PILLARS['All benefits']);
+      var col = schema.cellOf(l.need, l.column), pil = col ? col.pillars : (schema.BENEFIT_PILLARS[l.benefit] || schema.BENEFIT_PILLARS['All benefits']);          // the need group decides the pillar where the table says so (round 1.3)
       out.push({ kind: 'loading', text: '+' + pctText(l.pct) + ' loading', need: schema.needGroupById[l.need] ? l.need : null, pillars: pil });
     });
     (t.exclusions || []).forEach(function (e, i) {
       if (!e) return;
       var label = 'Exclusion ' + (String(e.no == null ? '' : e.no).trim() || (i + 1)), cells = Array.isArray(e.applies) ? e.applies.filter(function (a) { return a && schema.columnGroupById[a.column]; }) : [];
       if (!cells.length) { out.push({ kind: 'exclusion', text: label, need: null, pillars: schema.BENEFIT_PILLARS[e.benefit] || schema.BENEFIT_PILLARS['All benefits'] }); return; }
-      cells.forEach(function (a) { out.push({ kind: 'exclusion', text: label, need: schema.needGroupById[a.need] ? a.need : null, pillars: schema.columnGroupById[a.column].pillars }); });
+      cells.forEach(function (a) { out.push({ kind: 'exclusion', text: label, need: schema.needGroupById[a.need] ? a.need : null, pillars: schema.cellOf(a.need, a.column).pillars }); });
     });
     return out;
   }
@@ -156,10 +156,18 @@
   /* The benefit a term row is about, DERIVED from the column group (a loading) or the cells it applies to (an exclusion), so a correction of the mapping reaches every file; a typed row keeps what was typed. */
   function termBenefit(r) {
     if (!r) return '';
-    if (r.column && schema.columnGroupById[r.column]) return schema.columnGroupById[r.column].benefit;
+    if (r.column && schema.columnGroupById[r.column]) return schema.cellOf(r.need, r.column).benefit;          // round 1.3: the need group decides (needs + recover = income protector, dread + recover = severe illness); a file saved by 1.2 opens with the new label because the stored `benefit` is never read here
     var cells = Array.isArray(r.applies) ? r.applies.filter(function (a) { return a && schema.columnGroupById[a.column]; }) : [];
-    if (cells.length) { var out = []; cells.forEach(function (a) { var b = schema.columnGroupById[a.column].benefit; if (out.indexOf(b) < 0) out.push(b); }); return out.join(' and '); }
+    if (cells.length) return schema.cellsBenefit(cells);
     return r.benefit || '';
+  }
+  /* The letter's text can put an exclusion's own number (with its asterisk) in the middle of the paragraph that explains it. The number is never part of the wording: out it goes, but only when it carries a mark that is not a digit or a letter
+     (a bare 4 could be real text) or when it stands alone on a line. Used when the letter is read and when a file read by 1.2 is opened. */
+  function ownNumberOut(what, no) {
+    var w = String(what == null ? '' : what), tok = String(no == null ? '' : no).trim(); if (!tok || !w) return w;
+    var esc = tok.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    w = /[^0-9A-Za-z]/.test(tok) ? w.replace(new RegExp('(^|\\s)' + esc + '(?=\\s|$)', 'g'), '$1') : w.replace(new RegExp('(^|\\n)[ \\t]*' + esc + '[ \\t]*(?=\\n|$)', 'g'), '$1');
+    return w.replace(/[ \t]{2,}/g, ' ').replace(/[ \t]+\n/g, '\n').replace(/\n{2,}/g, '\n').trim();          // the wording is one paragraph: a number taken out of the middle never leaves a blank line
   }
   /* The terms a counter offer read from the letter that nobody has checked yet. */
   function termsToCheck(q) { var t = q && q.terms || {}, n = 0; ['loadings', 'exclusions'].forEach(function (k) { (t[k] || []).forEach(function (r) { if (r && r.st === 'verify') n++; }); }); return n; }
@@ -193,6 +201,7 @@
     if (q.counterOf) { if (q.uw) { q.uw = null; n++; } if (!q.offer || typeof q.offer !== 'object') { q.offer = {}; n++; } } else if (q.offer === undefined) q.offer = null;
     var t = q.terms && typeof q.terms === 'object' ? q.terms : (q.terms = { loadings: [], exclusions: [] }, n++);
     if (!Array.isArray(t.loadings)) { t.loadings = []; n++; } if (!Array.isArray(t.exclusions)) { t.exclusions = []; n++; }
+    if (q.counterOf) t.exclusions.forEach(function (e) { if (e && e.no && typeof e.what === 'string' && e.st === 'verify' && e.by !== 'person') { var w = ownNumberOut(e.what, e.no); if (w !== e.what) { e.what = w; n++; } } });          // round 1.3: a row read by 1.2 may carry its own number in the wording; nothing a person typed or checked is touched
     var r = q.repl && typeof q.repl === 'object' ? q.repl : (q.repl = { answer: null, policies: [] }, n++);
     if (r.answer !== 'yes' && r.answer !== 'no' && r.answer !== null) { r.answer = null; n++; } if (r.answer === undefined) r.answer = null;
     if (!Array.isArray(r.policies)) { r.policies = []; n++; }
@@ -356,7 +365,7 @@
   var PAGE_WHY = { shortfallQuote: 'Left out: there is no group risk, or no shortfall quote was asked for.', comparative: 'Left out: no comparative quote was asked for in the Fact Find.', proposed: 'Left out: there are no proposed investments.', goals: 'Left out: no goal analysis report was asked for.' };
   function pageWhy(id) { return PAGE_WHY[id] || ''; }
 
-  return { settleQuote: settleQuote, parentOf: parentOf, isCounter: isCounter, mainQuotes: mainQuotes, counterOffers: counterOffers, liveCounter: liveCounter, effectiveQuote: effectiveQuote, counterDead: counterDead, chainIds: chainIds, chainIssued: chainIssued, canCounter: canCounter, counterPremium: counterPremium, termRefs: termRefs, termBenefit: termBenefit, refsAt: refsAt, refsTotal: refsTotal, termsToCheck: termsToCheck, uwOf: uwOf, declined: declined, accepted: accepted, dead: dead, issued: issued, statusText: statusText, statusClass: statusClass, acceptedQuotes: acceptedQuotes, acceptanceConflicts: acceptanceConflicts, replOf: replOf, quoteRef: quoteRef, policyRef: policyRef, replaceable: replaceable, replacementInfo: replacementInfo, policyNote: policyNote, settleLine: settleLine, aciPoints: aciPoints, sameDebtName: sameDebtName, isNum: isNum, r2: r2, norm: norm, fmtR: fmtR, fmtPct: fmtPct, fmtAci: fmtAci, matchChildren: matchChildren, matchDebts: matchDebts, pageShown: pageShown, pageWhy: pageWhy, fmtDiff: fmtDiff, show: show, lineVal: lineVal, active: active, activeLines: activeLines, totals: totals, sumLines: sumLines,
+  return { ownNumberOut: ownNumberOut, settleQuote: settleQuote, parentOf: parentOf, isCounter: isCounter, mainQuotes: mainQuotes, counterOffers: counterOffers, liveCounter: liveCounter, effectiveQuote: effectiveQuote, counterDead: counterDead, chainIds: chainIds, chainIssued: chainIssued, canCounter: canCounter, counterPremium: counterPremium, termRefs: termRefs, termBenefit: termBenefit, refsAt: refsAt, refsTotal: refsTotal, termsToCheck: termsToCheck, uwOf: uwOf, declined: declined, accepted: accepted, dead: dead, issued: issued, statusText: statusText, statusClass: statusClass, acceptedQuotes: acceptedQuotes, acceptanceConflicts: acceptanceConflicts, replOf: replOf, quoteRef: quoteRef, policyRef: policyRef, replaceable: replaceable, replacementInfo: replacementInfo, policyNote: policyNote, settleLine: settleLine, aciPoints: aciPoints, sameDebtName: sameDebtName, isNum: isNum, r2: r2, norm: norm, fmtR: fmtR, fmtPct: fmtPct, fmtAci: fmtAci, matchChildren: matchChildren, matchDebts: matchDebts, pageShown: pageShown, pageWhy: pageWhy, fmtDiff: fmtDiff, show: show, lineVal: lineVal, active: active, activeLines: activeLines, totals: totals, sumLines: sumLines,
     quotes: quotes, allQuotes: allQuotes, policies: policies, policyTotals: policyTotals, groupItems: groupItems, hasGroupRisk: hasGroupRisk, groupTotals: groupTotals, investments: investments,
     personalInvestments: personalInvestments, shortfall: shortfall, compare: compare, pillars: pillarOfBlock };
 });

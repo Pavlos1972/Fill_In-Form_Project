@@ -29,17 +29,19 @@ const LETTER = { originalNumber: '400500600', revisedNumber: '400500777', origPr
 const accepted = (s, q, uw) => { store.setStatus(s, qpath(s, q), 'accepted'); store.setUw(s, qpath(s, q), uw || 'both'); return q; };
 
 test('the page is 1.2 (the layout stays 0.1), the changed scripts carry new tags in every page that loads them', () => {
-  assert.strictEqual(schema.pageVersion, '1.2'); assert.strictEqual(schema.version, '0.1');
+  assert.ok(/^1\.[23]$/.test(schema.pageVersion), 'the page version is 1.2 or 1.3'); assert.strictEqual(schema.version, '0.1');
   assert.ok(parseFloat(schema.pageVersion) > parseFloat('1.1'), 'compared as decimals');
   ['ov-schema', 'ov-calc', 'ov-store', 'ov-check', 'ov-docs', 'ov-pdf', 'ov-pres', 'ov-ui', 'ov-present'].forEach(f => assert.ok(new RegExp(f + '\\.js\\?v=20261124[m-z]').test(app('overview.html')), f));
   ['index.html', 'short-risk.html', 'capture-sheet.html', 'overview.html'].forEach(f => assert.ok(/folders-ui\.js\?v=20261124[m-z]/.test(app(f)) && /folders\.js\?v=20261124[m-z]/.test(app(f)), f));
 });
 
-test('the BrightRock column groups and need groups are ONE table (the mapping is Paul’s to confirm): death = life cover, permanent = lump sum disability, recover = severe illness and income protector', () => {
+test('the BrightRock column groups and need groups are ONE table (the mapping is Paul’s to confirm): death = life cover, permanent = lump sum disability, recover = income protector on the needs row and severe illness on the additional expense row (round 1.3), the combined reading when no need group is known', () => {
   const col = schema.columnGroupById;
   assert.deepStrictEqual(col.death.pillars, ['life']); assert.deepStrictEqual(col.permanent.pillars, ['lsd']); assert.deepStrictEqual(col.recover.pillars, ['sev', 'ip']);
   assert.strictEqual(schema.needGroupOfLine.household, 'needs'); assert.strictEqual(schema.needGroupOfLine.debt, 'needs'); assert.strictEqual(schema.needGroupOfLine.dread, 'dread');
   assert.ok(schema.TERM_BENEFITS.indexOf('Severe illness and income protector') >= 0);
+  assert.deepStrictEqual(schema.cellOf('needs', 'recover'), { pillars: ['ip'], benefit: 'Income protector' }); assert.deepStrictEqual(schema.cellOf('dread', 'recover'), { pillars: ['sev'], benefit: 'Severe illness' });
+  assert.deepStrictEqual(schema.cellOf(null, 'recover'), { pillars: ['sev', 'ip'], benefit: 'Severe illness and income protector' });
 });
 
 test('a counter offer is a quote of the same kind in the same block, linked to the one the client accepted; it has no underwriting of its own', () => {
@@ -69,7 +71,7 @@ test('the letter’s terms: a loading belongs to a need group AND a column group
   assert.strictEqual(c.number, '400500777'); assert.strictEqual(c.startDate, null, 'the letter\u2019s date is a proposal: it is kept in offer, not made the policy\u2019s start date'); assert.strictEqual(c.offer.startDate, '01/12/2026'); assert.strictEqual(c.offer.expires, '20/12/2026'); assert.strictEqual(c.offer.revPremium, 5420);
   const ls = c.terms.loadings; assert.deepStrictEqual(ls.map(l => [l.need, l.column, l.pct]), [['needs', 'recover', 10], ['needs', 'permanent', 15], ['dread', 'recover', 10]]);
   assert.ok(ls.every(l => l.st === 'verify' && l.by === 'page' && l.src.kind === 'counteroffer' && l.src.page === 3 && l.reason === '' && l.kind === null), 'amber, from the letter, no reason invented');
-  assert.strictEqual(ls[0].benefit, 'Severe illness and income protector'); assert.strictEqual(ls[1].benefit, 'Lump sum disability');
+  assert.strictEqual(ls[0].benefit, 'Income protector'); assert.strictEqual(ls[1].benefit, 'Lump sum disability'); assert.strictEqual(ls[2].benefit, 'Severe illness');
   const ex = c.terms.exclusions[0]; assert.strictEqual(ex.no, '3*'); assert.strictEqual(ex.why, 'Medical'); assert.strictEqual(ex.page, 4); assert.deepStrictEqual(ex.applies, [{ need: 'needs', column: 'recover' }, { need: 'dread', column: 'recover' }]);
   assert.strictEqual(ex.st, 'verify'); assert.strictEqual(c.offer.notes, 'Cover for additional expense needs is reduced.');
   assert.strictEqual(calc.termsToCheck(c), 4); assert.strictEqual(calc.parentOf(s, c), q);
@@ -88,10 +90,10 @@ test('a letter read again changes nothing twice, replaces only amber rows, and n
 test('the red references are derived from the terms: under the right pillar of the right need group, only where there is an amount; totals show every reference of a column', () => {
   const s = fresh(), q = accepted(s, quote(s, 'fna', '400500600')), c = docs.applyCounterLetter(s, q, LETTER, 'letter.pdf').quote;
   const txt = (qq, t, p) => calc.refsAt(qq, t, p).map(r => r.text);
-  assert.deepStrictEqual(txt(c, 'household', 'sev'), ['+10% loading', 'Exclusion 3*']); assert.deepStrictEqual(txt(c, 'household', 'ip'), ['+10% loading', 'Exclusion 3*']);
+  assert.deepStrictEqual(txt(c, 'household', 'sev'), [], 'a loading under recover-from on the needs row is the income protector, not severe illness'); assert.deepStrictEqual(txt(c, 'household', 'ip'), ['+10% loading', 'Exclusion 3*']);
   assert.deepStrictEqual(txt(c, 'household', 'lsd'), ['+15% loading']); assert.deepStrictEqual(txt(c, 'household', 'life'), [], 'the death column has no loading');
-  assert.deepStrictEqual(txt(c, 'dread', 'sev'), ['+10% loading', 'Exclusion 3*']); assert.deepStrictEqual(txt(c, 'dread', 'lsd'), []);
-  assert.deepStrictEqual(calc.refsTotal(c, 'sev').map(r => r.text), ['+10% loading', 'Exclusion 3*']); assert.deepStrictEqual(calc.refsTotal(c, 'lsd').map(r => r.text), ['+15% loading']);
+  assert.deepStrictEqual(txt(c, 'dread', 'sev'), ['+10% loading', 'Exclusion 3*']); assert.deepStrictEqual(txt(c, 'dread', 'ip'), [], 'on the additional expense row recover-from is severe illness'); assert.deepStrictEqual(txt(c, 'dread', 'lsd'), []);
+  assert.deepStrictEqual(calc.refsTotal(c, 'sev').map(r => r.text), ['+10% loading', 'Exclusion 3*']); assert.deepStrictEqual(calc.refsTotal(c, 'ip').map(r => r.text), ['+10% loading', 'Exclusion 3*']); assert.deepStrictEqual(calc.refsTotal(c, 'lsd').map(r => r.text), ['+15% loading']);
   // a typed loading on one benefit (round 1.1) and "All benefits" are references too
   store.addTerm(s, qpath(s, q), 'loadings'); const t = q.terms.loadings[0]; t.benefit = 'Life cover'; t.pct = 40;
   assert.deepStrictEqual(txt(q, 'death', 'life'), ['+40% loading']); assert.deepStrictEqual(txt(q, 'death', 'sev'), []);
@@ -99,11 +101,13 @@ test('the red references are derived from the terms: under the right pillar of t
   t.pct = 12.5; assert.deepStrictEqual(txt(q, 'household', 'life'), ['+12.5% loading']);
 });
 
-test('premium before, after and the difference are derived: the quote before it (else the letter’s original), the counter offer’s own premium (else the letter’s revised one)', () => {
+test('premium before, after and the difference are derived: the LETTER’s original and revised premium (round 1.3: the letter is the source), else the quote before it and the counter offer’s own premium', () => {
   const s = fresh(), q = accepted(s, quote(s, 'fna', '400500600')), c = docs.applyCounterLetter(s, q, LETTER, 'letter.pdf').quote;
   let p = calc.counterPremium(s, c); assert.deepStrictEqual([p.before, p.after, p.diff, p.pct], [5000, 5420, 420, 8.4], 'only the letter is loaded: its revised premium');
-  c.premium = 5420.01; p = calc.counterPremium(s, c); assert.deepStrictEqual([p.after, p.diff], [5420.01, 420.01], 'the counter offer quote prints the loaded premium (a cent off the letter)');
+  c.premium = 5420.01; p = calc.counterPremium(s, c); assert.deepStrictEqual([p.after, p.diff], [5420, 420], 'the counter offer quote prints the loaded premium a cent off the letter: the letter wins');
   q.premium = null; p = calc.counterPremium(s, c); assert.strictEqual(p.before, 5000, 'no premium on the original quote: the letter’s original premium');
+  q.premium = 4999.99; p = calc.counterPremium(s, c); assert.strictEqual(p.before, 5000, 'the quote before it is a cent off the letter: the letter wins');
+  const off0 = c.offer, was = [off0.origPremium, off0.revPremium]; off0.origPremium = null; off0.revPremium = null; p = calc.counterPremium(s, c); assert.deepStrictEqual([p.before, p.after], [4999.99, 5420.01], 'a letter that prints no premium: the quotes fill in'); off0.origPremium = was[0]; off0.revPremium = was[1]; q.premium = 5000;
   const c2 = docs.applyCounterLetter(s, q, Object.assign({}, LETTER, { revisedNumber: '400500888', origPremium: 5420.01, revPremium: 5500 }), 'letter2.pdf').quote; c2.premium = 5500;
   assert.strictEqual(calc.counterOffers(s, q).length, 2); assert.strictEqual(calc.liveCounter(s, q), c2, 'the newest is the live one');
   assert.strictEqual(calc.counterPremium(s, c2).before, 5420.01, 'a second counter offer is compared with the first');
@@ -168,7 +172,7 @@ test('the counter offer quote is read like any quote into the counter offer with
   const s = fresh(), q = accepted(s, quote(s, 'fna', '400500600')), c = docs.applyCounterLetter(s, q, LETTER, 'letter.pdf').quote;
   const r = docs.applyQuote(s, 'fna', { insurer: 'BrightRock', number: '400500777', date: '28/11/2026', premium: 5420.01, lines: [LINE, DREAD] }, 'Ruby Cover Proposal 400500777.pdf', { counterOf: q.id });
   assert.strictEqual(r.quote, c, 'into the same counter offer'); assert.strictEqual(calc.counterOffers(s, q).length, 1); assert.strictEqual(s.blocks.fna.quotes.length, 2);
-  assert.strictEqual(c.counterOf, q.id); assert.strictEqual(c.terms.loadings.length, 3, 'the terms read from the letter stay'); assert.strictEqual(c.offer.letter, 'letter.pdf'); assert.strictEqual(c.lines.length, 2); assert.strictEqual(c.premium, 5420.01);
+  assert.strictEqual(c.counterOf, q.id); assert.strictEqual(c.terms.loadings.length, 3, 'the terms read from the letter stay'); assert.strictEqual(c.offer.letter, 'letter.pdf'); assert.strictEqual(c.lines.length, 2); assert.strictEqual(c.premium, 5420, 'a cent off the letter is rounding: the letter’s figure is kept so a card never prints two premiums');
   // the same number as an ordinary quote: never merged
   const s2 = fresh(), a = quote(s2, 'fna', '555666777'); const r2 = docs.applyQuote(s2, 'fna', { insurer: 'BrightRock', number: '555666777', premium: 1, lines: [LINE] }, 'x.pdf', { counterOf: a.id });
   assert.notStrictEqual(r2.quote, a); assert.strictEqual(r2.quote.counterOf, a.id);
@@ -259,7 +263,7 @@ test('a second reading of the letter works in place: an amber row gets the new f
   assert.strictEqual(again.updated, 1);
   l0.st = 'confirmed'; l0.pct = 11;                                                                                                       // checked, and corrected by hand to 11%
   docs.applyCounterLetter(s, q, LETTER, 'letter.pdf'); assert.strictEqual(c.terms.loadings.length, 3, 'no second row for the same cell'); assert.strictEqual(l0.pct, 11, 'a checked row is never changed by a reading');
-  const ex = c.terms.exclusions[0]; ex.what = 'Corrected wording'; docs.applyCounterLetter(s, q, LETTER, 'letter.pdf'); assert.strictEqual(c.terms.exclusions.length, 1); assert.strictEqual(ex.what, 'Corrected wording', 'a corrected wording stays');
+  const ex = c.terms.exclusions[0]; store.setPath(s, qpath(s, c) + '.terms.exclusions.0.what', 'Corrected wording', 'text'); docs.applyCounterLetter(s, q, LETTER, 'letter.pdf'); assert.strictEqual(c.terms.exclusions.length, 1); assert.strictEqual(ex.what, 'Corrected wording', 'a corrected wording stays');
 });
 
 test('Replace quote keeps the chain: a replaced counter offer stays a counter offer with its letter and terms; the counter offers of a replaced quote follow the new quote; a duplicate copy drops into the one that stays', () => {
@@ -279,14 +283,14 @@ test('the shortfall never takes a counter offer, even one whose quote is gone', 
   assert.deepStrictEqual(calc.mainQuotes(s, 'fna').map(x => x.number), ['400500777'], 'it stands on its own for the acceptance rule');
 });
 
-test('the labels of the terms come from the column group at draw time: a correction of the mapping reaches saved files; a typed row keeps what was typed', () => {
+test('the labels of the terms come from the table (need group and column group) at draw time: a correction of the mapping reaches saved files, also one saved by 1.2; a typed row keeps what was typed', () => {
   const s = fresh(), q = accepted(s, quote(s, 'fna', '400500600')), c = docs.applyCounterLetter(s, q, LETTER, 'letter.pdf').quote;
   const l = c.terms.loadings[0], e = c.terms.exclusions[0]; l.benefit = 'a stale label'; e.benefit = 'a stale label';
-  assert.strictEqual(calc.termBenefit(l), 'Severe illness and income protector'); assert.strictEqual(calc.termBenefit(e), 'Severe illness and income protector');
+  assert.strictEqual(calc.termBenefit(l), 'Income protector'); assert.strictEqual(calc.termBenefit(e), 'Severe illness and Income protector', 'an exclusion on a needs cell and a dread cell: both benefits, in the order of the columns');
   assert.strictEqual(calc.termBenefit({ benefit: 'Life cover' }), 'Life cover');
-  const old = schema.columnGroupById.recover.pillars.slice(); schema.columnGroupById.recover.pillars = ['sev']; schema.columnGroupById.recover.benefit = 'Severe illness';
-  assert.strictEqual(calc.termBenefit(l), 'Severe illness'); assert.deepStrictEqual(calc.refsAt(c, 'household', 'ip').map(r => r.text), [], 'and the red references follow the same table');
-  schema.columnGroupById.recover.pillars = old; schema.columnGroupById.recover.benefit = 'Severe illness and income protector';
+  const old = schema.columnGroupById.recover.byNeed.needs; schema.columnGroupById.recover.byNeed.needs = { pillars: ['sev'], benefit: 'Severe illness' };
+  assert.strictEqual(calc.termBenefit(l), 'Severe illness'); assert.deepStrictEqual(calc.refsAt(c, 'household', 'ip').map(r => r.text), [], 'and the red references follow the same table'); assert.ok(calc.refsAt(c, 'household', 'sev').length > 0);
+  schema.columnGroupById.recover.byNeed.needs = old;
 });
 
 test('a quote whose counter offer the client turned down says so: not accepted (red), no policy comes from it; one the client accepted says that', () => {

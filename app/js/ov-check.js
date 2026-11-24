@@ -100,6 +100,7 @@
         if (kind === 'reduced' && !q.counterOf && isNum(q.premium) && isNum(h.premiumBudget) && q.premium > h.premiumBudget + tol) add('budget', block, where, 'The premium of ' + fmtR(q.premium) + ' is above the client\'s budget of ' + fmtR(h.premiumBudget) + '.');
         if (kind !== 'comparative' && /bright/i.test(q.insurer) && figures && !q.cmp) add('gaps', block, where, 'No change moment pay-out guide found for CP ' + (q.number || '(no number yet)') + '.');
         if (q.counterOf) { var nt = calc.termsToCheck(q); if (nt) add('counter.terms', block, where, nt + (nt === 1 ? ' term' : ' terms') + ' read from the counter offer letter ' + (nt === 1 ? 'is' : 'are') + ' to check (the Terms checked button confirms them).'); }          // round 1.2
+        if (q.counterOf && q.offer && isNum(q.offer.revPremium) && isNum(q.premium) && Math.abs(q.premium - q.offer.revPremium) > 0.05) add('counter.premium', block, where, 'The letter\'s revised premium (' + fmtR(q.offer.revPremium) + ') is not the counter offer quote\'s premium (' + fmtR(q.premium) + '): the letter\'s figure is the one shown as the new premium.');          // round 1.3: a cent is rounding and is put right when the documents are read; more than that is a real difference
         if (q.cmp && q.cmp.number && q.number && norm(q.cmp.number) !== norm(q.number)) add('cmp.match', block, where, 'The change moment pay-out is for CP ' + q.cmp.number + ', not for this quote (CP ' + q.number + ').');
       });
     });
