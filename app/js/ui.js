@@ -80,7 +80,18 @@
   function paintField(id) {
     var el = document.querySelector('[data-f="' + id + '"]'); if (!el) return;
     var c = state.f[id]; el.value = c.v; if (schema.fieldsById[id] && schema.fieldsById[id].heads) rvSync(id);
-    var wrap = el.closest('.f'); if (wrap) { wrap.className = wrap.className.replace(/\bs-\w+/, 's-' + c.st); var b = wrap.querySelector('.st'), ab = wrap.querySelector('.rt > .badge'); if (b) b.innerHTML = badge(c.st, 'f:' + id); if (ab) ab.outerHTML = badge(c.st, 'f:' + id); }
+    var wrap = el.closest('.f'); if (wrap) { wrap.className = wrap.className.replace(/\bs-\w+/, 's-' + c.st); syncBadge(wrap, id); }
+  }
+  /* A box's pill follows its status in place. A box with the pill in its heading (a notes box) gets one while it waits to be verified and loses it again otherwise, as drawn by fieldHTML (5.5). */
+  function syncBadge(wrap, id) {
+    var def = schema.fieldsById[id], c = state.f[id], b = wrap.querySelector('.st'), ab = wrap.querySelector('.rt > .badge');
+    if (b) b.innerHTML = badge(c.st, 'f:' + id);
+    if (!def || def.t !== 'area') return;
+    if (def.opt && c.st !== 'verify') { if (ab) ab.remove(); return; }
+    if (ab) { ab.outerHTML = badge(c.st, 'f:' + id); return; }
+    var l = wrap.querySelector('.l'), rt = l && l.querySelector('.rt');
+    if (l && !rt) { rt = document.createElement('span'); rt.className = 'rt'; l.appendChild(rt); }
+    if (rt) rt.insertAdjacentHTML('beforeend', badge(c.st, 'f:' + id));
   }
   /* A toast with an Undo button (4.1). */
   function toastUndo(msg, undo, ms) {
@@ -106,7 +117,8 @@
       var w = el.closest('.f, .rowcard, tr, .dempty') || el; w.classList.add('flash'); setTimeout(function () { w.classList.remove('flash'); }, 1600);
       if (el.scrollIntoView) el.scrollIntoView({ block: 'center' }); if (el.focus) el.focus();
     }
-    toast((kind === 'verify' ? 'To verify: ' : 'Not asked: ') + progLabel(next) + ' (' + (items.indexOf(next) + 1) + ' of ' + items.length + ')', 3000);
+    var pg = schema.sections.filter(function (s) { return s.id === next.sec; })[0];
+    toast((kind === 'verify' ? 'To verify: ' : 'Not asked: ') + progLabel(next) + (pg ? ' (page: ' + pg.title + ')' : '') + ' (' + (items.indexOf(next) + 1) + ' of ' + items.length + ')', 4000);
   }
   function verifyAll() {
     var items = store.pending(state, 'verify');
@@ -322,7 +334,7 @@
     if (f.lookup) rt += '<button type="button" class="lookup" data-lookup="' + f.id + '">' + esc(f.lookupBtn || 'Look up online') + '</button>';
     if (f.cal) rt += '<button type="button" class="calbtn" data-cal="' + f.id + '" aria-label="Pick ' + esc(f.l.toLowerCase()) + ' from a calendar">📅 Calendar</button>';
     if (f.none) rt += '<label class="nonebox"><input type="checkbox" data-none="' + f.id + '"' + (isNone ? ' checked' : '') + '> ' + esc(f.none) + '</label>';
-    if (f.t === 'area' && !f.opt) rt += badge(st, 'f:' + f.id);
+    if (f.t === 'area' && (!f.opt || st === 'verify')) rt += badge(st, 'f:' + f.id);                  // 5.5: a notes box shows a pill only while it waits to be verified (it never showed one, yet it was counted)
     var attrs = 'data-f="' + f.id + '"' + (f.hint ? ' placeholder="' + esc(f.hint) + '"' : '');
     var style = g12 ? ' style="--s:' + (f.wide ? 12 : (f.s || 4)) + '"' : '';
     var tag = f.t === 'multi' ? 'div' : 'label', heads = f.t === 'area' && f.heads, showRv = heads && String(v).trim() !== '';
@@ -735,7 +747,7 @@
     var nav = '<div class="sep">Client answers</div>';
     schema.sections.forEach(function (s) {
       var c = store.counts(state, s);
-      nav += '<button type="button" data-sec="' + s.id + '"' + (s.id === cur ? ' aria-current="true"' : '') + '><span>' + esc(s.title) + (vm.done[s.id] ? ' <span class="ck" title="Finished: said in the conversation">✓</span>' : '') + '</span><span class="n" data-count="' + s.id + '">' + (s.adv ? '' : c.fill + '/' + c.tot) + '</span></button>';
+      nav += '<button type="button" data-sec="' + s.id + '"' + (s.id === cur ? ' aria-current="true"' : '') + '><span>' + esc(s.title) + (vm.done[s.id] ? ' <span class="ck" title="Finished: said in the conversation">✓</span>' : '') + ' <span class="vn" data-vcount="' + s.id + '" hidden></span></span><span class="n" data-count="' + s.id + '">' + (s.adv ? '' : c.fill + '/' + c.tot) + '</span></button>';
     });
     $('#nav').innerHTML = nav;
   }
@@ -754,7 +766,9 @@
       var el = document.querySelector('[data-count="' + s.id + '"]'); if (el && !s.adv) el.textContent = c.fill + '/' + c.tot;
       if (!s.adv) { A += c.fill; V += c.ver; E += c.tot - c.fill; }
     });
-    $('#sFilled').textContent = A; $('#sVerify').textContent = store.pending(state, 'verify').length; $('#sEmpty').textContent = E;       // to verify: every amber box on every page (4.1)
+    $('#sFilled').textContent = A; $('#sVerify').textContent = store.pending(state, 'verify').length; $('#sEmpty').textContent = E;       // to verify: every amber box that is shown, on every page (4.1; only what is shown since 5.5)
+    var vb = store.verifyBySection(state);                                                           // 5.5: each page button says how many of the Progress number are on it
+    schema.sections.forEach(function (s) { var el = document.querySelector('[data-vcount="' + s.id + '"]'), n = vb[s.id] || 0; if (!el) return; el.hidden = !n; el.textContent = n ? n + ' to verify' : ''; el.title = n ? n + ' answer' + (n > 1 ? 's' : '') + ' on this page waiting to be verified' : ''; });
     var tax = FF.tax.taxYearFor(calc.meetingDate(ctx())), ver = $('#verLine');
     refreshKey(); refreshCost();
     if ((state.unplaced && state.unplaced.length) || document.getElementById('convo')) convoSoon();
@@ -933,7 +947,7 @@
       if (def && def.heads) rvSync(t.dataset.f);                                    // the read view of a notes box with bold headings follows the text
       var dobSet = (t.dataset.f === 'idno' || t.dataset.f === 'idtype') && autoDob();        // the date of birth follows the ID number (and the ID type going back to ID)
       var sexSet = (t.dataset.f === 'idno' || t.dataset.f === 'idtype') && autoGender();      // and so does an empty gender box
-      var wrap = t.closest('.f'); if (wrap) { wrap.className = wrap.className.replace(/\bs-\w+/, 's-' + state.f[t.dataset.f].st); var b = wrap.querySelector('.st'); if (b) b.innerHTML = badge(state.f[t.dataset.f].st, 'f:' + t.dataset.f); }
+      var wrap = t.closest('.f'); if (wrap) { wrap.className = wrap.className.replace(/\bs-\w+/, 's-' + state.f[t.dataset.f].st); syncBadge(wrap, t.dataset.f); }
       touch();
       if (t.dataset.f === 'employer' || t.dataset.f === 'biz_name') autoCompanyLookup(t.dataset.f);
       if (PROFILE_SRC.indexOf(t.dataset.f) >= 0) autoProfileLookup();

@@ -609,19 +609,28 @@
      with a starting value (Broker on record) that the "not asked" count leaves out. A box that holds nothing, a calculated box and the client's online profile (looked up on the internet, it can be someone else: verified by hand) are
      not in it. The Progress number, the button, and Verify All all use this one list. */
   var NEVER_VERIFIED_ALL = { profile: 1 };
+  /* Fact Find 5.5: only a box or row that is SHOWN is counted (a page, block or box hidden by a rule is not drawn, so it has no pill to confirm and the walk could not land on it: a client with 30 "to verify" and every pill green).
+     A hidden box that is amber stays as it is, untouched by Verify All, and counts again when it is shown. */
   function verifyList(state) {
-    var out = [], n = 0;
+    var out = [], n = 0, ctx = ctxFor(state);
     schema.sections.forEach(function (sec) {
+      var sOn = calc.showIf(sec.cond, ctx);
       sec.blocks.forEach(function (b) {
+        var bOn = sOn && calc.showIf(b.cond, ctx);
         (b.fields || []).forEach(function (f) {
           if (f.calc || NEVER_VERIFIED_ALL[f.id]) return;
           var c = state.f[f.id]; n++;
-          if (c && c.st === 'verify' && String(c.v).trim() !== '') out.push({ n: n, sec: sec.id, id: f.id });
+          if (bOn && c && c.st === 'verify' && String(c.v).trim() !== '' && calc.showIf(f.cond, ctx)) out.push({ n: n, sec: sec.id, id: f.id });
         });
-        if (b.list) (state.l[b.list] || []).forEach(function (r, i) { n++; if (r.st === 'verify') out.push({ n: n, sec: sec.id, list: b.list, i: i }); });
+        if (b.list) (state.l[b.list] || []).forEach(function (r, i) { n++; if (bOn && r.st === 'verify') out.push({ n: n, sec: sec.id, list: b.list, i: i }); });
       });
     });
     return out;
+  }
+  /* How many are waiting on each page (5.5): the page buttons show it, so the Progress number can be followed to the pages that hold it. */
+  function verifyBySection(state) {
+    var by = {}; verifyList(state).forEach(function (it) { by[it.sec] = (by[it.sec] || 0) + 1; });
+    return by;
   }
   /* The next appointment has passed and the adviser says what happened (4.1): it goes to the Previous appointments (date, time, what happened) and the next appointment's date, day and time are open again. */
   function recordAppt(state, outcome) {
@@ -655,5 +664,5 @@
     return { tot: tot, fill: fill, ver: ver };
   }
 
-  return { genderFromId: genderFromId, pending: pending, recordAppt: recordAppt, meetingsFollow: meetingsFollow, brFollow: brFollow, hasBrightRock: hasBrightRock, NO_CONTACT_NOTE: NO_CONTACT_NOTE, termValue: termValue, useWorked: useWorked, isPropertyDebt: isPropertyDebt, debtDefaults: debtDefaults, rowBlank: rowBlank, rowFilled: rowFilled, debtSplit: debtSplit, setProtect: setProtect, setProtectAll: setProtectAll, setPa: setPa, setFocus: setFocus, blankPa: blankPa, cleanPa: cleanPa, setSum: setSum, cleanSum: cleanSum, addUnplaced: addUnplaced, closeUnplaced: closeUnplaced, unplacedCovered: unplacedCovered, closeCovered: closeCovered, unplacedKey: unplacedKey, blank: blank, blankTally: blankTally, blankSpeech: blankSpeech, ctxFor: ctxFor, setField: setField, addRow: addRow, delRow: delRow, setCell: setCell, accept: accept, clientName: clientName, idClash: idClash, idKey: idKey, fatherSurname: fatherSurname, baseFileName: baseFileName, pdfFileName: pdfFileName, fromJSON: fromJSON, toJSON: toJSON, counts: counts };
+  return { genderFromId: genderFromId, pending: pending, verifyBySection: verifyBySection, recordAppt: recordAppt, meetingsFollow: meetingsFollow, brFollow: brFollow, hasBrightRock: hasBrightRock, NO_CONTACT_NOTE: NO_CONTACT_NOTE, termValue: termValue, useWorked: useWorked, isPropertyDebt: isPropertyDebt, debtDefaults: debtDefaults, rowBlank: rowBlank, rowFilled: rowFilled, debtSplit: debtSplit, setProtect: setProtect, setProtectAll: setProtectAll, setPa: setPa, setFocus: setFocus, blankPa: blankPa, cleanPa: cleanPa, setSum: setSum, cleanSum: cleanSum, addUnplaced: addUnplaced, closeUnplaced: closeUnplaced, unplacedCovered: unplacedCovered, closeCovered: closeCovered, unplacedKey: unplacedKey, blank: blank, blankTally: blankTally, blankSpeech: blankSpeech, ctxFor: ctxFor, setField: setField, addRow: addRow, delRow: delRow, setCell: setCell, accept: accept, clientName: clientName, idClash: idClash, idKey: idKey, fatherSurname: fatherSurname, baseFileName: baseFileName, pdfFileName: pdfFileName, fromJSON: fromJSON, toJSON: toJSON, counts: counts };
 });

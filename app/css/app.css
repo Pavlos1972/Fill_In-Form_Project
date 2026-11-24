@@ -42,6 +42,8 @@ button, select, input, textarea { font: inherit; color: inherit; }
 .nav button:hover { background: var(--accent-soft); }
 .nav button[aria-current="true"] { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
 .nav .n { font: 11px var(--mono); color: var(--muted); }
+.nav .vn[hidden] { display: none; }
+.nav .vn { display: inline-block; margin-left: 4px; font: 11px var(--mono); color: var(--warn); background: var(--warn-soft); border: 1px solid var(--warn); border-radius: 9px; padding: 0 6px; white-space: nowrap; }
 .nav .ck { color: var(--ok); font-weight: 700; margin-left: 4px; }
 .nav button[aria-current="true"] .ck { color: inherit; }
 .nav .sep { font: 500 10px var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); padding: 10px 10px 2px; }
@@ -74,7 +76,7 @@ button, select, input, textarea { font: inherit; color: inherit; }
 .f input:not([list]) ~ .st { right: 10px; }
 .f.s-empty input, .f.s-empty select { background: var(--surface-2); border-style: dashed; }
 .f.s-heard input, .f.s-heard select, .f.s-heard textarea { border-color: var(--accent); background: var(--accent-soft); }
-.f.s-verify input, .f.s-verify select { border-color: var(--warn); background: var(--warn-soft); }
+.f.s-verify input, .f.s-verify select, .f.s-verify textarea { border-color: var(--warn); background: var(--warn-soft); }
 .f.s-confirmed input, .f.s-confirmed select, .f.s-confirmed textarea { border-color: var(--ok); }
 .f.s-calc input, .f.s-preset input, .f.s-preset select { background: var(--calc-soft); color: var(--calc); border-color: var(--line); }
 .f.flash input, .f.flash select { animation: flash 1.4s ease-out; }

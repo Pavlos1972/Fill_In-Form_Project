@@ -1037,21 +1037,27 @@
     return h;
   }
   function watchSearch(act) {
-    var tok = ++searchTok, t0 = Date.now(), stage = 'permission', timer = null, linked = '', perm = '', seen = {}, w = {}, win = null;
+    var tok = ++searchTok, t0 = Date.now(), stage = 'permission', timer = null, linked = '', perm = '', seen = {}, qans = {}, w = {}, win = null;
     var lim = function () { return (window.FF && FF.foldersUI && FF.foldersUI.timeouts) || {}; };
     w.stale = function () { return tok !== searchTok; };
     w.since = function () { return Date.now() - t0; };
     function closeWin() { if (win) { win.close(); win = null; } }
     w.end = function () { clearInterval(timer); closeWin(); };
     w.stage = function (st) { stage = st; show(); };
-    w.perm = function (states) { seen = states; perm = Object.keys(states).map(function (k) { return k + ': ' + states[k]; }).join(', '); show(); };
+    w.perm = function (states, why, qa) { seen = states; qans = qa || {}; perm = Object.keys(states).map(function (k) { return k + ': ' + states[k]; }).join(', '); show(); };
     function go(fn) { return function () { searchTok++; clearInterval(timer); closeWin(); fn(); }; }
     function wanted() { var F = window.FF && FF.folders; return F && F.clientFolderName && F.norm(state.header.sname) !== '' ? F.clientFolderName(state.header.sname, state.header.fname) : ''; }          // no surname yet: no folder to name
     function asked() { return Object.keys(seen).some(function (k) { return seen[k] === 'waiting for your answer'; }); }
+    /* Has Chrome answered the FIRST question ("is this connected folder open?") for ANY folder? None: the saved links to the folders look out of date (Client Overview Studio 1.0: measured on Paul's laptop, both stored folders loaded
+       at once and Chrome never answered about either, also after a restart of Chrome; choosing them again made them answer at once). */
+    function stale() { var k = Object.keys(qans); return k.length > 0 && k.every(function (x) { return !qans[x]; }); }
     /* What the window says: what Chrome has been asked and has answered, and which folder is being looked for. */
-    function winHTML(ms) {
-      return '<p>' + (asked() ? 'Chrome has been asked and is waiting for you: look next to the address bar for <b>Edit files?</b> and click <b>Allow</b>.' : 'Chrome has not answered the page’s question about your connected folders.') + (perm ? ' (' + esc(perm) + ')' : '') + ' ' + Math.round(ms / 1000) + ' s</p>' + (asked() ? '<p>If no question shows, Chrome is not showing it: ask again, or choose the client’s folder yourself.</p>' : '') +
-        (wanted() ? '<p>The page is looking for the folder named <b>' + esc(wanted()) + '</b>.</p>' : '') + '<p>If this keeps happening, go to <b>More</b>, then <b>Folders…</b>, and choose both folders again.</p>';
+    function winHTML(ms, mode) {
+      var who = wanted() ? '<p>The page is looking for the folder named <b>' + esc(wanted()) + '</b>.</p>' : '', sec = ' ' + Math.round(ms / 1000) + ' s';
+      if (mode === 'stale') return '<p>Chrome has not answered the page’s question about whether your connected folders are open' + (perm ? ' (' + esc(perm) + ')' : '') + '.' + sec + ' The saved links to those folders look out of date.</p>' +
+        '<p>Press <b>Reconnect my folders</b>, choose <b>New Business</b> and <b>Client Files</b> again, and the list opens by itself. This is done once.</p>' + who;
+      return '<p>' + (asked() ? 'Chrome has been asked and is waiting for you: look next to the address bar for <b>Edit files?</b> and click <b>Allow</b>.' : 'Chrome has not answered the page’s question about your connected folders.') + (perm ? ' (' + esc(perm) + ')' : '') + sec + '</p>' +
+        (asked() ? '<p>If no question shows, Chrome is not showing it: ask again, or choose the client’s folder yourself.</p>' : '') + who + '<p>If this keeps happening, go to <b>More</b>, then <b>Folders…</b>, and choose both folders again.</p>';
     }
     function show() {
       if (w.stale()) { clearInterval(timer); closeWin(); return; }
@@ -1059,11 +1065,20 @@
       var msg = (STAGE_TEXT[stage] || 'Looking for the client’s folder') + (stage === 'permission' && perm ? ' (' + perm + ')' : '') + '… ' + Math.round(ms / 1000) + ' s';
       var again = stage === 'permission' && !!act.again && ms >= (T.askAgain || 4000), want = again ? 'a' : ms >= (T.stopLink || 8000) ? 's' : '';
       if (again) {                                                                                         // Chrome has had a few seconds: the page's own window, with what it can do (never the browser's file window by itself)
+        var mode = stale() && act.reconnect ? 'stale' : 'ask';
+        if (win && win.mode !== mode) closeWin();
         if (!win) {
-          var bs = [{ text: 'Stop', fn: function () { act.stop('Stopped.'); }, key: 'cancel' }, { text: 'Ask Chrome again', fn: act.again }];
-          if (act.choose) bs.push({ text: 'Choose the client’s folder myself', cls: '', fn: act.choose });
-          win = askWindow('The page cannot open your client folders yet', winHTML(ms), bs.map(function (b) { var f = b.fn; return Object.assign({}, b, { fn: function () { searchTok++; clearInterval(timer); win = null; f(); } }); }));
-        } else win.set(winHTML(ms));
+          var bs = [{ text: 'Stop', fn: function () { act.stop('Stopped.'); }, key: 'cancel' }];
+          if (mode === 'stale') {                                                                          // the saved links look out of date: Ask Chrome again changes nothing here (a restart of Chrome did not either), so it is not offered
+            if (act.choose) bs.push({ text: 'Choose the client’s folder myself', fn: act.choose });
+            bs.push({ text: 'Reconnect my folders', cls: '', fn: act.reconnect });
+          } else {
+            bs.push({ text: 'Ask Chrome again', fn: act.again });
+            if (act.choose) bs.push({ text: 'Choose the client’s folder myself', cls: '', fn: act.choose });
+          }
+          win = askWindow(mode === 'stale' ? 'Your connected folders look out of date' : 'The page cannot open your client folders yet', winHTML(ms, mode), bs.map(function (b) { var f = b.fn; return Object.assign({}, b, { fn: function () { searchTok++; clearInterval(timer); win = null; f(); } }); }));
+          win.mode = mode;
+        } else win.set(winHTML(ms, mode));
         toast(msg, 600000); return;
       }
       closeWin();
@@ -1114,8 +1129,16 @@
         else askWindow('Is this the client’s folder?', '<p>You chose <b>' + esc(res.label) + '</b>. This overview is for <b>' + esc(want) + '</b>, and that folder’s name is not a client’s name. Load its documents anyway?</p>', [stop, again, { text: 'Load them anyway', cls: '', fn: function () { showList(res, false); } }]);
       }).catch(function (e) { normal('Something went wrong while reading the folder (' + ((e && e.message) || e) + ').', false); });
     }
+    /* The saved links to the connected folders look out of date: the Folders… dialog opens, and when a folder was chosen again the search starts over by itself (the new links answer at once); when none was, nothing is loaded and nothing loops (Studio 1.0). */
+    function reconnect() {
+      FU.connect().then(function (r) {
+        drawMeta(); if (OV.view) OV.view.forget();
+        if (r && r.chosen && r.chosen.length) run();
+        else { abandonSearch(); toast('No folder was chosen again, so nothing was loaded.', 6000); }
+      });
+    }
     function run() {
-      var me = watchSearch({ stop: function (why) { normal(why, true); }, again: run, choose: FU.pickClientFolder ? chooseFolder : null });
+      var me = watchSearch({ stop: function (why) { normal(why, true); }, again: run, choose: FU.pickClientFolder ? chooseFolder : null, reconnect: reconnect });
       w = me;
       FU.clientFiles({ sname: state.header.sname, fname: state.header.fname }, { onStage: me.stage, onPerm: me.perm }).then(function (res) {
         if (me.stale()) return; me.end();
@@ -1156,7 +1179,12 @@
     if (state.newer) return;
     var FU = window.FF && FF.foldersUI;
     if (!FU || !FU.clientFolder || typeof window.showOpenFilePicker !== 'function') { pickAny(block); return; }
-    var w = watchSearch({ stop: function (why) { giveUp(why, true); }, again: function () { fromClientFolder(block); } });
+    var w = watchSearch({ stop: function (why) { giveUp(why, true); }, again: function () { fromClientFolder(block); }, reconnect: function () {
+      FU.connect().then(function (r) {
+        drawMeta(); if (OV.view) OV.view.forget();
+        if (r && r.chosen && r.chosen.length) fromClientFolder(block); else { w.end(); searchTok++; toast('No folder was chosen again, so nothing was loaded.', 6000); }
+      });
+    } });
     function giveUp(why, click) {                                                                           // the same as Load: a fresh click opens the normal window at once, a late one is asked for
       w.end(); searchTok++;
       if (click || w.since() < 4000) { toast((why ? why + ' ' : '') + 'The normal file window is opening instead.', 8000); pickAny(block); }
