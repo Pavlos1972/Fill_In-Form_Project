@@ -57,30 +57,31 @@
   var UW_ISSUED = ['standard', 'loadings', 'exclusions', 'both'], UW_DECLINED = ['declinedHealth', 'declinedOther'];
   /* What an older file called a status, as (client decision, underwriting). "declined" is a GUESS: the insurer declined a quote the client had accepted. */
   var LEGACY_STATUS = { underwriting: ['accepted', 'pending'], declined: ['accepted', 'declinedOther'], medical: ['accepted', 'declinedHealth'] };
-  var TERM_BENEFITS = ['All benefits', 'Life cover', 'Severe illness', 'Lump sum disability', 'Income protector', 'Severe illness and income protector'];
+  var TERM_BENEFITS = ['All benefits', 'Life cover', 'Severe illness', 'Lump sum disability', 'Income protector'];
   /* Counter offers (round 1.2, 24 November): when the client accepts a quote and underwriting comes back with loadings or exclusions, the insurer sends a counter offer LETTER and a counter offer QUOTE. A counter offer is a quote of the same
-     kind and block as the one the client accepted (counterOf = that quote's id). BrightRock's letter prints its terms in a grid: ROWS are need groups, the three COLUMN GROUPS are below. WHICH of the four benefits each column group is
-     is ONE table, here (the mapping is Paul's to confirm). Round 1.3 (24 November, evening, from a real BrightRock proposal read by the Fix Skills chat): caused by death = life cover; permanent = lump sum disability; can recover from =
-     income protector on the needs row (the temporary expenses) and severe illness on the additional expense row. A column group alone, with no need group, keeps the old combined reading (severe illness and income protector). */
+     kind and block as the one the client accepted (counterOf = that quote's id). BrightRock's letter prints its terms in a grid: ROWS are need groups, the three COLUMN GROUPS are below. BrightRock has FOUR separate pillars and every loading or
+     exclusion cell belongs to exactly ONE of them, never a combined label (Paul's final word, 24 November, 22:27; he first said "can recover from = income protector only"): caused by death = LIFE COVER (a death-related line is always life cover);
+     permanent = LUMP SUM DISABILITY; can recover from = INCOME PROTECTOR (the temporary expenses cover of the household, child care and debt rows); and the ADDITIONAL EXPENSE needs row (dread), which only carries severe illness, is
+     SEVERE ILLNESS whatever column group the letter prints it under. A need is not a pillar: a pillar's red references go onto EVERY need line that has an amount in that pillar (the views check the amount). ONE table, here: the column groups
+     and the need group that has only one pillar. Round 1.3 (the earlier readings, a combined "severe illness and income protector", are gone). */
   var NEED_GROUPS = [
     { id: 'needs', l: 'Household, childcare, healthcare, debt and death-related needs', lines: ['household', 'child', 'debt', 'death', 'other'] },
-    { id: 'dread', l: 'Additional expense needs', lines: ['dread'] }
+    { id: 'dread', l: 'Additional expense needs', lines: ['dread'], only: { pillars: ['sev'], benefit: 'Severe illness' } }          // the row that only carries severe illness: every cell of it is severe illness
   ];
   var COLUMN_GROUPS = [
-    { id: 'recover', l: 'Cover that you can recover from', pillars: ['sev', 'ip'], benefit: 'Severe illness and income protector',
-      byNeed: { needs: { pillars: ['ip'], benefit: 'Income protector' }, dread: { pillars: ['sev'], benefit: 'Severe illness' } } },
+    { id: 'recover', l: 'Cover that you can recover from', pillars: ['ip'], benefit: 'Income protector' },
     { id: 'permanent', l: 'Cover that\u2019s permanent', pillars: ['lsd'], benefit: 'Lump sum disability' },
     { id: 'death', l: 'Cover that\u2019s caused by death', pillars: ['life'], benefit: 'Life cover' }
   ];
   var needGroupById = Object.create(null); NEED_GROUPS.forEach(function (g) { needGroupById[g.id] = g; });
   var columnGroupById = Object.create(null); COLUMN_GROUPS.forEach(function (g) { columnGroupById[g.id] = g; });
-  /* The benefit and the pillars of ONE cell of the letter's grid (a need group and a column group): the table above, refined by the need group where it has to be; with no need group (a typed row, an odd file) the column group alone. null: not a cell. */
+  /* The benefit and the pillar of ONE cell of the letter's grid (a need group and a column group): a need group that has only one pillar (the additional expense row) decides it, otherwise the column group does. null: not a cell. */
   function cellOf(need, column) {
     var cg = columnGroupById[column]; if (!cg) return null;
-    var by = cg.byNeed && needGroupById[need] ? cg.byNeed[need] : null;
-    return by || { pillars: cg.pillars, benefit: cg.benefit };
+    var ng = needGroupById[need]; if (ng && ng.only) return { pillars: ng.only.pillars.slice(), benefit: ng.only.benefit };
+    return { pillars: cg.pillars.slice(), benefit: cg.benefit };
   }
-  /* The benefit name for a set of cells: one benefit as it is, every pillar as All benefits, otherwise the names joined (Life cover, lump sum disability and income protector). */
+  /* The benefit name for a set of cells: one pillar as it is, every pillar as All benefits, otherwise the pillars listed one after the other (Life cover, lump sum disability, income protector). */
   function cellsBenefit(cells) {
     var names = [], pil = {};
     (cells || []).forEach(function (a) { var c = a && cellOf(a.need, a.column); if (!c) return; if (names.indexOf(c.benefit) < 0) names.push(c.benefit); c.pillars.forEach(function (p) { pil[p] = 1; }); });
@@ -88,12 +89,11 @@
     var order = ['Life cover', 'Severe illness', 'Lump sum disability', 'Income protector', 'Severe illness and income protector'], at = function (b) { var i = order.indexOf(b); return i < 0 ? order.length : i; };
     names.sort(function (a, b) { return at(a) - at(b); });                                                   // always in the order of the columns on the page
     if (names.length > 1 && ['life', 'sev', 'lsd', 'ip'].every(function (p) { return pil[p]; })) return 'All benefits';
-    var low = names.map(function (b, i) { return i ? b.charAt(0).toLowerCase() + b.slice(1) : b; });                 // Severe illness and income protector
-    return low.length === 1 ? low[0] : low.slice(0, -1).join(', ') + ' and ' + low[low.length - 1];
+    return names.map(function (b, i) { return i ? b.charAt(0).toLowerCase() + b.slice(1) : b; }).join(', ');                 // a list of separate pillars (an exclusion printed in several cells), never one combined label
   }
   var needGroupOfLine = Object.create(null); NEED_GROUPS.forEach(function (g) { g.lines.forEach(function (t) { needGroupOfLine[t] = g.id; }); });
   /* The four pillars a typed benefit name stands for. */
-  var BENEFIT_PILLARS = Object.assign(Object.create(null), { 'All benefits': ['life', 'sev', 'lsd', 'ip'], 'Life cover': ['life'], 'Severe illness': ['sev'], 'Lump sum disability': ['lsd'], 'Income protector': ['ip'], 'Severe illness and income protector': ['sev', 'ip'] });
+  var BENEFIT_PILLARS = Object.assign(Object.create(null), { 'All benefits': ['life', 'sev', 'lsd', 'ip'], 'Life cover': ['life'], 'Severe illness': ['sev'], 'Lump sum disability': ['lsd'], 'Income protector': ['ip'], 'Severe illness and income protector': ['sev', 'ip']          /* only so that a row typed with this label in 1.2 still draws; it is not offered any more */ });
   var LOADING_KINDS = [{ id: 'medical', l: 'Medical' }, { id: 'occupational', l: 'Occupational' }, { id: 'other', l: 'Other' }];
   var loadingKindLabel = {}; LOADING_KINDS.forEach(function (k) { loadingKindLabel[k.id] = k.l; });
   var BROKER_RECORD = [{ id: 'stays', l: 'Stays with the current broker' }, { id: 'moves', l: 'Moves to Wealth Revolution' }];

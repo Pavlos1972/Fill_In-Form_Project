@@ -35,13 +35,13 @@ test('the page is 1.2 (the layout stays 0.1), the changed scripts carry new tags
   ['index.html', 'short-risk.html', 'capture-sheet.html', 'overview.html'].forEach(f => assert.ok(/folders-ui\.js\?v=20261124[m-z]/.test(app(f)) && /folders\.js\?v=20261124[m-z]/.test(app(f)), f));
 });
 
-test('the BrightRock column groups and need groups are ONE table (the mapping is Paul’s to confirm): death = life cover, permanent = lump sum disability, recover = income protector on the needs row and severe illness on the additional expense row (round 1.3), the combined reading when no need group is known', () => {
+test('the BrightRock column groups and need groups are ONE table (Paul\u2019s final word, 24 November: FOUR separate pillars, never a combined label): death = life cover, permanent = lump sum disability, recover from = income protector ONLY, the additional expense row = severe illness', () => {
   const col = schema.columnGroupById;
-  assert.deepStrictEqual(col.death.pillars, ['life']); assert.deepStrictEqual(col.permanent.pillars, ['lsd']); assert.deepStrictEqual(col.recover.pillars, ['sev', 'ip']);
+  assert.deepStrictEqual(col.death.pillars, ['life']); assert.deepStrictEqual(col.permanent.pillars, ['lsd']); assert.deepStrictEqual(col.recover.pillars, ['ip']);
   assert.strictEqual(schema.needGroupOfLine.household, 'needs'); assert.strictEqual(schema.needGroupOfLine.debt, 'needs'); assert.strictEqual(schema.needGroupOfLine.dread, 'dread');
-  assert.ok(schema.TERM_BENEFITS.indexOf('Severe illness and income protector') >= 0);
+  assert.ok(schema.TERM_BENEFITS.indexOf('Severe illness and income protector') < 0, 'no combined label is offered');
   assert.deepStrictEqual(schema.cellOf('needs', 'recover'), { pillars: ['ip'], benefit: 'Income protector' }); assert.deepStrictEqual(schema.cellOf('dread', 'recover'), { pillars: ['sev'], benefit: 'Severe illness' });
-  assert.deepStrictEqual(schema.cellOf(null, 'recover'), { pillars: ['sev', 'ip'], benefit: 'Severe illness and income protector' });
+  assert.deepStrictEqual(schema.cellOf(null, 'recover'), { pillars: ['ip'], benefit: 'Income protector' });
 });
 
 test('a counter offer is a quote of the same kind in the same block, linked to the one the client accepted; it has no underwriting of its own', () => {
@@ -286,11 +286,11 @@ test('the shortfall never takes a counter offer, even one whose quote is gone', 
 test('the labels of the terms come from the table (need group and column group) at draw time: a correction of the mapping reaches saved files, also one saved by 1.2; a typed row keeps what was typed', () => {
   const s = fresh(), q = accepted(s, quote(s, 'fna', '400500600')), c = docs.applyCounterLetter(s, q, LETTER, 'letter.pdf').quote;
   const l = c.terms.loadings[0], e = c.terms.exclusions[0]; l.benefit = 'a stale label'; e.benefit = 'a stale label';
-  assert.strictEqual(calc.termBenefit(l), 'Income protector'); assert.strictEqual(calc.termBenefit(e), 'Severe illness and income protector', 'an exclusion on a needs cell and a dread cell: both benefits, in the order of the columns');
+  assert.strictEqual(calc.termBenefit(l), 'Income protector'); assert.strictEqual(calc.termBenefit(e), 'Severe illness, income protector', 'an exclusion printed in two cells: the two pillars listed, never one combined label');
   assert.strictEqual(calc.termBenefit({ benefit: 'Life cover' }), 'Life cover');
-  const old = schema.columnGroupById.recover.byNeed.needs; schema.columnGroupById.recover.byNeed.needs = { pillars: ['sev'], benefit: 'Severe illness' };
-  assert.strictEqual(calc.termBenefit(l), 'Severe illness'); assert.deepStrictEqual(calc.refsAt(c, 'household', 'ip').map(r => r.text), [], 'and the red references follow the same table'); assert.ok(calc.refsAt(c, 'household', 'sev').length > 0);
-  schema.columnGroupById.recover.byNeed.needs = old;
+  const old = schema.columnGroupById.recover.pillars.slice(), oldB = schema.columnGroupById.recover.benefit; schema.columnGroupById.recover.pillars = ['lsd']; schema.columnGroupById.recover.benefit = 'Lump sum disability';
+  assert.strictEqual(calc.termBenefit(l), 'Lump sum disability'); assert.deepStrictEqual(calc.refsAt(c, 'household', 'ip').map(r => r.text), [], 'and the red references follow the same table'); assert.ok(calc.refsAt(c, 'household', 'lsd').length > 0);
+  schema.columnGroupById.recover.pillars = old; schema.columnGroupById.recover.benefit = oldB;
 });
 
 test('a quote whose counter offer the client turned down says so: not accepted (red), no policy comes from it; one the client accepted says that', () => {

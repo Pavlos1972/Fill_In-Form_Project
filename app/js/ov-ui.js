@@ -341,7 +341,7 @@
   function termCell(r) {
     if (!r || (!r.need && !r.column)) return '';
     var ng = schema.needGroupById[r.need], cg = schema.columnGroupById[r.column];
-    return '<small class="foot">' + esc([ng && ng.l, cg && cg.l].filter(Boolean).join(' · ')) + '</small>';
+    return '<small class="foot">' + esc([ng && ng.l, cg && !(ng && ng.only) && cg.l].filter(Boolean).join(' · ')) + '</small>';          // the additional expense row is severe illness whatever column the letter prints it under
   }
   /* Premium before, after and the difference of a counter offer (derived: the quote before it and the counter offer's own premium, else the letter's two premiums). */
   function premText(pr) {

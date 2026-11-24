@@ -30,31 +30,43 @@ const problems = s => check.run(s, { ran: true, done: { fna: true } }).problems;
 
 test('the page is 1.3 (the layout stays 0.1), the changed scripts carry new tags, the contract has no new key', () => {
   assert.strictEqual(schema.pageVersion, '1.3'); assert.strictEqual(schema.version, '0.1'); assert.ok(parseFloat(schema.pageVersion) > parseFloat('1.2'), 'compared as decimals');
-  ['ov-schema', 'ov-calc', 'ov-docs', 'ov-check'].forEach(f => assert.ok(new RegExp(f + '\\.js\\?v=20261124n').test(app('overview.html')), f));
+  ['ov-schema', 'ov-calc', 'ov-docs', 'ov-check'].forEach(f => assert.ok(new RegExp(f + '\\.js\\?v=20261124[n-z]').test(app('overview.html')), f));
 });
 
-test('(e) the table is keyed by need group and column group: needs + recover = income protector, dread + recover = severe illness, permanent = lump sum disability, death = life cover; no need group = the combined reading', () => {
+test('(e) Paul\u2019s FOUR pillars, ONE table: death = life cover, permanent = lump sum disability, recover from = income protector ONLY, the additional expense row = severe illness whatever column it is printed under; no combined label anywhere', () => {
   const c = schema.cellOf;
-  assert.deepStrictEqual(c('needs', 'recover'), { pillars: ['ip'], benefit: 'Income protector' }); assert.deepStrictEqual(c('dread', 'recover'), { pillars: ['sev'], benefit: 'Severe illness' });
-  ['needs', 'dread'].forEach(n => { assert.deepStrictEqual(c(n, 'permanent').pillars, ['lsd']); assert.deepStrictEqual(c(n, 'death').pillars, ['life']); });
-  assert.deepStrictEqual(c(undefined, 'recover'), { pillars: ['sev', 'ip'], benefit: 'Severe illness and income protector' }); assert.deepStrictEqual(c('nonsense', 'recover').pillars, ['sev', 'ip']);
-  assert.strictEqual(c('needs', 'nonsense'), null); assert.strictEqual(c('constructor', 'recover').benefit, 'Severe illness and income protector', 'a name from the prototype is no need group');
-  assert.strictEqual(schema.cellsBenefit([{ need: 'needs', column: 'recover' }]), 'Income protector');
-  assert.strictEqual(schema.cellsBenefit([{ need: 'dread', column: 'recover' }, { need: 'needs', column: 'recover' }]), 'Severe illness and income protector', 'in the order of the columns on the page');
-  assert.strictEqual(schema.cellsBenefit([{ need: 'needs', column: 'recover' }, { need: 'needs', column: 'permanent' }, { need: 'needs', column: 'death' }, { need: 'dread', column: 'recover' }]), 'All benefits', 'an exclusion on every column is on all benefits, not a four-part list');
-  assert.strictEqual(schema.cellsBenefit([{ need: 'needs', column: 'death' }, { need: 'needs', column: 'permanent' }, { need: 'needs', column: 'recover' }]), 'Life cover, lump sum disability and income protector');
+  assert.deepStrictEqual(c('needs', 'recover'), { pillars: ['ip'], benefit: 'Income protector' }); assert.deepStrictEqual(c('needs', 'permanent'), { pillars: ['lsd'], benefit: 'Lump sum disability' }); assert.deepStrictEqual(c('needs', 'death'), { pillars: ['life'], benefit: 'Life cover' });
+  ['recover', 'permanent', 'death'].forEach(col => assert.deepStrictEqual(c('dread', col), { pillars: ['sev'], benefit: 'Severe illness' }, 'the additional expense row is severe illness under ' + col));
+  assert.deepStrictEqual(c(undefined, 'recover'), { pillars: ['ip'], benefit: 'Income protector' }); assert.deepStrictEqual(c('nonsense', 'permanent').pillars, ['lsd']);
+  assert.strictEqual(c('needs', 'nonsense'), null); assert.strictEqual(c('constructor', 'recover').benefit, 'Income protector', 'a name from the prototype is no need group');
+  assert.strictEqual(schema.cellsBenefit([{ need: 'needs', column: 'recover' }]), 'Income protector'); assert.strictEqual(schema.cellsBenefit([{ need: 'dread', column: 'recover' }]), 'Severe illness');
+  assert.strictEqual(schema.cellsBenefit([{ need: 'dread', column: 'recover' }, { need: 'needs', column: 'recover' }]), 'Severe illness, income protector', 'two pillars an exclusion is printed under: listed in the order of the columns, never the combined label');
+  assert.strictEqual(schema.cellsBenefit([{ need: 'needs', column: 'recover' }, { need: 'needs', column: 'permanent' }, { need: 'needs', column: 'death' }, { need: 'dread', column: 'recover' }]), 'All benefits', 'an exclusion on every pillar is on all benefits, not a four-part list');
+  assert.strictEqual(schema.cellsBenefit([{ need: 'needs', column: 'death' }, { need: 'needs', column: 'permanent' }, { need: 'needs', column: 'recover' }]), 'Life cover, lump sum disability, income protector');
   assert.strictEqual(schema.cellsBenefit([]), ''); assert.strictEqual(schema.cellsBenefit([{ need: 'needs', column: 'nonsense' }]), '');
+  assert.ok(schema.TERM_BENEFITS.indexOf('Severe illness and income protector') < 0, 'not offered');
+  ['ov-docs.js', 'ov-ui.js', 'ov-calc.js', 'ov-check.js', 'ov-pdf.js', 'ov-present.js', 'ov-pres.js'].forEach(f => assert.ok(!/severe illness and income protector/i.test(app('js/' + f)), f + ' has no combined label'));
 });
 
-test('(e) a file saved by 1.2 (the old combined label stored on the rows) opens with the new labels and the new references; a row with no need group keeps the combined reading; a typed row keeps what was typed', () => {
+test('(e) the red references go by PILLAR onto every need line: permanent on household, child care and debt; caused by death on household, child care, debt AND death-related; recover from on the income protector only; the additional expense row only on its severe illness; never on the wrong pillar', () => {
+  const s = fresh(), q = accepted(s, quote(s, '400500600')), L = mkLetter({ cells: [{ need: 'needs', column: 'recover', loading: 9, exclusions: [] }, { need: 'needs', column: 'permanent', loading: 14, exclusions: [] }, { need: 'needs', column: 'death', loading: 6, exclusions: [] }, { need: 'dread', column: 'recover', loading: 11, exclusions: ['4*'] }] });
+  const c = docs.applyCounterLetter(s, q, L, 'letter.pdf').quote, txt = (t, p) => calc.refsAt(c, t, p).map(r => r.text);
+  ['household', 'child', 'debt'].forEach(t => { assert.deepStrictEqual(txt(t, 'lsd'), ['+14% loading'], t + ': permanent'); assert.deepStrictEqual(txt(t, 'ip'), ['+9% loading'], t + ': recover from is the income protector'); assert.deepStrictEqual(txt(t, 'sev'), [], t + ': no severe illness under recover from'); });
+  ['household', 'child', 'debt', 'death'].forEach(t => assert.deepStrictEqual(txt(t, 'life'), ['+6% loading'], t + ': caused by death is life cover'));
+  assert.deepStrictEqual(txt('dread', 'sev'), ['+11% loading', 'Exclusion 4*']); ['life', 'lsd', 'ip'].forEach(p => assert.deepStrictEqual(txt('dread', p), [], 'the additional expense row has only severe illness: ' + p));
+  assert.deepStrictEqual(calc.refsTotal(c, 'ip').map(r => r.text), ['+9% loading']); assert.deepStrictEqual(calc.refsTotal(c, 'sev').map(r => r.text), ['+11% loading', 'Exclusion 4*']);
+  assert.deepStrictEqual(c.terms.loadings.map(l => calc.termBenefit(l)), ['Income protector', 'Lump sum disability', 'Life cover', 'Severe illness'], 'one pillar each, never a combined label');
+});
+
+test('(e) a file saved by 1.2 (the old labels stored on the rows) opens with the new labels and the new references; a row with no need group is the column\u2019s pillar; a typed row keeps what was typed', () => {
   const s = fresh(), q = accepted(s, quote(s, '400500600')), c = docs.applyCounterLetter(s, q, mkLetter(), 'letter.pdf').quote;
   c.terms.loadings.forEach(l => { l.benefit = 'Severe illness and income protector'; }); c.terms.exclusions[0].benefit = 'Severe illness and income protector';          // what 1.2 stored
   const o = store.fromJSON(store.toJSON(s)), oc = o.blocks.fna.quotes[1];
   assert.deepStrictEqual(oc.terms.loadings.map(l => calc.termBenefit(l)), ['Income protector', 'Lump sum disability', 'Severe illness']);
-  assert.strictEqual(calc.termBenefit(oc.terms.exclusions[0]), 'Severe illness and income protector');
+  assert.strictEqual(calc.termBenefit(oc.terms.exclusions[0]), 'Severe illness, income protector');
   const txt = (t, p) => calc.refsAt(oc, t, p).map(r => r.text);
   assert.deepStrictEqual(txt('household', 'ip'), ['+9% loading', 'Exclusion 4*']); assert.deepStrictEqual(txt('household', 'sev'), []); assert.deepStrictEqual(txt('dread', 'sev'), ['+9% loading', 'Exclusion 4*']); assert.deepStrictEqual(txt('dread', 'ip'), []);
-  assert.strictEqual(calc.termBenefit({ column: 'recover', benefit: 'x' }), 'Severe illness and income protector', 'no need group: the combined reading');
+  assert.strictEqual(calc.termBenefit({ column: 'recover', benefit: 'x' }), 'Income protector', 'no need group: the column\u2019s pillar');
   assert.strictEqual(calc.termBenefit({ benefit: 'Life cover' }), 'Life cover', 'a typed row'); assert.strictEqual(calc.termBenefit({ applies: [{ need: 'needs', column: 'death' }] }), 'Life cover');
 });
 
