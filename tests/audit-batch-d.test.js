@@ -16,6 +16,31 @@ test('publishing runs the tests first, and a pull request runs them too', () => 
   assert.match(tests, /pull_request:/); assert.match(tests, /run: npm test/);
 });
 
+test('publishing stamps the ?v= tags of EVERY page of the app (a page left out keeps old cached scripts beside new ones)', () => {
+  const pages = read('.github/workflows/pages.yml');
+  const sed = pages.match(/sed -i -E "s\/(.+?)\/(.*?)\/g" ([^\n]+)/);
+  const grep = pages.match(/grep -c "\?v=\$\{v\}" ([^\n]+)/);
+  assert.ok(sed && grep, 'the step that stamps the ?v= tags was not found');
+  const stamped = sed[3].trim().split(/\s+/), counted = grep[1].trim().split(/\s+/);
+  const appPages = fs.readdirSync(path.join(root, 'app')).filter(f => /\.html$/.test(f) && /\?v=/.test(read('app/' + f))).map(f => 'app/' + f).sort();
+  assert.ok(appPages.length >= 4 && appPages.includes('app/overview.html'), appPages.join(', '));
+  assert.deepStrictEqual(stamped.slice().sort(), appPages, 'the sed line must list every page of app/ that has ?v= tags');
+  assert.deepStrictEqual(counted.slice().sort(), appPages, 'the grep -c line must list the same pages');
+  // the very pattern the workflow uses (the shell's \" is a plain quote) reaches every tag of every page
+  const re = new RegExp(sed[1].replace(/\\"/g, '"'), 'g');
+  appPages.forEach(f => {
+    const html = read(f), tags = (html.match(/\?v=/g) || []).length;
+    assert.ok(tags > 0, f);
+    assert.strictEqual((html.match(re) || []).length, tags, f + ': a ?v= tag the workflow pattern does not reach');
+    const after = html.replace(re, '$1?v=0123456789"');
+    assert.strictEqual((after.match(/\?v=0123456789"/g) || []).length, tags, f + ': not every tag takes the stamp');
+  });
+  // the pdf.js files named inside ov-view.js are deliberately not stamped (the script is, through overview.html): they must stay named there
+  assert.match(read('app/js/ov-view.js'), /PDFJS = 'vendor\/pdf\.min\.js\?v=[0-9a-z]+'/);
+  assert.match(read('app/js/ov-view.js'), /WORKER = 'vendor\/pdf\.worker\.min\.js\?v=[0-9a-z]+'/);
+  assert.match(read('README.md'), /stamps the scripts' and stylesheets' `\?v=` tags in all four pages/);
+});
+
 test('the files that start the Fact Find on a computer are left off the website, and stay in the app folder', () => {
   assert.match(read('.github/workflows/pages.yml'), /rm -f "app\/Start Fact Find\.bat" app\/FactFindServer\.ps1/);
   assert.ok(fs.existsSync(path.join(root, 'app', 'Start Fact Find.bat')) && fs.existsSync(path.join(root, 'app', 'FactFindServer.ps1')));

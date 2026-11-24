@@ -31,11 +31,16 @@ jobs:
       - name: Run the tests (nothing is published when one fails)
         run: npm test
       - uses: actions/configure-pages@v5
+      # Every page of the app is listed here (the four .html files in app/). A page left out keeps its hand-set ?v= tags,
+      # so a visitor could get an old cached script beside new ones. tests/audit-batch-d.test.js fails when a page is missing.
+      # The pdf.js addresses inside js/ov-view.js (vendor/pdf.min.js?v=..., vendor/pdf.worker.min.js?v=...) are not stamped:
+      # js/ov-view.js itself is (through overview.html), and the vendored files change only when someone replaces them
+      # and bumps those two constants by hand.
       - name: Make the browser fetch the new scripts after an update
         run: |
           v="${GITHUB_SHA::10}"
-          sed -i -E "s/(\.(js|css))\?v=[0-9a-z]+\"/\1?v=${v}\"/g" app/index.html app/short-risk.html app/capture-sheet.html
-          grep -c "?v=${v}" app/index.html app/short-risk.html app/capture-sheet.html
+          sed -i -E "s/(\.(js|css))\?v=[0-9a-z]+\"/\1?v=${v}\"/g" app/index.html app/short-risk.html app/capture-sheet.html app/overview.html
+          grep -c "?v=${v}" app/index.html app/short-risk.html app/capture-sheet.html app/overview.html
       - name: Leave the files that start the Fact Find on a computer off the website
         run: rm -f "app/Start Fact Find.bat" app/FactFindServer.ps1
       - uses: actions/upload-pages-artifact@v3
