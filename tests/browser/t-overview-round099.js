@@ -99,7 +99,7 @@ srv.listen(0, async () => {
 
   /* ---- 0. the version ---- */
   let p = await fresh({});
-  ok(/Version 0\.99/.test(await p.evaluate(() => document.body.innerText)), '0. the header says Version 0.99');
+  ok(/Version (0\.99|1\.0)/.test(await p.evaluate(() => document.body.innerText)), '0. the header says Version 0.99');
   await p.close();
 
   /* ---- 1. Chrome says nothing at all: the browser's folder window does NOT open by itself; the page's own window does, with the client's folder named and the three actions ---- */
@@ -108,8 +108,8 @@ srv.listen(0, async () => {
   ok((await picksOf(p)).length === 0 && !(await askWin(p)), '1. after 3.6 s the browser\'s folder window has not opened by itself and the page\'s own window is not there yet');
   ok(await waitWin(p, 6000), '1. the page\'s own window opens once Chrome has had 4 seconds');
   let win1 = await askWin(p);
-  ok(win1 && /cannot open your client folders/.test(win1.title) && /View, Vera/.test(win1.text) && /has been asked and is waiting for you/.test(win1.text) && /If no question shows/.test(win1.text) && /Folders/.test(win1.text), '1. it says Chrome has been asked (the page did ask, at 1.2 s), that if no question shows Chrome is not showing it, names the folder it is looking for (View, Vera) and where to reconnect');
-  ok(win1 && win1.buttons.join('|') === 'Stop|Ask Chrome again|Choose the client’s folder myself', '1. and offers Stop, Ask Chrome again and Choose the client\'s folder myself (' + (win1 && win1.buttons.join(' | ')) + ')');
+  ok(win1 && /look out of date/.test(win1.title) && /View, Vera/.test(win1.text) && /look out of date/.test(win1.text) && !/Edit files/.test(win1.text) && /Reconnect my folders/.test(win1.text), '1. (1.0) Chrome answered nothing about either folder: the window says the saved links look out of date, names the folder it is looking for (View, Vera) and does not send the adviser looking for a question');
+  ok(win1 && win1.buttons.join('|') === 'Stop|Choose the client’s folder myself|Reconnect my folders', '1. (1.0) and offers Stop, Choose the client\'s folder myself and Reconnect my folders, not Ask Chrome again (' + (win1 && win1.buttons.join(' | ')) + ')');
   ok((await picksOf(p)).length === 0, '1. still no browser folder window');
   await p.screenshot({ path: out + '/r10-silent.png' });
   await p.click('dialog[data-ask][open] >> text=Choose the client’s folder myself');
@@ -126,10 +126,19 @@ srv.listen(0, async () => {
   ok((await picksOf(p)).length === 0, '2. 2.8 s after the click, with Chrome\'s question on the screen, no browser folder window opened over it (0.98 opened it at 2.5 s)');
   ok(await waitWin(p, 3500), '2. the page\'s own window opens at 4 s');
   const win2 = await askWin(p);
-  ok(win2 && /waiting for you/.test(win2.text) && /Edit files\?/.test(win2.text) && /New Business: waiting for your answer/.test(win2.text), '2. and says Chrome has been asked and is waiting for the adviser (the folder is shown as asked, not as "checking")');
+  ok(win2 && /look out of date/.test(win2.title) && /New Business: waiting for your answer/.test(win2.text), '2. (1.0) the first answer never came, so the window says the links look out of date, and the folder is shown as asked ("waiting for your answer"), not as "checking"');
   const listed2 = await waitList(p, 6000);
   ok(listed2 && Date.now() - t0 < 9000, '2. the list opens by itself when Allow is clicked (' + (Date.now() - t0) + ' ms), the question window is gone, and the folder window never opened (' + (await picksOf(p)).length + ' times)');
   ok((await picksOf(p)).length === 0 && (await p.evaluate(() => document.querySelectorAll('dialog[data-ask]').length)) === 0, '2. no browser window and no leftover question window');
+  await p.close();
+
+  /* ---- 2b. Chrome answers "not yet" and the adviser takes 5 seconds: the window says Chrome has been asked and where to look (the three buttons of 0.99) ---- */
+  p = await fresh({ NB: { state: 'prompt', answer: 5000 }, CF: { state: 'prompt', answer: 'never' } });
+  t0 = Date.now(); await click(p);
+  ok(await waitWin(p, 6000), '2b. the page\'s own window opens at 4 s');
+  const win2b = await askWin(p);
+  ok(win2b && /cannot open your client folders/.test(win2b.title) && /waiting for you/.test(win2b.text) && /Edit files\?/.test(win2b.text) && win2b.buttons.join('|') === 'Stop|Ask Chrome again|Choose the client’s folder myself', '2b. Chrome has been asked: it says so and where to look, and offers Stop, Ask Chrome again and Choose the client\'s folder myself');
+  ok(await waitList(p, 6000) && (await picksOf(p)).length === 0, '2b. the list opens by itself when Allow is clicked and the folder window never opened');
   await p.close();
 
   /* ---- 3. a folder chosen by hand is checked against the client ---- */
@@ -166,7 +175,7 @@ srv.listen(0, async () => {
   ok(fc, '4. Stop opens the normal file window at once (the button\'s click is behind it)');
   ok(await barsWaiting(p) === 0, '4. and every block is released');
   await p.close();
-  p = await fresh(SILENT);
+  p = await fresh({ NB: { state: 'prompt', answer: 'never' }, CF: { state: 'prompt', answer: 'never' } });
   await click(p); await waitWin(p, 8000);
   await p.evaluate(() => { window.__perm = { NB: { state: 'granted' }, CF: { state: 'granted' } }; });
   await p.click('dialog[data-ask][open] >> text=Ask Chrome again');

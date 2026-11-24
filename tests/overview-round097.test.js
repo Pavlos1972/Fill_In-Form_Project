@@ -7,11 +7,11 @@ const fs = require('node:fs');
 const path = require('node:path');
 const app = f => fs.readFileSync(path.join(__dirname, '..', 'app', f), 'utf8');
 
-test('the page version moves on with the fixes (0.99 now), the layout is still 0.1 and the saved file gains no key', () => {
+test('the page version moves on with the fixes (1.0 now), the layout is still 0.1 and the saved file gains no key', () => {
   const schema = require('../app/js/ov-schema.js');
-  assert.strictEqual(schema.pageVersion, '0.99'); assert.strictEqual(schema.version, '0.1');
-  assert.ok(/ov-schema\.js\?v=20261124[fgh]/.test(app('overview.html')) && /ov-ui\.js\?v=20261124[fgh]/.test(app('overview.html')) && /folders-ui\.js\?v=20261124[fgh]/.test(app('overview.html')), 'the changed scripts have new ?v= tags');
-  ['index.html', 'short-risk.html', 'capture-sheet.html'].forEach(f => assert.ok(/folders-ui\.js\?v=20261124[fgh]/.test(app(f)), f));
+  assert.strictEqual(schema.pageVersion, '1.0'); assert.strictEqual(schema.version, '0.1');
+  assert.ok(/ov-schema\.js\?v=20261124[fghi]/.test(app('overview.html')) && /ov-ui\.js\?v=20261124[fghi]/.test(app('overview.html')) && /folders-ui\.js\?v=20261124[fghi]/.test(app('overview.html')), 'the changed scripts have new ?v= tags');
+  ['index.html', 'short-risk.html', 'capture-sheet.html'].forEach(f => assert.ok(/folders-ui\.js\?v=20261124[fghi]/.test(app(f)), f));
 });
 
 test('every connected folder is asked about at the same moment, the click is behind the first question, and the list opens as soon as ONE folder is open (folders-ui.js)', () => {
@@ -34,7 +34,7 @@ test('the client\'s own folder can be picked in the browser\'s folder window: re
 
 test('the screen: the wait names each folder and what Chrome said, and after 4 seconds offers Ask Chrome again, the client\'s own folder and the normal file window (ov-ui.js)', () => {
   const ui = app('js/ov-ui.js');
-  assert.ok(/function watchSearch\(act\)/.test(ui) && /w\.perm = function \(states\)/.test(ui), 'the wait takes what Chrome says about each folder');
+  assert.ok(/function watchSearch\(act\)/.test(ui) && /w\.perm = function \(states, why, qa\)/.test(ui), 'the wait takes what Chrome says about each folder');
   assert.ok(/text: 'Ask Chrome again'/.test(ui) && /text: 'Choose the client’s folder myself'/.test(ui) && /text: 'Stop and use the normal file window'/.test(ui), 'the three buttons');
   assert.ok(/function toastLinks\(msg, links, ms\)/.test(ui) && /data-toastlink="' \+ i \+ '"/.test(ui), 'a message can carry several buttons');
   assert.ok(/function chooseFolder\(\)/.test(ui) && /FU\.pickClientFolder\(\)\.then/.test(ui) && /function showList\(res, click\)/.test(ui), 'the picked folder opens the same list');

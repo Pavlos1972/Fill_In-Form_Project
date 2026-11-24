@@ -24,7 +24,7 @@
   function connect() {
     return load().then(function () {
       return new Promise(function (resolve) {
-        var dlg = document.createElement('dialog'); dlg.className = 'fdlg';
+        var dlg = document.createElement('dialog'), chosen = [], probe = {}; dlg.className = 'fdlg';
         function row(k) {
           return '<div class="frow" data-key="' + k + '"><div class="fhead"><b>' + LABEL[k] + '</b><span class="fstat" data-stat></span><button type="button" class="btn small" data-pick>Choose folder&hellip;</button></div>' +
             '<label class="fpath"><span>Windows path of this folder (typed once, so the page can warn before a path is too long)</span><input type="text" data-path value="' + esc(F.getPaths()[k] || '') + '" placeholder="e.g. C:\\Users\\&lt;you&gt;\\&hellip;\\' + LABEL[k] + '" autocomplete="off"><small data-pathnote></small></label></div>';
@@ -36,8 +36,9 @@
         function paint() {
           ['A', 'B'].forEach(function (k) {
             var r = dlg.querySelector('[data-key="' + k + '"]'), st = r.querySelector('[data-stat]'), inp = r.querySelector('[data-path]'), note = r.querySelector('[data-pathnote]'), v = inp.value.trim();
-            st.textContent = roots[k] ? 'Connected: ' + roots[k].handle.name : 'Not connected';
-            st.className = 'fstat ' + (roots[k] ? 'ok' : 'no');
+            var dead = !!roots[k] && probe[k] === 'silent';                                                 // 1.0: a saved link Chrome does not answer about is not "Connected"
+            st.textContent = dead ? 'Chrome is not answering about this folder (' + roots[k].handle.name + '): choose it again' : roots[k] ? 'Connected: ' + roots[k].handle.name : 'Not connected';
+            st.className = 'fstat ' + (roots[k] && !dead ? 'ok' : 'no');
             note.textContent = v === '' ? 'Not typed yet: the path length is not checked.' : /^[A-Za-z]:\\/.test(v) ? v.replace(/[\\\/]+$/, '').length + ' characters.' : 'A Windows path starts like C:\\ …';
             note.className = v === '' || !/^[A-Za-z]:\\/.test(v) ? 'warn' : '';
           });
@@ -47,14 +48,15 @@
           if (pick) {
             var k = pick.closest('[data-key]').getAttribute('data-key');
             window.showDirectoryPicker({ id: 'wr-folder-' + k.toLowerCase(), mode: 'readwrite' }).then(function (h) {
-              roots[k] = { handle: h }; F.saveHandle(k, h); paint();
+              roots[k] = { handle: h }; F.saveHandle(k, h); delete probe[k]; if (chosen.indexOf(k) < 0) chosen.push(k); paint();
             }).catch(function (err) { if (err && err.name !== 'AbortError') { var st = dlg.querySelector('[data-key="' + k + '"] [data-stat]'); st.textContent = 'Chrome would not open that folder: ' + err.message; st.className = 'fstat no'; } });
           }
           if (e.target.closest('[data-done]')) dlg.close();
         });
         dlg.addEventListener('input', function (e) { var inp = e.target.closest('[data-path]'); if (inp) { F.setPath(inp.closest('[data-key]').getAttribute('data-key'), inp.value); paint(); } });
-        dlg.addEventListener('close', function () { dlg.remove(); resolve(); });
+        dlg.addEventListener('close', function () { dlg.remove(); resolve({ chosen: chosen.slice() }); });          // Done and Esc alike; chosen: the folders chosen again in this dialog
         paint(); dlg.showModal();
+        Object.keys(roots).forEach(function (k) { var h = roots[k].handle; race(queryRoot(h), TIMEOUTS.probe || 2500).then(function (q) { if (roots[k] && roots[k].handle === h) { probe[k] = q === SLOW ? 'silent' : q; paint(); } }); });
       });
     });
   }
@@ -117,12 +119,16 @@
     await load();
     var all = withPaths(), keys = Object.keys(all);
     if (!F.enabled() || !keys.length) return { handle: await ctx.picker(null), folder: null };            // not connected: the normal Save window
-    var liveRoots = {};
+    /* Client Overview Studio 1.0: a connected folder whose saved link Chrome never answers about (measured on Paul's laptop: both stored folders loaded at once and queryPermission got no answer for as long as it was waited for) held a Save up for ever, with no word.
+       Every folder is asked about at the same moment with a limit; only a folder Chrome says "not yet" about is asked for (a click is behind it, the adviser has time to say Allow); a silent one is named, and the Save falls back to its window with the reason. */
+    var T = TIMEOUTS, liveRoots = {}, silent = [], askDeadline = Date.now() + (T.saveAsk || 15000);
+    var answers = await Promise.all(keys.map(function (rk) { return race(queryRoot(all[rk].handle), T.saveQuery || 3000); }));
     for (var i = 0; i < keys.length; i++) {
-      var st = await F.permission(all[keys[i]].handle, true);
-      if (st === 'granted') liveRoots[keys[i]] = all[keys[i]];
+      var rk = keys[i], ra = answers[i];
+      if (ra === 'prompt') ra = await race(requestRoot(all[rk].handle), Math.max(1, askDeadline - Date.now()));
+      if (ra === 'granted') liveRoots[rk] = all[rk]; else if (ra === SLOW) silent.push(LABEL[rk]);
     }
-    if (!Object.keys(liveRoots).length) return fallback('Chrome has not given this page access to your client folders. Click Folders… and choose them again, and Allow when Chrome asks.', null, true);
+    if (!Object.keys(liveRoots).length) return fallback(silent.length ? 'Chrome is not answering about ' + silent.join(' and ') + ': the saved ' + (silent.length > 1 ? 'links look' : 'link looks') + ' out of date. Click Folders… and choose ' + (silent.length > 1 ? 'them' : 'it') + ' again.' : 'Chrome has not given this page access to your client folders. Click Folders… and choose them again, and Allow when Chrome asks.', null, true);
     var cand = null, rootKey = null, rel = null, apps = null, label = '', cached = cache[key];
     try {
       if (ctx.sibling) {                                                                         // a PDF beside the saved file
@@ -170,7 +176,7 @@
   function failed(folder) { if (!folder) return Promise.resolve(false); delete cache[folder.key]; delete cache[folder.key + '|ok']; return folder.created ? F.discardEmpty(folder.apps, folder.name) : Promise.resolve(false); }
   /* How long each step of a folder search may take before the page says so instead of waiting for ever (milliseconds; Client Overview Studio 0.96: the search had no limit, and a permission question Chrome was still waiting on, or a slow OneDrive
      folder, left "Looking for the client's folder..." on the screen for good). The tests make them short. */
-  var TIMEOUTS = { permission: 45000, find: 45000, list: 60000, walk: 15000, stopLink: 8000, askAgain: 4000, askNext: 3000, queryWait: 1200 };
+  var TIMEOUTS = { permission: 45000, find: 45000, list: 60000, walk: 15000, stopLink: 8000, askAgain: 4000, askNext: 3000, queryWait: 1200, probe: 2500, saveQuery: 3000, saveAsk: 15000 };
   var SLOW = { slow: true };
   function race(p, ms) { return new Promise(function (resolve, reject) { var t = setTimeout(function () { resolve(SLOW); }, ms); Promise.resolve(p).then(function (v) { clearTimeout(t); resolve(v); }, function (e) { clearTimeout(t); reject(e); }); }); }
   /* One connected folder's state, asked for NOW (in the click's own turn): 'granted', 'prompt' or 'denied'; fail(text) hears why Chrome refused (Client Overview Studio 0.97). */
@@ -194,8 +200,9 @@
     var all = withPaths(), keys = Object.keys(all);
     if (!F.enabled() || !keys.length) return { reason: 'connect' };
     var live = {}, st = {}, why = {}, last = null, deadline = Date.now() + T.permission, left = function () { return Math.max(1, deadline - Date.now()); };      // one limit for all the questions together
-    function tell() { if (opts && opts.onPerm) { var sv = {}; keys.forEach(function (k) { sv[LABEL[k]] = PERM_WORD[st[k]] || st[k]; }); opts.onPerm(sv, why); } }
-    var queries = keys.map(function (k) { st[k] = 'asking'; return race(queryRoot(all[k].handle, function (t) { why[k] = t; }), left()); });
+    var qa = {};                                                                                           // 1.0: has this folder answered the FIRST question ("is it open?") at all
+    function tell() { if (opts && opts.onPerm) { var sv = {}, qv = {}; keys.forEach(function (k) { sv[LABEL[k]] = PERM_WORD[st[k]] || st[k]; qv[LABEL[k]] = !!qa[k]; }); opts.onPerm(sv, why, qv); } }
+    var queries = keys.map(function (k) { st[k] = 'asking'; return race(queryRoot(all[k].handle, function (t) { why[k] = t; }), left()).then(function (v) { if (v !== SLOW) { qa[k] = true; tell(); } return v; }); });
     tell();
     var WAIT = { wait: true };
     var asks = keys.map(function (k, i) {

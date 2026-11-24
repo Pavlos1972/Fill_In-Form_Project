@@ -59,6 +59,6 @@ test('the page: "to check" and "waiting" are buttons the page answers (a click a
   assert.ok(/<div><b id="sFilled">0<\/b><span>checked<\/span><\/div>/.test(html), '"checked" stays plain');
   assert.ok(/\['sVerifyBox', 'check'\], \['sEmptyBox', 'waiting'\]/.test(ui) && /goPending/.test(ui) && /e\.key === 'Enter' \|\| e\.key === ' '/.test(ui), 'a click and the keyboard both go');
   assert.ok(/store\.pendingRows\(state, kind\)/.test(ui) && /openSet\[next\.owner\.id\] = true/.test(ui), 'the page asks the store and opens the quote or policy that holds the row');
-  assert.strictEqual(schema.pageVersion, '0.99'); assert.strictEqual(schema.version, '0.1');
+  assert.strictEqual(schema.pageVersion, '1.0'); assert.strictEqual(schema.version, '0.1');
   assert.ok(/\.qcard\.flash/.test(app('css/overview.css')), 'a card flashes like a row');
 });

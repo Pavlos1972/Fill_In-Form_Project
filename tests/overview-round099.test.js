@@ -9,12 +9,12 @@ const path = require('node:path');
 const app = f => fs.readFileSync(path.join(__dirname, '..', 'app', f), 'utf8');
 const code = f => app(f).replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
 
-test('the page version is 0.99, the layout is still 0.1, the saved file gains no key, the changed scripts have new tags', () => {
+test('the page version is 1.0 (0.99 in the 0.99 release), the layout is still 0.1, the saved file gains no key, the changed scripts have new tags', () => {
   const schema = require('../app/js/ov-schema.js');
-  assert.strictEqual(schema.pageVersion, '0.99'); assert.strictEqual(schema.version, '0.1');
+  assert.strictEqual(schema.pageVersion, '1.0'); assert.strictEqual(schema.version, '0.1');
   const h = app('overview.html');
-  ['ov-schema', 'ov-ui', 'folders-ui'].forEach(f => assert.ok(new RegExp(f + '\\.js\\?v=20261124h').test(h), f));
-  ['index.html', 'short-risk.html', 'capture-sheet.html'].forEach(f => assert.ok(/folders-ui\.js\?v=20261124h/.test(app(f)), f));
+  ['ov-schema', 'ov-ui', 'folders-ui'].forEach(f => assert.ok(new RegExp(f + '\\.js\\?v=20261124i').test(h), f));
+  ['index.html', 'short-risk.html', 'capture-sheet.html'].forEach(f => assert.ok(/folders-ui\.js\?v=20261124i/.test(app(f)), f));
 });
 
 test('the browser\'s folder window never opens by itself: no auto limit, no auto timer, no auto action (folders-ui.js, ov-ui.js)', () => {
