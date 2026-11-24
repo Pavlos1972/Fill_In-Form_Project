@@ -35,10 +35,11 @@
   function recallHandle() { return idb(function (st, done) { var r = st.get('current'); r.onsuccess = function () { done(r.result || null); }; r.onerror = function () { done(null); }; }); }
   function loadDraft() { try { var t = localStorage.getItem(DRAFT_KEY); return t ? store.fromJSON(t) : null; } catch (e) { return null; } }
   function touch() { dirty = true; onDisk = false; saveDraft(); refreshChrome(); }
-  var toastAct = null;
-  function toast(msg, ms) { var t = $('#toast'); toastAct = null; t.textContent = msg; t.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(function () { t.hidden = true; }, ms || 3500); }
+  var toastAct = null, toastActs = [];
+  function toast(msg, ms) { var t = $('#toast'); toastAct = null; toastActs = []; t.textContent = msg; t.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(function () { t.hidden = true; }, ms || 3500); }
   /* A message with a link in it (reading needs the key: "Add the key in Settings"). */
-  function toastLink(msg, linkText, fn, ms) { var t = $('#toast'); t.innerHTML = esc(msg) + ' <button type="button" class="lnk" data-toastlink>' + esc(linkText) + '</button>'; toastAct = fn; t.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(function () { t.hidden = true; }, ms || 8000); }
+  function toastLinks(msg, links, ms) { var t = $('#toast'); t.innerHTML = esc(msg) + links.map(function (l, i) { return ' <button type="button" class="lnk" data-toastlink="' + i + '">' + esc(l.text) + '</button>'; }).join(''); toastAct = null; toastActs = links.map(function (l) { return l.fn; }); t.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(function () { t.hidden = true; }, ms || 8000); }
+  function toastLink(msg, linkText, fn, ms) { toastLinks(msg, [{ text: linkText, fn: fn }], ms); }
   function download(blob, name) {
     var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
     document.body.appendChild(a); a.click(); a.remove(); setTimeout(function () { URL.revokeObjectURL(a.href); }, 2000);
@@ -614,6 +615,13 @@
     'slow-permission': 'Chrome did not get an answer to its permission question in time (look next to the address bar for “Edit files?” and click Allow).',
     'slow-find': 'Looking through your client folders took too long (OneDrive may still be fetching the folder lists).',
     'slow-list': 'Reading the client’s folders took too long (OneDrive may still be fetching them).' };
+  /* The sentence for a failed search: the reason, which connected folder Chrome did not open, and what Chrome itself said (Client Overview Studio 0.97). */
+  function reasonText(res) {
+    var t = REASONS[res.reason] || 'The folder could not be read.', why = res.why && Object.keys(res.why).map(function (k) { return res.why[k]; }).filter(Boolean)[0];
+    if (res.reason === 'client' && res.skipped && res.skipped.length) t += ' (' + res.skipped.join(' and ') + (res.skipped.length > 1 ? ' were' : ' was') + ' not open to this page, so not searched.)';
+    if ((res.reason === 'access' || res.reason === 'slow-permission') && why) t += ' Chrome said: ' + why + '.';
+    return t;
+  }
   function aiOn() { try { return localStorage.getItem(AI_KEY) !== '0'; } catch (e) { return true; } }          // ON unless the adviser switched it off (Paul, 22 November: reading is the default); the switch is in Settings
   function aiSet(v) { try { localStorage.setItem(AI_KEY, v ? '1' : '0'); } catch (e) { /* kept for this visit only */ } }
   function aiKey() { var s = window.FF && FF.lookup && FF.lookup.getSettings ? FF.lookup.getSettings() : {}; return { apiKey: s.apiKey || '', model: s.model || (FF.lookup && FF.lookup.DEFAULT_MODEL) || '' }; }
@@ -997,7 +1005,7 @@
     var tickFu = newestFollowUp(res.files);
     return new Promise(function (resolve) {
       var dlg = document.createElement('dialog'), done = false; dlg.className = 'fdlg';
-      dlg.innerHTML = '<h3>Documents in ' + esc(res.label) + '</h3><p>Choose what to load into the overview. Ones the page can sort by their name are ticked; the others will ask you what they are. The quotes are read first, then their change moment pay-out guides.</p><div class="flist">' + res.files.map(function (f, i) {
+      dlg.innerHTML = '<h3>Documents in ' + esc(res.label) + '</h3><p>Choose what to load into the overview. Ones the page can sort by their name are ticked; the others will ask you what they are. The quotes are read first, then their change moment pay-out guides.</p>' + (res.skipped && res.skipped.length ? '<p class="fnote">' + esc(res.skipped.join(' and ')) + (res.skipped.length > 1 ? ' were' : ' was') + ' not open to this page yet, so only the other connected folder was searched.</p>' : '') + '<div class="flist">' + res.files.map(function (f, i) {
         var c = D.classify(f.name, (f.rel || []).join(' \\ '));
         return '<label><input type="checkbox" data-i="' + i + '"' + (c && (c.block !== 'followup' || f === tickFu) ? ' checked' : '') + '><span>' + esc(f.rel.concat([f.name]).join(' \\ ')) + (c ? ' <i>(' + esc(c.label) + ')</i>' : '') + '</span></label>';
       }).join('') + '</div><div class="fbtns"><button type="button" class="btn ghost small" data-no>Cancel</button><button type="button" class="btn small" data-yes>Load the ticked ones</button></div>';
@@ -1016,20 +1024,28 @@
      client's folder…" could stay on the screen for good, every block "Waiting to search"). The limits are in FF.foldersUI.timeouts. */
   var STAGE_TEXT = { permission: 'Waiting for Chrome’s permission question: look next to the address bar and click Allow', find: 'Looking for the client’s folder in New Business and Client Files', list: 'Reading the client’s folders', walk: 'Looking through the client’s folder' };
   var searchTok = 0;
-  function watchSearch(onStop) {
-    var tok = ++searchTok, t0 = Date.now(), stage = 'permission', timer = null, linked = false, w = {};
-    var after = function () { var T = window.FF && FF.foldersUI && FF.foldersUI.timeouts; return (T && T.stopLink) || 8000; };
+  /* act: { stop(why), again(), choose() }. After a few seconds of waiting for Chrome the adviser is offered another try (a fresh click, so Chrome counts it), the client's own folder in the browser's folder window, or the normal file window. */
+  function watchSearch(act) {
+    var tok = ++searchTok, t0 = Date.now(), stage = 'permission', timer = null, linked = '', perm = '', w = {};
+    var lim = function () { return (window.FF && FF.foldersUI && FF.foldersUI.timeouts) || {}; };
     w.stale = function () { return tok !== searchTok; };
     w.since = function () { return Date.now() - t0; };
     w.end = function () { clearInterval(timer); };
     w.stage = function (st) { stage = st; show(); };
+    w.perm = function (states) { perm = Object.keys(states).map(function (k) { return k + ': ' + states[k]; }).join(', '); show(); };
+    function go(fn) { return function () { searchTok++; clearInterval(timer); fn(); }; }
     function show() {
       if (w.stale()) { clearInterval(timer); return; }
-      var msg = (STAGE_TEXT[stage] || 'Looking for the client’s folder') + '… ' + Math.round((Date.now() - t0) / 1000) + ' s', t = $('#toast');
-      if (Date.now() - t0 >= after()) {
-        if (!linked) { linked = true; toastLink(msg, 'Stop and use the normal file window', function () { searchTok++; clearInterval(timer); onStop('Stopped.'); }, 600000); }
-        else if (t.firstChild && t.firstChild.nodeType === 3) t.firstChild.nodeValue = msg;                                 // the link stays where it is, so a click on it is never lost to a redraw
-      } else toast(msg, 600000);
+      var ms = Date.now() - t0, T = lim(), t = $('#toast');
+      var msg = (STAGE_TEXT[stage] || 'Looking for the client’s folder') + (stage === 'permission' && perm ? ' (' + perm + ')' : '') + '… ' + Math.round(ms / 1000) + ' s';
+      var again = stage === 'permission' && !!act.again && ms >= (T.askAgain || 4000), want = again ? 'a' : ms >= (T.stopLink || 8000) ? 's' : '';
+      if (!want) { linked = ''; toast(msg, 600000); return; }
+      if (linked !== want) {
+        linked = want; var links = [];
+        if (again) { links.push({ text: 'Ask Chrome again', fn: go(act.again) }); if (act.choose) links.push({ text: 'Choose the client’s folder myself', fn: go(act.choose) }); }
+        links.push({ text: 'Stop and use the normal file window', fn: go(function () { act.stop('Stopped.'); }) });
+        toastLinks(msg, links, 600000);
+      } else if (t.firstChild && t.firstChild.nodeType === 3) t.firstChild.nodeValue = msg;                      // the buttons stay where they are, so a click on one is never lost to a redraw
     }
     show(); timer = setInterval(show, 1000);
     return w;
@@ -1039,26 +1055,41 @@
     var FU = window.FF && FF.foldersUI;
     if (!FU || !FU.clientFiles) { $('#docIn').click(); return; }
     beginSearch();                                                                                       // every block waits: none says "nothing found" before its search is over
-    var w = watchSearch(function (why) { normal(why, true); });
-    /* The normal file window opens at once when a click is still fresh; after a long wait the browser would refuse it, so the message carries a button for the click that is needed. */
+    var w = null;
+    /* The normal file window opens at once when a click is still fresh; after a long wait the browser would refuse it, so the message carries a button for the click that is needed. click false: never (the folder window just used the click). */
     function normal(why, click) {
       w.end(); searchTok++; abandonSearch();
-      if (click || w.since() < 4000) { toast((why ? why + ' ' : '') + 'The normal file window is opening instead.', 8000); $('#docIn').click(); }
+      if (click === true || (click !== false && w.since() < 4000)) { toast((why ? why + ' ' : '') + 'The normal file window is opening instead.', 8000); $('#docIn').click(); }
       else toastLink((why ? why + ' ' : '') + 'Nothing was loaded.', 'Open the normal file window', function () { $('#docIn').click(); }, 60000);
     }
-    var info = { sname: state.header.sname, fname: state.header.fname };
-    FU.clientFiles(info, { onStage: w.stage }).then(function (res) {
-      if (w.stale()) return; w.end();
-      if (res.reason) { normal(REASONS[res.reason] || 'The folder could not be read.'); return; }
+    function showList(res, click) {
       res.files = uniqueFiles(res.files);
-      if (!res.files.length) { normal('No documents were found in ' + res.label + '.'); return; }
+      if (!res.files.length) { normal('No documents were found in ' + res.label + '.', click); return; }
       $('#toast').hidden = true; searching();
       if (OV.view && OV.view.seed) OV.view.seed(res.label, res.files);                                    // the View buttons use this list: no second walk of the folder
       pickList(res).then(function (picked) {
         if (!picked.length) { abandonSearch(); return; }
         Promise.all(picked.map(function (f) { return f.handle.getFile(); })).then(function (fs) { var dirs = {}; res.files.forEach(function (f) { dirs[String(f.name).toLowerCase()] = (f.rel || []).join(' \\ '); }); ingest(fs, { pool: res.files, counted: true, dirs: dirs }); }, function (e) { abandonSearch(); toast('Could not open a file: ' + (e && e.message), 8000); });
       });
-    }).catch(function (e) { if (w.stale()) return; normal('Something went wrong while looking for the client’s folder (' + ((e && e.message) || e) + ').'); });
+    }
+    /* Chrome would not say yes to the connected folders (or the adviser would rather not wait): the client's own folder is chosen in the browser's folder window, which is the permission, and the same list opens. */
+    function chooseFolder() {
+      FU.pickClientFolder().then(function (res) {
+        if (res.reason === 'cancelled') { abandonSearch(); toast('Nothing was chosen.', 3000); return; }
+        if (res.reason) { normal(res.reason === 'unsupported' ? 'This browser cannot open a folder window.' : res.reason === 'slow-list' ? REASONS['slow-list'] : 'The folder could not be read' + (res.why ? ' (' + res.why + ')' : '') + '.', false); return; }
+        showList(res, false);
+      }).catch(function (e) { normal('Something went wrong while reading the folder (' + ((e && e.message) || e) + ').', false); });
+    }
+    function run() {
+      var me = watchSearch({ stop: function (why) { normal(why, true); }, again: run, choose: FU.pickClientFolder ? chooseFolder : null });
+      w = me;
+      FU.clientFiles({ sname: state.header.sname, fname: state.header.fname }, { onStage: me.stage, onPerm: me.perm }).then(function (res) {
+        if (me.stale()) return; me.end();
+        if (res.reason) { normal(reasonText(res)); return; }
+        showList(res);
+      }).catch(function (e) { if (me.stale()) return; normal('Something went wrong while looking for the client’s folder (' + ((e && e.message) || e) + ').'); });
+    }
+    run();
   }
 
   /* "Upload from client folder": the client's own folder (the quotes folder where there is one) is found in the connected folders and the file window opens in it; the document picked is read and filled in.
@@ -1091,15 +1122,15 @@
     if (state.newer) return;
     var FU = window.FF && FF.foldersUI;
     if (!FU || !FU.clientFolder || typeof window.showOpenFilePicker !== 'function') { pickAny(block); return; }
-    var w = watchSearch(function (why) { giveUp(why, true); });
+    var w = watchSearch({ stop: function (why) { giveUp(why, true); }, again: function () { fromClientFolder(block); } });
     function giveUp(why, click) {                                                                           // the same as Load: a fresh click opens the normal window at once, a late one is asked for
       w.end(); searchTok++;
       if (click || w.since() < 4000) { toast((why ? why + ' ' : '') + 'The normal file window is opening instead.', 8000); pickAny(block); }
       else toastLink((why ? why + ' ' : '') + 'Nothing was loaded.', 'Open the normal file window', function () { pickAny(block); }, 60000);
     }
-    FU.clientFolder({ sname: state.header.sname, fname: state.header.fname }, CLIENT_KIND[block], { onStage: w.stage }).then(function (res) {
+    FU.clientFolder({ sname: state.header.sname, fname: state.header.fname }, CLIENT_KIND[block], { onStage: w.stage, onPerm: w.perm }).then(function (res) {
       if (w.stale()) return null; w.end();
-      if (res.reason) { giveUp(REASONS[res.reason] || 'Could not read the folder.'); return null; }
+      if (res.reason) { giveUp(reasonText(res)); return null; }
       $('#toast').hidden = true;
       var go = function (file) { if (file) ingest([file], { block: block, dir: res.handle }); };
       return pickIn(res.handle).then(go, function (e) {
@@ -1185,7 +1216,7 @@
   var more = $('#moreMenu');
   document.addEventListener('click', function (e) { if (more.open && (!more.contains(e.target) || (e.target.closest && e.target.closest('.ofmenu button')))) more.open = false; });
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && more.open) more.open = false; });
-  $('#toast').addEventListener('click', function (e) { if (e.target.closest && e.target.closest('[data-toastlink]') && toastAct) { var f = toastAct; $('#toast').hidden = true; f(); } });
+  $('#toast').addEventListener('click', function (e) { var b = e.target.closest && e.target.closest('[data-toastlink]'); if (!b) return; var f = toastActs[+b.getAttribute('data-toastlink') || 0]; if (f) { $('#toast').hidden = true; f(); } });
   $('#fileIn').addEventListener('change', function (e) { var f = e.target.files[0]; e.target.value = ''; if (f) openFile(f, null); });
   $('#ffIn').addEventListener('change', function (e) { var f = e.target.files[0]; e.target.value = ''; if (f) { var r = new FileReader(); r.onload = function () { fillFactFind(r.result, f.name); }; r.readAsText(f); } });
   window.addEventListener('beforeunload', function (e) { if (dirty) { e.preventDefault(); e.returnValue = ''; } });
