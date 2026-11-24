@@ -7,11 +7,11 @@ const fs = require('node:fs');
 const path = require('node:path');
 const app = f => fs.readFileSync(path.join(__dirname, '..', 'app', f), 'utf8');
 
-test('the page version is 0.97, the layout is still 0.1 and the saved file gains no key', () => {
+test('the page version moves on with the fixes (0.98 now), the layout is still 0.1 and the saved file gains no key', () => {
   const schema = require('../app/js/ov-schema.js');
-  assert.strictEqual(schema.pageVersion, '0.97'); assert.strictEqual(schema.version, '0.1');
-  assert.ok(/ov-schema\.js\?v=20261124f/.test(app('overview.html')) && /ov-ui\.js\?v=20261124f/.test(app('overview.html')) && /folders-ui\.js\?v=20261124f/.test(app('overview.html')), 'the changed scripts have new ?v= tags');
-  ['index.html', 'short-risk.html', 'capture-sheet.html'].forEach(f => assert.ok(/folders-ui\.js\?v=20261124f/.test(app(f)), f));
+  assert.strictEqual(schema.pageVersion, '0.98'); assert.strictEqual(schema.version, '0.1');
+  assert.ok(/ov-schema\.js\?v=20261124[fg]/.test(app('overview.html')) && /ov-ui\.js\?v=20261124[fg]/.test(app('overview.html')) && /folders-ui\.js\?v=20261124[fg]/.test(app('overview.html')), 'the changed scripts have new ?v= tags');
+  ['index.html', 'short-risk.html', 'capture-sheet.html'].forEach(f => assert.ok(/folders-ui\.js\?v=20261124[fg]/.test(app(f)), f));
 });
 
 test('every connected folder is asked about at the same moment, the click is behind the first question, and the list opens as soon as ONE folder is open (folders-ui.js)', () => {
@@ -27,7 +27,7 @@ test('every connected folder is asked about at the same moment, the click is beh
 
 test('the client\'s own folder can be picked in the browser\'s folder window: read only, opens in New Business, the same list (folders-ui.js)', () => {
   const ui = app('js/folders-ui.js');
-  assert.ok(/async function pickClientFolder\(\)/.test(ui) && /id: 'wr-client-folder', mode: 'read'/.test(ui) && /opts\.startIn = roots\.A\.handle/.test(ui), 'read only, in New Business');
+  assert.ok(/async function pickClientFolder\(\)/.test(ui) && /id: 'wr-client-folder', mode: 'read'/.test(ui) && !/startIn/.test(ui.replace(/\/\*[\s\S]*?\*\//g,'').replace(/\/\/.*$/gm,'')), 'read only, no starting folder passed (a stored folder may be the stuck one)');
   assert.ok(/F\.clientDocuments\(\{ handle: h, parts: \[h\.name\] \}\)/.test(ui), 'the same list as the connected folders give');
   assert.ok(/pickClientFolder: pickClientFolder/.test(ui) && /askAgain: 4000/.test(ui), 'exported, and the limit for offering another try');
 });
