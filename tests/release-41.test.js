@@ -85,7 +85,7 @@ test('the Short Risk and Capture Sheet pages copy the personal cell number, as b
 
 /* ---------- Verify All and "to verify" work on every page ---------- */
 test('"to verify" is every amber box on every page: the boxes with a starting value, the optional boxes and the advisor pages too, but not an empty box, a calculated box or the online profile', () => {
-  const s = fresh();
+  const s = fresh(); set(s, 'ref', 'Current client');                    // the Admin notes are shown for a current client (5.5: a box that is not shown is not counted)
   set(s, 'ma_broker', 'Other broker', 'verify');                       // Broker on record: a box with a starting value (left out of the "not asked" count)
   set(s, 'n_income', 'Some note', 'verify');                          // an optional notes box
   set(s, 'pr_life', 'Priority: client agrees', 'verify');             // an advisor page (Client priorities)

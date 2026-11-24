@@ -4,6 +4,13 @@ A dated list of what changed in the form's boxes, newest first. **One line for e
 
 The version is `version` in `app/js/schema.js` (the Fact Find), `app/js/sr-schema.js` (the Short Risk Application) and `app/js/cs-schema.js` (the Investment Capture Sheet); a saved file carries it as `schema`. Earlier changes are in the README and in the git history; this list starts with 3.1.
 
+## 5.5: 24 November 2026 (Fact Find 5.4 to 5.5; Risk Application 1.6, Investment Application 1.5 and the Client Overview keep their own numbers; display only)
+
+**No id, list, box, choice, sum or saved-file key changed; a saved file differs only in `schema`.** What changed for a skill that reads or writes the Fact Find file: **nothing** (display only). Screen only:
+- **Progress, *to verify***: counts only the amber answers that are shown and can be acted on; a box, block or page hidden or greyed out by a rule is left out (it stays amber and Verify All does not touch it).
+- **A notes box** that waits to be verified now draws its amber pill (click to confirm) and an amber border; it drew no pill before although it was counted.
+- **Page buttons** (left menu) carry an amber *N to verify* count; the walk's message names the page.
+
 ## 5.4: 21 November 2026 (Fact Find 5.3 to 5.4; Risk Application 1.5 to 1.6; Investment Application 1.4 to 1.5; NEW page: Client Overview 0.1)
 
 **Stage 2 of the Client Overview build** (the entry page; see the README, "Client Overview", and `docs/OVERVIEW-DATA-CONTRACT.md`). **The three existing forms: no id, list, box, choice or sum changed; the saved files' contents are unchanged apart from `schema`.** Their top bars' **Other forms** menu gains a **Client Overview** link (display only); the Fact Find's link carries the client on screen to the new page (`?from=factfind`, as for the two applications).
