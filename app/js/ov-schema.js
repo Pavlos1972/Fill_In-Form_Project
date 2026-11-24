@@ -5,7 +5,7 @@
   else { root.OV = root.OV || {}; root.OV.schema = factory(); }
 })(typeof self !== 'undefined' ? self : this, function () {
   /* VERSION is the layout of the saved file (docs/OVERVIEW-DATA-CONTRACT.md): the filling skill stops on one it does not know. PAGE_VERSION is the page's own version, which changes with every stage. */
-  var VERSION = '0.1', PAGE_VERSION = '1.0', APP_ID = 'wr-overview';
+  var VERSION = '0.1', PAGE_VERSION = '1.1', APP_ID = 'wr-overview';
 
   /* The four pillars, in the order of the columns. life and lsd have a lump sum and a monthly figure; sev only a lump sum; ip only a monthly figure. */
   var PILLARS = [
@@ -36,16 +36,31 @@
 
   var INSURERS = ['BrightRock', 'Momentum', 'Sanlam', 'Discovery', 'Old Mutual', 'Liberty', 'Hollard', 'Assupol'];
 
-  /* A quote's status. pending is where every quote starts; the others are set when the client decides or the insurer answers. */
+  /* A quote's status progresses (Paul, 24 November, round 1.1): the CLIENT'S decision first (status: pending, then accepted or not accepted), and only for an accepted quote the INSURER'S underwriting (uw: pending underwriting, then one
+     of six outcomes). Older files said declined / medical / underwriting in status: they are converted when a file opens (calc.settleQuote). */
   var STATUS = [
     { id: 'pending', l: 'Pending client decision' },
     { id: 'accepted', l: 'Accepted' },
-    { id: 'notaccepted', l: 'Not accepted' },
-    { id: 'declined', l: 'Declined' },
-    { id: 'medical', l: 'Medical decline' },
-    { id: 'underwriting', l: 'Pending underwriting' }
+    { id: 'notaccepted', l: 'Not accepted' }
   ];
   var statusLabel = {}; STATUS.forEach(function (s) { statusLabel[s.id] = s.l; });
+  var UW = [
+    { id: 'pending', l: 'Pending underwriting' },
+    { id: 'standard', l: 'Accepted at standard rates' },
+    { id: 'loadings', l: 'Accepted with loadings' },
+    { id: 'exclusions', l: 'Accepted with exclusions' },
+    { id: 'both', l: 'Accepted with loadings and exclusions' },
+    { id: 'declinedHealth', l: 'Declined (health)' },
+    { id: 'declinedOther', l: 'Declined (other)' }
+  ];
+  var uwLabel = {}; UW.forEach(function (u) { uwLabel[u.id] = u.l; });
+  var UW_ISSUED = ['standard', 'loadings', 'exclusions', 'both'], UW_DECLINED = ['declinedHealth', 'declinedOther'];
+  /* What an older file called a status, as (client decision, underwriting). "declined" is a GUESS: the insurer declined a quote the client had accepted. */
+  var LEGACY_STATUS = { underwriting: ['accepted', 'pending'], declined: ['accepted', 'declinedOther'], medical: ['accepted', 'declinedHealth'] };
+  var TERM_BENEFITS = ['All benefits', 'Life cover', 'Severe illness', 'Lump sum disability', 'Income protector'];
+  var LOADING_KINDS = [{ id: 'medical', l: 'Medical' }, { id: 'occupational', l: 'Occupational' }, { id: 'other', l: 'Other' }];
+  var loadingKindLabel = {}; LOADING_KINDS.forEach(function (k) { loadingKindLabel[k.id] = k.l; });
+  var BROKER_RECORD = [{ id: 'stays', l: 'Stays with the current broker' }, { id: 'moves', l: 'Moves to Wealth Revolution' }];
 
   /* The lines of a quote or a policy. monthly is what the monthly figure under a BrightRock lump sum is called. */
   var LINE_TYPES = [
@@ -94,7 +109,7 @@
   function yearOf(state) { var d = parseDMY(state && state.header && state.header.overviewDate) || parseDMY(todayDMY()); return String(d.y); }
 
   return { version: VERSION, pageVersion: PAGE_VERSION, released: 'November 2026', APP_ID: APP_ID, PILLARS: PILLARS, BLOCKS: BLOCKS, blocksById: blocksById, blockOfQuote: blockOfQuote, QUOTE_KINDS: QUOTE_KINDS, INSURERS: INSURERS,
-    STATUS: STATUS, statusLabel: statusLabel, LINE_TYPES: LINE_TYPES, lineTypesById: lineTypesById, STANDARDS: STANDARDS, PROPOSED_TYPES: PROPOSED_TYPES, CONTRIBUTIONS: CONTRIBUTIONS,
+    STATUS: STATUS, statusLabel: statusLabel, UW: UW, uwLabel: uwLabel, UW_ISSUED: UW_ISSUED, UW_DECLINED: UW_DECLINED, LEGACY_STATUS: LEGACY_STATUS, TERM_BENEFITS: TERM_BENEFITS, LOADING_KINDS: LOADING_KINDS, loadingKindLabel: loadingKindLabel, BROKER_RECORD: BROKER_RECORD, LINE_TYPES: LINE_TYPES, lineTypesById: lineTypesById, STANDARDS: STANDARDS, PROPOSED_TYPES: PROPOSED_TYPES, CONTRIBUTIONS: CONTRIBUTIONS,
     contributionLabel: contributionLabel, OTHER_KEYS: OTHER_KEYS, FIGURES: FIGURES, GROUP_KINDS: GROUP_KINDS, PAID_BY: PAID_BY, ST_LABEL: ST_LABEL, fileName: fileName, yearOf: yearOf, clientName: clientName,
     clientFull: clientFull, parseDMY: parseDMY, todayDMY: todayDMY, safeName: safeName };
 });

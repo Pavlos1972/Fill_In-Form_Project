@@ -122,7 +122,7 @@
   var KIND = { fna: 'FNA', shortfall: 'Shortfall quote', reduced: 'Reduced quote', comparative: 'Comparative quote' };
   function quoteHead(q, right) {
     var n = q.number ? (/bright/i.test(q.insurer) ? 'CP ' : 'Quote ') + q.number : '';
-    return '<div class="qhead"><span class="badge ' + esc(q.status || 'pending') + '">' + esc(schema.statusLabel[q.status] || '') + '</span><span class="qinfo">' + esc([q.insurer, KIND[q.kind], n, q.date, q.rates, q.servicing ? 'Servicing quote' : ''].filter(Boolean).join('   |   ')) + '</span>' + (right || '') + '</div>';
+    return '<div class="qhead"><span class="badge ' + esc(calc.statusClass(q)) + '">' + esc(calc.statusText(q)) + '</span><span class="qinfo">' + esc([q.insurer, KIND[q.kind], n, q.date, q.rates, q.servicing ? 'Servicing quote' : ''].filter(Boolean).join('   |   ')) + '</span>' + (right || '') + '</div>';
   }
   function cmpView(q) {
     var m = q.cmp; if (!m) return '';
@@ -153,7 +153,24 @@
     if (sub === 'cmpr') return out + compareView(q);
     out += linesTable(q, false, q.disabilityAge || state().header.disabilityAge);
     if (calc.activeLines(q).some(function (l) { return l.type === 'debt' && calc.isNum(l.ip && l.ip.monthly) && l.ip.monthly > 0; })) out += note('Instalment Protector: if you are retrenched, the insurer pays each debt\'s instalment straight to the bank, for a period set by the insurer\'s rules.');
-    return out;
+    return out + uwView(q) + replView(q);
+  }
+  /* The insurer's terms, and which of the client's policies a quote replaces (round 1.1): the same words as the screen and the PDF. */
+  function uwView(q) {
+    var u = calc.uwOf(q); if (!u || u === 'pending' || schema.UW_DECLINED.indexOf(u) >= 0) return '';
+    var h = '<div class="uwv"><h4>Underwriting outcome</h4><p class="uwok">' + esc(u === 'standard' ? 'Accepted at standard rates.' : schema.uwLabel[u] + '.') + '</p>', tm = q.terms || {}, ls = Array.isArray(tm.loadings) ? tm.loadings : [], es = Array.isArray(tm.exclusions) ? tm.exclusions : [];
+    if ((u === 'loadings' || u === 'both') && ls.length) h += tbl([24, 14, 14, 48], th('Loading on', '', 'l') + th('Percentage added') + th('Reason') + th('The reason in words', '', 'l'),
+      ls.map(function (r) { return '<tr>' + td('<b>' + esc(r.benefit || '') + '</b>', 'l') + td(calc.isNum(r.pct) ? esc(calc.fmtPct(r.pct)) : '-') + td(esc(schema.loadingKindLabel[r.kind] || '')) + td(esc(r.reason || ''), 'l') + '</tr>'; }).join(''), 'terms');
+    if ((u === 'exclusions' || u === 'both') && es.length) h += tbl([24, 38, 38], th('Benefit', '', 'l') + th('What is excluded', '', 'l') + th('Why', '', 'l'),
+      es.map(function (r) { return '<tr>' + td('<b>' + esc(r.benefit || '') + '</b>', 'l') + td(esc(r.what || ''), 'l') + td(esc(r.why || ''), 'l') + '</tr>'; }).join(''), 'terms');
+    return h + '</div>';
+  }
+  function replView(q) {
+    if (calc.dead(q)) return '';
+    var r = calc.replOf(q), ids = {}; calc.policies(state()).forEach(function (e) { ids[e.item.id] = e; });
+    if (r.answer === 'no') return note('This quote does not replace any of your existing policies.');
+    var picks = r.answer === 'yes' ? r.policies.map(function (id) { return ids[id]; }).filter(function (e) { return e && e.item.id !== q.id; }) : [];
+    return picks.length ? '<div class="uwv"><h4>Replacing your existing policies</h4>' + picks.map(function (e) { return '<p class="rednote">' + esc(calc.policyRef(e.item) + ' will be replaced by ' + calc.quoteRef(q)) + '</p>'; }).join('') + '</div>' : '';
   }
 
   /* ---------- the other blocks ---------- */
@@ -164,12 +181,13 @@
     var one = ps.pol != null ? ps0[ps.pol] : null;
     if (one) {
       var it = one.item, ppath = idxOf('policies', 'items', it);
-      return head(b, hb(true)) + '<div class="qhead"><button type="button" class="pchip back" data-act="polall">&larr; All policies</button><span class="qinfo">' + esc([it.insurer || 'Policy', it.policyNo, it.product, it.doc ? 'DOC ' + it.doc : ''].filter(Boolean).join('   |   ')) + '</span>' + vp(ppath) + '</div>' + linesTable(it, true, it.ipAge || age) + (it.cmp ? '<div class="qhead"><span class="qinfo">Your change moment pay-out</span>' + vp(ppath && ppath + '.cmp') + '</div>' + cmpView(it) : '');
+      return head(b, hb(true)) + '<div class="qhead"><button type="button" class="pchip back" data-act="polall">&larr; All policies</button><span class="qinfo">' + esc([it.insurer || 'Policy', it.policyNo, it.product, it.doc ? 'DOC ' + it.doc : ''].filter(Boolean).join('   |   ')) + '</span>' + vp(ppath) + '</div>' + (function () { var pn1 = calc.policyNote(s, one, calc.replacementInfo(s)); return pn1 ? '<p class="rednote">' + esc(pn1.text) + '</p>' + (pn1.brokerText ? '<p class="' + (pn1.record === 'moves' && !pn1.date ? 'rednote' : 'bnote') + '">' + esc(pn1.brokerText) + '</p>' : '') : ''; })() + linesTable(it, true, it.ipAge || age) + (it.cmp ? '<div class="qhead"><span class="qinfo">Your change moment pay-out</span>' + vp(ppath && ppath + '.cmp') + '</div>' + cmpView(it) : '');
     }
-    var ageH = ageText(age), rows = ps0.map(function (e, i) {
+    var ageH = ageText(age), ri = calc.replacementInfo(s), rows = ps0.map(function (e, i) {
+      var pn = calc.policyNote(s, e, ri), pnote = pn ? '<small class="rednote">' + esc(pn.text) + '</small>' + (pn.brokerText ? '<small class="' + (pn.record === 'moves' && !pn.date ? 'rednote' : 'bnote') + '">' + esc(pn.brokerText) + '</small>' : '') : '';
       var it = e.item, tt = calc.totals(it), lines = calc.activeLines(it), has = lines.length, bn = it.benefits || {}, bd = function (k) { return bn[k] ? '<small class="bdesc">' + esc(bn[k]) + '</small>' : ''; };
       var w = (lines.filter(function (l) { return l.waiting && l.waiting !== 'N/A'; })[0] || {}).waiting;
-      return '<tr' + (has ? ' data-act="pol" data-i="' + i + '"' : '') + '>' + tickCell('<b>' + esc((it.insurer || 'Policy') + (it.policyNo ? ' ' + it.policyNo : '')) + '</b><small>' + esc([it.product, it.doc ? 'DOC ' + it.doc : ''].filter(Boolean).join('  |  ')) + '</small>' + vp(idxOf('policies', 'items', it)), !!it.wr) +
+      return '<tr' + (has ? ' data-act="pol" data-i="' + i + '"' : '') + '>' + tickCell('<b>' + esc((it.insurer || 'Policy') + (it.policyNo ? ' ' + it.policyNo : '')) + '</b><small>' + esc([it.product, it.doc ? 'DOC ' + it.doc : '', it.src && it.src.kind === 'astute' ? 'Astute' + (it.src.date ? ' ' + it.src.date : '') : ''].filter(Boolean).join('  |  ')) + '</small>' + pnote + vp(idxOf('policies', 'items', it)), !!it.wr) +
         td((has ? A(tt.life.lump) : A(null)) + bd('life'), '', 'life') + td((has ? A(tt.sev.lump) : A(null)) + bd('sev'), '', 'sev') + td((has ? A(tt.lsd.lump) : A(null)) + bd('lsd'), '', 'lsd') + td((has ? PM(tt.ip.monthly) : A(null)) + bd('ip'), '', 'ip') + td(esc(w || '-')) + td(AC(it), '', 'aci') + td(PC(it.abi), '', 'abi') + td(A(it.premium)) + '</tr>';
     }).join('');
     var tot = function (label, tt, prem, cls) { return '<tr class="' + cls + '"><td class="l">' + label + '</td>' + td(A(tt.life.lump), '', 'life') + td(A(tt.sev.lump), '', 'sev') + td(A(tt.lsd.lump), '', 'lsd') + td(PM(tt.ip.monthly), '', 'ip') + '<td></td>' + td('', '', 'aci') + td('', '', 'abi') + td(A(prem)) + '</tr>'; };

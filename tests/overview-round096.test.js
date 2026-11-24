@@ -102,5 +102,5 @@ test('a list that covers only some folders never greys a button; a complete one 
 });
 
 test('the page version moves on with the fixes (0.97 now), the layout is still 0.1 and the saved file gains no key', () => {
-  const schema = require('../app/js/ov-schema.js'); assert.strictEqual(schema.pageVersion, '1.0'); assert.strictEqual(schema.version, '0.1');
+  const schema = require('../app/js/ov-schema.js'); assert.ok(/^1\.[01]$/.test(schema.pageVersion), 'the page version is 1.0 or 1.1'); assert.strictEqual(schema.version, '0.1');
 });

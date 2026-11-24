@@ -42,6 +42,8 @@
     if (kind === 'tri') return t === '' ? null : (text === true || t === 'true');
     return t === '' ? null : t;
   }
+  /* An adviser's CHOICE (a quote's status, underwriting outcome, terms, replacement answers, the broker on record) is not a check of a document's figures: it never turns an amber row green (round 1.1). */
+  var CHOICE = /(^|\.)(status|uw|second|brokerRecord|brokerChangedDate)$|\.(terms|repl)\./;
   function pathParts(path) { return String(path).split('.'); }
   function pathGet(state, path) { var o = state; pathParts(path).forEach(function (k) { o = o == null ? undefined : o[k]; }); return o; }
   /* Set the value at a path ("blocks.fna.quotes.0.lines.2.life.lump"). The row it belongs to becomes "confirmed" and "person" (somebody typed it). Returns the value stored. */
@@ -51,7 +53,7 @@
     var last = parts[parts.length - 1];
     o[last] = val;
     if (parts.length >= 3) { var ln = pathGet(state, parts.slice(0, -2).join('.')); if (ln && ln.via && typeof ln.via === 'object') delete ln.via[parts.slice(-2).join('.')]; }          // a figure somebody types is no longer "from the FNA quote" or "from the email"
-    if (owner) { owner.st = 'confirmed'; owner.by = 'person'; delete owner.match; }                          // a person's typing is a person's check: the page's automatic match is over
+    if (owner && !CHOICE.test(path)) { owner.st = 'confirmed'; owner.by = 'person'; delete owner.match; }                          // a person's typing is a person's check: the page's automatic match is over
     return val;
   }
   /* A row (a quote, a line, an item) is checked by a person: it turns green. */
@@ -83,7 +85,7 @@
   /* A new quote. For an FNA, shortfall or reduced quote (BrightRock) the lines the Fact Find already knows are started for it (household, a line per child, a line per debt, death-related needs, dread) and wait for the
      quote's figures ("from the Fact Find, waiting for document"). */
   function newQuote(state, kind, o) {
-    var q = { id: uid('q'), kind: kind, insurer: kind === 'comparative' ? '' : 'BrightRock', number: '', date: null, rates: 'Non-smoker rates', servicing: false, status: 'pending', disabilityAge: state.header.disabilityAge,
+    var q = { id: uid('q'), kind: kind, insurer: kind === 'comparative' ? '' : 'BrightRock', number: '', date: null, rates: 'Non-smoker rates', servicing: false, status: 'pending', uw: null, second: false, terms: { loadings: [], exclusions: [] }, repl: { answer: null, policies: [] }, disabilityAge: state.header.disabilityAge,
       aci: null, aciText: null, premium: null, printedTotals: null, lines: [], cmp: null, policyNo: null, startDate: null, replaces: null, replacedBy: null, st: 'empty', src: null, by: 'person', removed: false };
     if (kind !== 'comparative') {
       var facts = state.factFind && state.factFind.facts, ffLine = function (l) { l.st = 'ff'; l.by = 'page'; l.src = { kind: 'factfind' }; return l; };
@@ -106,6 +108,42 @@
   function addItem(state, blockId, item) { state.blocks[blockId].items.push(item); return item; }
   function newProposed() { return { id: uid('pi'), type: schema.PROPOSED_TYPES[0], provider: '', quote: '', contribution: 'monthly', lump: null, monthly: null, boostPct: null, netInvested: null, aci: null, st: 'empty', src: null, by: 'person', removed: false }; }
 
+
+
+  /* ---------- a quote's status, terms and replacements (round 1.1): the adviser's choices ---------- */
+  function quoteAt(state, path) { var q = pathGet(state, path); return q && typeof q === 'object' && Array.isArray(q.lines) ? q : null; }
+  /* The client's decision. Accepted goes to underwriting (pending) unless an outcome is already there. Returns the quote. */
+  function setStatus(state, path, value) {
+    var q = quoteAt(state, path); if (!q || !schema.statusLabel[value]) return null;
+    q.status = value; if (value === 'accepted' && !schema.uwLabel[q.uw]) q.uw = 'pending';
+    return q;
+  }
+  function setUw(state, path, value) { var q = quoteAt(state, path); if (!q || (value !== null && !schema.uwLabel[value])) return null; q.uw = value; return q; }
+  function setSecond(state, path, yes) { var q = quoteAt(state, path); if (!q) return null; q.second = !!yes; return q; }
+  function termList(q, kind) { if (!q.terms || typeof q.terms !== 'object') q.terms = { loadings: [], exclusions: [] }; if (!Array.isArray(q.terms[kind])) q.terms[kind] = []; return q.terms[kind]; }
+  function addTerm(state, path, kind) {
+    var q = quoteAt(state, path); if (!q || (kind !== 'loadings' && kind !== 'exclusions')) return null;
+    var row = kind === 'loadings' ? { benefit: 'All benefits', pct: null, kind: 'medical', reason: '' } : { benefit: '', what: '', why: '' }; termList(q, kind).push(row); return row;
+  }
+  function removeTerm(state, path, kind, i) { var q = quoteAt(state, path); if (!q || (kind !== 'loadings' && kind !== 'exclusions')) return false; var l = termList(q, kind); if (!(i >= 0 && i < l.length)) return false; l.splice(i, 1); return true; }
+  /* Will this quote replace any of the client's existing policies? Answering No or clearing the answer drops the picks. */
+  function setRepl(state, path, answer) {
+    var q = quoteAt(state, path); if (!q) return null;
+    q.repl = q.repl && typeof q.repl === 'object' ? q.repl : { answer: null, policies: [] };
+    q.repl.answer = answer === 'yes' || answer === 'no' ? answer : null; if (q.repl.answer !== 'yes') q.repl.policies = []; if (!Array.isArray(q.repl.policies)) q.repl.policies = [];
+    return q;
+  }
+  function toggleReplaced(state, path, policyId, on) {
+    var q = quoteAt(state, path); if (!q) return null; setRepl(state, path, 'yes');
+    var l = q.repl.policies, at = l.indexOf(policyId); if (on && at < 0) l.push(policyId); if (!on && at >= 0) l.splice(at, 1);
+    return q;
+  }
+  /* The broker on record of a policy that no quote replaces: stays with the current broker, or moves to Wealth Revolution (and, once it has, the date it was changed). */
+  function setBrokerRecord(state, path, value) {
+    var it = pathGet(state, path); if (!it || typeof it !== 'object') return null;
+    it.brokerRecord = value === 'stays' || value === 'moves' ? value : null; if (it.brokerRecord !== 'moves') it.brokerChangedDate = null;
+    return it;
+  }
 
   /* ---------- the change moment pay-out (typed: stage 6) ---------- */
   /* The rows of a pay-out table as the guide prints them: the total, the retirement part, the childcare part and one row for each child (named from the quote's child lines, else from the Fact Find). */
@@ -378,7 +416,7 @@
     var other = {};
     Object.keys(s.blocks).forEach(function (b) {
       var src = (j.blocks && j.blocks[b]) || {};
-      if (s.blocks[b].quotes) s.blocks[b].quotes = (src.quotes || []).map(function (q) { q = normRow(q); q.kind = q.kind || ({ fna: 'fna', shortfallQuote: 'shortfall', reduced: 'reduced', comparative: 'comparative' }[b]); q.status = schema.statusLabel[q.status] ? q.status : 'pending'; q.lines = q.lines || []; return q; });
+      if (s.blocks[b].quotes) s.blocks[b].quotes = (src.quotes || []).map(function (q) { q = normRow(q); q.kind = q.kind || ({ fna: 'fna', shortfallQuote: 'shortfall', reduced: 'reduced', comparative: 'comparative' }[b]); calc.settleQuote(q); q.lines = q.lines || []; return q; });
       else if (b === 'other') { (src.items || []).forEach(function (it) { it = normRow(it); var k = it.key; s.blocks.other.items = s.blocks.other.items.filter(function (x) { return x.key !== k; }); s.blocks.other.items.push(it); }); }
       else s.blocks[b].items = (src.items || []).map(normRow);
     });
@@ -421,6 +459,7 @@
         if (!key) { keep.push(q); return; }
         if (at[key] === undefined) { at[key] = keep.length; keep.push(q); return; }
         var cur = keep[at[key]], win = score(q) > score(cur) ? q : cur, lose = win === q ? cur : q;
+        if (win.status === 'pending' && lose.status !== 'pending') ['status', 'uw', 'second', 'terms', 'repl'].forEach(function (k) { if (lose[k] !== undefined) win[k] = lose[k]; });          // the copy that is dropped had the adviser's choices: they stay
         keep[at[key]] = win; dropped++;
         (b.quotes || []).forEach(function (x) { if (x.replacedBy === lose.id) x.replacedBy = win.id; });
       });
@@ -464,7 +503,7 @@
     return out;
   }
 
-  return { blank: blank, uid: uid, parseCell: parseCell, setPath: setPath, pathGet: pathGet, accept: accept, acceptAll: acceptAll, walkRows: walkRows, newLine: newLine, newQuote: newQuote, addQuote: addQuote, findQuote: findQuote,
+  return { blank: blank, uid: uid, parseCell: parseCell, setPath: setPath, setStatus: setStatus, setUw: setUw, setSecond: setSecond, addTerm: addTerm, removeTerm: removeTerm, setRepl: setRepl, toggleReplaced: toggleReplaced, setBrokerRecord: setBrokerRecord, pathGet: pathGet, accept: accept, acceptAll: acceptAll, walkRows: walkRows, newLine: newLine, newQuote: newQuote, addQuote: addQuote, findQuote: findQuote,
     setRemoved: setRemoved, newCmp: newCmp, addCmp: addCmp, removeCmp: removeCmp, startReview: startReview, addLine: addLine, addItem: addItem, newProposed: newProposed, factsFrom: factsFrom, diffFacts: diffFacts, syncBlocks: syncBlocks, fillFromFactFind: fillFromFactFind, fileName: fileName,
     clientName: clientName, computed: computed, dedupeQuotes: dedupeQuotes, flattenPolicyLines: flattenPolicyLines, isBright: isBright, toJSON: toJSON, fromJSON: fromJSON, rows: rows, counts: counts, pendingRows: pendingRows, ffKeyFor: ffKeyFor, APP_ID: APP_ID };
 });

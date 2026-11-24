@@ -91,7 +91,12 @@
   function drawOv(data) {
     var o = data.cell && data.cell.raw && data.cell.raw.ov; if (!o || data.section !== 'body') return;
     var d = data.doc, c = data.cell, x = c.x + c.width - 2.2, y = c.y + 4.6;
-    if (o.tick !== undefined) { mark(d, o.center ? c.x + c.width / 2 - 2 : c.x + 2.6, c.y + c.height / 2 - 1.7, o.tick); return; }
+    if (o.tick !== undefined) {
+      var nn = o.notes || [];
+      mark(d, o.center ? c.x + c.width / 2 - 2 : c.x + 2.6, nn.length ? c.y + 3.2 : c.y + c.height / 2 - 1.7, o.tick);
+      nn.forEach(function (x, i) { setText(d, x.red ? RED : MUTED, FS.small + 0.5, !!x.red); d.text(t(x.s), c.x + 9, c.y + 13.6 + 3.5 * i); });                // the red notes under the policy's name
+      return;
+    }
     function one(txt, size, color, bold) { setText(d, color, size, bold); d.text(t(txt), x, y, { align: 'right' }); y += size > 8 ? 4.5 : 3.4; }
     if (o.pol !== undefined) { one(o.pol, FS.body, INK, false); (o.desc || []).forEach(function (l) { one(l, FS.small, MUTED, false); }); return; }                  // a policy's amount with the description of the benefit under it
     if (o.p === 'ip') { one(PM(o.monthly), FS.body, INK, false); if (o.protector) { one('Instalment Protector', FS.small, MUTED, false); one('To be ceded to the bank', FS.small, RED, true); } return; }
@@ -118,7 +123,7 @@
   /* ---------- quotes ---------- */
   var BADGE = { pending: [[253, 239, 207], [143, 82, 0]], accepted: [[223, 240, 227], GREEN], notaccepted: [[251, 227, 224], RED], declined: [[251, 227, 224], RED], medical: [[251, 227, 224], RED], underwriting: [[225, 242, 250], DEEP] };
   function quoteHeader(doc, y, q) {
-    var b = BADGE[q.status] || BADGE.pending, label = schema.statusLabel[q.status] || '', bw = Math.max(48, label.length * 2.5 + 8);
+    var b = BADGE[calc.statusClass(q)] || BADGE.pending, label = calc.statusText(q), bw = Math.max(48, label.length * 2.5 + 8);
     doc.setFillColor.apply(doc, b[0]); doc.setDrawColor.apply(doc, b[1]); doc.setLineWidth(0.4); doc.roundedRect(M, y, bw, 8, 1.8, 1.8, 'FD');
     setText(doc, b[1], 9.5, true); doc.text(t(label), M + bw / 2, y + 5.4, { align: 'center' });
     var n = q.number ? (/bright/i.test(q.insurer) ? 'CP ' : 'Quote ') + q.number : '', kind = { fna: 'FNA', shortfall: 'Shortfall quote', reduced: 'Reduced quote', comparative: 'Comparative quote' }[q.kind];
@@ -141,6 +146,30 @@
     return table(doc, y, { head: [['', 'Life cover', 'Severe illness', 'Lump sum disability', 'Income protector p.m.', 'Monthly premium']], colw: [63, 42, 42, 42, 42, 42], align: ['left', 'right', 'right', 'right', 'right', 'right'],
       body: [row('What you have now', c.now), row('This quote', c.quote), row('Difference', c.diff, true)] });
   }
+  /* The insurer's terms once the client has accepted and the insurer has answered (round 1.1): standard rates say just that; loadings and exclusions are listed with their reasons. Nothing for a quote still pending or declined. */
+  function uwBlock(doc, y, q) {
+    var u = calc.uwOf(q); if (!u || u === 'pending' || schema.UW_DECLINED.indexOf(u) >= 0) return y;
+    setText(doc, DEEP, FS.sub, true); doc.text('Underwriting outcome', M, y + 5); y += 8;
+    if (u === 'standard') return note(doc, y, 'Accepted at standard rates.', GREEN);
+    y = note(doc, y, schema.uwLabel[u] + '.', GREEN);
+    var tm = q.terms || {}, ls = Array.isArray(tm.loadings) ? tm.loadings : [], es = Array.isArray(tm.exclusions) ? tm.exclusions : [];
+    if ((u === 'loadings' || u === 'both') && ls.length) y = table(doc, y + 1, { head: [['Loading on', 'Percentage added', 'Reason', 'The reason in words']], colw: [60, 36, 36, 141], align: ['left', 'right', 'left', 'left'],
+      body: ls.map(function (r) { return [{ content: t(r.benefit || ''), styles: { halign: 'left', fontStyle: 'bold' } }, right(calc.isNum(r.pct) ? calc.fmtPct(r.pct) : '-'), { content: t(schema.loadingKindLabel[r.kind] || ''), styles: { halign: 'left' } }, { content: t(r.reason || ''), styles: { halign: 'left' } }]; }) }) + 2;
+    if ((u === 'exclusions' || u === 'both') && es.length) y = table(doc, y + 1, { head: [['Benefit', 'What is excluded', 'Why']], colw: [60, 108, 105], align: ['left', 'left', 'left'],
+      body: es.map(function (r) { return [{ content: t(r.benefit || ''), styles: { halign: 'left', fontStyle: 'bold' } }, { content: t(r.what || ''), styles: { halign: 'left' } }, { content: t(r.why || ''), styles: { halign: 'left' } }]; }) }) + 2;
+    return y;
+  }
+  /* Which of the client's current policies a quote replaces, in red (round 1.1). A quote the client did not accept, or the insurer declined, prints nothing about it. */
+  function replLines(doc, y, state, q) {
+    if (calc.dead(q)) return y;
+    var r = calc.replOf(q), ids = {}; calc.policies(state).forEach(function (e) { ids[e.item.id] = e; });
+    if (r.answer === 'no') return note(doc, y, 'This quote does not replace any of your existing policies.');
+    var picks = r.answer === 'yes' ? r.policies.map(function (id) { return ids[id]; }).filter(function (e) { return e && e.item.id !== q.id; }) : [];
+    if (!picks.length) return y;
+    setText(doc, DEEP, FS.sub, true); doc.text('Replacing your existing policies', M, y + 5); y += 8;
+    picks.forEach(function (e) { y = note(doc, y, calc.policyRef(e.item) + ' will be replaced by ' + calc.quoteRef(q), RED); });
+    return y;
+  }
   function quotesPage(doc, state, b) {
     var y = pageTitle(doc, b.n + '. ' + b.title), qs = calc.quotes(state, b.id);
     if (!qs.length) return empty(doc, y, b.id === 'shortfallQuote' && !calc.hasGroupRisk(state) ? 'The client has no group risk, so no shortfall quote is needed.' : 'Nothing to show here for this client.');
@@ -151,6 +180,8 @@
       if (calc.activeLines(q).some(function (l) { return l.type === 'debt' && calc.isNum(l.ip && l.ip.monthly) && l.ip.monthly > 0; })) y = note(doc, y, 'Instalment Protector: if you are retrenched, the insurer pays each debt\'s instalment straight to the bank, for a period set by the insurer\'s rules.') + 1;
       y = cmpTable(doc, y + 2, q);
       y = compareTable(doc, y + 3, state, q);
+      y = uwBlock(doc, y + 3, q);
+      y = replLines(doc, y + 2, state, q);
     });
     return y;
   }
@@ -159,9 +190,15 @@
   function policiesPage(doc, state, b) {
     var y = pageTitle(doc, b.n + '. ' + b.title), ps = calc.policies(state), pt = calc.policyTotals(state), age = state.header.disabilityAge ? '\nAge ' + state.header.disabilityAge : '';
     if (!ps.length) return empty(doc, y, 'No current policies.');
+    var ri = calc.replacementInfo(state);
     var tickCell = function (e) {
-      var it = e.item;
-      return { content: t((it.insurer || 'Policy') + (it.policyNo ? '   ' + it.policyNo : '') + '\n' + [it.product, it.doc ? 'DOC ' + it.doc : ''].filter(Boolean).join('  |  ')), ov: { tick: !!it.wr }, styles: { halign: 'left', fontStyle: 'bold', cellPadding: { top: 2, bottom: 2, left: 9, right: 2 } } };
+      var it = e.item, pn = calc.policyNote(state, e, ri), nl = [];
+      if (pn) {
+        setText(doc, RED, FS.small + 0.5, true); doc.splitTextToSize(t(pn.text), 36).forEach(function (x) { nl.push({ s: x, red: true }); });
+        if (pn.brokerText) doc.splitTextToSize(t(pn.brokerText), 36).forEach(function (x) { nl.push({ s: x, red: pn.record === 'moves' && !pn.date }); });
+      }
+      var src = it.src && it.src.kind === 'astute' ? 'Astute' + (it.src.date ? ' ' + it.src.date : '') : '';
+      return { content: t((it.insurer || 'Policy') + (it.policyNo ? '   ' + it.policyNo : '') + '\n' + [it.product, it.doc ? 'DOC ' + it.doc : '', src].filter(Boolean).join('  |  ')), ov: { tick: !!it.wr, notes: nl }, styles: { halign: 'left', fontStyle: 'bold', valign: nl.length ? 'top' : 'middle', minCellHeight: nl.length ? 13 + 3.5 * nl.length : undefined, cellPadding: { top: 2, bottom: 2, left: 9, right: 2 } } };
     };
     var rows = ps.map(function (e) {
       var tt = calc.totals(e.item), has = calc.activeLines(e.item).length, w = (calc.activeLines(e.item).filter(function (l) { return l.waiting && l.waiting !== 'N/A'; })[0] || {}).waiting;
@@ -192,7 +229,7 @@
     var rows = items.map(function (g) {
       var p2 = g.kind === 'risk' ? g.monthlyCost : (calc.isNum(g.employer) || calc.isNum(g.employee) ? calc.r2((g.employer || 0) + (g.employee || 0)) : g.contribTotal); if (calc.isNum(p2)) prem = calc.r2(prem + p2);
       var label = (schema.GROUP_KINDS[g.kind] || g.kind) + '   ' + (g.provider || '');
-      if (g.kind === 'risk') return [{ content: t(label + (g.statementDate ? '\nStatement ' + g.statementDate : '') + (g.paidBy ? '  |  paid by ' + g.paidBy : '')), styles: { halign: 'left', fontStyle: 'bold' } }, cell(g, 'life'), cell(g, 'sev'), cell(g, 'lsd'), cell(g, 'ip'), right(g.ipWaiting || '-'), right(PC(g.aci)), right(PC(g.abi)), right(A(p2))];
+      if (g.kind === 'risk') return [{ content: t(label + (g.statementDate ? '\nStatement ' + g.statementDate : (g.src && g.src.kind === 'astute' ? '\nAstute ' + (g.src.date || '') : '')) + (g.paidBy ? '  |  paid by ' + g.paidBy : '')), styles: { halign: 'left', fontStyle: 'bold' } }, cell(g, 'life'), cell(g, 'sev'), cell(g, 'lsd'), cell(g, 'ip'), right(g.ipWaiting || '-'), right(PC(g.aci)), right(PC(g.abi)), right(A(p2))];
       return [{ content: t(label + '\n' + (calc.isNum(g.value) ? 'Fund value ' + A(g.value) + '  |  ' : '') + (calc.isNum(g.employer) || calc.isNum(g.employee) ? 'employer ' + A(g.employer || 0) + ', employee ' + A(g.employee || 0) : 'POI needed')), styles: { halign: 'left', fontStyle: 'bold' } }, right('-'), right('-'), right('-'), right('-'), right('N/A'), right(PC(g.aci)), right('N/A'), right(A(p2))];
     });
     prem = calc.r2(prem + pi.monthly);
