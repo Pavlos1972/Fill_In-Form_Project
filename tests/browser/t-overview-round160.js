@@ -20,7 +20,7 @@ const TREE = {
   NB: { 'Test, Dora': {
       '1. Overview': {}, '2. Fact Find': {},
       '3. Quotes': {
-        'Reduced Quote 02.02.25.pdf': one('Reduced quote loose 2025'), 'Shortfall Quote 03.03.24.pdf': one('Shortfall quote 2024'), 'Shortfall Quote 10.01.26.pdf': one('Shortfall quote 2026'), 'Shortfall Quote Draft.pdf': one('Shortfall quote draft undated'),
+        'Reduced Quote 02.02.25.pdf': one('Reduced quote loose 2025'), 'Shortfall Quote 03.03.24.pdf': one('Shortfall quote 2024'), 'Shortfall Quote 10.01.26.pdf': one('Shortfall quote 2026'), 'Shortfall Quote Draft.pdf': one('Shortfall quote draft undated'), 'Shortfall Quote 2026 Final.pdf': one('Shortfall quote bare year 2026'), 'Loose FNA 2026.pdf': one('FNA quote loose 2026'),
         'Retirement Annuity Proposal A.pdf': one('Proposal RA undated'), 'Tax Free Proposal B.pdf': one('Proposal TFSA undated'),
         '2026 - Review': { 'FNA CP 400500602.pdf': one('FNA numbered quote 2026 CP 400500602'), 'FNA Quote.pdf': one('FNA quote 2026'), 'Reduced Quote.pdf': one('Reduced quote 2026') },
         '2024 - Review': { 'BR CMPO - 400500601.pdf': one('Guide 2024 CP 400500601'), 'RGAR Report 2024.pdf': one('RGAR report 2024'), 'FNA CP 400500601.pdf': one('FNA numbered quote 2024 CP 400500601'), 'FNA Quote.pdf': one('FNA quote 2024'), 'Reduced Quote.pdf': one('Reduced quote 2024') } ,
@@ -104,6 +104,9 @@ srv.listen(0, async () => {
   const sfd = one1(oth, /Shortfall Quote Draft/);
   ok(sf24 && sf26 && sf26.on && !sf24.on && /older date \(03\/03\/2024\): not ticked, the newest is 10\/01\/2026/.test(sf24.t), '1.7. a kind with NO year folder anywhere: only the NEWEST BY THE DATE IN ITS NAME is ticked (Paul, 25 November): the 2026 shortfall quote yes, the 2024 one no, and it says why: ' + (sf24 && sf24.t));
   ok(sfd && !sfd.on && /no date in its name, and a dated one exists: not ticked/.test(sfd.t), '1.7. a shortfall quote with no date loses to the dated ones: ' + (sfd && sfd.t));
+  const sfy = one1(oth, /Shortfall Quote 2026 Final/), lfna = one1(oth, /Loose FNA 2026/);
+  ok(sfy && sfy.on && !/not ticked/.test(sfy.t), '1.7. a shortfall quote with only a YEAR in its name (2026) is not older than 10/01/2026 and is ticked: ' + (sfy && sfy.t));
+  ok(lfna && lfna.on && !/no year found/.test(lfna.t), '1.7. a loose FNA quote with only a year in its name (2026) beside the 2024 and 2026 review folders is the newest year, ticked: ' + (lfna && lfna.t));
   const pa = one1(oth, /Retirement Annuity Proposal A/), pb = one1(oth, /Tax Free Proposal B/);
   ok(pa && pb && pa.on && pb.on && !/not ticked/.test(pa.t + pb.t), '1.7. a kind with no year folder and no date at all (two loose proposals) keeps both ticked: ' + [pa && pa.on, pb && pb.on].join(', '));
   const g26 = one1(oth, /BR CMPO - 400500602/), g24 = one1(oth, /BR CMPO - 400500601/);
@@ -133,7 +136,7 @@ srv.listen(0, async () => {
   await p.click('dialog.fdlg [data-yes]'); await waitDone(p); await p.waitForTimeout(800);
   const api = await p.evaluate(() => window.__api.slice());
   const sent = k => api.some(t => t.indexOf(k) >= 0);
-  ok(sent('FNA quote 2026') && sent('FNA numbered quote 2026') && sent('Reduced quote 2026') && sent('Guide 2026') && sent('Shortfall quote 2026') && sent('Proposal RA undated') && sent('Proposal TFSA undated') && sent('Coronation comparative quote 2026') && sent('Discovery comparative quote 2026') && sent('RGAR report 2024'), '4. the ticked documents were sent for reading: ' + api.length + ' document(s)');
+  ok(sent('FNA quote 2026') && sent('FNA numbered quote 2026') && sent('Reduced quote 2026') && sent('Guide 2026') && sent('Shortfall quote 2026') && sent('Shortfall quote bare year 2026') && sent('FNA quote loose 2026') && sent('Proposal RA undated') && sent('Proposal TFSA undated') && sent('Coronation comparative quote 2026') && sent('Discovery comparative quote 2026') && sent('RGAR report 2024'), '4. the ticked documents were sent for reading: ' + api.length + ' document(s)');
   ok(!sent('FNA quote 2024') && !sent('FNA numbered quote 2024') && !sent('Reduced quote 2024') && !sent('Reduced quote loose 2025') && !sent('Guide 2024') && !sent('Old Mutual comparative quote 2024') && !sent('Sanlam comparative quote 2024') && !sent('Hollard comparative quote undated') && !sent('RA review document 2026') && !sent('Shortfall quote 2024') && !sent('Shortfall quote draft undated'), '4. the documents that were not ticked were NOT sent to Anthropic (the 2024 and 2025 quotes, the 2024 guide, the quote with no year, the 2024 shortfall quote and the undated shortfall draft)');
   ok(!sent('Review summary 2026') && !sent('Review letter 2026') && !sent('Sanlam invest schedule 2025'), '4. a review summary, a review letter and the older Sanlam schedule were not sent');
   const cards = await p.evaluate(() => OV.app.state.blocks.comparative.quotes.map(q => q.src && q.src.file));

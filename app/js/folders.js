@@ -434,19 +434,33 @@
     if (tied.length > 1 && same.length === 1) { var own = tied.filter(function (x) { return !x.f.from; })[0] || tied[0]; return { file: own.f, tie: false, tied: [own.f] }; }
     return { file: tied.length > 1 ? null : top.f, tie: tied.length > 1, tied: tied.map(function (x) { return x.f; }) };
   }
+  /* The date a FILE NAME carries, as a number: yyyymmdd for a day, yyyymm00 for a month, yyyy0000 for a bare year; 0 when the name has none. The folder is not looked at (dateKey's year of a folder is a different thing). A full date or "Mar '25" is dateKey's;
+     added for the age rule of the quotes (round 1.7): "Mar 2026", "03.2026", "2026-03" and a bare "2026" count (a bare year that is part of a longer figure, such as "2026-5566", does not). */
+  function nameDate(name) {
+    var k = dateKey(name, []); if (k.exact) return k.exact;
+    var n = String(name == null ? '' : name).replace(/\.[A-Za-z0-9]{2,5}$/, '').toLowerCase(), m;
+    if ((m = /(?:^|[^a-z])(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?,?\s*((?:19|20)\d{2})(?!\d)/.exec(n))) return +m[2] * 10000 + MONTHS[m[1]] * 100;
+    if ((m = /(?:^|\D)((?:19|20)\d{2})[-\/.](0[1-9]|1[0-2])(?![\d])/.exec(n))) return +m[1] * 10000 + +m[2] * 100;
+    if ((m = /(?:^|\D)(0[1-9]|1[0-2])[-\/.]((?:19|20)\d{2})(?!\d)/.exec(n))) return +m[2] * 10000 + +m[1] * 100;
+    if ((m = /(?:^|[^\d])((?:19|20)\d{2})(?![\d]|[-.\/]\d)/.exec(n))) return +m[1] * 10000;
+    return 0;
+  }
   /* Which of the client's quote-like documents are NOT the newest of their kind (round 1.7; the rule of 1.6 and Paul's answer of 25 November, relayed 14:52).
      entries: [{ id, kind, y (the year: its folder's, else its name's, 0 when none), fy (the year of its folder, 0 when it sits in no year folder), ex (the date in its name as yyyymmdd, yyyymm00 for a month, 0 when none), no (its CP or policy number, '' when none) }];
      kind is fna, shortfallQuote, reduced, comparative, proposed, goals or cmp (a change moment pay-out guide). Returns a Map id -> the reason it is not ticked.
      (1) A kind is ruled by YEAR when one of its documents sits in a year folder (comparative quotes always): only the newest year's are ticked; a document with no year loses to a year.
-     (2) A kind with NO year folder anywhere (comparative quotes apart) is ruled by the DATE IN THE NAME: only the newest dated one is ticked (the same date: all of that date), a document with no date loses to a dated one; when NO document of the kind has a date, all are ticked (Paul, 25 November: "tick only the newest by the date in its name; if no date at all, keep both ticked").
+     (2) A kind with NO year folder anywhere (comparative quotes apart) is ruled by the DATE IN THE NAME (nameDate: a day, a month or a bare year; two dates are compared at the COARSER precision of the pair): only the newest dated one is ticked (the same date: all of that date), a document with no date loses to a dated one; when NO document of the kind has a date, all are ticked (Paul, 25 November: "tick only the newest by the date in its name; if no date at all, keep both ticked").
      (3) A pay-out guide has no date of its own: it only follows its quote (the same number): the guide of a quote that is not ticked is not ticked, unless a ticked quote carries that number. */
   function ageQuotes(entries) {
-    var older = new Map(), maxY = {}, byFolder = {}, maxEx = {}, dated = {}, list = entries || [];
-    var fmt = function (ex) { var y = Math.floor(ex / 10000), m = Math.floor(ex / 100) % 100, d = ex % 100, p = function (n) { return (n < 10 ? '0' : '') + n; }; return (d ? p(d) + '/' : '') + p(m) + '/' + y; };
+    var older = new Map(), maxY = {}, byFolder = {}, dated = {}, list = entries || [];
+    var prec = function (ex) { return ex % 100 ? 3 : (Math.floor(ex / 100) % 100 ? 2 : 1); };                // 3 a day, 2 a month, 1 a bare year
+    var trunc = function (ex, p) { return p === 3 ? ex : p === 2 ? Math.floor(ex / 100) : Math.floor(ex / 10000); };
+    var before = function (x, y) { var p = Math.min(prec(x), prec(y)); return trunc(x, p) < trunc(y, p); };   // x is older than y when it is so at the COARSER precision of the two: "2026" is not older than "03.03.26", and "Mar 26" is not older than "03.03.26"
+    var fmt = function (ex) { var y = Math.floor(ex / 10000), m = Math.floor(ex / 100) % 100, d = ex % 100, p = function (n) { return (n < 10 ? '0' : '') + n; }; return d ? p(d) + '/' + p(m) + '/' + y : m ? p(m) + '/' + y : String(y); };
     list.forEach(function (x) {
       if (x.kind === 'cmp') return;
       if ((x.y || 0) > (maxY[x.kind] || 0)) maxY[x.kind] = x.y; if (x.fy) byFolder[x.kind] = true;
-      if (x.ex) { dated[x.kind] = true; if (x.ex > (maxEx[x.kind] || 0)) maxEx[x.kind] = x.ex; }
+      if (x.ex) (dated[x.kind] = dated[x.kind] || []).push(x);
     });
     var ruled = function (kd) { return !!maxY[kd] && (kd === 'comparative' || byFolder[kd]); };
     list.forEach(function (x) {
@@ -454,7 +468,10 @@
       if (ruled(x.kind)) { if ((x.y || 0) < maxY[x.kind]) older.set(x.id, x.y ? 'older year (' + x.y + '): not ticked, the newest is ' + maxY[x.kind] : 'no year found in its folder or name, and ' + maxY[x.kind] + ' exists: not ticked'); }
       else if (x.kind !== 'comparative' && dated[x.kind]) {
         if (!x.ex) older.set(x.id, 'no date in its name, and a dated one exists: not ticked');
-        else if (x.ex < maxEx[x.kind]) older.set(x.id, 'older date (' + fmt(x.ex) + '): not ticked, the newest is ' + fmt(maxEx[x.kind]));
+        else {
+          var newer = dated[x.kind].filter(function (y) { return before(x.ex, y.ex); });
+          if (newer.length) older.set(x.id, 'older date (' + fmt(x.ex) + '): not ticked, the newest is ' + fmt(newer.reduce(function (m, y) { return y.ex > m ? y.ex : m; }, 0)));
+        }
       }
     });
     var oldNo = {}, newNo = {};
@@ -704,7 +721,7 @@
   return {
     MAX_PATH: MAX_PATH, SWAP: SWAP, RULES: RULES, ALIASES: ALIASES, norm: norm, tokens: tokens, clientFolderName: clientFolderName, parseClient: parseClient, clientMatches: clientMatches, letterOf: letterOf, letterFolder: letterFolder,
     isLetterFolder: isLetterFolder, isStandard: isStandard, nameIs: nameIs, insurerWords: insurerWords, productWords: productWords, numbersIn: numbersIn, hasWord: hasWord, scoreDeal: scoreDeal, chooseDeal: chooseDeal, pathCheck: pathCheck, tooLongText: tooLongText,
-    comparePolicies: comparePolicies, mergeClientLists: mergeClientLists, keyedNewest: keyedNewest, parsePolicyFolder: parsePolicyFolder, policyFolders: policyFolders, policyScan: policyScan, joinSchedules: joinSchedules, latestOverview: latestOverview, dateKey: dateKey, newestOf: newestOf, ageQuotes: ageQuotes, isManual: isManual, isReviewDir: function (n) { return REVIEW_DIR.test(norm(n)); }, canonInsurer: canonInsurer, numKey: numKey, FOLDER_INSURERS: FOLDER_INSURERS,
+    comparePolicies: comparePolicies, mergeClientLists: mergeClientLists, keyedNewest: keyedNewest, parsePolicyFolder: parsePolicyFolder, policyFolders: policyFolders, policyScan: policyScan, joinSchedules: joinSchedules, latestOverview: latestOverview, dateKey: dateKey, newestOf: newestOf, ageQuotes: ageQuotes, nameDate: nameDate, isManual: isManual, isReviewDir: function (n) { return REVIEW_DIR.test(norm(n)); }, canonInsurer: canonInsurer, numKey: numKey, FOLDER_INSURERS: FOLDER_INSURERS,
     listDirs: listDirs, clientSubfolder: clientSubfolder, findFiles: findFiles, viewableFiles: viewableFiles, findClients: findClients, clientFromFile: clientFromFile, dirOfFile: dirOfFile, dealCandidates: dealCandidates, resolveTarget: resolveTarget, factFindCandidates: factFindCandidates, resolveFactFind: resolveFactFind, overviewCandidate: overviewCandidate, clientDocuments: clientDocuments, counterOfferDocuments: counterOfferDocuments, resolveOverview: resolveOverview, ensureOverview: ensureOverview, relOf: relOf, labelOf: labelOf, probeFile: probeFile, makeFile: makeFile, discardEmpty: discardEmpty,
     saveHandle: saveHandle, loadHandle: loadHandle, getPaths: getPaths, setPath: setPath, permission: permission, enabled: enabled
   };

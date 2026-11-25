@@ -52,6 +52,29 @@ test('each kind is ruled on its own: an old FNA quote is not older because a red
   assert.strictEqual(F.ageQuotes([fna, red]).size, 0);
 });
 
+/* ---------- 1b. a month or a bare year in the name is a date too, compared at the coarser precision ---------- */
+test('nameDate: a date, a month or a bare year in a FILE NAME is read (never the folder); a number that merely contains a year is not', () => {
+  const nd = F.nameDate;
+  assert.strictEqual(nd('Shortfall Quote 03.03.24.pdf'), 20240303);
+  assert.strictEqual(nd('Quote Mar 2026.pdf'), 20260300); assert.strictEqual(nd('Quote March 2026.pdf'), 20260300); assert.strictEqual(nd('Quote 03.2026.pdf'), 20260300); assert.strictEqual(nd('Quote 2026-03.pdf'), 20260300); assert.strictEqual(nd("Quote Mar '26.pdf"), 20260300);
+  assert.strictEqual(nd('Shortfall Quote 2026.pdf'), 20260000, 'a bare year');
+  assert.strictEqual(nd('FNA CP 400500602.pdf'), 0, 'a CP number holds no year'); assert.strictEqual(nd('Policy 20264455.pdf'), 0); assert.strictEqual(nd('Quote 2026-5566.pdf'), 0, 'a year that starts a longer figure is not a year'); assert.strictEqual(nd('Quote.pdf'), 0);
+  assert.strictEqual(nd('2026 - Review'), 20260000 /* a bare name; the caller passes FILE names, the folder's year is dateKey's .year */);
+});
+
+test('a year or a month in the name is not older than a full date of the same year or month, and beats an older full date: nothing loses to a coarser date that it is not older than', () => {
+  const old = q('shortfallQuote', { y: 2024, ex: date(2024, 3, 3) }), year = q('shortfallQuote', { y: 2026, ex: date(2026, 0, 0) }), day = q('shortfallQuote', { y: 2026, ex: date(2026, 1, 10) });
+  const older = F.ageQuotes([old, year, day]);
+  assert.deepStrictEqual(named([old, year, day], older), [old.id + ':old', year.id + ':ok', day.id + ':ok'], 'a bare 2026 and 10/01/2026 are both the newest; the 2024 one is older than both');
+  assert.match(older.get(old.id), /older date \(03\/03\/2024\): not ticked, the newest is 10\/01\/2026/);
+  const lone = q('shortfallQuote', { y: 2026, ex: date(2026, 0, 0) }), older2 = F.ageQuotes([q('shortfallQuote', { y: 2024, ex: date(2024, 3, 3) }), lone]);
+  assert.ok(!older2.has(lone.id) && older2.size === 1, 'a bare year beside an older full date is the newest');
+  const mar = q('reduced', { y: 2026, ex: date(2026, 3, 0) }), mar3 = q('reduced', { y: 2026, ex: date(2026, 3, 3) }), jan = q('reduced', { y: 2026, ex: date(2026, 1, 10) });
+  const o3 = F.ageQuotes([mar, mar3, jan]);
+  assert.deepStrictEqual(named([mar, mar3, jan], o3), [mar.id + ':ok', mar3.id + ':ok', jan.id + ':old'], '"Mar 2026" and 03/03/2026 are the same month: both are the newest; January is older');
+  assert.match(o3.get(jan.id), /the newest is 03\/03\/2026/, 'the reason names the newest full date');
+});
+
 /* ---------- 2. the year rule of 1.6 is untouched ---------- */
 test('a kind with a year folder is still ruled by the YEAR, not by the date: two quotes of one year folder are both ticked, an older year and a loose undated one are not', () => {
   const y26a = q('fna', { y: 2026, fy: 2026, ex: date(2026, 1, 5) }), y26b = q('fna', { y: 2026, fy: 2026, ex: date(2026, 11, 20) }), y24 = q('fna', { y: 2024, fy: 2024 }), loose = q('fna');
@@ -59,6 +82,12 @@ test('a kind with a year folder is still ruled by the YEAR, not by the date: two
   assert.deepStrictEqual(named([y26a, y26b, y24, loose], older), [y26a.id + ':ok', y26b.id + ':ok', y24.id + ':old', loose.id + ':old']);
   assert.match(older.get(y24.id), /older year \(2024\): not ticked, the newest is 2026/);
   assert.match(older.get(loose.id), /no year found in its folder or name, and 2026 exists: not ticked/);
+});
+
+test('a loose file with only a year in its name (a bare 2026) beside a 2024 year folder is the newest year: it is not "no year found"', () => {
+  const folder = q('fna', { y: 2024, fy: 2024 }), loose = q('fna', { y: 2026, ex: date(2026, 0, 0) });
+  const older = F.ageQuotes([folder, loose]);
+  assert.ok(older.has(folder.id) && !older.has(loose.id));
 });
 
 test('a loose file dated 2026 beside a 2025 year folder is the newest year too (its name year counts when it sits in no year folder)', () => {

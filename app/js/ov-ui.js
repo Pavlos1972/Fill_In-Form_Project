@@ -1233,8 +1233,8 @@
     var entries = [];
     others.forEach(function (f) {
       var kd = F && F.dateKey ? kindOf(f) : null; if (!kd) return;
-      var k = F.dateKey(f.name, f.rel);
-      entries.push({ id: f, kind: kd, y: k.year || (k.exact ? Math.floor(k.exact / 10000) : 0), fy: k.year, ex: k.exact, no: nkOf(f) });
+      var k = F.dateKey(f.name, f.rel), nd = F.nameDate ? F.nameDate(f.name) : k.exact;                         // nd: the date, the month or the bare year the NAME carries (0 when none)
+      entries.push({ id: f, kind: kd, y: k.year || (nd ? Math.floor(nd / 10000) : 0), fy: k.year, ex: nd, no: nkOf(f) });
     });
     var older = F && F.ageQuotes ? F.ageQuotes(entries) : new Map();                                            // which are not the newest of their kind, and why (folders.js: the year rule, the date rule of 1.7, a guide follows its quote)
     var tick = res.files.map(function (f) {
