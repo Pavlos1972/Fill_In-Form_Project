@@ -113,15 +113,15 @@ test('classify: a signed or accepted quote in Comparative Quotes\\2026 - Review 
 
 /* ---------- 3. the words are left as they are; the wiring ---------- */
 test('the page is 1.8, no key is added, the entries carry the product, the walk takes a Review schedule, and the tags are new', () => {
-  assert.strictEqual(schema.pageVersion, '1.8'); assert.strictEqual(schema.version, '0.1'); assert.ok(parseFloat(schema.pageVersion) > parseFloat('1.7'), 'compared as decimals');
+  assert.ok(/^1\.[89]$/.test(schema.pageVersion), 'page 1.8, or 1.9 which came after it'); assert.strictEqual(schema.version, '0.1'); assert.ok(parseFloat(schema.pageVersion) > parseFloat('1.7'), 'compared as decimals');
   const ui = app('js/ov-ui.js'), fo = app('js/folders.js'), html = app('overview.html');
   assert.ok(/sub: F\.quoteSub \? F\.quoteSub\(kd, f\.name\) : ''/.test(ui), 'tickPlan gives every entry its product or report kind');
   assert.ok(/REVIEW_SCHEDULE\.test\(low\)/.test(fo) && /var REVIEW_SCHEDULE = \/schedule\|s\(a\)\?tatement\|\(\^\|\[\^a-z\]\)\(ps\|is\)\(\[\^a-z\]\|\$\)\//.test(fo), 'the walk takes a schedule, a statement or a PS from a Review folder');
   assert.ok(/!\/signed\/\.test\(low\)/.test(fo) && /!NOT_SCHEDULE\.test\(low\)/.test(fo), 'never a signed copy, a letter, a quote or a form');
   assert.ok(/quoteSub: quoteSub/.test(fo), 'quoteSub is exported');
   const D2 = app('js/ov-docs.js'); assert.ok(/PAPERWORK = \/signed\|accept\|letter\|sroa/.test(D2) && /QUOTEISH = \/quote\|proposal\|illustration/.test(D2), 'Paul: "3 leave": the paperwork and quote words are as they were');
-  ['ov-schema', 'ov-docs', 'ov-ui', 'folders'].forEach(f => assert.ok(new RegExp(f + '\\.js\\?v=20261124v').test(html), f));
-  ['index.html', 'short-risk.html', 'capture-sheet.html'].forEach(f => assert.ok(/folders\.js\?v=20261124v/.test(app(f)), f));
+  ['ov-schema', 'ov-docs', 'ov-ui', 'folders'].forEach(f => assert.ok(new RegExp(f + '\\.js\\?v=20261124[vw]').test(html), f));
+  ['index.html', 'short-risk.html', 'capture-sheet.html'].forEach(f => assert.ok(/folders\.js\?v=20261124[vw]/.test(app(f)), f));
 });
 
 /* ---------- the ranking of a Review folder's schedule against the policy's other schedules (pinned, whatever it is) ---------- */

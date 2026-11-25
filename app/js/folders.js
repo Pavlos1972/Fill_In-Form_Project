@@ -368,18 +368,25 @@
     return best;
   }
   function canonInsurer(text) { var b = insurerIn(text, false); return b ? b.c : ''; }
-  var STATUS_RE = [['transferred', /(^|[^a-z])transfer+ed([^a-z]|$)/], ['cancelled', /(^|[^a-z])cancel+ed([^a-z]|$)/], ['lapsed', /(^|[^a-z])lapsed([^a-z]|$)/]];
-  function statusOf(text) { var n = norm(text); for (var i = 0; i < STATUS_RE.length; i++) if (STATUS_RE[i][1].test(n)) return STATUS_RE[i][0]; return ''; }
+  /* A word of a folder name, and whether it is NEGATED: "(Not linked to PK)", "Unlinked", "(Not Transferred)". wordIn(text, source): 1 when the word is there and not negated, -1 when it is there only negated, 0 when it is not there. A negated word is NOT the status (round 1.9; found by the
+     Fix Skills chat in its own folder scan, "(Not linked to PK)" was read as linked to Paul): "(Not Transferred)" is a live folder, and "(Not linked to PK)" is not linked. */
+  function wordIn(text, src) {
+    var re = new RegExp('(^|[^a-z])(not[\\s-]+|never[\\s-]+|no longer[\\s-]+|un-?)?(' + src + ')(?![a-z])', 'g'), n = norm(text), m, seen = 0;
+    while ((m = re.exec(n))) { if (!m[2]) return 1; seen = -1; }
+    return seen;
+  }
+  var STATUS_RE = [['transferred', 'transfer+ed'], ['cancelled', 'cancel+ed'], ['lapsed', 'lapsed']];
+  function statusOf(text) { for (var i = 0; i < STATUS_RE.length; i++) if (wordIn(text, STATUS_RE[i][1]) > 0) return STATUS_RE[i][0]; return ''; }
   var INV_RE = /(^|[^a-z0-9])(ra|retirement annuity|invest(ment)?s?|tfsa|tf|tax[ -]?free|endowment|living annuity|la|annuity|provident|pension|preservation|unit trusts?|ut|flexi|savings|discretionary|offshore|etf)(?![a-z0-9])/;
   var POL_RE = /(^|[^a-z0-9])(personal covers?|personal|life|legacy|covers?|protector|protection|risk|funeral|disability|income|severe|critical|dread|term|whole of life)(?![a-z0-9])/;
-  /* A folder name read: { name, insurer (normalised), insurerName (as written), product, number, status ('live' | 'transferred' | 'cancelled' | 'lapsed'), linked, unknownStatus, dealStyle, kind ('policies' | 'investments' | ''), policy (does it look like a policy folder) }. */
+  /* A folder name read: { name, insurer (normalised), insurerName (as written), product, number, status ('live' | 'transferred' | 'cancelled' | 'lapsed'), linked, notLinked ("(Not linked to PK)": a negated word is not the status, 1.9), unknownStatus, dealStyle, kind ('policies' | 'investments' | ''), policy (does it look like a policy folder) }. */
   function parsePolicyFolder(name) {
     var raw = String(name == null ? '' : name), groups = [], rest = raw.replace(/[(\[]([^)\]]*)[)\]]/g, function (m, g) { groups.push(g); return ' '; });
-    var out = { name: raw, insurer: '', insurerName: '', product: '', number: '', status: 'live', linked: false, unknownStatus: '', dealStyle: false, kind: '', policy: false }, other = [];
-    groups.forEach(function (g) { var gn = norm(g); if (/linked to pk/.test(gn)) out.linked = true; else if (statusOf(gn)) out.status = statusOf(gn); else if (gn) other.push(g); });
+    var out = { name: raw, insurer: '', insurerName: '', product: '', number: '', status: 'live', linked: false, notLinked: false, unknownStatus: '', dealStyle: false, kind: '', policy: false }, other = [];
+    groups.forEach(function (g) { var gn = norm(g), lk = wordIn(gn, 'linked to pk'); if (lk) { if (lk > 0) out.linked = true; else out.notLinked = true; } else if (statusOf(gn)) out.status = statusOf(gn); else if (gn) other.push(g); });
     if (out.status === 'live' && statusOf(rest)) out.status = statusOf(rest);
     var body = rest;
-    if (/linked to pk/.test(norm(rest))) out.linked = true;
+    var lkr = wordIn(rest, 'linked to pk'); if (lkr > 0) out.linked = true; else if (lkr < 0) out.notLinked = true;
     if (other.length && /^[^,]+,\s*[^()]*$/.test(rest.trim()) && !insurerIn(rest.trim(), true) && !/\d{5,}/.test(rest)) { out.dealStyle = true; body = other.shift(); }          // "<Surname, First> - (<Insurer> - <Product> - R <amount> p.m.)": the bracket holds the policy
     other = other.filter(function (g) { return !/^\s*[\d\s,.\/-]*$/.test(g); });                                         // a year or a number in brackets is not a status
     if (other.length) out.unknownStatus = other.join(', ');
@@ -394,7 +401,7 @@
       var any = insurerIn(body, false); if (any) out.insurer = any.c;
       out.product = segs.join(' ');
     }
-    out.product = out.product.replace(/(^|[^A-Za-z])(transfer+ed|cancel+ed|lapsed|linked to pk)(?![A-Za-z])/gi, ' ').replace(/\s+/g, ' ').trim();
+    out.product = out.product.replace(/(^|[^A-Za-z])((?:not[\s-]+|never[\s-]+|no longer[\s-]+|un-?)?(?:transfer+ed|cancel+ed|lapsed|linked to pk))(?![A-Za-z])/gi, ' ').replace(/\s+/g, ' ').trim();
     var pn = norm(out.product);
     out.kind = INV_RE.test(pn) ? 'investments' : POL_RE.test(pn) ? 'policies' : (INS_KIND[out.insurer] || '');
     out.special = /legacy/.test(pn) ? 'legacy' : /provident|pension|preservation/.test(pn) ? 'group' : '';          // these two live in another block of the overview (block 11; Group benefits), where the page has no row for a statement to fill: they are listed, not ticked, not compared
@@ -749,7 +756,7 @@
   return {
     MAX_PATH: MAX_PATH, SWAP: SWAP, RULES: RULES, ALIASES: ALIASES, norm: norm, tokens: tokens, clientFolderName: clientFolderName, parseClient: parseClient, clientMatches: clientMatches, letterOf: letterOf, letterFolder: letterFolder,
     isLetterFolder: isLetterFolder, isStandard: isStandard, nameIs: nameIs, insurerWords: insurerWords, productWords: productWords, numbersIn: numbersIn, hasWord: hasWord, scoreDeal: scoreDeal, chooseDeal: chooseDeal, pathCheck: pathCheck, tooLongText: tooLongText,
-    comparePolicies: comparePolicies, mergeClientLists: mergeClientLists, keyedNewest: keyedNewest, parsePolicyFolder: parsePolicyFolder, policyFolders: policyFolders, policyScan: policyScan, joinSchedules: joinSchedules, latestOverview: latestOverview, dateKey: dateKey, newestOf: newestOf, ageQuotes: ageQuotes, nameDate: nameDate, quoteSub: quoteSub, isManual: isManual, isReviewDir: function (n) { return REVIEW_DIR.test(norm(n)); }, canonInsurer: canonInsurer, numKey: numKey, FOLDER_INSURERS: FOLDER_INSURERS,
+    comparePolicies: comparePolicies, mergeClientLists: mergeClientLists, keyedNewest: keyedNewest, parsePolicyFolder: parsePolicyFolder, policyFolders: policyFolders, policyScan: policyScan, joinSchedules: joinSchedules, latestOverview: latestOverview, dateKey: dateKey, newestOf: newestOf, ageQuotes: ageQuotes, nameDate: nameDate, quoteSub: quoteSub, wordIn: wordIn, isManual: isManual, isReviewDir: function (n) { return REVIEW_DIR.test(norm(n)); }, canonInsurer: canonInsurer, numKey: numKey, FOLDER_INSURERS: FOLDER_INSURERS,
     listDirs: listDirs, clientSubfolder: clientSubfolder, findFiles: findFiles, viewableFiles: viewableFiles, findClients: findClients, clientFromFile: clientFromFile, dirOfFile: dirOfFile, dealCandidates: dealCandidates, resolveTarget: resolveTarget, factFindCandidates: factFindCandidates, resolveFactFind: resolveFactFind, overviewCandidate: overviewCandidate, clientDocuments: clientDocuments, counterOfferDocuments: counterOfferDocuments, resolveOverview: resolveOverview, ensureOverview: ensureOverview, relOf: relOf, labelOf: labelOf, probeFile: probeFile, makeFile: makeFile, discardEmpty: discardEmpty,
     saveHandle: saveHandle, loadHandle: loadHandle, getPaths: getPaths, setPath: setPath, permission: permission, enabled: enabled
   };

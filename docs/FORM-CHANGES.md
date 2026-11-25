@@ -4,6 +4,11 @@ A dated list of what changed in the form's boxes, newest first. **One line for e
 
 The version is `version` in `app/js/schema.js` (the Fact Find), `app/js/sr-schema.js` (the Short Risk Application) and `app/js/cs-schema.js` (the Investment Capture Sheet); a saved file carries it as `schema`. Earlier changes are in the README and in the git history; this list starts with 3.1.
 
+## Client Overview Studio 1.9: 25 November 2026 (Client Overview Studio 1.8 to 1.9; Fact Find 5.5, Risk Application 1.6 and Investment Application 1.5 keep their numbers; display and folder search only)
+
+**No id, list, box, choice, sum or saved-file key changed** (contract revision o unchanged; layout `0.1`). What changed for a skill: **nothing in the saved file**; the folder-name rule `client-overview-skill` follows: a negated word is not the status.
+- A policy folder named *(Not linked to PK)* (also *Unlinked*, *Never linked*, *No longer linked*) is NOT linked to Paul (it was read as linked); *(Not Transferred)*, *(Not cancelled)* and *(Not lapsed)* are live folders (they were read as not live). `folders.js` `wordIn`, `parsePolicyFolder` (new field `notLinked`), `statusOf`; the heading chip says *Not linked to PK*.
+
 ## Client Overview Studio 1.8: 25 November 2026 (Client Overview Studio 1.7 to 1.8; Fact Find 5.5, Risk Application 1.6 and Investment Application 1.5 keep their numbers; display and folder search only)
 
 **No id, list, box, choice, sum or saved-file key changed** (contract revision o unchanged; layout `0.1`). What changed for a skill: **nothing in the saved file**; the folder rules `client-overview-skill` follows change as below.
