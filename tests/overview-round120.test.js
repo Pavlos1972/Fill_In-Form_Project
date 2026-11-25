@@ -29,7 +29,7 @@ const LETTER = { originalNumber: '400500600', revisedNumber: '400500777', origPr
 const accepted = (s, q, uw) => { store.setStatus(s, qpath(s, q), 'accepted'); store.setUw(s, qpath(s, q), uw || 'both'); return q; };
 
 test('the page is 1.2 (the layout stays 0.1), the changed scripts carry new tags in every page that loads them', () => {
-  assert.ok(/^1\.[234]$/.test(schema.pageVersion), 'the page version is 1.2 to 1.4'); assert.strictEqual(schema.version, '0.1');
+  assert.ok(/^1\.[2345]$/.test(schema.pageVersion), 'the page version is 1.2 to 1.5'); assert.strictEqual(schema.version, '0.1');
   assert.ok(parseFloat(schema.pageVersion) > parseFloat('1.1'), 'compared as decimals');
   ['ov-schema', 'ov-calc', 'ov-store', 'ov-check', 'ov-docs', 'ov-pdf', 'ov-pres', 'ov-ui', 'ov-present'].forEach(f => assert.ok(new RegExp(f + '\\.js\\?v=20261124[m-z]').test(app('overview.html')), f));
   ['index.html', 'short-risk.html', 'capture-sheet.html', 'overview.html'].forEach(f => assert.ok(/folders-ui\.js\?v=20261124[m-z]/.test(app(f)) && /folders\.js\?v=20261124[m-z]/.test(app(f)), f));

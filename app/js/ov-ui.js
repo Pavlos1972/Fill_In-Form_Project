@@ -977,7 +977,7 @@
      Resolves { msg, warn } or { unknown: true, file }. A BrightRock quote that was read gets its change moment pay-out by itself (the guide "BR CMPO - <CP number>" is looked for and read). */
   function intakeOne(file, o) {
     o = o || {};
-    var cls = D.classify(file.name, o.dirs && o.dirs[String(file.name).toLowerCase()]), block = o.block || (cls && cls.block);
+    var cls = D.classify(file.name, dirOf(file, o)), block = o.block || file.wrBlock || (cls && cls.block);          // round 1.5: a file picked from a policy folder is in the block its FOLDER says (investments or policies), whatever its name
     if (!block) return Promise.resolve({ unknown: true, file: file });
     cls = cls || { number: '', date: '' };
     if (block === 'bremail') return intakeEmail(file, o, cls);
@@ -1157,12 +1157,13 @@
   function ingest(files, o) {
     o = Object.assign({}, o || {}); files = uniqueFiles([].slice.call(files)); unmatchedGuides = {}; o.guides = {};
     var unknown = [], count = 0, warns = 0, log = [], same = 0; lastLog = log;
+    (o.notes || []).forEach(function (n) { log.push(n); });                                                 // what the policy folders said about the Fact Find (round 1.5): kept with the last load's messages
     if (o.counted) delete o.counted; else beginSearch(o.block ? [navBlockOf(o.block)].filter(Boolean) : null, o.block ? 'Waiting for the document' : 'Waiting for the documents');          // a load that started with the folder search has counted already
     var ended = false, finish = function () { if (ended) return; ended = true; return endSearch(); };
-    var isGuide = function (f) { var c = D.classify(f.name); return o.block === 'cmp' || (!o.block && c && c.block === 'cmp'); };
-    var isEmail = function (f) { var c = D.classify(f.name, o.dirs && o.dirs[String(f.name).toLowerCase()]); return o.block === 'bremail' || (!o.block && c && c.block === 'bremail'); };
-    var astuteOf = function (f) { return D.classify(f.name, (o.dirs && o.dirs[String(f.name).toLowerCase()]) || (f.rel || []).join(' \\ ')); };
-    var isAstute = function (f) { var c = astuteOf(f); return o.block === 'astute' || (!o.block && c && c.block === 'astute'); };          // Astute is the FALLBACK: it is read after the schedules and statements, the newest report last (round 1.1)
+    var isGuide = function (f) { if (f.wrBlock) return false; var c = D.classify(f.name); return o.block === 'cmp' || (!o.block && c && c.block === 'cmp'); };
+    var isEmail = function (f) { if (f.wrBlock) return false; var c = D.classify(f.name, dirOf(f, o)); return o.block === 'bremail' || (!o.block && c && c.block === 'bremail'); };
+    var astuteOf = function (f) { return D.classify(f.name, dirOf(f, o) || (f.rel || []).join(' \\ ')); };
+    var isAstute = function (f) { if (f.wrBlock) return false; var c = astuteOf(f); return o.block === 'astute' || (!o.block && c && c.block === 'astute'); };          // Astute is the FALLBACK: it is read after the schedules and statements, the newest report last (round 1.1)
     function one(f, oo) {
       var num = (D.classify(f.name) || {}).number;
       if (oo.block === 'cmp' || (!oo.block && isGuide(f))) { if (num && o.guides[num]) { count++; return Promise.resolve(); } }          // its quote has read it already
@@ -1193,9 +1194,14 @@
   }
   /* The same file seen twice (a client folder found in two places, a copy in two folders) is listed and read ONCE: the first one stays. */
   function uniqueFiles(list) {
-    var seen = {};
-    return list.filter(function (f) { var k = String((f && f.name) || '').toLowerCase().replace(/\s+/g, ' ').trim(); if (seen[k]) return false; seen[k] = 1; return true; });
+    var seen = {};                                                                                       // round 1.5: two policy folders may both hold "Policy Schedule.pdf": a file of a policy folder is told apart by its folder too (a File carries wrDir and wrGroup)
+    return list.filter(function (f) {
+      var grp = f && (f.group != null || f.wrGroup != null), dir = f && f.wrDir != null ? f.wrDir : ((f && f.rel) || []).join(' \\ ');
+      var k = ((grp ? dir + ' \\ ' : '') + String((f && f.name) || '')).toLowerCase().replace(/\s+/g, ' ').trim(); if (seen[k]) return false; seen[k] = 1; return true;
+    });
   }
+  /* The folder a file was picked in: the File itself knows (round 1.5), else the table made when the list was shown. */
+  function dirOf(f, o) { return f && f.wrDir != null ? f.wrDir : (o && o.dirs && o.dirs[String(f && f.name).toLowerCase()]); }
   /* dd/mm/yyyy (or a name's date) as a number that sorts. */
   function dkey(v) { var m = /(\d{1,2})\D(\d{1,2})\D(\d{2,4})/.exec(String(v || '')); if (!m) return 0; var y = +m[3]; if (y < 100) y += 2000; return y * 10000 + (+m[2]) * 100 + (+m[1]); }
   /* Of the Follow-Up Summary Notes in the list, the NEWEST one dated after the Fact Find (the Fact Find's date); only that one is ticked (the adviser can tick others). */
@@ -1210,14 +1216,77 @@
     files.forEach(function (f) { var c = D.classify(f.name, (f.rel || []).join(' \\ ')); if (!c || c.block !== 'astute') return; any++; var k = dkey(c.date); if (k && k > bk) { best = f; bk = k; } });
     return { best: best, any: any };
   }
-  function pickList(res) {
-    var tickFu = newestFollowUp(res.files), tickAs = newestAstute(res.files);
+  /* Which files are ticked (round 1.5). A policy folder's NEWEST schedule or statement is ticked (a tie, or a folder whose product the page cannot tell, ticks none and says so); an owner's manual never. Every other document is ticked by what its name says, as before,
+     and of several schedules or statements of one policy (the same number in the name, else the same name with its dates taken out) only the newest. Returns { tick: [bool per file], tied: [[files]] }. */
+  function tickPlan(res) {
+    var F = window.FF && FF.folders, tickFu = newestFollowUp(res.files), tickAs = newestAstute(res.files), groups = res.groups || [];
+    var others = res.files.filter(function (f) { return f.group == null; });
+    var keyOf = function (f) { var c = D.classify(f.name, (f.rel || []).join(' \\ ')); if (!c || (c.block !== 'policies' && c.block !== 'investments' && c.block !== 'group')) return null; var nk = F && F.numKey ? F.numKey(c.number) : c.number; return c.block + ':' + (nk && nk.length >= 5 ? nk : String(f.name).toLowerCase().replace(/\.[a-z0-9]{2,5}$/, '').replace(/[^a-z]+/g, ' ').trim()); };
+    var kn = F && F.keyedNewest ? F.keyedNewest(others, keyOf) : { tick: new Map(), tied: [] };
+    var tick = res.files.map(function (f) {
+      if (f.group != null) { var g = groups[f.group]; return !!(g && g.block && f.role !== 'manual' && g.pick && g.pick.file === f); }
+      var c = D.classify(f.name, (f.rel || []).join(' \\ '));
+      var base = !!(c && (c.block !== 'followup' || f === tickFu) && (c.block !== 'astute' || !tickAs.best || f === tickAs.best));
+      return base && (!kn.tick.has(f) || kn.tick.get(f));
+    });
+    var tied = kn.tied.slice(); groups.forEach(function (g) { if (g.pick && g.pick.tie) tied.push(g.pick.tied); });
+    return { tick: tick, tied: tied };
+  }
+  /* The sentences of the comparison: what the three sources say about each policy folder, and what no folder explains. */
+  function ffChip(row, g) {
+    if (!row) return null;
+    if (row.ff === 'number') return { cls: 'ok', text: 'In the Fact Find (policy number matches)' };
+    if (row.ff === 'name') return { cls: 'ok', text: 'In the Fact Find' };
+    if (row.ff === 'maybe') return { cls: '', text: 'The Fact Find lists ' + row.n + ' of this insurer: the page cannot tell which this is' };
+    if (row.ff === 'none') return { cls: 'warn', text: 'In a folder, but not in the Fact Find' };
+    if (row.ff === 'unclear') return { cls: '', text: 'The page cannot tell which insurer this folder is' };
+    return { cls: '', text: 'The Fact Find has not been read into this overview yet, so nothing is compared with it' };
+  }
+  function pickList(res, plan) {
+    var F = window.FF && FF.folders, groups = res.groups || [], tp = tickPlan(res), tick = tp.tick, prior = res.priorRead, rowOf = function (i) { return plan && plan.live ? plan.live[i] : null; };
+    var fileRow = function (f, i, label, cls, warn) {
+      var shown = f.group != null ? (f.rel || []).slice(1).concat([f.name]).join(' \\ ') : (f.rel || []).concat([f.name]).join(' \\ ');
+      return '<label' + (cls ? ' class="' + cls + '"' : '') + '><input type="checkbox" data-i="' + i + '"' + (tick[i] ? ' checked' : '') + '><span>' + esc(shown) + (label ? ' <i>(' + esc(label) + ')</i>' : '') + (warn ? ' <em class="pkw">' + esc(warn) + '</em>' : '') + '</span></label>';
+    };
+    var html = '', idx = function (f) { return res.files.indexOf(f); };
+    groups.forEach(function (g, gi) {
+      var row = rowOf(gi), chips = [], p = g.p, label = D.BLOCK_LABEL[g.block] || '';
+      if (p.linked) chips.push({ cls: '', text: 'Linked to PK: Paul is the broker on record' });
+      if (p.unknownStatus) chips.push({ cls: '', text: 'Status “' + p.unknownStatus + '” is not one the page knows: treated as live' });
+      var fc = ffChip(row, g); if (fc) chips.push(fc);
+      if (row && row.prior === 'number') chips.push({ cls: 'ok', text: 'In the last overview' }); else if (row && row.prior === 'name') chips.push({ cls: 'ok', text: 'In the last overview' });
+      if (prior && row && !row.prior) chips.push({ cls: '', text: 'Not in the last overview' });
+      var sched = g.files.filter(function (f) { return f.role !== 'manual'; }), manual = g.files.filter(function (f) { return f.role === 'manual'; });
+      if (!g.done) chips.push({ cls: 'warn', text: 'Not (fully) read: the search ran out of time' });
+      else if (!sched.length) chips.push({ cls: 'warn', text: manual.length ? 'Only the owner’s manual was found' : 'No schedule or statement found' });
+      if (!g.block) chips.push({ cls: '', text: 'The page cannot tell if this is a policy or an investment: it will ask you what each file is' });
+      html += '<div class="pkh"><b>' + esc(g.name) + '</b>' + (g.block ? ' <span class="pkt">' + esc(label) + '</span>' : '') + chips.map(function (c) { return '<span class="pkc ' + c.cls + '">' + esc(c.text) + '</span>'; }).join('') + '</div>';
+      var top = g.pick && g.pick.file;
+      sched.slice().sort(function (a, b) { return (b.key ? b.key.sort : 0) - (a.key ? a.key.sort : 0) || (b.name < a.name ? -1 : 1); }).forEach(function (f) {
+        var tied = g.pick && g.pick.tie && g.pick.tied.indexOf(f) >= 0;
+        html += fileRow(f, idx(f), f === top ? 'newest: ' + (label || 'schedule') : tied ? 'as recent as another file here: tick the one you want' : 'older', '', f.from ? 'found in ' + f.from : '');
+      });
+      if (!sched.length && g.done) manual.forEach(function (f) { html += fileRow(f, idx(f), 'owner’s manual: last resort', 'pkm', 'This is the owner’s manual, not the policy schedule. Load it only if there is nothing else.'); });
+    });
+    var rest = res.files.map(function (f, i) { return { f: f, i: i }; }).filter(function (x) { return x.f.group == null; });
+    if (groups.length && rest.length) html += '<div class="pkh"><b>Other documents</b><span class="pkt">Astute reports, quotes, the schedules of the Policy Schedules folder, notes</span></div>';
+    rest.forEach(function (x) {
+      var c = D.classify(x.f.name, (x.f.rel || []).join(' \\ '));
+      html += fileRow(x.f, x.i, c ? c.label : '', '', '');
+    });
+    var notes = [];
+    if (plan && plan.ffOnly && plan.ffOnly.length) notes.push({ cls: 'warn', text: 'In the Fact Find, but no policy folder was found for: ' + plan.ffOnly.map(function (it) { return [it.who, it.product].filter(Boolean).join(' '); }).join('; ') + '.' });
+    if (plan && plan.ffNotLive && plan.ffNotLive.length) notes.push({ cls: 'warn', text: 'The Fact Find lists ' + plan.ffNotLive.map(function (x) { return [x.item.who, x.item.product].filter(Boolean).join(' ') + ' (its folder “' + x.folder.name + '” is not live)'; }).join('; ') + '.' });
+    if (plan && plan.priorOnly && plan.priorOnly.length) notes.push({ cls: '', text: 'In the last overview only (no folder, not in the Fact Find): ' + plan.priorOnly.map(function (it) { return [it.who, it.product].filter(Boolean).join(' '); }).join('; ') + '.' });
+    if (res.notLive && res.notLive.length) notes.push({ cls: '', text: 'Not live, so not looked into: ' + res.notLive.map(function (x) { return x.name; }).join('; ') + '.' });
+    if (res.other && res.other.length) notes.push({ cls: '', text: 'Folders that are not policy folders, not looked into: ' + res.other.join('; ') + '.' });
+    if (res.overview && !res.overview.json && res.overview.pdf) notes.push({ cls: '', text: 'The last overview (' + res.overview.pdf.name + ') was found as a PDF only, so it was not compared.' });
+    if (res.docsPartial) notes.push({ cls: 'warn', text: 'The search of the client’s other folders stopped at its time limit, so some documents may be missing from this list.' });
+    if (res.partial) notes.push({ cls: 'warn', text: 'The search of the policy folders did not finish' + (res.unfinished && res.unfinished.length ? ': not (fully) read: ' + res.unfinished.join('; ') : '') + '. Load what is here and use the buttons on each block for the rest.' });
+    if (tp.tied.length) notes.push({ cls: 'warn', text: 'Some files are as recent as each other, so none of them is ticked: ' + tp.tied.map(function (l) { return l.map(function (f) { return f.name; }).join(' and '); }).join('; ') + '.' });
     return new Promise(function (resolve) {
-      var dlg = document.createElement('dialog'), done = false; dlg.className = 'fdlg';
-      dlg.innerHTML = '<h3>Documents in ' + esc(res.label) + '</h3><p>Choose what to load into the overview. Ones the page can sort by their name are ticked; the others will ask you what they are. The quotes are read first, then their change moment pay-out guides.</p>' + (res.skipped && res.skipped.length ? '<p class="fnote">' + esc(res.skipped.join(' and ')) + (res.skipped.length > 1 ? ' were' : ' was') + ' not open to this page yet, so only the other connected folder was searched.</p>' : '') + '<div class="flist">' + res.files.map(function (f, i) {
-        var c = D.classify(f.name, (f.rel || []).join(' \\ '));
-        return '<label><input type="checkbox" data-i="' + i + '"' + (c && (c.block !== 'followup' || f === tickFu) && (c.block !== 'astute' || !tickAs.best || f === tickAs.best) ? ' checked' : '') + '><span>' + esc(f.rel.concat([f.name]).join(' \\ ')) + (c ? ' <i>(' + esc(c.label) + ')</i>' : '') + '</span></label>';
-      }).join('') + '</div><div class="fbtns"><button type="button" class="btn ghost small" data-no>Cancel</button><button type="button" class="btn small" data-yes>Load the ticked ones</button></div>';
+      var dlg = document.createElement('dialog'), done = false; dlg.className = 'fdlg wide';
+      dlg.innerHTML = '<h3>Documents in ' + esc(res.label) + '</h3><p>' + (groups.length ? 'Each policy folder of the client is listed with its newest schedule or statement ticked. ' : '') + 'Choose what to load into the overview. Ones the page can sort by their name are ticked; the others will ask you what they are. The quotes are read first, then their change moment pay-out guides.</p>' + (res.skipped && res.skipped.length ? '<p class="fnote">' + esc(res.skipped.join(' and ')) + (res.skipped.length > 1 ? ' were' : ' was') + ' not open to this page yet, so only the other connected folder was searched.</p>' : '') + '<div class="flist">' + html + '</div>' + (notes.length ? '<div class="pknotes">' + notes.map(function (n) { return '<p class="' + n.cls + '">' + esc(n.text) + '</p>'; }).join('') + '</div>' : '') + '<div class="fbtns"><button type="button" class="btn ghost small" data-no>Cancel</button><button type="button" class="btn small" data-yes>Load the ticked ones</button></div>';
       document.body.appendChild(dlg);
       function end(v) { if (done) return; done = true; dlg.close(); dlg.remove(); resolve(v); }
       dlg.addEventListener('click', function (e) {
@@ -1227,6 +1296,12 @@
       dlg.addEventListener('cancel', function (e) { e.preventDefault(); end([]); });
       dlg.showModal();
     });
+  }
+  /* The last overview of the client, read for the comparison: only a .json that is a Client Overview file, within a few seconds; anything else is no overview. Resolves the parsed file or null. */
+  function loadPrior(res) {
+    var h = res.overview && res.overview.json && res.overview.json.handle; if (!h) return Promise.resolve(null);
+    var slow = new Promise(function (r) { setTimeout(function () { r(null); }, 4000); });
+    return Promise.race([h.getFile().then(function (f) { return f.text(); }).then(function (t) { return JSON.parse(t); }), slow]).then(function (j) { return j && j.app === 'wr-overview' && j.blocks ? j : null; }, function () { return null; });
   }
   /* The ONE top button: the client's folder is found, what it holds is listed, and what is ticked is read and sorted. When the folder cannot be found or the browser has no folder access, the normal file window opens by itself (several files). */
   /* A folder search that waits for something (Chrome's permission question, a slow OneDrive folder) says where it is and for how long, offers to stop, and always ends (Client Overview Studio 0.96: 0.95 had no limit, and "Looking for the
@@ -1317,10 +1392,33 @@
       if (!res.files.length) { normal('No documents were found in ' + res.label + '.', click); return; }
       $('#toast').hidden = true; searching();
       if (OV.view && OV.view.seed) OV.view.seed(res.label, res.files);                                    // the View buttons use this list: no second walk of the folder
-      pickList(res).then(function (picked) {
+      var FFs = window.FF && FF.folders;
+      loadPrior(res).then(function (pj) {
+        res.priorRead = pj;
+        var plan = FFs && FFs.comparePolicies ? FFs.comparePolicies(res.groups || [], res.notLive || [], { read: !!(state.factFind && state.factFind.facts), items: D.comparableItems(state) }, pj ? { items: D.comparableItems(pj) } : null) : null;
+        return pickList(res, plan).then(function (picked) { return { picked: picked, plan: plan }; });
+      }).then(function (pp) {
+        var picked = pp.picked, plan = pp.plan;
         if (!picked.length) { abandonSearch(); return; }
-        Promise.all(picked.map(function (f) { return f.handle.getFile(); })).then(function (fs) { var dirs = {}; res.files.forEach(function (f) { dirs[String(f.name).toLowerCase()] = (f.rel || []).join(' \\ '); }); ingest(fs, { pool: res.files, counted: true, dirs: dirs }); }, function (e) { abandonSearch(); toast('Could not open a file: ' + (e && e.message), 8000); });
-      });
+        Promise.all(picked.map(function (f) {
+          return f.handle.getFile().then(function (file) {                                                  // the file carries where it was found and the block its policy folder says, so two files with one name are never mixed up
+            file.wrDir = (f.rel || []).join(' \\ '); if (f.group != null) { file.wrGroup = f.group; var g = (res.groups || [])[f.group]; if (g && g.block && f.role !== 'manual') file.wrBlock = g.block; }
+            return file;
+          });
+        })).then(function (fs) {
+          var dirs = {}; res.files.forEach(function (f) { if (f.group == null) dirs[String(f.name).toLowerCase()] = (f.rel || []).join(' \\ '); });
+          var notes = [];
+          if (plan) {
+            plan.ffOnly.forEach(function (it) { notes.push({ msg: 'In the Fact Find, but no policy folder was found: ' + [it.who, it.product].filter(Boolean).join(' ') + '.', warn: true }); });
+            plan.ffNotLive.forEach(function (x) { notes.push({ msg: 'The Fact Find lists ' + [x.item.who, x.item.product].filter(Boolean).join(' ') + ', but its policy folder (' + x.folder.name + ') is not live.', warn: true }); });
+            (res.groups || []).forEach(function (g, i) { var r = plan.live[i]; if (r && r.ff === 'none') notes.push({ msg: 'In a folder but not in the Fact Find: ' + g.name + '.', warn: true }); });
+          }
+          (res.groups || []).forEach(function (g) { if (g.done && !g.files.some(function (f) { return f.role !== 'manual'; })) notes.push({ msg: g.name + ': ' + (g.files.length ? 'only the owner’s manual was found, no schedule.' : 'no schedule or statement was found in the folder.'), warn: true }); });
+          if (res.docsPartial) notes.push({ msg: 'The search of the client’s other folders stopped at its time limit, so some documents may be missing.', warn: true });
+          if (res.partial) notes.push({ msg: 'The search of the policy folders did not finish' + (res.unfinished && res.unfinished.length ? ' (not fully read: ' + res.unfinished.join('; ') + ')' : '') + '.', warn: true });
+          ingest(fs, { pool: res.files, counted: true, dirs: dirs, notes: notes });
+        }, function (e) { abandonSearch(); toast('Could not open a file: ' + (e && e.message), 8000); });
+      }).catch(function (e) { abandonSearch(); toast('Something went wrong while listing the documents (' + ((e && e.message) || e) + ').', 8000); });
     }
     /* Chrome would not say yes to the connected folders (or the adviser would rather not wait): the client's own folder is chosen in the browser's folder window (only when the adviser presses the button), which is the permission,
        and the same list opens. The folder chosen is checked against the client (0.99: the window opens where it was last used, which may be another client's folder, and whatever was chosen was loaded): the folder of ANOTHER

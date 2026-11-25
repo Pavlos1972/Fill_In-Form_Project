@@ -36,7 +36,22 @@
       var dl = String(dirPath).toLowerCase();
       if (/polic(y|ies)[ _-]*schedule|(^|[^a-z])schedules?([^a-z]|$)/.test(dl)) block = 'policies'; else if (/astute/.test(dl)) block = 'astute';
     }
+    if (dirPath && (block === 'investments' || block === 'policies')) {                                       // round 1.5: a quote is never a CURRENT investment or policy because its name has no "quote" in it: a file inside a folder called Comparative Quotes, Quotes or Quotes (Accepted) stays a quote
+      var segs = String(dirPath).split(/\s*\\\s*/);
+      if (segs.some(function (g) { return /^(\d+\.\s*)?comparative quotes?(\s*\(.*\))?$/i.test(g.trim()); })) block = 'comparative';
+      else if (segs.some(function (g) { return /^(\d+\.\s*)?(accepted )?quotes?(\s*\(.*\))?$/i.test(g.trim()); })) block = block === 'investments' ? 'proposed' : 'comparative';
+    }
     return block ? { block: block, number: number, date: date, label: BLOCK_LABEL[block] } : null;
+  }
+  /* The items of an overview (this one, or a saved one read from its .json) the policy folders are compared with: current policies (block 1), current investments (block 6), the provident and pension funds of the group block, and the legacy protection plan of block 11.
+     Returns [{ kind: 'policies' | 'investments', who, product, no, legacy, ref }]. */
+  function comparableItems(st) {
+    var B = (st && st.blocks) || {}, out = [], list = function (b) { return (B[b] && B[b].items) || []; };
+    list('policies').forEach(function (i) { if (i && !i.removed) out.push({ kind: 'policies', who: String(i.insurer || ''), product: String(i.product || ''), no: String(i.policyNo || ''), ref: i }); });
+    list('investments').forEach(function (i) { if (i && !i.removed) out.push({ kind: 'investments', who: String(i.provider || ''), product: String(i.product || ''), no: String(i.policyNo || ''), ref: i }); });
+    list('group').forEach(function (i) { if (i && !i.removed && /provident|pension/.test(String(i.kind || ''))) out.push({ kind: 'investments', who: String(i.provider || ''), product: String(i.kind || ''), no: '', ref: i }); });
+    list('other').forEach(function (i) { if (i && i.key === 'legacy' && (String(i.company || '').trim() || i.wr)) out.push({ kind: 'policies', who: String(i.company || ''), product: 'legacy', no: String(i.policyNo || ''), legacy: true, ref: i }); });
+    return out;
   }
 
   /* ---------- reading with Claude (only when switched on) ---------- */
@@ -635,6 +650,6 @@
     return !Object.keys(data).some(function (k) { return has(data[k]) && typeof data[k] !== 'object'; }) && !Object.keys(data).some(function (k) { var v = data[k]; return v && typeof v === 'object' && Object.keys(v).some(function (j) { return has(v[j]); }); });
   }
 
-  return { glyphs: glyphs, applyUwEmail: applyUwEmail, uwReasonLocal: uwReasonLocal, classify: classify, promptFor: promptFor, parseReply: parseReply, readWithClaude: readWithClaude, applyQuote: applyQuote, counterRole: counterRole, applyCounterLetter: applyCounterLetter, enrich: enrich, factNote: factNote, applyPolicy: applyPolicy, applyOther: applyOther, applyFollowUp: applyFollowUp, dm: dm, factNotesText: factNotesText, applyNotesRead: applyNotesRead, emailText: emailText, msgText: msgText, applyBrEmail: applyBrEmail, setAstuteDate: setAstuteDate, brightQuotes: brightQuotes, applyGroup: applyGroup, applyInvestment: applyInvestment, applyAstute: applyAstute, applyAstutePolicies: applyAstutePolicies, applyAstuteGroup: applyAstuteGroup, astuteSrc: astuteSrc, applyProposed: applyProposed, applyGoal: applyGoal, isEmptyRead: isEmptyRead,
+  return { comparableItems: comparableItems, glyphs: glyphs, applyUwEmail: applyUwEmail, uwReasonLocal: uwReasonLocal, classify: classify, promptFor: promptFor, parseReply: parseReply, readWithClaude: readWithClaude, applyQuote: applyQuote, counterRole: counterRole, applyCounterLetter: applyCounterLetter, enrich: enrich, factNote: factNote, applyPolicy: applyPolicy, applyOther: applyOther, applyFollowUp: applyFollowUp, dm: dm, factNotesText: factNotesText, applyNotesRead: applyNotesRead, emailText: emailText, msgText: msgText, applyBrEmail: applyBrEmail, setAstuteDate: setAstuteDate, brightQuotes: brightQuotes, applyGroup: applyGroup, applyInvestment: applyInvestment, applyAstute: applyAstute, applyAstutePolicies: applyAstutePolicies, applyAstuteGroup: applyAstuteGroup, astuteSrc: astuteSrc, applyProposed: applyProposed, applyGoal: applyGoal, isEmptyRead: isEmptyRead,
     applyCmp: applyCmp, matchItem: matchItem, logDoc: logDoc, findQuoteByNumber: findQuoteByNumber, quoteIn: quoteIn, quoteRead: quoteRead, SPEC_OF: SPEC_OF, BLOCK_LABEL: BLOCK_LABEL, QUOTE_OF: QUOTE_OF, ENDPOINT: ENDPOINT };
 });

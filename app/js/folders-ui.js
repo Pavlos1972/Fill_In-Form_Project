@@ -176,7 +176,7 @@
   function failed(folder) { if (!folder) return Promise.resolve(false); delete cache[folder.key]; delete cache[folder.key + '|ok']; return folder.created ? F.discardEmpty(folder.apps, folder.name) : Promise.resolve(false); }
   /* How long each step of a folder search may take before the page says so instead of waiting for ever (milliseconds; Client Overview Studio 0.96: the search had no limit, and a permission question Chrome was still waiting on, or a slow OneDrive
      folder, left "Looking for the client's folder..." on the screen for good). The tests make them short. */
-  var TIMEOUTS = { permission: 45000, find: 45000, list: 60000, walk: 15000, stopLink: 8000, askAgain: 4000, askNext: 3000, queryWait: 1200, probe: 2500, saveQuery: 3000, saveAsk: 15000 };
+  var TIMEOUTS = { permission: 45000, find: 45000, list: 60000, walk: 15000, stopLink: 8000, askAgain: 4000, askNext: 3000, queryWait: 1200, probe: 2500, saveQuery: 3000, saveAsk: 15000, policyFolder: 5000 };
   var SLOW = { slow: true };
   function race(p, ms) { return new Promise(function (resolve, reject) { var t = setTimeout(function () { resolve(SLOW); }, ms); Promise.resolve(p).then(function (v) { clearTimeout(t); resolve(v); }, function (e) { clearTimeout(t); reject(e); }); }); }
   /* One connected folder's state, asked for NOW (in the click's own turn): 'granted', 'prompt' or 'denied'; fail(text) hears why Chrome refused (Client Overview Studio 0.97). */
@@ -244,6 +244,25 @@
   /* The documents of the client's folder for the Client Overview's "Load from client folder": the connected folders are searched for the client, as for a Save, and the files that can be read are listed. Reads only.
      opts.onStage(stage) hears 'permission', 'find' and 'list' as the search goes on; opts.onPerm(states, why) hears what Chrome says about each folder. The list opens as soon as ONE connected folder is open (0.97).
      Resolves { label, files: [{ name, rel, handle }], skipped } or { reason: 'connect' | 'access' | 'names' | 'client' | 'slow-permission' | 'slow-find' | 'slow-list', why, skipped }. */
+  /* Everything one client's folder offers the Overview (Studio 1.5): the documents of the standard folders (clientDocuments) and the client's POLICY FOLDERS (policyScan: each live one read for its schedules and statements,
+     within TIMEOUTS.walk, what was not reached is named), put together, and the latest overview file for the comparison. Reads only. A walk that runs out of time hands back what it found with partial: true.
+     Every file of a policy folder carries group (the index of its policy folder in groups) so the list can show one heading per policy. Resolves { files, groups, notLive, other, partial, unfinished, overview } or { slow: true }. */
+  async function listClient(client, T) {
+    var docSink = [], sink = {}, ovn = Promise.resolve().then(function () { return F.latestOverview(client); }).catch(function () { return null; });
+    var both = await Promise.all([race(F.clientDocuments(client, { sink: docSink, perFolder: T.policyFolder }), T.list), race(F.policyScan(client, { sink: sink, ms: T.walk, perFolder: T.policyFolder }), T.walk + 2000), race(ovn, T.walk)]);          // the three searches run together, each within its limit: one folder that never answers costs its own limit, not three in a row
+    var fs = both[0] === SLOW ? docSink : both[0], one = both[1], scan = one === SLOW ? sink : one, docsPartial = both[0] === SLOW;
+    scan.groups = scan.groups || []; scan.notLive = scan.notLive || []; scan.other = scan.other || [];
+    if (one === SLOW) { scan.partial = true; scan.unfinished = scan.groups.filter(function (g) { return !g.done; }).map(function (g) { return g.name; }); }
+    if (docsPartial && !fs.length && !scan.groups.some(function (g) { return g.files.length; })) return { slow: true };                    // nothing at all came back: as before, the search failed (slow-list)
+    F.joinSchedules(fs, scan.groups);
+    var flat = fs.slice();
+    scan.groups.forEach(function (g, i) { g.files.forEach(function (f) { if (f.group == null) { f.group = i; flat.push(f); } }); g.block = g.p.kind === 'investments' ? 'investments' : g.p.kind === 'policies' ? 'policies' : ''; g.pick = F.newestOf(g.files); });
+    var ov = both[2] === SLOW ? null : both[2];
+    return { files: flat, groups: scan.groups, notLive: scan.notLive, other: scan.other, partial: !!scan.partial, docsPartial: docsPartial, unfinished: scan.unfinished || [], overview: ov };
+  }
+  /* The documents of the client's folder for the Client Overview's "Load from client folder": the connected folders are searched for the client, as for a Save, and the files that can be read are listed (the standard folders' and every live policy folder's). Reads only.
+     opts.onStage(stage) hears 'permission', 'find' and 'list' as the search goes on; opts.onPerm(states, why) hears what Chrome says about each folder. The list opens as soon as ONE connected folder is open (0.97).
+     Resolves { label, files: [{ name, rel, handle, group? }], groups, notLive, other, partial, unfinished, overview, skipped } or { reason: 'connect' | 'access' | 'names' | 'client' | 'slow-permission' | 'slow-find' | 'slow-list', why, skipped }. */
   async function clientFiles(info, opts) {
     var say = (opts && opts.onStage) || function () {}, T = TIMEOUTS, r = await liveRoots(true, say, { early: true, onPerm: opts && opts.onPerm });
     if (r.reason) return { reason: r.reason, why: r.why };
@@ -252,9 +271,14 @@
     if (f.slow) return { reason: 'slow-find' };
     var clients = f.clients;
     if (!clients.length) return { reason: 'client', skipped: f.skipped };
-    say('list'); var files = [];
-    for (var c = 0; c < clients.length; c++) { var fs = await race(F.clientDocuments(clients[c]), T.list); if (fs === SLOW) return { reason: 'slow-list' }; files = files.concat(fs); }
-    return { label: clients[0].parts.join(' \\ '), files: files, skipped: f.skipped };
+    say('list'); var out = { label: clients[0].parts.join(' \\ '), files: [], groups: [], notLive: [], other: [], partial: false, docsPartial: false, unfinished: [], overview: null, skipped: f.skipped };
+    for (var c = 0; c < clients.length; c++) {
+      var one = await listClient(clients[c], T); if (one.slow) return { reason: 'slow-list' };
+      var off = out.groups.length; one.files.forEach(function (x) { if (x.group != null) x.group += off; });
+      out.files = out.files.concat(one.files); out.groups = out.groups.concat(one.groups); out.notLive = out.notLive.concat(one.notLive); out.other = out.other.concat(one.other);
+      out.partial = out.partial || one.partial; out.docsPartial = out.docsPartial || one.docsPartial; out.unfinished = out.unfinished.concat(one.unfinished); out.overview = out.overview || one.overview;
+    }
+    return out;
   }
   /* The counter offer files of the client (round 1.2): found like clientFiles (the same early start, the same limits), but the list is what is in the policy folders' "Counter Offer Letter" subfolders. Reads only. */
   async function counterFiles(info, opts) {
@@ -273,9 +297,9 @@
     if (!F.enabled()) return { reason: 'unsupported' };
     var opts = { id: 'wr-client-folder', mode: 'read' };                                       // no starting folder is passed: a stored folder is the very thing Chrome may not be answering about; Chrome opens the window where it was last used for this id
     var h; try { h = await window.showDirectoryPicker(opts); } catch (e) { return e && e.name === 'AbortError' ? { reason: 'cancelled' } : { reason: 'error', why: whyText(e) }; }
-    var files = await race(F.clientDocuments({ handle: h, parts: [h.name] }), TIMEOUTS.list);
-    if (files === SLOW) return { reason: 'slow-list' };
-    return { label: h.name, files: files, picked: true };
+    var one = await listClient({ handle: h, parts: [h.name] }, TIMEOUTS);
+    if (one.slow) return { reason: 'slow-list' };
+    return { label: h.name, files: one.files, groups: one.groups, notLive: one.notLive, other: one.other, partial: one.partial, docsPartial: one.docsPartial, unfinished: one.unfinished, overview: one.overview, picked: true };
   }
   /* The client's subfolder for a kind of document, for "Upload from client folder" (Client Overview Studio 0.6): the connected folders are searched for the client, as for a Save, and the folder where that kind of
      document is kept (or the client's folder) is returned so the file window can open in it. Reads only. Resolves { handle, label, several } or { reason: 'connect' | 'access' | 'names' | 'client' | 'slow-permission' | 'slow-find' | 'slow-list', why, skipped }. */

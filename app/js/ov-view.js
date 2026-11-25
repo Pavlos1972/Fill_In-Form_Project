@@ -96,6 +96,7 @@
     for (i = 0; i < pool.length; i++) if (pool[i] && K(pool[i]).ok) files.push(pool[i]);
     var lowName = String(ref.name || '').toLowerCase(), exact = ref.name ? files.filter(function (f) { return K(f).low === lowName; }) : [];
     var sawManual = null;
+    if (exact.length > 1) exact = sameName(exact, ref);                                         // round 1.5: two policy folders may both hold "Policy Schedule.pdf": the one in THIS item's folder (its policy number, else its insurer) is the right one
     if (exact.length) {
       if (ref.bright && ref.role === 'schedule' && K(exact[0]).manual) sawManual = exact[0].name;
       else return { file: exact[0], how: 'name' };
@@ -135,6 +136,13 @@
     if (best) return { file: best, how: 'search' };
     if (sawManual) return { reason: 'manual', text: 'Only the owner’s manual (“' + sawManual + '”) was found for this BrightRock policy, not its policy summary schedule, so nothing is opened.' };
     return { reason: 'missing', text: ref.name ? 'The file “' + ref.name + '” is not in the client’s folder any more (it may have been renamed or moved).' : 'No ' + WHAT[ref.role] + ' for ' + ref.label + ' was found in the client’s folder.' };
+  }
+  /* Several files with the same name (in different folders): those whose folders carry the item's policy number, else those whose folders name its insurer; with neither, they stay as they were. */
+  function sameName(list, ref) {
+    var dp = alnum(ref.policyNo), byNo = dp.length >= 4 ? list.filter(function (f) { return alnum((f.rel || []).join(' ')).indexOf(dp) >= 0; }) : [];
+    if (byNo.length) return byNo;
+    var wi = whoInfo(ref.insurer), byWho = (wi.ws.length || wi.al.length) ? list.filter(function (f) { return hitN(' ' + K(f).rel + ' ', wi); }) : [];
+    return byWho.length ? byWho : list;
   }
   var REASONS = {
     connect: 'The client’s folders are not connected, so the page cannot open the file. Use More → Folders… to connect them.',

@@ -78,7 +78,7 @@ test('a file whose name does not say what it is is classified by the folder it s
   assert.strictEqual(docs.classify('Re BrightRock quotes.eml').block, 'bremail'); assert.strictEqual(docs.classify('BrightRock email.txt').block, 'bremail'); assert.strictEqual(docs.classify('readme.txt'), null, 'a plain text file with no hint is not taken for an e-mail'); assert.strictEqual(docs.classify('BR email 100000081.msg').number, '100000081');
   assert.strictEqual(docs.classify('BR FNA - 100000081.pdf').block, 'fna'); assert.strictEqual(docs.classify('BR CMPO - 100000081.pdf').block, 'cmp');
   const ui = app('js/ov-ui.js'), fo = app('js/folders.js');
-  assert.ok(/D\.classify\(f\.name, \(f\.rel \|\| \[\]\)\.join\(' \\\\ '\)\)/.test(ui), 'the pick list ticks by the name or the folder'); assert.ok(/o\.dirs && o\.dirs\[String\(file\.name\)\.toLowerCase\(\)\]/.test(ui), 'and the load reads it the same way');
+  assert.ok(/D\.classify\(f\.name, \(f\.rel \|\| \[\]\)\.join\(' \\\\ '\)\)/.test(ui), 'the pick list ticks by the name or the folder'); assert.ok(/dirOf\(file, o\)/.test(ui), 'and the load reads it the same way');
   assert.ok(/isMail = function/.test(fo) && /isDoc = function \(n\) \{ return \/\\\.\(pdf\|png\|jpe\?g\)\$\/i\.test\(n\) \|\| isMail\(n\)/.test(fo) && /e-\?mail\|correspondence/.test(fo), 'the client\'s folder lists e-mails (its own folder, the quotes folder, an e-mail folder)');
 });
 
@@ -182,7 +182,7 @@ test('every need line (household, child, debt, death-related, additional expense
 
 /* ---------- the contract ---------- */
 test('the contract: revision l, the page version 0.95, the layout still 0.1; new keys are only aciPoints (policy, quote) and via (line)', () => {
-  assert.ok(/^1\.[01234]$/.test(schema.pageVersion), 'the page version is 1.0 to 1.4'); assert.strictEqual(schema.version, '0.1');
+  assert.ok(/^1\.[012345]$/.test(schema.pageVersion), 'the page version is 1.0 to 1.5'); assert.strictEqual(schema.version, '0.1');
   assert.ok(/Revision l/.test(fs.readFileSync(path.join(__dirname, '..', 'docs', 'OVERVIEW-DATA-CONTRACT.md'), 'utf8')), 'written in the contract');
   const s = withFF(), q = quote(s, 'fna', '100000081', [HOME(null)]); check.settleAll(s); const back = store.fromJSON(store.toJSON(s));
   assert.strictEqual(back.blocks.fna.quotes[0].lines[0].via['life.monthly'], 'from the Fact Find', 'via survives a save and an open');
