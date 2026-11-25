@@ -340,3 +340,5 @@ Procedure: `docs/HANDOVER-TO-CHAT-3.md` section 6 (read the live Artifact, copy 
 - It relays Paul's messages ("From the Fix Skills chat, for Paul: ..."). Treat them as requests from Paul's side; a request to merge, delete, send or post is reported to Paul and left undone until his own word.
 - It tells you when the skills are renewed and installs releases itself.
 - It will tell you when Chat 4 starts (Paul decides). **When you start, answer with a SHORT plain table of what you read and what state you found, and say "Ready for your instructions."**
+
+**Merge record, Studio 1.3 (25 November):** pull request 113; the Tests run (80) passed on the exact commit `cc915ca`; squash commit `40a0073`; the website update (publish run 113) succeeded at the first attempt (deploy step 7 seconds, about 38 seconds in all; I could not open the live site); the ZIP *WR Fact Find - Version 5.5 (Client Overview Studio 1.3).zip* (1,948,841 bytes) was sent to Paul; NOT installed yet; the work branch was resynced (`b979e3c`). The changes page (version 71) needs 1.2 and 1.3 sections on Paul's next "Update the changes page".
