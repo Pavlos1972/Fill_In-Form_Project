@@ -41,8 +41,8 @@ function filled() {
 }
 const page = i => pages[i].join(' \n ');
 function withServicing(s) {
-  const q = store.addQuote(s, 'svincrease'); q.number = '300000001'; q.premium = 1450; q.date = '05/11/2026'; q.reason = 'A new bond on a second property';
-  q.lines = [store.newLine('household', { life: { lump: 700000, monthly: 0 } }), store.newLine('debt', { debt: 'Home loan', bank: 'Test Bank', life: { lump: 900000, monthly: 0 } }), store.newLine('debt', { debt: 'New bond', bank: 'Test Bank', life: { lump: 300000, monthly: 0 } })];
+  const q = store.addQuote(s, 'svincrease'); q.number = '300000001'; q.premium = 1450; q.date = '17/10/2026'; q.reason = 'A car loan added to the policy';
+  q.lines = [store.newLine('household', { life: { lump: 700000, monthly: 0 } }), store.newLine('debt', { debt: 'Home loan', bank: 'Test Bank', life: { lump: 900000, monthly: 0 } }), store.newLine('debt', { debt: 'Car finance', bank: 'Test Bank', life: { lump: 300000, monthly: 0 } })];
   store.setOnPolicy(s, 'blocks.svIncrease.quotes.0', 'p1');
   return q;
 }
@@ -60,8 +60,8 @@ test('with no servicing quote the PDF has no servicing page, no servicing headin
 test('the servicing page: the policy, the reason, every line old to new, the totals, the premium before and after and the difference; no comparison and no replacement lines', () => {
   const s = filled(); withServicing(s); PDF.build(s);
   const t = page(PDF.pagesOf(s).ids.indexOf('svIncrease'));
-  ['6. Straight increase', 'Straight increase', 'CP 300000001', 'One line added or raised: no FNA and no shortfall.', 'On: BrightRock 900100200 (Personal covers).', 'Reason: A new bond on a second property',
-    'Need', 'Life cover\nnow to new', 'Household needs', 'R500,000 to R700,000', 'Changed: Life cover +R200,000', 'Debt\nHome loan', 'No change', 'Debt\nNew bond', 'New',
+  ['6. Straight increase', 'Straight increase', 'CP 300000001', 'One line added or raised: no FNA and no shortfall.', 'On: BrightRock 900100200 (Personal covers).', 'Reason: A car loan added to the policy',
+    'Need', 'Life cover\nnow to new', 'Household needs', 'R500,000 to R700,000', 'Changed: Life cover +R200,000', 'Debt\nHome loan', 'No change', 'Debt\nCar finance', 'New',
     'Total lump sum', 'R1,400,000 to R1,900,000', 'Monthly premium', 'R1,000 to R1,450', '+R450 a month (+45%)'].forEach(x => assert.ok(t.includes(x), 'the servicing page has: ' + x));
   assert.ok(!t.includes('Compared with what you have now') && !t.includes('Replacing your existing policies'), 'a servicing quote compares nothing with the whole of what the client has and replaces nothing');
   assert.ok(t.includes('Total income protected'), 'the quote\'s own table follows');

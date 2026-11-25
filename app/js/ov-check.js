@@ -35,7 +35,7 @@
       calc.quotes(state, block).forEach(function (q) {
         var where = qLabel(q), t = calc.totals(q), lines = calc.activeLines(q), figures = hasFigures(q), ffInst = {};
         var cf = conflicts.filter(function (c) { return c.quote === q; })[0];
-        if (calc.isServicing(q) && !calc.servicingPolicy(state, q)) add('sv.policy', block, where, q.onPolicy ? 'The current policy this quote is tied to (' + [q.onPolicy.insurer, q.onPolicy.number].filter(Boolean).join(' ') + ') is no longer in Current policies: choose the policy again.' : 'A servicing quote is about ONE current policy: choose which one (the policy box on the quote).');
+        if (calc.isServicing(q) && !calc.servicingPolicy(state, q)) add('sv.policy', block, where, q.onPolicy ? 'The current policy this quote is tied to (' + [q.onPolicy.insurer, q.onPolicy.number].filter(Boolean).join(' ') + ') is not in Current policies (it is no longer there, or its schedule has not been read yet): read its schedule, or choose the policy again.' : 'A servicing quote is about ONE current policy: choose which one (the policy box on the quote).');
         if (cf) add('accept.second', block, where, 'Another quote is also accepted (' + cf.others.map(qLabel).join(' and ') + '): only one quote can be accepted, unless this is a deliberate second policy alongside the first (tick that on the quote).');
         if (kind === 'fna' && isNum(h.netIncome) && figures) {
           [['life', t.life.monthly, 'Life cover'], ['lsd', t.lsd.monthly, 'Lump sum disability'], ['ip', t.ip.monthly, 'Income protector']].forEach(function (x) {
@@ -170,6 +170,7 @@
       else if (ff && !asked.sf) say('shortfallQuote', 'No shortfall quote requested', true);
       else if (ran) say('shortfallQuote', 'No shortfall quote found', true);
     }
+    if (ff || ran) schema.SV_KINDS.forEach(function (k) { var id = schema.blockOfQuote[k]; if (!calc.quotes(state, id).length) say(id, 'Not requested', false, 'na'); });          // round 2.0: nothing to look for in an empty servicing block, and nothing red about it
     if (ran && !calc.quotes(state, 'reduced').length) say('reduced', 'No reduced quotes found', true);
     if (!calc.quotes(state, 'comparative').length) {
       if (ff && !asked.comparative) say('comparative', 'No comparative quotes', true);

@@ -11,7 +11,7 @@
   var VIEWABLE = /\.(pdf|png|jpe?g)$/i, IMAGE = /\.(png|jpe?g)$/i;
   var LABEL = { schedule: 'View policy schedule', quote: 'View quote', statement: 'View statement', guide: 'View guide', report: 'View report', letter: 'View letter' };
   var TITLE = { schedule: 'Policy schedule', quote: 'Quote', statement: 'Statement', guide: 'Change moment pay-out guide', report: 'Goal analysis report' };
-  var BLOCK_ROLE = { policies: 'schedule', fna: 'quote', shortfallQuote: 'quote', reduced: 'quote', comparative: 'quote', group: 'statement', investments: 'statement', proposed: 'quote', goals: 'report', other: 'schedule' };
+  var BLOCK_ROLE = { policies: 'schedule', fna: 'quote', shortfallQuote: 'quote', reduced: 'quote', comparative: 'quote', svFna: 'quote', svShortfall: 'quote', svReduced: 'quote', svIncrease: 'quote', svReduction: 'quote', group: 'statement', investments: 'statement', proposed: 'quote', goals: 'report', other: 'schedule' };
   /* A BrightRock policy is shown by its POLICY SUMMARY SCHEDULE, never by the long owner's manual (about 78 pages): a file whose name says one of these words is never opened for it. (The file names are my guess: one table.) */
   var MANUAL = /manual|owner|terms|conditions|policy ?document|policy ?wording|contract|brochure/i;
   var STOP = { the: 1, and: 1, life: 1, insurance: 1, assurance: 1, limited: 1, ltd: 1, pty: 1, company: 1, group: 1, investments: 1, investment: 1, holdings: 1, financial: 1, services: 1, policy: 1, cover: 1 };

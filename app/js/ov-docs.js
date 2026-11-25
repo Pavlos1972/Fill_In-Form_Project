@@ -33,7 +33,7 @@
   function servicingFolder(dirPath) {
     var segs = reviewSegs(dirPath); if (!segs.length) return false;
     var first = segs[0].trim();
-    return !/^\d+\.\s/.test(first) && !/^(accepted )?quotes?(\s*\(.*\))?$|^comparative quotes?$/i.test(first) && !NOT_LIFE_FOLDER.test(first);
+    return !/^\d+\.\s/.test(first) && !/^(accepted )?quotes?(\s*\(.*\))?$|^comparative quotes?$/i.test(first) && !NOT_LIFE_FOLDER.test(first) && /\d{5,}/.test(first);          // a servicing quote is about ONE policy, so the folder must name it (its number); an older deal-style folder without a number keeps its quotes as new business
   }
   function servicingOf(low, dirPath, block, number) {
     if (!dirPath || !servicingFolder(dirPath) || (block && block !== 'comparative' && !SV_OF_BLOCK[block])) return null;
@@ -275,7 +275,7 @@
     if (data.servicing === true || data.servicing === false) q.servicing = data.servicing;
     if (schema.isServicingKind(kind)) {
       q.servicing = true;                                                                                  // round 2.0: a servicing quote is about ONE current policy (o.onPolicy: the policy folder the file was picked in)
-      if (o.onPolicy && typeof o.onPolicy === 'object' && o.onPolicy.id) q.onPolicy = { id: o.onPolicy.id, insurer: o.onPolicy.insurer || '', number: o.onPolicy.number || '' };
+      if (o.onPolicy && typeof o.onPolicy === 'object' && (o.onPolicy.id || o.onPolicy.number)) q.onPolicy = { id: o.onPolicy.id || null, insurer: o.onPolicy.insurer || '', number: o.onPolicy.number || '' };
     }
     if (data.disabilityAge !== undefined && calc.isNum(n(data.disabilityAge))) q.disabilityAge = n(data.disabilityAge);
     var unsure = false;
@@ -295,6 +295,7 @@
       var old = store.findQuote(state, o.replaces);
       if (old) {
         if (old.counterOf) { q.counterOf = old.counterOf; q.offer = JSON.parse(JSON.stringify(old.offer || {})); q.terms = JSON.parse(JSON.stringify(old.terms || { loadings: [], exclusions: [] })); q.uw = null; if (!read) q.lines = []; place = old; }       // a counter offer that is replaced stays a counter offer, with its letter and terms
+        if (schema.isServicingKind(kind)) { if (!q.onPolicy && old.onPolicy) q.onPolicy = JSON.parse(JSON.stringify(old.onPolicy)); if (!q.reason && old.reason) q.reason = old.reason; }          // Replace quote keeps the policy the quote is about and the adviser's reason
         calc.allQuotes(state).forEach(function (x) { if (x.counterOf === old.id) x.counterOf = q.id; });                                          // and the counter offers of a quote that is replaced follow the new quote
         old.removed = true; old.replacedBy = q.id; q.replaces = old.id;
       }

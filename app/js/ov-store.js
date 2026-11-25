@@ -115,6 +115,14 @@
     if (!yes && o.removed) schema.QUOTE_KINDS.reduce(function (a, k) { return a.concat(state.blocks[schema.blockOfQuote[k]].quotes); }, []).forEach(function (c) { if (c.removed && c.removedWith === o.id) { c.removed = false; delete c.removedWith; } });
     o.removed = !!yes; return true;
   }
+  /* The type of servicing (round 2.0, the mock-up's "Type of servicing" box): the quote, and the counter offers that belong to it, move to the block of the new type. Returns the quote, or null (not a servicing quote, an unknown type, or a counter offer: it follows its quote). */
+  function setServicingType(state, path, kind) {
+    var q = pathGet(state, path); if (!q || typeof q !== 'object' || !schema.isServicingKind(q.kind) || !schema.isServicingKind(kind) || q.counterOf) return null;
+    if (q.kind === kind) return q;
+    var from = schema.blockOfQuote[q.kind], to = schema.blockOfQuote[kind];
+    [q].concat(calc.counterOffers(state, q)).forEach(function (x) { var arr = state.blocks[from].quotes, i = arr.indexOf(x); if (i >= 0) arr.splice(i, 1); x.kind = kind; state.blocks[to].quotes.push(x); });
+    return q;
+  }
   /* The ONE current policy a servicing quote is about (round 2.0): { id, insurer, number } of an entry of block 1. */
   function setOnPolicy(state, path, policyId) {
     var q = pathGet(state, path); if (!q || typeof q !== 'object' || !schema.isServicingKind(q.kind)) return null;
@@ -549,6 +557,6 @@
   }
 
   return { blank: blank, uid: uid, parseCell: parseCell, setPath: setPath, setStatus: setStatus, setUw: setUw, setSecond: setSecond, addTerm: addTerm, removeTerm: removeTerm, setUwReason: setUwReason, addCounterOffer: addCounterOffer, confirmTerms: confirmTerms, setRepl: setRepl, toggleReplaced: toggleReplaced, setBrokerRecord: setBrokerRecord, pathGet: pathGet, accept: accept, acceptAll: acceptAll, walkRows: walkRows, newLine: newLine, newQuote: newQuote, addQuote: addQuote, findQuote: findQuote,
-    setRemoved: setRemoved, newCmp: newCmp, addCmp: addCmp, removeCmp: removeCmp, startReview: startReview, setOnPolicy: setOnPolicy, addLine: addLine, addItem: addItem, newProposed: newProposed, factsFrom: factsFrom, diffFacts: diffFacts, syncBlocks: syncBlocks, fillFromFactFind: fillFromFactFind, fileName: fileName,
+    setRemoved: setRemoved, newCmp: newCmp, addCmp: addCmp, removeCmp: removeCmp, startReview: startReview, setOnPolicy: setOnPolicy, setServicingType: setServicingType, addLine: addLine, addItem: addItem, newProposed: newProposed, factsFrom: factsFrom, diffFacts: diffFacts, syncBlocks: syncBlocks, fillFromFactFind: fillFromFactFind, fileName: fileName,
     clientName: clientName, computed: computed, dedupeQuotes: dedupeQuotes, flattenPolicyLines: flattenPolicyLines, isBright: isBright, toJSON: toJSON, fromJSON: fromJSON, rows: rows, counts: counts, pendingRows: pendingRows, ffKeyFor: ffKeyFor, APP_ID: APP_ID };
 });

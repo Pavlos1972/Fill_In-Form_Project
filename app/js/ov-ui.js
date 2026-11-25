@@ -255,7 +255,7 @@
     var ced = (c.lines || []).some(function (l) { return !l.removed && l.type === 'debt' && calc.isNum(l.ip && l.ip.monthly) && l.ip.monthly > 0; });
     return '<div class="ovw"><table class="ovt lines' + (isPolicy ? '' : ' qlines') + '"><colgroup><col class="c-need"><col class="c-term"><col class="c-life"><col class="c-sev"><col class="c-lsd"><col class="c-ip"><col class="c-wait"><col class="c-aci"><col class="c-abi"></colgroup>' + head + '<tbody>' + body + '</tbody>' +
       (isPolicy ? '' : '<tbody data-comp="qtot|' + c.id + '">' + compHTML('qtot', c.id) + '</tbody>') + '</table></div>' +
-      (ced ? '<p class="foot">Instalment Protector: if the client is retrenched, the insurer pays each debt\'s instalment straight to the bank, for a period set by the insurer\'s rules.</p>' : '') + (!isPolicy && !(c.lines || []).length ? '<small class="foot">Nothing was read into this quote yet: use Replace quote to load its document.</small>' : '');
+      (ced ? '<p class="foot">Instalment Protector: if the client is retrenched, the insurer pays each debt\'s instalment straight to the bank, for a period set by the insurer\'s rules.</p>' : '') + (!isPolicy && !(c.lines || []).length ? '<small class="foot">Nothing was read into this quote yet: use Replace quote to load its document.</small>' : '<p class="foot lnnote">Lines come from the document only: to change a line, replace the document.</p>');
   }
 
   /* ---------- the figures the page works out ---------- */
@@ -444,10 +444,11 @@
   /* ---------- servicing quotes (round 2.0): ONE current policy, the old and the new side by side ---------- */
   function polOptions() { return calc.policies(state).map(function (e) { return { id: e.item.id, l: [e.item.insurer || 'Policy', e.item.policyNo, e.item.product].filter(Boolean).join(' \u00b7 ') }; }); }
   function svPolicySel(q, p) {
-    var cur = q.onPolicy && q.onPolicy.id || '', opts = polOptions();
+    var found = calc.servicingPolicy(state, q), cur = found ? found.id : (q.onPolicy && q.onPolicy.id) || '', opts = polOptions();
     if (cur && !opts.some(function (o) { return o.id === cur; })) opts.push({ id: cur, l: [q.onPolicy.insurer, q.onPolicy.number].filter(Boolean).join(' ') + ' (not in Current policies any more)' });
     return '<select data-svpol="' + p + '"' + (state.newer ? ' disabled' : '') + '><option value="">Choose the policy&hellip;</option>' + opts.map(function (o) { return '<option value="' + esc(o.id) + '"' + (o.id === cur ? ' selected' : '') + '>' + esc(o.l) + '</option>'; }).join('') + '</select>';
   }
+  function svTypeSel(q, p) { return '<select data-svtype="' + p + '"' + (state.newer ? ' disabled' : '') + '>' + schema.SV_KINDS.map(function (k) { return '<option value="' + k + '"' + (k === q.kind ? ' selected' : '') + '>' + esc(schema.blocksById[schema.blockOfQuote[k]].title) + '</option>'; }).join('') + '</select>'; }
   function svCell(row, pid) {
     var key = pid === 'ip' ? 'monthly' : 'lump', c = row.cells.filter(function (x) { return x.pillar === pid && x.key === key; })[0], f = key === 'monthly' ? pm : amt;
     if (!c || (!calc.isNum(c.now) && !calc.isNum(c.next))) return '<td class="c">' + (c && (c.now === 'N/A' || c.next === 'N/A') ? '<span class="na">N/A</span>' : '') + '</td>';
@@ -485,7 +486,7 @@
     if (!open) return '<article class="qcard folded" data-row="' + p + '">' + head + '</article>';
     return '<article class="qcard" data-row="' + p + '">' + head +
       '<div class="grid qh">' + lab('Insurer', inp(p + '.insurer', 'text', '', 'e.g. BrightRock')) + lab(/bright/i.test(q.insurer) ? 'CP number' : 'Quote number', inp(p + '.number', 'text')) + lab('Quote date', inp(p + '.date', 'date')) +
-      lab('Rates', inp(p + '.rates', 'text')) + (sv ? lab('On current policy', svPolicySel(q, p)) : '') + lab('Client decision', sel(p + '.status', schema.STATUS, 'text', false)) + (q.status === 'accepted' && !q.counterOf ? lab('Underwriting', sel(p + '.uw', schema.UW, 'text', false)) : '') +
+      lab('Rates', inp(p + '.rates', 'text')) + (sv && !q.counterOf ? lab('Type of servicing', svTypeSel(q, p)) : '') + (sv ? lab('On current policy', svPolicySel(q, p)) : '') + lab('Client decision', sel(p + '.status', schema.STATUS, 'text', false)) + (q.status === 'accepted' && !q.counterOf ? lab('Underwriting', sel(p + '.uw', schema.UW, 'text', false)) : '') +
       lab('Disability to age', sel(p + '.disabilityAge', [{ id: 65, l: '65' }, { id: 70, l: '70' }], 'num')) + lab('ACI (%)', inp(p + '.aci', 'pct')) + lab('ACI as the quote words it', inp(p + '.aciText', 'text', '', 'e.g. 7.5% + age rater')) + lab('ACI in short points', taLines(p + '.aciPoints')) + lab('Monthly premium (R)', inp(p + '.premium', 'money')) +
       (calc.accepted(q) ? (sv ? lab('Takes effect', inp(p + '.startDate', 'date')) : lab('Policy number', inp(p + '.policyNo', 'text')) + lab('Start date', inp(p + '.startDate', 'date'))) : '') + '</div>' +
       (sv ? svTop(q, p) : issuedNotes(q)) +
@@ -535,7 +536,7 @@
       lab('Cession', sel(p + '.cession', [{ id: 'true', l: 'Ceded' }, { id: 'false', l: 'Not ceded' }], 'tri')) + '</div>' + linesTable(p, it, true) + (it.cmp || (it.wr && /bright/i.test(it.insurer || '')) ? '<div class="under">' + cmpHTML(it, p) + '</div>' : '') + '</article>';
   }
   function policiesBlock() {
-    return '<p class="blue">Current policies are added and removed in the Fact Find; this page follows it. Each row\'s <b>See more</b> opens that policy\'s whole detail (from its schedule) directly under it. A BrightRock policy shows its needs line by line; a policy of any other insurer is one row with its benefits.</p>' + policyTable() +
+    return '<p class="blue">Current policies come from the Fact Find; a schedule can also be added here with <b>+ Add policy schedule</b> (one the Fact Find does not list is marked, so it is added there too). Each row\'s <b>See more</b> opens that policy\'s whole detail (from its schedule) directly under it. A BrightRock policy shows its needs line by line; a policy of any other insurer is one row with its benefits.</p>' + policyTable() +
       '<div class="blockacts"><button type="button" class="addrow big" data-upc="policies" title="Opens the client\'s Policy Schedules folder: pick the schedule and the page reads the whole policy. If the folder is not found, the normal file window opens.">+ Add policy schedule&hellip;</button></div>';
   }
 
@@ -687,7 +688,7 @@
   function drawNav() {
     var h = '<button type="button" data-block="' + CLIENT + '"' + (cur === CLIENT ? ' aria-current="true"' : '') + '><span>Client details</span></button>';
     h += schema.GROUPS.map(function (g) {                                                                  // round 2.0 (Paul, 25 November): the menu is under four headings
-      return '<div class="sep grp" data-group="' + g.id + '">' + esc(g.title) + '</div>' + schema.BLOCKS.filter(function (b) { return b.group === g.id; }).map(function (b) { return '<button type="button" data-block="' + b.id + '"' + (b.id === cur ? ' aria-current="true"' : '') + ' title="' + esc(check.dotText(state, b.id, last.dots[b.id] || 'grey', last.problems, (last.notes || {})[b.id])) + '"><span><i class="dot ' + (last.dots[b.id] || 'grey') + '" data-dot="' + b.id + '"></i>' + esc(b.title) + '</span>' + progHTML(b.id) + noteHTML(b.id) + '</button>'; }).join('');
+      return '<div class="sep grp" data-group="' + g.id + '">' + esc(g.title) + '</div>' + schema.BLOCKS.filter(function (b) { return b.group === g.id; }).map(function (b) { return '<button type="button" data-block="' + b.id + '"' + (b.id === cur ? ' aria-current="true"' : '') + ' title="' + esc(check.dotText(state, b.id, last.dots[b.id] || 'grey', last.problems, (last.notes || {})[b.id])) + '"><span><i class="dot ' + (last.dots[b.id] || 'grey') + '" data-dot="' + b.id + '"></i>' + esc(b.title) + (b.kind === 'quotes' && calc.quotes(state, b.id).length ? '<small class="cnt" title="Quotes in this block">' + calc.quotes(state, b.id).length + '</small>' : '') + '</span>' + progHTML(b.id) + noteHTML(b.id) + '</button>'; }).join('');
     }).join('');
     var nc = counterRows().length; if (nc) h += '<button type="button" data-block="' + COUNTERS + '"' + (cur === COUNTERS ? ' aria-current="true"' : '') + ' title="Every counter offer of this client"><span><i class="dot ' + (counterRows().some(function (r) { return calc.termsToCheck(r.c) > 0 || !calc.activeLines(r.c).length || r.c.st !== 'confirmed'; }) ? 'amber' : 'green') + '"></i>Counter offers <small>&nbsp;(' + nc + ')</small></span></button>';
     h += '<div class="legend" id="legend"><div class="sep">The dots</div>' + check.LEGEND.map(function (l) { return '<div><i class="dot ' + l[0] + '"></i>' + (l[0] === 'na' ? 'Dashed: not needed (for example, no shortfall quote without group risk)' : { grey: 'Grey: nothing yet', amber: 'Amber: to check', green: 'Green: checked', red: 'Red: checked, nothing there' }[l[0]]) + '</div>'; }).join('') + '</div>';
@@ -948,9 +949,9 @@
   function policyOfFile(file, o) {
     var F = window.FF && FF.folders, dir = dirOf(file, o) || '', seg = String(dir).split(/\s*\\\s*/)[0]; if (!F || !seg || !F.parsePolicyFolder) return null;
     var pf = F.parsePolicyFolder(seg), all = calc.policies(state), key = F.numKey ? F.numKey(pf.number) : String(pf.number || ''), hit = null;
-    if (key && key.length >= 5) all.forEach(function (e) { if (!hit && F.numKey(e.item.policyNo) === key) hit = e.item; });
-    if (!hit && pf.insurer) { var same = all.filter(function (e) { return calc.norm(e.item.insurer || '') && calc.norm(e.item.insurer).indexOf(calc.norm(pf.insurer)) >= 0; }); if (same.length === 1) hit = same[0].item; }
-    return hit ? { id: hit.id, insurer: hit.insurer || '', number: hit.policyNo || '' } : null;
+    if (!key || key.length < 5) return null;                                                                 // the folder names no policy number: the page does not guess which policy it is (the policy box on the quote asks)
+    all.forEach(function (e) { if (!hit && F.numKey(e.item.policyNo) === key) hit = e.item; });
+    return hit ? { id: hit.id, insurer: hit.insurer || '', number: hit.policyNo || '' } : { id: null, insurer: pf.insurerName || '', number: pf.number };          // a policy the page has no schedule for yet is tied by its NUMBER and found when its schedule is read; never by "the only policy of that insurer" (it could be another policy)
   }
   function put(file, block, cls, data, o) {
     var name = file.name, res = { msg: '' }, lower = (D.BLOCK_LABEL[block] || block).toLowerCase(), astuteSet = block === 'astute' ? D.setAstuteDate(state, data, cls.date) : null;                   // the Astute report's date goes into Client details, whether or not an investment matches
@@ -971,7 +972,7 @@
       res.quote = r.quote; openSet[r.quote.id] = true;
       if (schema.isServicingKind(r.quote.kind)) {
         if (!r.quote.onPolicy) { res.msg += ' It could not be tied to a current policy by its folder: choose the policy on the quote.'; res.warn = true; }
-        if (r.unsure) { res.msg += ' Its premium could not tell a straight increase from a straight reduction: it is under Straight increase, move it by choosing Replace quote in the right block if it is a reduction.'; res.warn = true; }
+        if (r.unsure) { res.msg += ' Its premium could not tell a straight increase from a straight reduction: it is under Straight increase: if it is a reduction, choose the Type of servicing on the quote.'; res.warn = true; }
       }
       if (data) {
         var rc = reconcile(r.quote), nm = check.autoMatch(state, r.quote);
@@ -1096,7 +1097,7 @@
     if (!FU || !FU.clientFolder) return Promise.resolve(none);
     return FU.clientFolder({ sname: state.header.sname, fname: state.header.fname }, 'quote').then(function (res) { return res.reason ? { msg: 'No change moment pay-out guide was looked for: ' + (REASONS[res.reason] || 'the client’s folder could not be opened.'), warn: true } : search(res.handle); }, function () { return none; });
   }
-  function blockChoices() { return [['followup', 'Follow-Up Summary Notes'], ['fna', 'FNA quote'], ['shortfallQuote', 'Shortfall quote'], ['reduced', 'Reduced quote'], ['comparative', 'Comparative quote'], ['policies', 'Current policy schedule'], ['group', 'Group or fund statement'], ['investments', 'Investment statement'], ['proposed', 'Proposed investment'], ['goals', 'Goal analysis report'], ['astute', 'Astute report'], ['cmp', 'Change moment pay-out guide'], ['', 'Skip it']]; }
+  function blockChoices() { return [['followup', 'Follow-Up Summary Notes'], ['fna', 'FNA quote'], ['shortfallQuote', 'Shortfall quote'], ['reduced', 'Reduced quote'], ['comparative', 'Comparative quote'], ['svFna', 'Servicing FNA quote'], ['svShortfall', 'Servicing shortfall quote'], ['svReduced', 'Servicing reduced quote'], ['svIncrease', 'Straight increase quote'], ['svReduction', 'Straight reduction quote'], ['policies', 'Current policy schedule'], ['group', 'Group or fund statement'], ['investments', 'Investment statement'], ['proposed', 'Proposed investment'], ['goals', 'Goal analysis report'], ['astute', 'Astute report'], ['cmp', 'Change moment pay-out guide'], ['', 'Skip it']]; }
   /* Documents whose name does not say what they are: the adviser says, one by one. Resolves [{ file, block }] for the ones chosen. */
   function askBlocks(files) {
     return new Promise(function (resolve) {
@@ -1681,6 +1682,8 @@
   function refreshChromeSoft() { clearTimeout(softT); softT = setTimeout(refreshChrome, 250); }
   $('#main').addEventListener('change', function (e) {
     var el = e.target;
+    var svt = el.getAttribute && el.getAttribute('data-svtype');
+    if (svt) { if (state.newer) return; var mq = store.setServicingType(state, svt, el.value); if (mq) { cur = schema.blockOfQuote[mq.kind]; openSet[mq.id] = true; check.settleAll(state); dirty = true; onDisk = false; touch(); redraw(); toast('Moved to ' + schema.blocksById[cur].title + '.', 3000); } return; }          // round 2.0: the type of servicing decides the block (a bare Serv quote's direction is the adviser's to correct)
     var svp = el.getAttribute && el.getAttribute('data-svpol');
     if (svp) { if (state.newer) return; store.setOnPolicy(state, svp, el.value); check.settleAll(state); dirty = true; onDisk = false; touch(); redraw(); return; }          // round 2.0: the ONE current policy a servicing quote is about
     var uwr = el.getAttribute && el.getAttribute('data-uwreason');

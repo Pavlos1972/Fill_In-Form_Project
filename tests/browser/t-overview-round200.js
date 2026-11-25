@@ -20,8 +20,10 @@ const TREE = {
       '1. Overview': {}, '2. Fact Find': {}, '3. Quotes': { 'FNA Quote 100000099 12.01.26.pdf': one('nbfna') }, '6. Policy Schedules': {},
       'BR Personal Covers - 900100200': {
         'Policy Schedules': { '2026': { 'BR Policy Summary 01.06.26.pdf': one('sched') } },
-        'Comparative Quotes': { '2026 - Review': { 'BR Serv Quote - 123456789 - R1450.00 - 05.11.26.pdf': one('svinc'), 'Decrease Quote 987654321 02.11.26.pdf': one('svdec'), 'FNA Quote 555000111 10.11.26.pdf': one('svfna'), 'Premium Increase Letter 2026.pdf': one('letter') },
+        'Comparative Quotes': { '2026 - Review': { 'BR Serv Quote - 123456789 - R1450.00 - 17.10.26.pdf': one('svinc'), 'Decrease Quote 987654321 02.11.26.pdf': one('svdec'), 'FNA Quote 555000111 10.11.26.pdf': one('svfna'), 'Premium Increase Letter 2026.pdf': one('letter'), 'BR CMPO - 123456789.pdf': one('cmpo') },
           'Discovery Quote 12.03.26.pdf': one('disc') } },
+      'BR Life Cover - 900300400': { 'Policy Schedules': { '2026': { 'BR Policy Summary 01.06.26.pdf': one('schedb') } }, 'Comparative Quotes': { '2026 - Review': { 'Decrease Quote 777888999 20.10.26.pdf': one('svdecb') } } },
+      'BR Old Cover - 555666777': { 'Comparative Quotes': { '2026 - Review': { 'Decrease Quote 111000222 21.10.26.pdf': one('svdecc') } } },
       'Sanlam Invest - 889977': { 'Comparative Quotes': { 'Serv quote 444555666.pdf': one('none') } } },
     '1. ON HOLD': {}, '2. Awaiting compliance from client': {} },
   CF: { 'T - Files': {} }
@@ -29,13 +31,17 @@ const TREE = {
 const v = x => ({ v: x });
 const FFJ = { app: 'wr-fact-find', schema: '5.5', f: { fname: v('Sia'), sname: v('Test'), net: v('R 60 000.00'), ip_age: v('65'), date: v('10/11/2026'), bf_sf_req: v('Request a quote') },
   l: { kids: [], debts: [{ d: { type: 'Home loan', prov: 'Test Bank', desc: 'Home loan', inst: 'R 8 000.00', bal: 'R 900 000.00' } }],
-    risk: [{ d: { prov: 'BrightRock', spend: 'R 1 000.00', broker: 'Paul K' } }], grp: [{ d: { prov: 'Test Group', spend: '', broker: 'Other broker' } }], ret_pp: [], ret_ra: [], inv: [] } };
+    risk: [{ d: { prov: 'BrightRock', spend: 'R 1 000.00', broker: 'Paul K' } }, { d: { prov: 'BrightRock', spend: 'R 650.00', broker: 'Paul K' } }], grp: [{ d: { prov: 'Test Group', spend: '', broker: 'Other broker' } }], ret_pp: [], ret_ra: [], inv: [] } };
 const L = (type, lump, monthly, o) => Object.assign({ type, life: { lump, monthly }, abi: type === 'household' ? 5 : 0 }, o || {});
 const READS = {
   sched: { insurer: 'BrightRock', product: 'Personal covers', policyNo: '900100200', doc: '01/06/2026', premium: 1000, aci: 10, lines: [L('household', 500000, 0), L('debt', 900000, 8000, { debt: 'Home loan', bank: 'Test Bank' })] },
-  svinc: { insurer: 'BrightRock', number: '123456789', date: '05/11/2026', rates: 'Non-smoker rates', aci: 10, premium: 1450, lines: [L('household', 700000, 0), L('debt', 900000, 8000, { debt: 'Home loan', bank: 'Test Bank' }), L('debt', 300000, 2500, { debt: 'New bond', bank: 'Test Bank' })] },
+  svinc: { insurer: 'BrightRock', number: '123456789', date: '17/10/2026', rates: 'Non-smoker rates', aci: 10, premium: 1450, lines: [L('household', 700000, 0), L('debt', 900000, 8000, { debt: 'Home loan', bank: 'Test Bank' }), L('debt', 300000, 2500, { debt: 'Car finance', bank: 'Test Bank' })] },
   svdec: { insurer: 'BrightRock', number: '987654321', date: '02/11/2026', rates: 'Non-smoker rates', aci: 10, premium: 900, lines: [L('household', 400000, 0), L('debt', 900000, 8000, { debt: 'Home loan', bank: 'Test Bank' })] },
   svfna: { insurer: 'BrightRock', number: '555000111', date: '10/11/2026', rates: 'Non-smoker rates', aci: 10, premium: 1800, lines: [L('household', 900000, 0), L('debt', 900000, 8000, { debt: 'Home loan', bank: 'Test Bank' })] },
+  schedb: { insurer: 'BrightRock', product: 'Life cover', policyNo: '900300400', doc: '01/06/2026', premium: 650.5, lines: [L('household', 200000, 0)] },
+  svdecb: { insurer: 'BrightRock', number: '777888999', date: '20/10/2026', rates: 'Non-smoker rates', aci: 10, premium: 500, lines: [L('household', 150000, 0)] },
+  svdecc: { insurer: 'BrightRock', number: '111000222', date: '21/10/2026', rates: 'Non-smoker rates', aci: 10, premium: 100, lines: [L('household', 50000, 0)] },
+  cmpo: { number: '123456789', activationDate: '01/01/2027', rows: [{ key: 'total', today: 30000, projected: 80000, payoutDate: null }] },
   nbfna: { insurer: 'BrightRock', number: '100000099', date: '12/01/2026', rates: 'Non-smoker rates', aci: 10, premium: 2500, lines: [L('household', 800000, 0)] },
   nobody: { insurer: 'Nobody Assurance', product: 'Life plan', policyNo: 'Z-9', premium: 300, lines: [] }
 };
@@ -106,12 +112,14 @@ srv.listen(0, async () => {
   await p.click('dialog.fdlg [data-yes]'); await waitDone(p); await p.waitForTimeout(900);
 
   /* ---- 2. what Load put where ---- */
-  const S = await p.evaluate(() => { const s = OV.app.state, q = (b) => s.blocks[b].quotes.filter(x => !x.removed).map(x => ({ n: x.number, k: x.kind, tie: x.onPolicy && x.onPolicy.number, lines: x.lines.length, serv: x.servicing })); return { svInc: q('svIncrease'), svDec: q('svReduction'), svFna: q('svFna'), svSf: q('svShortfall'), svRed: q('svReduced'), fna: q('fna'), cmp: q('comparative'), pol: s.blocks.policies.items.map(i => i.insurer + '|' + i.policyNo + '|' + i.premium + '|' + i.lines.length), docs: s.documents.map(d => d.block).sort().join(',') }; });
+  const S = await p.evaluate(() => { const s = OV.app.state, q = (b) => s.blocks[b].quotes.filter(x => !x.removed).map(x => ({ n: x.number, k: x.kind, tie: x.onPolicy && x.onPolicy.number, found: (OV.calc.servicingPolicy(s, x) || {}).policyNo || null, lines: x.lines.length, serv: x.servicing, cmp: x.cmp ? x.cmp.rows.length : 0 })); return { svInc: q('svIncrease'), svDec: q('svReduction'), svFna: q('svFna'), svSf: q('svShortfall'), svRed: q('svReduced'), fna: q('fna'), cmp: q('comparative'), pol: s.blocks.policies.items.map(i => i.insurer + '|' + i.policyNo + '|' + i.premium + '|' + i.lines.length), docs: s.documents.map(d => d.block).sort().join(',') }; });
   ok(S.svInc.length === 1 && S.svInc[0].n === '123456789' && S.svInc[0].k === 'svincrease' && S.svInc[0].tie === '900100200' && S.svInc[0].serv === true && S.svInc[0].lines === 3, '2. the bare Serv quote is in Straight increase (its premium R1,450 is above the policy\'s R1,000), tied to policy 900100200: ' + JSON.stringify(S.svInc));
-  ok(S.svDec.length === 1 && S.svDec[0].n === '987654321' && S.svDec[0].tie === '900100200', '2. the Decrease quote is in Straight reduction, tied to the same policy: ' + JSON.stringify(S.svDec));
+  const dec3 = n => S.svDec.filter(x => x.n === n)[0] || {};
+  ok(S.svDec.length === 3 && dec3('987654321').found === '900100200' && dec3('777888999').found === '900300400' && dec3('111000222').tie === '555666777' && dec3('111000222').found === null, '2. the three Decrease quotes are in Straight reduction, each tied to the policy whose NUMBER is in the name of its folder; the one whose folder names a policy that is not in Current policies is tied to none of ours (never the only BrightRock policy): ' + JSON.stringify(S.svDec));
+  ok(S.svInc[0].cmp === 1, '2. the pay-out guide beside the quote (BR CMPO - 123456789) was read into it (the guide follows the quote number): ' + JSON.stringify(S.svInc[0]));
   ok(S.svFna.length === 1 && S.svFna[0].n === '555000111' && S.svFna[0].tie === '900100200' && S.fna.length === 1 && S.fna[0].n === '100000099', '2. the FNA quote of the policy folder is a servicing FNA quote, the one of 3. Quotes a new business FNA quote: ' + JSON.stringify([S.svFna, S.fna]));
-  ok(S.svSf.length === 0 && S.svRed.length === 0 && S.cmp.every(x => !/^svn/.test(x.k)), '2. nothing in the other servicing blocks; nothing servicing among the comparative quotes: ' + JSON.stringify([S.svSf, S.svRed, S.cmp]));
-  ok(S.pol.some(x => /^BrightRock\|900100200\|1000\|2$/.test(x)), '2. the policy\'s schedule was read into Current policies: ' + S.pol.join(' ; '));
+  ok(S.svSf.length === 0 && S.svRed.length === 0 && S.cmp.every(x => !/^sv/.test(x.k)), '2. nothing in the other servicing blocks; nothing servicing among the comparative quotes: ' + JSON.stringify([S.svSf, S.svRed, S.cmp]));
+  ok(S.pol.some(x => /^BrightRock\|900100200\|1000\|2$/.test(x)) && S.pol.some(x => /^BrightRock\|900300400\|650\.5\|1$/.test(x)), '2. both BrightRock schedules were read into their own policies, the second one with a premium (R650.50) that differs a little from the Fact Find\'s (R650): ' + S.pol.join(' ; '));
   const w = await p.evaluate(() => window.__writes);
   ok(w === 0, '2. nothing was created, written or removed in any folder (a counter on the browser\'s folder calls: ' + w + ')');
 
@@ -124,23 +132,26 @@ srv.listen(0, async () => {
   const pager = async id => { await p.evaluate(i => OV.app.go(i), id); await p.waitForTimeout(80); return p.evaluate(() => [...document.querySelectorAll('#main .pagenav button')].map(x => x.textContent.replace(/\s+/g, ' ').trim())); };
   ok((await pager('shortfall'))[1] === 'Next: Servicing FNA quote \u203a' && (await pager('svFna'))[1] === 'Next: Straight increase \u203a' && (await pager('svIncrease'))[1] === 'Next: Straight reduction \u203a' && (await pager('svReduction'))[1] === 'Next: FNA quote \u203a', '3. Next passes the two empty servicing pages by (Servicing shortfall, Servicing reduced) and goes on through the three that hold a quote');
   ok((await pager('fna'))[0] === '\u2039 Back: Straight reduction' && (await pager('svFna'))[0] === '\u2039 Back: Shortfall (needs calculation)', '3. and Back does the same');
+  const nt = await p.evaluate(() => ({ s: document.querySelector('[data-note=svShortfall]').textContent, r: document.querySelector('[data-note=svReduced]').textContent, inc: (document.querySelector('[data-block=svIncrease] .cnt') || {}).textContent, dec: (document.querySelector('[data-block=svReduction] .cnt') || {}).textContent, none: !document.querySelector('[data-block=svShortfall] .cnt') }));
+  ok(nt.s === 'Not requested' && nt.r === 'Not requested' && nt.inc === '1' && nt.dec === '3' && nt.none, '3. an empty servicing block says Not requested (never red) and a block with quotes shows how many: ' + JSON.stringify(nt));
   await p.screenshot({ path: out + '/r20-menu.png', clip: { x: 0, y: 0, width: 330, height: 1100 } });
 
   /* ---- 4. the servicing card ---- */
   await p.evaluate(() => { OV.app.go('svIncrease'); OV.app.openAll(); }); await p.waitForTimeout(150);
   const C = await p.evaluate(() => {
     const c = document.querySelector('#main .qcard'), rows = [...c.querySelectorAll('table.svt tbody tr.svr')].map(r => r.className.replace('svr ', '') + ':' + r.querySelector('td.need').textContent.replace(/\s+/g, ' ').trim() + ':' + r.querySelector('td.chgtxt').textContent.replace(/\s+/g, ' ').trim());
-    return { title: c.querySelector('h3').textContent, sel: c.querySelector('select[data-svpol]').selectedOptions[0].textContent, rows, prem: c.querySelector('table.svt tr.prem').textContent.replace(/\s+/g, ' ').trim(), note: c.querySelector('.svnote').textContent.replace(/\s+/g, ' ').trim(),
+    return { title: c.querySelector('h3').textContent, payout: !!c.querySelector('table.payout'), typeSel: c.querySelector('select[data-svtype]').selectedOptions[0].textContent, sel: c.querySelector('select[data-svpol]').selectedOptions[0].textContent, rows, prem: c.querySelector('table.svt tr.prem').textContent.replace(/\s+/g, ' ').trim(), note: c.querySelector('.svnote').textContent.replace(/\s+/g, ' ').trim(),
       addl: c.querySelectorAll('[data-addl]').length, x: c.querySelectorAll('.xbtn').length, kindSel: [...c.querySelectorAll('.f .l')].some(e => /Kind of quote/.test(e.textContent)), repl: c.querySelectorAll('[data-replans], [data-replpick]').length, replace: !!c.querySelector('[data-replace]'), btn: [...document.querySelectorAll('#main [data-upc]')].map(x => x.textContent).join('|') };
   });
   ok(/Straight Increase CP 123456789/.test(C.title) && /BrightRock/.test(C.sel) && /900100200/.test(C.sel), '4. the card is headed "Straight Increase CP 123456789" and names the ONE policy it is about: ' + C.title + ' / ' + C.sel);
-  ok(C.rows.length === 3 && /^changed:Household needs:Changed Life cover \+R200,000$/.test(C.rows[0]) && /^same:DebtHome loan/.test(C.rows[1]) && /No change/.test(C.rows[1]) && /^added:DebtNew bond/.test(C.rows[2]) && /New/.test(C.rows[2]), '4. old and new line by line: household raised, the home loan unchanged, the new bond added: ' + C.rows.join(' || '));
+  ok(C.rows.length === 3 && /^changed:Household needs:Changed Life cover \+R200,000$/.test(C.rows[0]) && /^same:DebtHome loan/.test(C.rows[1]) && /No change/.test(C.rows[1]) && /^added:DebtCar finance/.test(C.rows[2]) && /New/.test(C.rows[2]), '4. old and new line by line: household raised, the home loan unchanged, the car finance added: ' + C.rows.join(' || '));
   ok(/R1,000/.test(C.prem) && /R1,450/.test(C.prem) && /\+R450 a month/.test(C.prem) && /\+45%/.test(C.prem), '4. the premium before, after and the difference: ' + C.prem);
   ok(/One line added or raised: no FNA and no shortfall\./.test(C.note) && /On BrightRock 900100200/.test(C.note), '4. the note says what a straight increase is and names the policy: ' + C.note);
   ok(C.addl === 0 && C.x === 0 && !C.kindSel && C.repl === 0 && C.replace, '4. no add-line button, no x on a line, no Servicing / New business selector, no replacement question; Replace quote… is there: ' + JSON.stringify({ addl: C.addl, x: C.x, kindSel: C.kindSel, repl: C.repl, replace: C.replace }));
+  ok(C.payout && C.typeSel === 'Straight increase', '4. the pay-out guide that sits beside the quote is under it, and the Type of servicing box says Straight increase: ' + JSON.stringify({ payout: C.payout, type: C.typeSel }));
   ok(C.btn === '+ Add straight increase quote…', '4. the button at the bottom of the block says + Add straight increase quote…: ' + C.btn);
-  await p.fill('#main .qcard textarea[data-p$=".reason"]', 'A new bond on a second property'); await p.waitForTimeout(200);
-  ok(await p.evaluate(() => OV.app.state.blocks.svIncrease.quotes[0].reason === 'A new bond on a second property'), '4. the reason is typed and kept');
+  await p.fill('#main .qcard textarea[data-p$=".reason"]', 'A car loan added to the policy'); await p.waitForTimeout(200);
+  ok(await p.evaluate(() => OV.app.state.blocks.svIncrease.quotes[0].reason === 'A car loan added to the policy'), '4. the reason is typed and kept');
   await p.fill('#main .qcard input[data-p$=".premium"]', '1500'); await p.waitForTimeout(250);
   ok(/R1,500/.test(await p.evaluate(() => document.querySelector('#main .qcard table.svt tr.prem').textContent)) && /\+R500 a month/.test(await p.evaluate(() => document.querySelector('#main .qcard table.svt tr.prem').textContent)), '4. the table follows what is typed (premium R1,500: +R500 a month)'); await p.fill('#main .qcard input[data-p$=".premium"]', '1450'); await p.waitForTimeout(150);
   await p.screenshot({ path: out + '/r20-servicing.png', fullPage: true });
@@ -150,6 +161,12 @@ srv.listen(0, async () => {
   ok(await p.evaluate(() => OV.app.state.blocks.svIncrease.quotes[0].onPolicy && OV.app.state.blocks.svIncrease.quotes[0].onPolicy.number === '900100200'), '4. choosing the policy ties the quote to it again');
   await p.evaluate(() => { OV.app.go('svFna'); }); await p.waitForTimeout(100);
   ok(await p.evaluate(() => /Servicing FNA/.test(document.querySelector('#main h2').textContent) && document.querySelectorAll('#main table.svt').length === 1 && /The current policy re-quoted to full needs\./.test(document.querySelector('#main .svnote').textContent)), '4. the servicing FNA block draws the same card with its own meaning');
+
+  await p.evaluate(() => { OV.app.go('svIncrease'); OV.app.openAll(); }); await p.waitForTimeout(100);
+  await p.selectOption('#main .qcard select[data-svtype]', 'svreduction'); await p.waitForTimeout(300);
+  ok(await p.evaluate(() => OV.app.state.blocks.svIncrease.quotes.length === 0 && OV.app.state.blocks.svReduction.quotes.some(q => q.number === '123456789' && q.kind === 'svreduction' && q.onPolicy.number === '900100200' && q.reason === 'A car loan added to the policy') && /Straight reduction/.test(document.querySelector('#main h2').textContent)), '4. the Type of servicing moves the quote to the other block with its policy and its reason, and the page follows it');
+  await p.selectOption('#main .qcard:has-text("CP 123456789") select[data-svtype]', 'svincrease'); await p.waitForTimeout(300);
+  ok(await p.evaluate(() => OV.app.state.blocks.svIncrease.quotes.length === 1 && OV.app.state.blocks.svReduction.quotes.length === 3), '4. and back again');
 
   /* ---- 5. the other blocks: no line buttons, + Add ... at the bottom, a schedule not in the Fact Find ---- */
   const adds = {};
@@ -169,7 +186,7 @@ srv.listen(0, async () => {
   ok(['svFna', 'svIncrease', 'svReduction'].every(i => ids.includes(i)) && !ids.includes('svShortfall') && !ids.includes('svReduced') && ids.indexOf('shortfall') < ids.indexOf('svFna') && ids.indexOf('svReduction') < ids.indexOf('fna'), '6. the PDF has a page for each servicing block that holds a quote, none for the empty ones, between the shortfall and the new business pages: ' + ids.join(','));
   const t1 = text(pg('svIncrease'));
   ok(/Servicing your current policies/.test(t1) && /Where you are now/.test(t1) && /New business quotes/.test(t1), '6. every page carries the headings over its tabs');
-  ok(/Straight increase/.test(t1) && /On: BrightRock 900100200/.test(t1) && /Reason: A new bond on a second property/.test(t1) && /R1,000/.test(t1) && /R1,450/.test(t1) && /\+R450 a month \(\+45%\)/.test(t1) && !/Compared with what you have now/.test(t1), '6. the servicing page names the policy and the reason and prints the premium before and after');
+  ok(/Straight increase/.test(t1) && /On: BrightRock 900100200/.test(t1) && /Reason: A car loan added to the policy/.test(t1) && /R1,000/.test(t1) && /R1,450/.test(t1) && /\+R450 a month \(\+45%\)/.test(t1) && !/Compared with what you have now/.test(t1), '6. the servicing page names the policy and the reason and prints the premium before and after');
   cp.execFileSync('pdftoppm', ['-r', '70', '-f', String(pg('svIncrease')), '-l', String(pg('svIncrease')), '-png', file, out + '/r20-pdf-servicing']);
 
   /* ---- 7. the Presentation ---- */
@@ -182,7 +199,7 @@ srv.listen(0, async () => {
   ok(V.subs.join('|') === 'The quote|What changes on your policy|Underwriting and replacements'.replace('|Underwriting and replacements', '') || /What changes on your policy/.test(V.subs.join('|')), '7. its sub-tabs: ' + V.subs.join(' | '));
   await p.evaluate(() => OV.present.applyMoves([{ sub: 'cmpr' }])); await p.waitForTimeout(200);
   const T = await p.evaluate(() => document.querySelector('#pSlide').innerText.replace(/\s+/g, ' '));
-  ok(/On BrightRock 900100200/.test(T) && /Why: A new bond on a second property/.test(T) && /R1,000/.test(T) && /R1,450/.test(T) && /\+R450 a month/.test(T) && /New/.test(T) && !/will be replaced/.test(T), '7. "What changes on your policy": the policy, the reason, the old and the new, the premium: ' + T.slice(0, 200));
+  ok(/On BrightRock 900100200/.test(T) && /Why: A car loan added to the policy/.test(T) && /R1,000/.test(T) && /R1,450/.test(T) && /\+R450 a month/.test(T) && /New/.test(T) && !/will be replaced/.test(T), '7. "What changes on your policy": the policy, the reason, the old and the new, the premium: ' + T.slice(0, 200));
   await p.screenshot({ path: out + '/r20-present.png' });
   await p.setViewportSize({ width: 1280, height: 720 }); await p.waitForTimeout(250);
   const sc = await p.evaluate(() => { const m = /scale\(([\d.]+)\)/.exec(document.querySelector('#pSlide').style.transform); return m ? +m[1] : 0; });

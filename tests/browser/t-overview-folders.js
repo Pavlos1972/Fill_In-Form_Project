@@ -165,8 +165,8 @@ srv.listen(0, async () => {
   ok(list.length === 7, '8. seven documents were found: the schedules, the latest Astute, the Comparative Quotes files and the files of the numbered 3. Quotes folder (not readme.txt, not the 2025 Astute): ' + list.map(x => x.text).join(' | ').slice(0, 300));
   ok(list.filter(x => x.on).length === 5 && !list.filter(x => /scan0001/.test(x.text))[0].on && !list.filter(x => /ignored\.pdf/.test(x.text))[0].on && /Comparative Quotes \\ BR FNA - 100000011/.test(list.map(x => x.text).join('|')), '8. the five the page can sort by name are ticked, the scan is not');
   await p.click('dialog.fdlg[open] [data-yes]'); await p.waitForTimeout(800);
-  const st8 = await p.evaluate(() => ({ fna: OV.app.state.blocks.svFna.quotes.map(q => q.number + '|' + q.src.file), docs: OV.app.state.documents.map(d => d.block).sort().join(',') }));
-  ok(st8.fna.join() === '100000011|BR FNA - 100000011 - R2900.00 - 19.11.26.pdf' && st8.docs === 'astute,cmp,group,policies,svFna' && (await p.evaluate(() => OV.app.state.blocks.fna.quotes.length)) === 0, '8. the ticked documents were loaded (round 2.0: an FNA quote inside a policy folder is a SERVICING FNA quote, never a new business one): the quote started from its file name, the others recorded: ' + JSON.stringify(st8));
+  const st8 = await p.evaluate(() => ({ fna: OV.app.state.blocks.fna.quotes.map(q => q.number + '|' + q.src.file), docs: OV.app.state.documents.map(d => d.block).sort().join(',') }));
+  ok(st8.fna.join() === '100000011|BR FNA - 100000011 - R2900.00 - 19.11.26.pdf' && st8.docs === 'astute,cmp,fna,group,policies', '8. the ticked documents were loaded (round 2.0: a folder with no policy number is not a servicing folder, so its FNA quote stays a new business FNA quote): the quote started from its file name, the others recorded: ' + JSON.stringify(st8));
   ok(diff(t8, await tree()).length === 0, '8. the client\'s folders were only read: nothing was written or made');
   await fresh(); await client('Nina', 'Nobody', '05/01/2027');
   await p.evaluate(() => document.querySelector('#btnReadFolder').click()); await p.waitForTimeout(600);

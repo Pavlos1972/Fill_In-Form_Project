@@ -27,7 +27,7 @@ function withPolicy(s) {
   return p;
 }
 const tieOf = p => ({ id: p.id, insurer: p.insurer, number: p.policyNo });
-const SVLINES = [{ type: 'household', life: { lump: 700000, monthly: 0 }, abi: 5 }, { type: 'debt', debt: 'Home loan', bank: 'Test Bank', life: { lump: 900000, monthly: 0 }, abi: 0 }, { type: 'debt', debt: 'New bond', bank: 'Test Bank', life: { lump: 300000, monthly: 0 }, abi: 0 }];
+const SVLINES = [{ type: 'household', life: { lump: 700000, monthly: 0 }, abi: 5 }, { type: 'debt', debt: 'Home loan', bank: 'Test Bank', life: { lump: 900000, monthly: 0 }, abi: 0 }, { type: 'debt', debt: 'Car finance', bank: 'Test Bank', life: { lump: 300000, monthly: 0 }, abi: 0 }];
 
 test('the sixteen blocks sit under four headings in the order Paul gave; the five servicing blocks are quote blocks with their own kinds', () => {
   assert.deepStrictEqual(schema.GROUPS.map(g => g.id), ['now', 'servicing', 'newbiz', 'inv']);
@@ -51,11 +51,11 @@ test('a servicing quote is tied to ONE current policy and says why; no Fact Find
   assert.deepStrictEqual(store.setOnPolicy(s, 'blocks.svIncrease.quotes.0', p.id), { id: p.id, insurer: 'BrightRock', number: '900100200' });
   assert.strictEqual(store.setOnPolicy(s, 'blocks.svIncrease.quotes.0', 'nope'), null); assert.strictEqual(q.onPolicy, null, 'an unknown policy ties to nothing');
   assert.strictEqual(store.setOnPolicy(s, 'blocks.fna.quotes.0', p.id), null, 'only a servicing quote is tied to a policy');
-  store.setOnPolicy(s, 'blocks.svIncrease.quotes.0', p.id); store.setPath(s, 'blocks.svIncrease.quotes.0.reason', 'A new bond', 'text');
+  store.setOnPolicy(s, 'blocks.svIncrease.quotes.0', p.id); store.setPath(s, 'blocks.svIncrease.quotes.0.reason', 'A car finance', 'text');
   const j = JSON.parse(store.toJSON(s));
   assert.deepStrictEqual(Object.keys(j.blocks).filter(k => /^sv/.test(k)), ['svFna', 'svShortfall', 'svReduced', 'svIncrease', 'svReduction']);
-  assert.strictEqual(j.blocks.svIncrease.quotes[0].onPolicy.number, '900100200'); assert.strictEqual(j.blocks.svIncrease.quotes[0].reason, 'A new bond'); assert.strictEqual(j.blocks.svIncrease.quotes[0].kind, 'svincrease');
-  const back = store.fromJSON(JSON.stringify(j)); assert.strictEqual(back.blocks.svIncrease.quotes[0].onPolicy.id, p.id); assert.strictEqual(back.blocks.svIncrease.quotes[0].reason, 'A new bond');
+  assert.strictEqual(j.blocks.svIncrease.quotes[0].onPolicy.number, '900100200'); assert.strictEqual(j.blocks.svIncrease.quotes[0].reason, 'A car finance'); assert.strictEqual(j.blocks.svIncrease.quotes[0].kind, 'svincrease');
+  const back = store.fromJSON(JSON.stringify(j)); assert.strictEqual(back.blocks.svIncrease.quotes[0].onPolicy.id, p.id); assert.strictEqual(back.blocks.svIncrease.quotes[0].reason, 'A car finance');
   const old = JSON.parse(JSON.stringify(j)); schema.SV_KINDS.forEach(k => delete old.blocks[schema.blockOfQuote[k]]); const o2 = store.fromJSON(JSON.stringify(old));
   assert.deepStrictEqual(schema.SV_KINDS.map(k => o2.blocks[schema.blockOfQuote[k]].quotes.length), [0, 0, 0, 0, 0], 'a file saved before 2.0 opens with the five blocks empty');
   const odd = JSON.parse(JSON.stringify(j)); odd.blocks.svIncrease.quotes[0].onPolicy = 'x'; odd.blocks.svIncrease.quotes[0].reason = 5; delete odd.blocks.svIncrease.quotes[0].kind;
@@ -101,14 +101,14 @@ test('a servicing page is there only when it holds a quote; the other pages keep
   const probs = () => check.run(s).problems.filter(x => x.id === 'sv.policy');
   assert.strictEqual(probs().length, 1); assert.strictEqual(probs()[0].block, 'svReduced'); assert.ok(/ONE current policy/.test(probs()[0].message));
   store.setOnPolicy(s, 'blocks.svReduced.quotes.0', p.id); assert.strictEqual(probs().length, 0, 'tied: the check goes');
-  p.removed = true; assert.strictEqual(probs().length, 1, 'the policy is gone from Current policies'); assert.ok(/no longer in Current policies/.test(probs()[0].message));
+  p.removed = true; assert.strictEqual(probs().length, 1, 'the policy is gone from Current policies'); assert.ok(/is not in Current policies/.test(probs()[0].message));
   assert.strictEqual(check.dots(s, [], {}).svIncrease, 'grey'); assert.ok(['amber', 'green'].indexOf(check.run(s).dots.svReduced) >= 0);
   assert.strictEqual(check.qTitle(q), 'BrightRock Servicing Reduced Quote CP 200000001'); assert.strictEqual(check.qLabel(store.addQuote(s, 'svincrease')), 'BrightRock straight increase');
 });
 
 test('a quote in a LIFE policy folder is a servicing quote (never a comparative quote); the words that say which; paperwork, investment folders and the client\'s own folders are left alone', () => {
   const PF = 'BR Personal Covers - 900100200', RV = PF + ' \\ Comparative Quotes \\ 2026 - Review', CQ = PF + ' \\ Comparative Quotes', cls = (n, d) => docs.classify(n, d);
-  const T = [['BR Serv Quote - 123456789 - R1450.00 - 05.11.26.pdf', RV, 'svIncrease', true], ['BR Serv Quote - 123456789.pdf', CQ, 'svIncrease', true], ['Servicing quote 123456789.pdf', CQ, 'svIncrease', true], ['Alteration quote 123456789.pdf', CQ, 'svIncrease', true],
+  const T = [['BR Serv Quote - 123456789 - R1450.00 - 17.10.26.pdf', RV, 'svIncrease', true], ['BR Serv Quote - 123456789.pdf', CQ, 'svIncrease', true], ['Servicing quote 123456789.pdf', CQ, 'svIncrease', true], ['Alteration quote 123456789.pdf', CQ, 'svIncrease', true],
     ['Increase Quote 123456789.pdf', RV, 'svIncrease', false], ['Decrease quote 123456789.pdf', RV, 'svReduction', false], ['Premium reduction quote 123456789.pdf', CQ, 'svReduction', false],
     ['FNA Quote 123456789.pdf', CQ, 'svFna', false], ['Shortfall quote 22.pdf', RV, 'svShortfall', false], ['Reduced quote CP 111222333.pdf', RV, 'svReduced', false],
     ['Discovery quote 123456789.pdf', CQ, 'comparative', false],
@@ -119,12 +119,15 @@ test('a quote in a LIFE policy folder is a servicing quote (never a comparative 
   assert.strictEqual(cls('Serv quote 123456789.pdf', 'Invest - 555 \\ Comparative Quotes'), null, 'an investment policy folder has no servicing block');
   assert.strictEqual(cls('Serv quote 123456789.pdf', '3. Quotes'), null, 'the client\'s own numbered folder is not a policy folder');
   assert.strictEqual(cls('Increase 2026.pdf', CQ), null, 'no quote word and no number: not taken for a quote');
+  const DEAL = 'Docs, Dina - (Risk Covers) \\ Comparative Quotes';
+  assert.strictEqual(cls('BR FNA - 100000011 - R2900.00 - 19.11.26.pdf', DEAL).block, 'fna', 'an older deal-style folder names no policy number: its FNA quote stays a new business FNA quote (a servicing quote is about ONE named policy)');
+  assert.strictEqual(cls('Serv quote 123456789.pdf', DEAL), null, 'and a Serv quote there is not routed anywhere');
   ['svFna', 'svShortfall', 'svReduced', 'svIncrease', 'svReduction'].forEach(b => { assert.ok(docs.QUOTE_OF[b] && docs.SPEC_OF[b] === 'quote' && docs.BLOCK_LABEL[b], b + ' is read as a quote'); });
 });
 
 test('a bare Serv quote is a straight increase when its premium is above the policy\'s and a straight reduction when below; the same number is one quote wherever it landed; the tie is kept on a second reading', () => {
   const s = fresh(), p = withPolicy(s), tie = tieOf(p), LINE = SVLINES[0];
-  const put = (n, prem, o) => docs.applyQuote(s, 'svIncrease', { insurer: 'BrightRock', number: n, date: '05/11/2026', premium: prem, lines: [LINE] }, 'BR Serv ' + n + '.pdf', Object.assign({ onPolicy: tie, bare: true }, o || {}));
+  const put = (n, prem, o) => docs.applyQuote(s, 'svIncrease', { insurer: 'BrightRock', number: n, date: '17/10/2026', premium: prem, lines: [LINE] }, 'BR Serv ' + n + '.pdf', Object.assign({ onPolicy: tie, bare: true }, o || {}));
   const up = put('111222333', 1400), down = put('111222444', 800), same = put('111222555', 1000);
   assert.strictEqual(up.quote.kind, 'svincrease'); assert.ok(s.blocks.svIncrease.quotes.indexOf(up.quote) >= 0);
   assert.strictEqual(down.quote.kind, 'svreduction'); assert.ok(s.blocks.svReduction.quotes.indexOf(down.quote) >= 0 && s.blocks.svIncrease.quotes.indexOf(down.quote) < 0, 'placed by its premium');
@@ -136,8 +139,37 @@ test('a bare Serv quote is a straight increase when its premium is above the pol
   down.quote.reason = 'Budget cut'; down.quote.status = 'accepted';
   const again = put('111222444', 800); assert.strictEqual(again.merged, 'again'); assert.strictEqual(s.blocks.svReduction.quotes.filter(q => !q.removed).length, 2, 'still one quote with that number');
   const live = s.blocks.svReduction.quotes.filter(q => q.number === '111222444')[0]; assert.strictEqual(live.reason, 'Budget cut'); assert.strictEqual(live.status, 'accepted'); assert.strictEqual(live.onPolicy.id, p.id);
-  const nameOnly = docs.applyQuote(s, 'svIncrease', { number: '111222777', date: '05/11/2026' }, 'BR Serv 111222777.pdf', { nameOnly: true, onPolicy: tie, bare: true });
+  const nameOnly = docs.applyQuote(s, 'svIncrease', { number: '111222777', date: '17/10/2026' }, 'BR Serv 111222777.pdf', { nameOnly: true, onPolicy: tie, bare: true });
   assert.strictEqual(nameOnly.quote.kind, 'svincrease'); assert.strictEqual(nameOnly.unsure, true, 'read by name only: the premium is not known, so it cannot be told');
+});
+
+test('the tie from the folder is by the policy NUMBER in its name (found when its schedule is read), never by "the only policy of that insurer"; Replace quote keeps the tie and the reason', () => {
+  const ui = app('js/ov-ui.js');
+  assert.ok(/if \(!key \|\| key\.length < 5\) return null;/.test(ui) && /: \{ id: null, insurer: pf\.insurerName \|\| '', number: pf\.number \}/.test(ui) && !/same\.length === 1/.test(ui.slice(ui.indexOf('function policyOfFile'), ui.indexOf('function put(file'))), 'by number only');
+  const s = fresh(), p = withPolicy(s), tied = docs.applyQuote(s, 'svIncrease', { insurer: 'BrightRock', number: '111222333', premium: 1400, lines: [SVLINES[0]] }, 'a.pdf', { onPolicy: { id: null, insurer: 'BrightRock', number: '900100200' } }).quote;
+  assert.deepStrictEqual(tied.onPolicy, { id: null, insurer: 'BrightRock', number: '900100200' }); assert.strictEqual(calc.servicingPolicy(s, tied), p, 'found by number although the quote holds no policy id');
+  assert.strictEqual(docs.applyQuote(s, 'svIncrease', { insurer: 'BrightRock', number: '111222334', premium: 1400, lines: [SVLINES[0]] }, 'b.pdf', { onPolicy: { id: null, insurer: 'BrightRock', number: '555666777' } }).quote.onPolicy.number, '555666777');
+  assert.strictEqual(calc.servicingPolicy(s, s.blocks.svIncrease.quotes[1]), null, 'another policy number: tied to no policy of ours, so the table is not drawn against the wrong schedule');
+  tied.reason = 'Budget cut'; const r = docs.applyQuote(s, 'svIncrease', { insurer: 'BrightRock', number: '111222999', premium: 1500, lines: [SVLINES[0]] }, 'c.pdf', { replaces: tied.id });
+  assert.deepStrictEqual(r.quote.onPolicy, tied.onPolicy, 'Replace quote keeps the policy'); assert.strictEqual(r.quote.reason, 'Budget cut', 'and the reason'); assert.ok(tied.removed && tied.replacedBy === r.quote.id);
+  const own = docs.applyQuote(s, 'svIncrease', { insurer: 'BrightRock', number: '111222998', premium: 1500, lines: [SVLINES[0]] }, 'd.pdf', { replaces: r.quote.id, onPolicy: { id: p.id, insurer: 'BrightRock', number: '900100200' } });
+  assert.strictEqual(own.quote.onPolicy.id, p.id, 'a policy the new file says is used');
+  const sel = ui.slice(ui.indexOf('function svPolicySel'), ui.indexOf('function svCell')); assert.ok(/calc\.servicingPolicy\(state, q\)/.test(sel), 'the policy box shows the policy found by number');
+});
+
+test('the Type of servicing moves a quote (and its counter offers) to the block of the new type; "Not requested" stands under an empty servicing block and is never red; the menu counts the quotes', () => {
+  const s = fresh(), p = withPolicy(s), q = store.addQuote(s, 'svincrease'); q.number = '200000001'; store.setOnPolicy(s, 'blocks.svIncrease.quotes.0', p.id); q.reason = 'Budget cut';
+  const c = store.addQuote(s, 'svincrease'); c.number = '200000002'; c.counterOf = q.id;
+  assert.strictEqual(store.setServicingType(s, 'blocks.svIncrease.quotes.0', 'svreduction'), q);
+  assert.strictEqual(q.kind, 'svreduction'); assert.strictEqual(c.kind, 'svreduction', 'the counter offer goes with its quote'); assert.deepStrictEqual([s.blocks.svIncrease.quotes.length, s.blocks.svReduction.quotes.length], [0, 2]);
+  assert.strictEqual(q.onPolicy.number, '900100200'); assert.strictEqual(q.reason, 'Budget cut'); assert.strictEqual(calc.parentOf(s, c), q);
+  assert.strictEqual(store.setServicingType(s, 'blocks.svReduction.quotes.1', 'svfna'), null, 'a counter offer follows its quote'); assert.strictEqual(store.setServicingType(s, 'blocks.svReduction.quotes.0', 'fna'), null, 'only the five servicing types'); assert.strictEqual(store.setServicingType(s, 'blocks.svReduction.quotes.0', 'svreduction'), q);
+  assert.strictEqual(store.setServicingType(s, 'blocks.policies.items.0', 'svfna'), null);
+  const n = check.emptyNotes(s, { ran: true, done: { svFna: true, svIncrease: true, svReduction: true } });
+  assert.deepStrictEqual(n.svFna, { text: 'Not requested', all: false, kind: 'na' }); assert.deepStrictEqual(n.svIncrease, { text: 'Not requested', all: false, kind: 'na' }); assert.strictEqual(n.svReduction, undefined);
+  assert.notStrictEqual(check.run(s, { ran: true, done: { svFna: true } }).dots.svFna, 'red', 'an empty servicing block is grey, not red');
+  const ui = app('js/ov-ui.js');
+  assert.ok(/function svTypeSel\(/.test(ui) && /data-svtype=/.test(ui) && /store\.setServicingType\(state, svt, el\.value\)/.test(ui) && /class="cnt"/.test(ui) && /Lines come from the document only: to change a line, replace the document\./.test(ui), 'the screen: the Type of servicing box, the quote count in the menu, the note under the lines');
 });
 
 test('a schedule the Fact Find does not list is added and marked; when the Fact Find gets the policy it joins that row (no copy)', () => {
