@@ -73,16 +73,9 @@
     var isNA = function (p) { return l[p] === 'N/A'; };
     var hasIP = l.type === 'debt' && calc.isNum(l.ip && l.ip.monthly) && l.ip.monthly > 0, any = !isNA('life') || !isNA('lsd');
     var tall = any ? (hasIP ? 22 : 17) : 9; if (l.type !== 'other' && (l.accelerated === true || l.accelerated === false)) tall = Math.max(tall, 17);
-    var refsOf = function (p) {                                                                                           // round 1.2: the red references the quote's terms put on this cell (+10% loading, Exclusion 3*), only where it has an amount
-      if (!aci || !aci.terms || isNA(p)) return [];
-      var pl = schema.PILLARS.filter(function (x) { return x.id === p; })[0];
-      if (!pl || !pl.keys.some(function (k) { var v = calc.lineVal(l, p, k); return calc.isNum(v) && v > 0; })) return [];
-      return calc.refsAt(aci, l.type, p).map(function (r) { return r.text; });
-    };
-    var maxRefs = Math.max.apply(null, ['life', 'sev', 'lsd', 'ip'].map(function (p) { return refsOf(p).length; }).concat([0])); if (maxRefs) tall += 3.6 * maxRefs;           // the name, the bank and Accelerated / Standalone
     var pill = function (p, lump, monthly) {
       if (isNA(p)) return right('N/A', { textColor: MUTED });
-      var o = { p: p, lump: lump ? calc.lineVal(l, p, 'lump') : undefined, monthly: monthly ? calc.lineVal(l, p, 'monthly') : undefined, label: tp.monthly, protector: p === 'ip' && hasIP, refs: refsOf(p) };
+      var o = { p: p, lump: lump ? calc.lineVal(l, p, 'lump') : undefined, monthly: monthly ? calc.lineVal(l, p, 'monthly') : undefined, label: tp.monthly, protector: p === 'ip' && hasIP };
       return { content: '', ov: o, styles: { minCellHeight: tall } };
     };
     return [{ content: t(need), styles: { halign: 'left', fontStyle: 'bold', minCellHeight: tall } }, { content: t(l.term || ''), styles: { halign: 'left' } }, pill('life', true, true), pill('sev', true, false), pill('lsd', true, true), pill('ip', false, true),
@@ -104,12 +97,10 @@
     }
     function one(txt, size, color, bold) { setText(d, color, size, bold); d.text(t(txt), x, y, { align: 'right' }); y += size > 8 ? 4.5 : 3.4; }
     if (o.pol !== undefined) { one(o.pol, FS.body, INK, false); (o.desc || []).forEach(function (l) { one(l, FS.small, MUTED, false); }); return; }                  // a policy's amount with the description of the benefit under it
-    var refs = function () { (o.refs || []).forEach(function (r) { one(r, FS.small, RED, true); }); };
-    if (o.p === 'ip') { one(PM(o.monthly), FS.body, INK, false); if (o.protector) { one('Instalment Protector', FS.small, MUTED, false); one('To be ceded to the bank', FS.small, RED, true); } refs(); return; }
+    if (o.p === 'ip') { one(PM(o.monthly), FS.body, INK, false); if (o.protector) { one('Instalment Protector', FS.small, MUTED, false); one('To be ceded to the bank', FS.small, RED, true); } return; }
     if (!calc.isNum(o.lump) && !calc.isNum(o.monthly) && o.lump !== 'Not found') { one('-', FS.body, MUTED, false); return; }
     one(A(o.lump), FS.body, INK, false);
     if (o.monthly !== undefined) { one(A(o.monthly), FS.body, RED, false); one(o.label, FS.small, MUTED, false); }
-    refs();
   }
   var LINES_W = [54, 30, 32, 26, 31, 33, 20, 29, 18];
   function ageHead(age) { return age ? '\nAge ' + age : ''; }
@@ -156,8 +147,23 @@
     return table(doc, y, { head: [['', 'Life cover', 'Severe illness', 'Lump sum disability', 'Income protector p.m.', 'Monthly premium']], colw: [63, 42, 42, 42, 42, 42], align: ['left', 'right', 'right', 'right', 'right', 'right'],
       body: [row('What you have now', c.now), row('This quote', c.quote), row('Difference', c.diff, true)] });
   }
+  /* The underwriting decision of a counter offer (round 1.3, Paul 25 November): the decision and ONE plain summary, "Underwriting terms of the counter offer letter": the loadings of the pillars that carry one, the ONE reason for them, and every exclusion
+     once with the pillars it covers and the insurer's own wording. The same words as the screen and the Presentation (calc.termsSummary). A reason read from the e-mail and not yet checked prints too, as an amber term does. */
+  function uwSummaryPDF(doc, y, q) {
+    var sm = calc.termsSummary(q); if (!sm.loadings.length && !sm.exclusions.length) return y;
+    setText(doc, DEEP, FS.sub, true); doc.text('Underwriting decision', M, y + 5); y += 8;
+    if (sm.decision) y = note(doc, y, 'Decision: ' + sm.decision + '.', GREEN);
+    y = note(doc, y + 1, 'Underwriting terms of the counter offer letter: ' + sm.heading + '.', DEEP);
+    if (sm.loadings.length) y = table(doc, y + 1, { head: [['Loading on', 'Loading']], colw: [60, 213], align: ['left', 'left'],
+      body: sm.loadings.map(function (l) { return [{ content: t(l.label), styles: { halign: 'left', fontStyle: 'bold' } }, { content: t(l.texts.join(', ')), styles: { halign: 'left', fontStyle: 'bold', textColor: RED } }]; }) }) + 2;
+    var rs = sm.reason; if (rs) y = note(doc, y, 'Reason: ' + rs.text + (rs.src && rs.src.kind === 'uwemail' ? ' (underwriter\'s e-mail' + (rs.src.date ? ', ' + rs.src.date : '') + ')' : ''), INK) + 1;
+    if (sm.exclusions.length) y = table(doc, y + 1, { head: [['No.', 'Benefits it covers', 'What it means']], colw: [16, 52, 205], align: ['left', 'left', 'left'],
+      body: sm.exclusions.map(function (e) { return [{ content: t(e.no), styles: { halign: 'left', fontStyle: 'bold', textColor: RED } }, { content: t(e.benefit), styles: { halign: 'left', fontStyle: 'bold' } }, { content: t(e.what), styles: { halign: 'left' } }]; }) }) + 2;
+    return y;
+  }
   /* The insurer's terms once the client has accepted and the insurer has answered (round 1.1): standard rates say just that; loadings and exclusions are listed with their reasons. Nothing for a quote still pending or declined. */
   function uwBlock(doc, y, q) {
+    if (q.counterOf) return uwSummaryPDF(doc, y, q);
     var counter = !!q.counterOf, tm0 = q.terms || {}, u = counter ? ((tm0.loadings || []).length || (tm0.exclusions || []).length ? 'both' : null) : calc.uwOf(q); if (!u || u === 'pending' || schema.UW_DECLINED.indexOf(u) >= 0) return y;
     setText(doc, DEEP, FS.sub, true); doc.text(counter ? 'Underwriting terms of the counter offer' : 'Underwriting outcome', M, y + 5); y += 8;
     if (u === 'standard') return note(doc, y, 'Accepted at standard rates.', GREEN);

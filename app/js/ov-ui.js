@@ -164,7 +164,10 @@
   function fresh(path) { return !!recent[path] && Date.now() - recent[path] < NOTICE_MS; }
   function sweepNotices() { document.querySelectorAll('[data-notice]').forEach(function (el) { if (!fresh(el.getAttribute('data-notice'))) el.remove(); }); }
   function markRemoved(path) { recent[path] = Date.now(); setTimeout(sweepNotices, NOTICE_MS + 150); }
-  function isOpen(key) { return openSet[key] === undefined ? openDefault : !!openSet[key]; }                 // folded unless the adviser (or a document just read) opened it
+  function isOpen(key) { return openSet[key] === undefined ? openDefault : !!openSet[key]; }
+  /* A fold inside a card (Correct by hand, Add the underwriter's e-mail) keeps the way the adviser left it across a redraw (typing in it redraws the page); `dflt` is what it does until he has touched it. */
+  var keepOpen = {}, allOpen = false, uwText = {}, uwMsg = {}, uwPending = null;
+  function foldOpen(key, dflt) { return keepOpen[key] !== undefined ? keepOpen[key] : (allOpen || !!dflt); }                 // folded unless the adviser (or a document just read) opened it
   function seeBtn(key) { var o = isOpen(key); return '<button type="button" class="see' + (o ? ' open' : '') + '" data-see="' + esc(key) + '" aria-expanded="' + o + '">' + (o ? 'See less' : 'See more') + '</button>'; }
   /* The ACI as 1 to 3 short points (round 4): the whole wording is the hover text. */
   function aciHTML(x) {
@@ -221,14 +224,8 @@
   /* The reasons a line is to be checked, in the words for the line (the missing bank, the debt that is only in the quote ...). */
   function lineWhy(id) { return ((last && last.problems) || []).filter(function (p) { return p.line === id; }).map(function (p) { return p.short || p.message; }).join(' '); }
   function lineFlag(id) { return ((last && last.problems) || []).filter(function (p) { return p.line === id; }).map(function (p) { return p.message; }).join(' '); }
-  /* The red references a quote's terms put on a cell (derived from the terms: +10% loading, Exclusion 3*): only where the cell has an amount. */
+  /* The red references a quote's terms put on a PILLAR (derived from the terms: +10% loading, Exclusion 3*): in the Loadings and exclusions row under the totals, never on a line (Paul, 25 November). */
   function refSmall(r) { return '<small class="rednote ref" title="' + (r.kind === 'loading' ? 'A premium loading from the insurer' : 'An exclusion from the insurer') + '">' + esc(r.text) + '</small>'; }
-  function lineRefs(c, l, pid, isPolicy) {
-    if (isPolicy || !c || !c.terms || !l.type) return '';
-    var pl = schema.PILLARS.filter(function (x) { return x.id === pid; })[0];
-    if (!pl || !pl.keys.some(function (k) { var v = calc.lineVal(l, pid, k); return calc.isNum(v) && v > 0; })) return '';
-    return calc.refsAt(c, l.type, pid).map(refSmall).join('');
-  }
   function lineHTML(cpath, c, l, i, isPolicy) {
     var p = cpath + '.lines.' + i, t = schema.lineTypesById[l.type] || schema.lineTypesById.other, tt = t.monthly, cols = isPolicy ? 10 : 9;
     if (l.removed) return fresh(p) ? '<tr class="removed" data-row="' + p + '" data-notice="' + p + '"><td colspan="' + cols + '"><span class="gone">' + esc((l.label || t.l) + (l.name ? ' · ' + l.name + ' ' + (l.sname || '') : '') + (l.debt ? ' · ' + l.debt : '')) + ' removed.</span> <button type="button" class="lnk" data-undo="' + p + '">Undo</button></td></tr>' : '';
@@ -243,7 +240,7 @@
       if (hasLump) s += inp(p + '.' + pid + '.lump', 'money');
       if (hasMonthly) s += inp(p + '.' + pid + '.monthly', 'money') + (pid === 'ip' ? '<small class="pm">p.m.</small>' : '<small class="sm">' + esc(tt) + '</small>') + viaNote(l, pid);
       if (pid === 'ip' && l.type === 'debt' && calc.isNum(l.ip && l.ip.monthly) && l.ip.monthly > 0) s += '<small class="ip">Instalment Protector</small><small class="ced">To be ceded to the bank</small>';
-      return '<td class="c">' + s + lineRefs(c, l, pid, isPolicy) + '</td>';
+      return '<td class="c">' + s + '</td>';
     }
     var flag = lineFlag(l.id);
     return '<tr data-row="' + p + '" class="ln' + (flag ? ' ffdiff' : '') + '"' + (flag ? ' title="' + esc(flag) + '"' : '') + '><td class="need">' + stb(p) + need + '<small class="why" data-why="' + l.id + '">' + esc(lineWhy(l.id)) + '</small></td><td>' + inp(p + '.term', 'text', 'term', t.term || 'Term') + '</td>' + pillar('life', true, true) + pillar('sev', true, false) + pillar('lsd', true, true) + pillar('ip', false, true) +
@@ -316,16 +313,13 @@
     return '<div class="acceptbox' + (c ? ' bad' : '') + '">' + (c ? '<p class="rednote">Another quote is also accepted (' + esc(names) + '). Only one quote can be accepted at a time, unless this is a deliberate second policy alongside the first.</p>' : '') +
       '<label class="chk"><input type="checkbox" data-second="' + p + '"' + (q.second ? ' checked' : '') + (state.newer ? ' disabled' : '') + '> Second policy alongside the first (a deliberate two-policy case)</label></div>';
   }
-  /* The insurer's terms, once the client has accepted and the insurer has answered: standard rates say just that; loadings and exclusions are typed here (the skill never writes them). Shown on the screen, in the PDF and in the Presentation. */
-  function termsBlock(q, p) {
-    var counter = !!q.counterOf, u = counter ? 'both' : calc.uwOf(q); if (!u || u === 'pending' || schema.UW_DECLINED.indexOf(u) >= 0) return '';
-    if (!counter && u !== 'standard' && calc.counterOffers(state, q).length && !((q.terms && q.terms.loadings || []).length + (q.terms && q.terms.exclusions || []).length)) return '<div class="uwblock"><h4>Underwriting outcome: ' + esc(schema.uwLabel[u]) + '</h4><p class="foot">The insurer\u2019s terms are on the counter offer below.</p></div>';
-    if (u === 'standard') return '<div class="uwblock"><h4>Underwriting outcome</h4><p class="uwline">Accepted at standard rates.</p></div>';
-    var t = q.terms || {}, dis = state.newer ? ' disabled' : '', h = '<div class="uwblock"><h4>' + (counter ? 'Underwriting terms of the counter offer' : 'Underwriting outcome: ' + esc(schema.uwLabel[u])) + '</h4>';
+  /* The typed tables of an insurer's terms (round 1.1). On a counter offer they are only the CORRECT BY HAND fold (round 1.3): the letter fills the terms, the loadings carry ONE reason for all of them (terms.reason), so the table has no reason columns. */
+  function termTables(q, p, u, counter) {
+    var t = q.terms || {}, dis = state.newer ? ' disabled' : '', h = '';
     if (u === 'loadings' || u === 'both') {
       var ls = Array.isArray(t.loadings) ? t.loadings : [];
-      h += '<div class="ovw"><table class="ovt terms ld' + (counter ? ' cnt' : '') + '"><thead><tr><th>Loading on</th><th>Percentage added</th><th>Reason</th><th>The reason in words</th><th></th></tr></thead><tbody>' +
-        (ls.map(function (r, i) { var rp = p + '.terms.loadings.' + i; return '<tr' + (r && r.st === 'verify' ? ' class="tocheck" title="Read from the letter: to check"' : '') + '><td>' + (r && r.column ? '<b class="tbenefit">' + esc(calc.termBenefit(r)) + '</b>' : sel(rp + '.benefit', schema.TERM_BENEFITS, 'text', false)) + termCell(r) + '</td><td>' + inp(rp + '.pct', 'pct') + '</td><td>' + sel(rp + '.kind', schema.LOADING_KINDS, 'text', !(r && r.kind)) + '</td><td>' + inp(rp + '.reason', 'text', '', 'e.g. raised blood pressure') + '</td><td><button type="button" class="x" data-delterm="' + p + '|loadings|' + i + '"' + dis + '>Remove</button></td></tr>'; }).join('') || '<tr><td colspan="5" class="empty">No loading typed yet.</td></tr>') +
+      h += '<div class="ovw"><table class="ovt terms ld' + (counter ? ' cnt' : '') + '"><thead><tr><th>Loading on</th><th>Percentage added</th>' + (counter ? '' : '<th>Reason</th><th>The reason in words</th>') + '<th></th></tr></thead><tbody>' +
+        (ls.map(function (r, i) { var rp = p + '.terms.loadings.' + i; return '<tr' + (r && r.st === 'verify' ? ' class="tocheck" title="Read from the letter: to check"' : '') + '><td>' + (r && r.column ? '<b class="tbenefit">' + esc(calc.termBenefit(r)) + '</b>' : sel(rp + '.benefit', schema.TERM_BENEFITS, 'text', false)) + termCell(r) + '</td><td>' + inp(rp + '.pct', 'pct') + '</td>' + (counter ? '' : '<td>' + sel(rp + '.kind', schema.LOADING_KINDS, 'text', !(r && r.kind)) + '</td><td>' + inp(rp + '.reason', 'text', '', 'e.g. raised blood pressure') + '</td>') + '<td><button type="button" class="x" data-delterm="' + p + '|loadings|' + i + '"' + dis + '>Remove</button></td></tr>'; }).join('') || '<tr><td colspan="' + (counter ? 3 : 5) + '" class="empty">No loading typed yet.</td></tr>') +
         '</tbody></table></div><div class="adders"><button type="button" class="addrow" data-addterm="' + p + '|loadings"' + dis + '>+ A loading</button></div>';
     }
     if (u === 'exclusions' || u === 'both') {
@@ -335,13 +329,49 @@
         (es.map(function (r, i) { var rp = p + '.terms.exclusions.' + i; return '<tr' + (r && r.st === 'verify' ? ' class="tocheck" title="Read from the letter: to check"' : '') + '>' + (hasNo ? '<td>' + inp(rp + '.no', 'text') + '</td>' : '') + '<td>' + (r && r.applies && r.applies.length ? '<b class="tbenefit">' + esc(calc.termBenefit(r)) + '</b>' : hasNo ? inp(rp + '.benefit', 'text') : sel(rp + '.benefit', schema.TERM_BENEFITS, 'text', true)) + (r && r.page ? '<small class="foot">page ' + esc(r.page) + '</small>' : '') + '</td><td>' + inp(rp + '.what', 'text', '', 'the condition or benefit excluded') + '</td><td>' + inp(rp + '.why', 'text', '', hasNo ? 'e.g. Medical' : 'e.g. a back injury in 2023') + '</td><td><button type="button" class="x" data-delterm="' + p + '|exclusions|' + i + '"' + dis + '>Remove</button></td></tr>'; }).join('') || '<tr><td colspan="' + (hasNo ? 5 : 4) + '" class="empty">No exclusion typed yet.</td></tr>') +
         '</tbody></table></div><div class="adders"><button type="button" class="addrow" data-addterm="' + p + '|exclusions"' + dis + '>+ An exclusion</button></div>';
     }
-    return h + '</div>';
+    return h;
+  }
+  /* The insurer's terms of an ordinary quote, once the client has accepted and the insurer has answered: standard rates say just that; loadings and exclusions are typed here. A counter offer has its own, plainer block. */
+  function termsBlock(q, p) {
+    if (q.counterOf) return counterTermsBlock(q, p);
+    var u = calc.uwOf(q); if (!u || u === 'pending' || schema.UW_DECLINED.indexOf(u) >= 0) return '';
+    if (u !== 'standard' && calc.counterOffers(state, q).length && !((q.terms && q.terms.loadings || []).length + (q.terms && q.terms.exclusions || []).length)) return '<div class="uwblock"><h4>Underwriting outcome: ' + esc(schema.uwLabel[u]) + '</h4><p class="foot">The insurer’s terms are on the counter offer below.</p></div>';
+    if (u === 'standard') return '<div class="uwblock"><h4>Underwriting outcome</h4><p class="uwline">Accepted at standard rates.</p></div>';
+    return '<div class="uwblock"><h4>Underwriting outcome: ' + esc(schema.uwLabel[u]) + '</h4>' + termTables(q, p, u, false) + '</div>';
+  }
+  /* Where the one reason for the loadings came from, in a few words. */
+  function reasonSrcText(r) {
+    if (!r) return '';
+    if (r.src && r.src.kind === 'uwemail') return 'underwriter’s e-mail' + (r.src.date ? ', ' + r.src.date : '');
+    return r.by === 'person' ? 'typed in' : '';
+  }
+  function reasonTitle(r) { var x = r && r.src; return x && x.kind === 'uwemail' ? [x.subject && 'Subject: ' + x.subject, x.sender && 'From: ' + x.sender, x.date && 'Date: ' + x.date, x.file && 'File: ' + x.file].filter(Boolean).join(' · ') : ''; }
+  /* The underwriting decision of a counter offer (round 1.3, Paul 25 November): the decision, then ONE plain summary, "Underwriting terms of the counter offer letter": the loadings of the pillars that carry one, the ONE reason for them
+     (from the underwriters' e-mail), and every exclusion once with the pillars it covers and the insurer's own wording. The tables that type them are a closed Correct by hand fold. */
+  function counterTermsBlock(q, p) {
+    var sm = calc.termsSummary(q), dis = state.newer ? ' disabled' : '', n = calc.termsToCheck(q), has = sm.loadings.length + sm.exclusions.length > 0, rs = sm.reason, hk = 'hand|' + q.id, t = q.terms || {};
+    var h = '<div class="uwblock uwdecision" data-uwdecision="' + esc(q.id) + '"><h4>Underwriting decision</h4>';
+    if (sm.decision) h += '<p class="uwpill"><span>Decision:</span> <b>' + esc(sm.decision) + '</b></p>';
+    h += '<div class="uwterms"><h5 class="uwh">Underwriting terms of the counter offer letter' + (sm.heading ? ': ' + esc(sm.heading) : '') + '</h5>';
+    if (!has) h += '<p class="foot">No loadings or exclusions have been read from the letter yet: use Add counter offer&hellip; on the original quote and tick the letter, or open Correct by hand.</p>';
+    if (sm.loadings.length) h += '<h6>Loadings</h6><ul class="uwld">' + sm.loadings.map(function (l) { return '<li data-pillar="' + l.pillar + '"><b>' + esc(l.label) + '</b><span class="rednote">' + esc(l.texts.join(', ')) + '</span></li>'; }).join('') + '</ul>';
+    if (rs) h += '<p class="uwreason' + (rs.st === 'verify' ? ' tocheck' : '') + '" data-uwreason-line' + (reasonTitle(rs) ? ' title="' + esc(reasonTitle(rs)) + '"' : '') + '><b>Reason</b> ' + esc(rs.text) + (reasonSrcText(rs) ? ' <small class="foot">(' + esc(reasonSrcText(rs)) + ')</small>' : '') + '</p>';
+    else if (sm.loadings.length) h += '<p class="amberline uwnoreason">Reason not found yet: the letter gives none. Add the underwriter’s e-mail, or type the reason in Correct by hand.</p>';
+    if (sm.exclusions.length) h += '<h6>Exclusions</h6>' + sm.exclusions.map(function (ex) { return '<div class="uwex"><span class="redno">' + esc(ex.no) + '</span> <span class="pil">' + esc(ex.benefit) + '</span>' + (ex.page ? ' <small class="foot">page ' + esc(ex.page) + '</small>' : '') + (ex.what ? '<p>' + esc(ex.what) + '</p>' : '') + '</div>'; }).join('');
+    if (n) h += '<p class="amberline">' + n + (n === 1 ? ' item was' : ' items were') + ' read from the letter or the e-mail and ' + (n === 1 ? 'is' : 'are') + ' to check. <button type="button" class="x" data-confirmterms="' + p + '"' + dis + '>Terms checked</button></p>';
+    var mk = 'mail|' + q.id, m = uwMsg[q.id] || {};
+    h += '<details class="bre uwmail" data-keep="' + mk + '"' + (foldOpen(mk, false) ? ' open' : '') + '><summary>Add the underwriter’s e-mail&hellip;</summary><p class="sub">The reason for the loadings comes from the e-mail the underwriters sent about this quote. Choose the saved e-mail (or a PDF of it), or paste its text. It is read for the reason' + (q.number ? ' and must name this quote (CP ' + esc(q.number) + ')' : '') + '.</p>' +
+      '<div class="fbtns"><button type="button" class="btn small" data-uwfile="' + esc(q.id) + '"' + dis + '>Choose the e-mail file&hellip;</button></div>' +
+      '<textarea rows="6" placeholder="&hellip;or paste the e-mail here" data-uw-text="' + esc(q.id) + '"' + dis + '>' + esc(uwText[q.id] || '') + '</textarea><div class="fbtns"><button type="button" class="btn small" data-uw-read="' + esc(q.id) + '"' + dis + '>Read it</button> <span class="breMsg' + (m.bad ? ' bad' : '') + '" data-uw-msg="' + esc(q.id) + '">' + esc(m.t || '') + '</span></div></details>';
+    h += '<details class="uwhand" data-keep="' + hk + '"' + (foldOpen(hk, !has) ? ' open' : '') + '><summary>Correct by hand</summary>' + termTables(q, p, 'both', true) +
+      '<label class="f uwreasonbox"><span class="l">The reason for the loadings (one reason for all of them)</span><div class="box"><textarea rows="2" data-uwreason="' + p + '"' + dis + ' placeholder="e.g. raised blood pressure">' + esc(t.reason && typeof t.reason === 'object' ? t.reason.text || '' : (rs && !rs.own ? rs.text : '')) + '</textarea></div></label></details>';
+    return h + '</div></div>';
   }
   /* Under a loading read from a letter: which need group and column group it belongs to. */
   function termCell(r) {
     if (!r || (!r.need && !r.column)) return '';
     var ng = schema.needGroupById[r.need], cg = schema.columnGroupById[r.column];
-    return '<small class="foot">' + esc([ng && ng.l, cg && cg.l].filter(Boolean).join(' · ')) + '</small>';
+    return '<small class="foot">' + esc([ng && ng.l, cg && !(ng && ng.only) && cg.l].filter(Boolean).join(' · ')) + '</small>';          // the additional expense row is severe illness whatever column the letter prints it under
   }
   /* Premium before, after and the difference of a counter offer (derived: the quote before it and the counter offer's own premium, else the letter's two premiums). */
   function premText(pr) {
@@ -351,14 +381,14 @@
   /* The head of a counter offer: what it is, its letter, its expiry, the premium, a signed copy, what the letter says beyond the terms, and the terms still to check. */
   function counterBlock(q, p) {
     var root = calc.parentOf(state, q); if (!root) return '';
-    var off = q.offer || {}, pr = calc.counterPremium(state, q), n = calc.termsToCheck(q), dis = state.newer ? ' disabled' : '';
+    var off = q.offer || {}, pr = calc.counterPremium(state, q);
     var meta = [off.letter ? 'Letter: ' + off.letter : 'The letter is not loaded yet', off.expires ? 'The revised proposal expires ' + off.expires : '', off.startDate ? 'The letter proposes the start date ' + off.startDate : ''].filter(Boolean).join(' \u00b7 ');
     var h = '<div class="uwblock counterblock" data-counter="' + esc(q.id) + '"><h4>Counter offer to ' + esc(calc.quoteRef(root)) + '</h4><p class="uwline">' + esc(meta) + ' ' + vb(p + '.letter') + '</p>';
     var pt = premText(pr); if (pt) h += '<p class="uwline premline">' + esc(pt) + '</p>';
+    var pw = calc.premiumWarning(state, q); if (pw) h += '<p class="amberline premwarn">' + esc(pw) + '</p>';          // the revised Cover Proposal must match the letter exactly: any difference, even a cent, is named
     if (off.signed && q.status === 'pending') h += '<p class="blue">A signed copy of the letter (' + esc(off.signed) + ') is in the folder. That usually means the client accepted: set the client decision above if so. It was not read.</p>';
     if (off.notes) h += '<p class="rednote">' + esc('The letter also says: ' + off.notes) + '</p>';
     if (!calc.activeLines(q).length) h += '<p class="blue">The counter offer quote is not loaded yet: use Add counter offer&hellip; on the original quote and tick the revised proposal.</p>';
-    if (n) h += '<p class="amberline">' + n + (n === 1 ? ' term was' : ' terms were') + ' read from the letter and ' + (n === 1 ? 'is' : 'are') + ' to check. <button type="button" class="x" data-confirmterms="' + p + '"' + dis + '>Terms checked</button></p>';
     return h + '</div>';
   }
   /* Under the quote the client accepted: its counter offers and the button that adds one (only where underwriting came back with loadings, exclusions or both). */
@@ -1094,6 +1124,31 @@
     return '<details class="bre"><summary>Paste BrightRock email</summary><p class="sub">Paste the email BrightRock sent about this quote (the death-related income portion is often only there). It is read for CP ' + esc(q.number || '') + ', and the figure goes into the death-related line.</p>' +
       '<textarea rows="6" placeholder="Paste the BrightRock email here…" data-bre-text="' + q.id + '">' + esc(breText[q.id] || '') + '</textarea><div class="fbtns"><button type="button" class="btn small" data-bre-read="' + q.id + '">Read it</button> <span class="breMsg" data-bre-msg="' + q.id + '"></span></div></details>';
   }
+  /* The underwriters' e-mail (round 1.3, contract revision o): a saved e-mail (.eml, .msg, .txt, a PDF of it) or pasted text is read for the ONE reason for the loadings, which goes into the counter offer's terms.reason with the e-mail's subject, sender and date,
+     amber until Terms checked. An e-mail that names only other quotes fills nothing; a reason typed or checked is never replaced. */
+  function uwSay(qid, t, bad) { uwMsg[qid] = { t: t, bad: !!bad }; var m = document.querySelector('[data-uw-msg="' + qid + '"]'); if (m) { m.textContent = t; m.className = 'breMsg' + (bad ? ' bad' : ''); } }
+  function readUwEmail(qid, file) {
+    var q = store.findQuote(state, qid), txt = String(uwText[qid] || '').trim();
+    if (!q || !q.counterOf) return Promise.resolve();
+    if (!file && !txt) { uwSay(qid, 'Paste the e-mail first, or choose its file.', true); return Promise.resolve(); }
+    var key = aiKey(); keepOpen['mail|' + qid] = true;
+    if (!aiOn() || !key.apiKey) { toastLink('Reading the e-mail needs your Anthropic key.', 'Add the key in Settings', openSettings, 20000); uwSay(qid, 'Reading needs your key (More → Settings).', true); return Promise.resolve(); }
+    var nb = schema.blockOfQuote[q.kind], label = file ? file.name : 'pasted e-mail', isText = !file || /\.(eml|msg|txt|html?)$/i.test(file.name);
+    progStart(nb); progStep(nb, 30, 'Reading the underwriter’s e-mail…'); uwSay(qid, 'Reading…');
+    var textP = !file ? Promise.resolve(D.emailText(txt)) : !isText ? Promise.resolve(null) : /\.msg$/i.test(file.name) ? file.arrayBuffer().then(function (b) { return D.msgText(new Uint8Array(b)); }) : file.text().then(D.emailText);
+    return textP.then(function (t) {
+      return t != null ? D.readWithClaude({ apiKey: key.apiKey, model: key.model, block: 'uwemail', text: t, textLabel: 'THE E-MAIL' })
+        : toBase64(file).then(function (b64) { return D.readWithClaude({ apiKey: key.apiKey, model: key.model, mediaType: file.type || 'application/pdf', base64: b64, block: 'uwemail' }); });
+    }).then(function (r) {
+      if (D.isEmptyRead('uwemail', r.data)) { progEnd(nb, 'done', 'E-mail read: no reason in it'); uwSay(qid, 'The e-mail gives no reason for the loadings.', true); return; }
+      var a = D.applyUwEmail(state, r.data, label, { quote: q }); if (a.set || a.kept) D.logDoc(state, label, 'uwemail', 'read');          // an e-mail that is not about this quote is not recorded against this client
+      var nums = a.mismatch ? a.mismatch.map(function (x) { return 'CP ' + x; }).join(', ') : '';
+      var msg = a.set ? 'The reason was filled in from the e-mail: amber until you tick Terms checked.' : a.kept ? 'The reason was typed or checked already: kept.' : a.mismatch ? 'The e-mail names ' + nums + ', not this quote (CP ' + (q.number || 'no number yet') + '): nothing was filled in.' : 'Nothing was filled in.';
+      lastLog.push({ msg: label + ': ' + msg, warn: !a.set }); uwSay(qid, msg, !a.set);
+      if (a.set) { check.settleAll(state); touch(); }
+      redraw(); progEnd(nb, 'done', a.set ? 'E-mail read: reason filled' : 'E-mail read: nothing filled');
+    }).catch(function (e) { progEnd(nb, 'error', 'Could not read the e-mail: ' + (e && e.message || 'an error')); uwSay(qid, 'Could not read it: ' + (e && e.message || 'an error'), true); });
+  }
   /* Documents, one after the other (each may be read by Claude, which takes a moment): QUOTES FIRST, then the pay-out guides (a guide needs its quote), then the ones the adviser had to sort. */
   function ingest(files, o) {
     o = Object.assign({}, o || {}); files = uniqueFiles([].slice.call(files)); unmatchedGuides = {}; o.guides = {};
@@ -1442,6 +1497,8 @@
   function refreshChromeSoft() { clearTimeout(softT); softT = setTimeout(refreshChrome, 250); }
   $('#main').addEventListener('change', function (e) {
     var el = e.target;
+    var uwr = el.getAttribute && el.getAttribute('data-uwreason');
+    if (uwr) { if (state.newer) return; store.setUwReason(state, uwr, el.value); check.settleAll(state); dirty = true; onDisk = false; touch(); redraw(); return; }          // the adviser's own reason for the loadings: it is his word, a later e-mail never replaces it
     var pick = el.getAttribute && el.getAttribute('data-replpick'), sec = el.getAttribute && el.getAttribute('data-second'), ans = el.getAttribute && el.getAttribute('data-replans');
     if (pick || sec || ans) {                                                                                  // the adviser's answers about a quote (round 1.1): never a check of the quote's figures
       if (state.newer) return;
@@ -1456,6 +1513,7 @@
     if (el.tagName === 'SELECT') { typed(el); if (/\.status$|\.requested$|\.wr$|\.uw$|\.terms\.loadings\.\d+\.kind$/.test(p)) { touch(); redraw(); if (/\.uw$/.test(p)) warnAcceptance(p.replace(/\.uw$/, '')); return; } }
     if (el.tagName === 'INPUT' && /\.brokerChangedDate$/.test(p)) { typed(el); touch(); redraw(); return; }
     if (el.tagName === 'INPUT' && /\.terms\.(loadings|exclusions)\.\d+\./.test(p)) { touch(); redraw(); return; }
+    if (el.tagName === 'INPUT' && /\.quotes\.\d+\.premium$/.test(p) && (store.pathGet(state, p.replace(/\.premium$/, '')) || {}).counterOf) { check.settleAll(state); touch(); redraw(); return; }          // a premium typed on a counter offer quote is the adviser's check of the figure (the letter's figure follows it): the warning and the premium line are drawn again
     var k = el.getAttribute('data-k'), v = store.pathGet(state, p);
     if (el.tagName === 'INPUT') { el.value = dispIn(v, k); el.classList.toggle('isna', v === 'N/A' || v === 'Not found'); }
     touch(); paintComputed(); paintStatuses();
@@ -1512,7 +1570,10 @@
   $('#btnReadFolder').addEventListener('click', loadFromClientFolder);
   $('#btnSettings').addEventListener('click', openSettings);
   $('#btnCheck').addEventListener('click', function () { checksOpen = false; checksInner = false; check.settleAll(state); checkPass({ explicit: true }); });
-  $('#main').addEventListener('input', function (e) { var t = e.target; if (t && t.getAttribute && t.getAttribute('data-bre-text')) breText[t.getAttribute('data-bre-text')] = t.value; });
+  $('#main').addEventListener('input', function (e) { var t = e.target; if (t && t.getAttribute && t.getAttribute('data-bre-text')) breText[t.getAttribute('data-bre-text')] = t.value; if (t && t.getAttribute && t.getAttribute('data-uw-text')) uwText[t.getAttribute('data-uw-text')] = t.value; });
+  $('#main').addEventListener('toggle', function (e) { var d = e.target; if (d && d.getAttribute && d.getAttribute('data-keep')) keepOpen[d.getAttribute('data-keep')] = d.open; }, true);          // a fold stays the way it was left when the page is drawn again
+  $('#main').addEventListener('click', function (e) { var b = e.target.closest && e.target.closest('[data-uw-read]'); if (b && !state.newer) readUwEmail(b.getAttribute('data-uw-read'), null); var f = e.target.closest && e.target.closest('[data-uwfile]'); if (f && !state.newer) { uwPending = f.getAttribute('data-uwfile'); $('#docMail').click(); } });
+  $('#docMail').addEventListener('change', function (e) { var f = e.target.files[0], id = uwPending; e.target.value = ''; uwPending = null; if (f && id) readUwEmail(id, f); });
   $('#main').addEventListener('click', function (e) { var b = e.target.closest && e.target.closest('[data-bre-read]'); if (b) readPastedEmail(b.getAttribute('data-bre-read')); });
   $('#docIn').addEventListener('change', function (e) { var fs = [].slice.call(e.target.files); e.target.value = ''; if (fs.length) ingest(fs, {}); });
   $('#docOne').addEventListener('change', function (e) { var f = e.target.files[0], o = pending || {}; e.target.value = ''; pending = null; if (f) ingest([f], o); });
@@ -1532,7 +1593,7 @@
   state = store.blank();
   if (restored) draftHold = true; else rememberHandle(null);
   window.OV.app = { get state() { return state; }, makePdf: makePdf, ingest: ingest, redraw: redraw, setState: function (s) { state = s; redraw(); }, fillFactFindText: function (t, n) { var rep = store.fillFromFactFind(state, t, n); touch(); redraw(); return rep; }, go: function (b) { cur = b; drawNav(); drawMain(true); refreshChrome(); },
-    openAll: function (yes) { openDefault = yes !== false; openSet = {}; drawMain(); }, isOpen: isOpen, aiOn: aiOn, lastLog: function () { return lastLog.slice(); }, checkPass: checkPass, get last() { return last; }, uniqueFiles: uniqueFiles };           // every item open (or folded) at once: for the tests of the older layout; the page itself starts folded
+    openAll: function (yes) { openDefault = yes !== false; allOpen = yes !== false; keepOpen = {}; openSet = {}; drawMain(); }, isOpen: isOpen, aiOn: aiOn, lastLog: function () { return lastLog.slice(); }, checkPass: checkPass, get last() { return last; }, uniqueFiles: uniqueFiles };           // every item open (or folded) at once: for the tests of the older layout; the page itself starts folded
   redraw();
   var HO = null, HF = window.FF && FF.handover;
   if (HF) { HF.bindMenu(document); HO = HF.wants(window) ? HF.peek() : null; HF.stripFlag(window); }

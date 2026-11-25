@@ -120,49 +120,103 @@
   }
   /* Whether a quote can have a counter offer added: the client accepted it and underwriting came back with loadings, exclusions or both. */
   function canCounter(state, q) { var u = uwOf(q); return !!q && !q.counterOf && !parentOf(state, q) && accepted(q) && (u === 'loadings' || u === 'exclusions' || u === 'both'); }
-  /* Before, after and the difference of a counter offer's premium: the quote before it in the chain (else the letter's original premium), and the counter offer's own premium (else the letter's revised premium). */
+  /* Before, after and the difference of a counter offer's premium: the letter's original and revised premium (the letter is the source), else the premium of the quote before it in the chain and the counter offer's own premium. */
   function counterPremium(state, c) {
     var root = parentOf(state, c); if (!root) return null;
     var chain = [root].concat(counterOffers(state, root)), prev = chain[Math.max(0, chain.indexOf(c) - 1)], off = c.offer || {};
-    var before = isNum(prev.premium) ? prev.premium : isNum(off.origPremium) ? off.origPremium : null, after = isNum(c.premium) ? c.premium : isNum(off.revPremium) ? off.revPremium : null;
+    var before = isNum(off.origPremium) ? off.origPremium : isNum(prev.premium) ? prev.premium : null, after = isNum(off.revPremium) ? off.revPremium : isNum(c.premium) ? c.premium : null;          // round 1.3: the LETTER is the source of before and after (the contract); the quotes fill in only what the letter does not print
     var diff = isNum(before) && isNum(after) ? r2(after - before) : null;
     return { before: before, after: after, diff: diff, pct: isNum(diff) && before > 0 ? Math.round(diff / before * 10000) / 100 : null, prev: prev };
   }
-  /* The red references a quote's terms put on the pillar columns: [{ kind, text, need, pillars }]. A loading belongs to a need group and a column group (BrightRock's letter), or to a benefit a person typed; an exclusion is
-     numbered as the insurer numbers it and lists the cells it applies to. Derived: nothing is stored per line. */
+  /* The letter's premiums are the source (Paul, 25 November: "the revised COL quote should match the letter exactly"). The counter offer quote takes the letter's REVISED premium whatever it printed, so a card never prints two premiums; the
+     figure the revised Cover Proposal itself printed is kept in offer.quotePremium and premiumWarning says so when it differs, even by a cent. The quote BEFORE the counter offer takes the letter's original premium only when it differs by
+     5 cents or less (a larger difference stays and the check counter.premium says so: that quote is another document). Runs when a document is read and when a file opens (settleAll), so a file the skill built, or one saved by 1.2, opens with
+     one figure too. Returns how many premiums it changed. */
+  function cents(v) { return Math.round(v * 100); }
+  function alignPremiums(state) {
+    var n = 0, near = function (a, b) { return isNum(a) && isNum(b) && a !== b && Math.abs(a - b) <= 0.05; };
+    mainQuotes(state).forEach(function (root) {
+      var chain = [root].concat(counterOffers(state, root));
+      for (var i = 1; i < chain.length; i++) {
+        var c = chain[i], p = chain[i - 1], off = c.offer && typeof c.offer === 'object' ? c.offer : {};
+        if (near(p.premium, off.origPremium)) { p.premium = off.origPremium; n++; }
+        if (isNum(off.revPremium) && isNum(c.premium)) {
+          if (off.quotePremium == null || !isNum(off.quotePremium)) off.quotePremium = c.premium;                      // a file nobody has read the quote into (the skill's, or 1.2's): the quote's premium is what the proposal printed
+          if (cents(c.premium) !== cents(off.revPremium)) { c.premium = off.revPremium; n++; }
+        }
+      }
+    });
+    return n;
+  }
+  /* The amber warning of a counter offer whose revised Cover Proposal prints another premium than the letter (even a cent): both figures named. '' when they agree or one of them is not known. Used by the card and by the check. */
+  function premiumWarning(state, q) {
+    var off = q && q.counterOf && q.offer && typeof q.offer === 'object' ? q.offer : null;
+    if (!off || !isNum(off.revPremium) || !isNum(off.quotePremium) || cents(off.quotePremium) === cents(off.revPremium)) return '';
+    var m2 = function (v) { return 'R' + v.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ','); };          // both figures with their cents: they can differ by one
+    return 'The revised Cover Proposal prints ' + m2(off.quotePremium) + ' a month; the counter offer letter says ' + m2(off.revPremium) + '. The letter\u2019s figure is the one used everywhere: check which of the two is right.';
+  }
+  /* The red references a quote's terms put on the pillar columns: [{ kind, text, pillars }]. A loading or an exclusion belongs to PILLARS (Paul, 25 November: "a loading would apply NOT to individual line items BUT to pillars: life, disability,
+     severe and ICB"), so it is shown once per pillar, in the Loadings and exclusions row under the totals, never on a line. A loading is a cell of BrightRock's letter (a need group and a column group) or a benefit a person typed; an exclusion
+     is numbered as the insurer numbers it and lists the cells it applies to. Derived: nothing is stored per line. */
   function pctText(p) { return (Math.round(p * 100) / 100) + '%'; }
   function termRefs(q) {
     var out = [], t = q && q.terms || {};
     (t.loadings || []).forEach(function (l) {
       if (!l || !isNum(l.pct) || !(l.pct > 0)) return;
-      var col = schema.columnGroupById[l.column], pil = col ? col.pillars : (schema.BENEFIT_PILLARS[l.benefit] || schema.BENEFIT_PILLARS['All benefits']);
-      out.push({ kind: 'loading', text: '+' + pctText(l.pct) + ' loading', need: schema.needGroupById[l.need] ? l.need : null, pillars: pil });
+      var col = schema.cellOf(l.need, l.column), pil = col ? col.pillars : (schema.BENEFIT_PILLARS[l.benefit] || schema.BENEFIT_PILLARS['All benefits']);          // the need group decides the pillar where the table says so (round 1.3)
+      out.push({ kind: 'loading', text: '+' + pctText(l.pct) + ' loading', pillars: pil });
     });
     (t.exclusions || []).forEach(function (e, i) {
       if (!e) return;
       var label = 'Exclusion ' + (String(e.no == null ? '' : e.no).trim() || (i + 1)), cells = Array.isArray(e.applies) ? e.applies.filter(function (a) { return a && schema.columnGroupById[a.column]; }) : [];
-      if (!cells.length) { out.push({ kind: 'exclusion', text: label, need: null, pillars: schema.BENEFIT_PILLARS[e.benefit] || schema.BENEFIT_PILLARS['All benefits'] }); return; }
-      cells.forEach(function (a) { out.push({ kind: 'exclusion', text: label, need: schema.needGroupById[a.need] ? a.need : null, pillars: schema.columnGroupById[a.column].pillars }); });
+      if (!cells.length) { out.push({ kind: 'exclusion', text: label, pillars: schema.BENEFIT_PILLARS[e.benefit] || schema.BENEFIT_PILLARS['All benefits'] }); return; }
+      cells.forEach(function (a) { out.push({ kind: 'exclusion', text: label, pillars: schema.cellOf(a.need, a.column).pillars }); });
     });
     return out;
   }
-  /* The references that belong in one cell: the line type's need group and the pillar. Duplicates (the same text) are shown once. */
-  function refsAt(q, lineType, pillarId) {
-    var g = schema.needGroupOfLine[lineType] || 'needs', seen = {}, out = [];
-    termRefs(q).forEach(function (r) { if ((r.need && r.need !== g) || r.pillars.indexOf(pillarId) < 0 || seen[r.text]) return; seen[r.text] = 1; out.push(r); });
-    return out;
-  }
+  /* The references of ONE pillar (the Loadings and exclusions row under the totals, in the pillar's column): duplicates (the same text) are shown once. */
   function refsTotal(q, pillarId) { var seen = {}, out = []; termRefs(q).forEach(function (r) { if (r.pillars.indexOf(pillarId) < 0 || seen[r.text]) return; seen[r.text] = 1; out.push(r); }); return out; }
   /* The benefit a term row is about, DERIVED from the column group (a loading) or the cells it applies to (an exclusion), so a correction of the mapping reaches every file; a typed row keeps what was typed. */
   function termBenefit(r) {
     if (!r) return '';
-    if (r.column && schema.columnGroupById[r.column]) return schema.columnGroupById[r.column].benefit;
+    if (r.column && schema.columnGroupById[r.column]) return schema.cellOf(r.need, r.column).benefit;          // round 1.3: the need group decides (needs + recover = income protector, dread + recover = severe illness); a file saved by 1.2 opens with the new label because the stored `benefit` is never read here
     var cells = Array.isArray(r.applies) ? r.applies.filter(function (a) { return a && schema.columnGroupById[a.column]; }) : [];
-    if (cells.length) { var out = []; cells.forEach(function (a) { var b = schema.columnGroupById[a.column].benefit; if (out.indexOf(b) < 0) out.push(b); }); return out.join(' and '); }
+    if (cells.length) return schema.cellsBenefit(cells);
     return r.benefit || '';
   }
+  /* The letter's text can put an exclusion's own number (with its asterisk) in the middle of the paragraph that explains it. The number is never part of the wording: out it goes, but only when it carries a mark that is not a digit or a letter
+     (a bare 4 could be real text) or when it stands alone on a line. Used when the letter is read and when a file read by 1.2 is opened. */
+  function ownNumberOut(what, no) {
+    var w = String(what == null ? '' : what), tok = String(no == null ? '' : no).trim(); if (!tok || !w) return w;
+    var esc = tok.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    w = /[^0-9A-Za-z]/.test(tok) ? w.replace(new RegExp('(^|\\s)' + esc + '(?=\\s|$)', 'g'), '$1') : w.replace(new RegExp('(^|\\n)[ \\t]*' + esc + '[ \\t]*(?=\\n|$)', 'g'), '$1');
+    return w.replace(/[ \t]{2,}/g, ' ').replace(/[ \t]+\n/g, '\n').replace(/\n{2,}/g, '\n').trim();          // the wording is one paragraph: a number taken out of the middle never leaves a blank line
+  }
   /* The terms a counter offer read from the letter that nobody has checked yet. */
-  function termsToCheck(q) { var t = q && q.terms || {}, n = 0; ['loadings', 'exclusions'].forEach(function (k) { (t[k] || []).forEach(function (r) { if (r && r.st === 'verify') n++; }); }); return n; }
+  function termsToCheck(q) { var t = q && q.terms || {}, n = 0; ['loadings', 'exclusions'].forEach(function (k) { (t[k] || []).forEach(function (r) { if (r && r.st === 'verify') n++; }); }); if (t.reason && typeof t.reason === 'object' && t.reason.st === 'verify' && String(t.reason.text || '').trim()) n++; return n; }
+  /* The ONE reason for the loadings (Paul, 25 November: "one reason for all the loadings", from the underwriter's e-mail): terms.reason { text, kind, src, st, by }. A file built before it has the reason typed in each loading row: the distinct ones are shown
+     once, so nothing typed is lost. null when there is none. */
+  function termsReason(q) {
+    var t = q && q.terms || {}, r = t.reason;
+    if (r && typeof r === 'object' && String(r.text || '').trim()) return { text: String(r.text).trim(), kind: r.kind || null, src: r.src && typeof r.src === 'object' ? r.src : null, st: r.st || 'verify', by: r.by || null, own: true };
+    var seen = {}, parts = []; (Array.isArray(t.loadings) ? t.loadings : []).forEach(function (l) { var x = l && typeof l.reason === 'string' ? l.reason.trim() : ''; if (x && !seen[x.toLowerCase()]) { seen[x.toLowerCase()] = 1; parts.push(x); } });
+    return parts.length ? { text: parts.join('; '), kind: null, src: null, st: 'confirmed', by: 'person', own: false } : null;
+  }
+  /* What a counter offer's underwriting terms say, in the plain form the screen, the PDF and the Presentation all draw (Paul, 25 November): a heading (loadings and exclusions, loadings, exclusions), the loadings of the pillars that carry one (from
+     refsTotal, so this can never disagree with the Loadings and exclusions row under the totals; a pillar can carry two percentages), the reason once, and every exclusion once with its number, the pillars it covers and the insurer's own wording. */
+  function termsSummary(q) {
+    var t = q && q.terms || {}, loadings = [], exclusions = [];
+    schema.PILLARS.forEach(function (p) { var l = refsTotal(q, p.id).filter(function (r) { return r.kind === 'loading'; }); if (l.length) loadings.push({ pillar: p.id, label: schema.PILLAR_SHORT[p.id] || p.l, texts: l.map(function (r) { return r.text; }) }); });
+    (Array.isArray(t.exclusions) ? t.exclusions : []).forEach(function (e, i) {
+      if (!e || typeof e !== 'object') return;
+      var what = typeof e.what === 'string' ? e.what.trim() : '', no = String(e.no == null ? '' : e.no).trim();
+      if (!what && !no) return;
+      exclusions.push({ no: no || String(i + 1), label: 'Exclusion ' + (no || (i + 1)), benefit: termBenefit(e), what: what, page: isNum(e.page) ? e.page : null, type: typeof e.why === 'string' ? e.why.trim() : '', st: e.st || null, index: i });
+    });
+    var heading = loadings.length && exclusions.length ? 'loadings and exclusions' : loadings.length ? 'loadings' : exclusions.length ? 'exclusions' : '',
+      kind = loadings.length && exclusions.length ? 'both' : loadings.length ? 'loadings' : exclusions.length ? 'exclusions' : null;
+    return { heading: heading, kind: kind, decision: kind ? schema.uwLabel[kind] : '', loadings: loadings, reason: loadings.length || termsReason(q) ? termsReason(q) : null, exclusions: exclusions };
+  }
 
   /* Block 1: the policies that are not removed, and every accepted quote that has been issued (policy number and start date): it is shown here as a WR policy and no longer as a quote.
      A schedule with the same policy number wins over the quote. Each entry is { item, derived }. */
@@ -193,6 +247,8 @@
     if (q.counterOf) { if (q.uw) { q.uw = null; n++; } if (!q.offer || typeof q.offer !== 'object') { q.offer = {}; n++; } } else if (q.offer === undefined) q.offer = null;
     var t = q.terms && typeof q.terms === 'object' ? q.terms : (q.terms = { loadings: [], exclusions: [] }, n++);
     if (!Array.isArray(t.loadings)) { t.loadings = []; n++; } if (!Array.isArray(t.exclusions)) { t.exclusions = []; n++; }
+    if (t.reason !== undefined) { if (t.reason === null || typeof t.reason !== 'object' || Array.isArray(t.reason)) { delete t.reason; n++; } else if (typeof t.reason.text !== 'string') { t.reason.text = ''; n++; } }          // round 1.3 (contract revision o): the one reason for the loadings; a hand-edited file never breaks the page
+    if (q.counterOf) t.exclusions.forEach(function (e) { if (e && e.no && typeof e.what === 'string' && e.st === 'verify' && e.by !== 'person') { var w = ownNumberOut(e.what, e.no); if (w !== e.what) { e.what = w; n++; } } });          // round 1.3: a row read by 1.2 may carry its own number in the wording; nothing a person typed or checked is touched
     var r = q.repl && typeof q.repl === 'object' ? q.repl : (q.repl = { answer: null, policies: [] }, n++);
     if (r.answer !== 'yes' && r.answer !== 'no' && r.answer !== null) { r.answer = null; n++; } if (r.answer === undefined) r.answer = null;
     if (!Array.isArray(r.policies)) { r.policies = []; n++; }
@@ -356,7 +412,7 @@
   var PAGE_WHY = { shortfallQuote: 'Left out: there is no group risk, or no shortfall quote was asked for.', comparative: 'Left out: no comparative quote was asked for in the Fact Find.', proposed: 'Left out: there are no proposed investments.', goals: 'Left out: no goal analysis report was asked for.' };
   function pageWhy(id) { return PAGE_WHY[id] || ''; }
 
-  return { settleQuote: settleQuote, parentOf: parentOf, isCounter: isCounter, mainQuotes: mainQuotes, counterOffers: counterOffers, liveCounter: liveCounter, effectiveQuote: effectiveQuote, counterDead: counterDead, chainIds: chainIds, chainIssued: chainIssued, canCounter: canCounter, counterPremium: counterPremium, termRefs: termRefs, termBenefit: termBenefit, refsAt: refsAt, refsTotal: refsTotal, termsToCheck: termsToCheck, uwOf: uwOf, declined: declined, accepted: accepted, dead: dead, issued: issued, statusText: statusText, statusClass: statusClass, acceptedQuotes: acceptedQuotes, acceptanceConflicts: acceptanceConflicts, replOf: replOf, quoteRef: quoteRef, policyRef: policyRef, replaceable: replaceable, replacementInfo: replacementInfo, policyNote: policyNote, settleLine: settleLine, aciPoints: aciPoints, sameDebtName: sameDebtName, isNum: isNum, r2: r2, norm: norm, fmtR: fmtR, fmtPct: fmtPct, fmtAci: fmtAci, matchChildren: matchChildren, matchDebts: matchDebts, pageShown: pageShown, pageWhy: pageWhy, fmtDiff: fmtDiff, show: show, lineVal: lineVal, active: active, activeLines: activeLines, totals: totals, sumLines: sumLines,
+  return { alignPremiums: alignPremiums, ownNumberOut: ownNumberOut, settleQuote: settleQuote, parentOf: parentOf, isCounter: isCounter, mainQuotes: mainQuotes, counterOffers: counterOffers, liveCounter: liveCounter, effectiveQuote: effectiveQuote, counterDead: counterDead, chainIds: chainIds, chainIssued: chainIssued, canCounter: canCounter, counterPremium: counterPremium, premiumWarning: premiumWarning, termsSummary: termsSummary, termsReason: termsReason, cents: cents, termRefs: termRefs, termBenefit: termBenefit, refsTotal: refsTotal, termsToCheck: termsToCheck, uwOf: uwOf, declined: declined, accepted: accepted, dead: dead, issued: issued, statusText: statusText, statusClass: statusClass, acceptedQuotes: acceptedQuotes, acceptanceConflicts: acceptanceConflicts, replOf: replOf, quoteRef: quoteRef, policyRef: policyRef, replaceable: replaceable, replacementInfo: replacementInfo, policyNote: policyNote, settleLine: settleLine, aciPoints: aciPoints, sameDebtName: sameDebtName, isNum: isNum, r2: r2, norm: norm, fmtR: fmtR, fmtPct: fmtPct, fmtAci: fmtAci, matchChildren: matchChildren, matchDebts: matchDebts, pageShown: pageShown, pageWhy: pageWhy, fmtDiff: fmtDiff, show: show, lineVal: lineVal, active: active, activeLines: activeLines, totals: totals, sumLines: sumLines,
     quotes: quotes, allQuotes: allQuotes, policies: policies, policyTotals: policyTotals, groupItems: groupItems, hasGroupRisk: hasGroupRisk, groupTotals: groupTotals, investments: investments,
     personalInvestments: personalInvestments, shortfall: shortfall, compare: compare, pillars: pillarOfBlock };
 });

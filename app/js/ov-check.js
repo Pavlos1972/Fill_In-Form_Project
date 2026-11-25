@@ -99,7 +99,10 @@
         if (isNum(q.disabilityAge) && isNum(h.disabilityAge) && q.disabilityAge !== h.disabilityAge) add('age', block, where, 'The quote covers disability to age ' + q.disabilityAge + '; the Fact Find says ' + h.disabilityAge + '.');
         if (kind === 'reduced' && !q.counterOf && isNum(q.premium) && isNum(h.premiumBudget) && q.premium > h.premiumBudget + tol) add('budget', block, where, 'The premium of ' + fmtR(q.premium) + ' is above the client\'s budget of ' + fmtR(h.premiumBudget) + '.');
         if (kind !== 'comparative' && /bright/i.test(q.insurer) && figures && !q.cmp) add('gaps', block, where, 'No change moment pay-out guide found for CP ' + (q.number || '(no number yet)') + '.');
-        if (q.counterOf) { var nt = calc.termsToCheck(q); if (nt) add('counter.terms', block, where, nt + (nt === 1 ? ' term' : ' terms') + ' read from the counter offer letter ' + (nt === 1 ? 'is' : 'are') + ' to check (the Terms checked button confirms them).'); }          // round 1.2
+        if (q.counterOf) { var nt = calc.termsToCheck(q); if (nt) add('counter.terms', block, where, nt + (nt === 1 ? ' term' : ' terms') + ' read from the counter offer letter or the underwriters\' e-mail ' + (nt === 1 ? 'is' : 'are') + ' to check (the Terms checked button confirms them).'); }          // round 1.2
+        if (q.counterOf && q.offer) { var cpm = calc.counterPremium(state, q), po = q.offer, pw = calc.premiumWarning(state, q);
+          if (pw) add('counter.premium', block, where, pw);                                                    // round 1.3 (Paul): the revised Cover Proposal must match the letter exactly: any difference, even a cent, names both figures
+          if (cpm && cpm.prev && isNum(po.origPremium) && isNum(cpm.prev.premium) && Math.abs(cpm.prev.premium - po.origPremium) > 0.05) add('counter.premium', block, where, 'The letter\'s original premium (' + fmtR(po.origPremium) + ') is not the premium of the quote before it (' + fmtR(cpm.prev.premium) + '): the letter\'s figure is the one shown as the premium before.'); }          // a cent on the before side is rounding
         if (q.cmp && q.cmp.number && q.number && norm(q.cmp.number) !== norm(q.number)) add('cmp.match', block, where, 'The change moment pay-out is for CP ' + q.cmp.number + ', not for this quote (CP ' + q.number + ').');
       });
     });
@@ -257,7 +260,7 @@
     return n;
   }
   function settleAll(state) {
-    var n = fillInstalments(state);
+    var n = fillInstalments(state) + calc.alignPremiums(state);          // round 1.3: the letter's premiums win a cent of rounding, also in a file the skill built
     schema.QUOTE_KINDS.forEach(function (kind) {
       calc.quotes(state, schema.blockOfQuote[kind]).forEach(function (q) {
         (q.lines || []).forEach(function (l) { n += calc.settleLine(l); });

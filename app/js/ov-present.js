@@ -8,7 +8,7 @@
   var $ = function (s) { return document.querySelector(s); };
   var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
   var KP_KEY = 'wr-keypoints', SLIDE_W = 1240;
-  var ps = { tab: 'map', qi: 0, sub: 'quote', pol: null, pil: null, rows: [], keys: true };
+  var ps = { tab: 'map', qi: 0, sub: 'quote', pol: null, pil: null, rows: [], keys: true, exShut: {} };
   var root = null, open = false, kp = null, kpNote = '', prevOverflow = '', fsOff = 0;
 
   function state() { return OV.app.state; }
@@ -90,21 +90,15 @@
     var tp = schema.lineTypesById[l.type] || schema.lineTypesById.other, name = l.type === 'child' ? ((l.name || '') + ' ' + (l.sname || '')).trim() : l.type === 'debt' ? (l.debt || l.bank || '') : '';
     return (l.type === 'other' ? (l.label || tp.l) : tp.l) + (name ? ' · ' + name : '');
   }
-  /* The red references a quote's terms put on a cell (round 1.2), only where the cell has an amount. */
+  /* The red references a quote's terms put on a PILLAR (round 1.2): in the Loadings and exclusions row under the totals, never on a line (Paul, 25 November). */
   function refSmall(r) { return '<small class="rednote ref">' + esc(r.text) + '</small>'; }
-  function cellRefs(q, l, p) {
-    if (!q || !q.terms || l[p] === 'N/A') return '';
-    var pl = schema.PILLARS.filter(function (x) { return x.id === p; })[0];
-    if (!pl || !pl.keys.some(function (k) { var v = calc.lineVal(l, p, k); return calc.isNum(v) && v > 0; })) return '';
-    return calc.refsAt(q, l.type, p).map(refSmall).join('');
-  }
   function pillCell(l, p, monthly, q) {
     var tp = schema.lineTypesById[l.type] || schema.lineTypesById.other, hasIP = l.type === 'debt' && calc.isNum(l.ip && l.ip.monthly) && l.ip.monthly > 0;
     if (l[p] === 'N/A') return td('<span class="na">N/A</span>', '', p);
-    if (p === 'ip') return td(PM(calc.lineVal(l, 'ip', 'monthly')) + (hasIP ? '<small>Instalment Protector</small><small class="red">To be ceded to the bank</small>' : '') + cellRefs(q, l, 'ip'), '', 'ip');
+    if (p === 'ip') return td(PM(calc.lineVal(l, 'ip', 'monthly')) + (hasIP ? '<small>Instalment Protector</small><small class="red">To be ceded to the bank</small>' : ''), '', 'ip');
     var L = calc.lineVal(l, p, 'lump'), M = monthly ? calc.lineVal(l, p, 'monthly') : undefined;
     if (!calc.isNum(L) && !calc.isNum(M) && L !== 'Not found') return td('<span class="none">&ndash;</span>', '', p);
-    return td(A(L) + (monthly ? A(M, 'red') + '<small>' + esc(tp.monthly) + '</small>' : '') + cellRefs(q, l, p), '', p);
+    return td(A(L) + (monthly ? A(M, 'red') + '<small>' + esc(tp.monthly) + '</small>' : ''), '', p);
   }
   function lineRow(l, aci) {
     var isNA = function (k) { return l[k] === 'N/A'; };
@@ -178,7 +172,21 @@
     if (off.notes) h += '<p class="rednote">' + esc('The letter also says: ' + off.notes) + '</p>';
     return h + '</div>';
   }
+  /* The underwriting decision of a counter offer (round 1.3, Paul 25 November): the same plain summary as the screen and the PDF (calc.termsSummary). Each exclusion's wording is in FULL and can be folded away with one click (open until the adviser
+     folds it): the page is drawn at one size and scaled to fit, so a long paragraph folds to give the rest room. The fold is kept in ps.exShut, because render() draws the slide again. */
+  function uwSummaryView(q) {
+    var sm = calc.termsSummary(q); if (!sm.loadings.length && !sm.exclusions.length) return '';
+    var h = '<div class="uwv uwsum"><h4>Underwriting decision</h4>' + (sm.decision ? '<p class="uwok">Decision: <b>' + esc(sm.decision) + '</b></p>' : '') + '<h5>Underwriting terms of the counter offer letter: ' + esc(sm.heading) + '</h5>';
+    if (sm.loadings.length) h += '<h6>Loadings</h6><ul class="uwld">' + sm.loadings.map(function (l) { return '<li><b>' + esc(l.label) + '</b><span class="rednote">' + esc(l.texts.join(', ')) + '</span></li>'; }).join('') + '</ul>';
+    var rs = sm.reason; if (rs) h += '<p class="uwreason"><b>Reason</b> ' + esc(rs.text) + (rs.src && rs.src.kind === 'uwemail' ? ' <small>(underwriter’s e-mail' + (rs.src.date ? ', ' + esc(rs.src.date) : '') + ')</small>' : '') + '</p>';
+    if (sm.exclusions.length) h += '<h6>Exclusions</h6>' + sm.exclusions.map(function (e) {
+      var k = q.id + '|' + e.index, shut = !!ps.exShut[k];
+      return '<div class="uwex' + (shut ? ' shut' : '') + '"><button type="button" class="exh" data-act="exw" data-k="' + esc(k) + '" aria-expanded="' + (shut ? 'false' : 'true') + '"><i>' + (shut ? '▸' : '▾') + '</i><b class="redno">' + esc(e.no) + '</b><span>' + esc(e.benefit) + '</span><em>' + (shut ? 'Show wording' : 'Hide wording') + '</em></button>' + (shut ? '' : '<p class="exw">' + esc(e.what) + '</p>') + '</div>';
+    }).join('');
+    return h + '</div>';
+  }
   function uwView(q) {
+    if (q.counterOf) return uwSummaryView(q);
     var counter = !!q.counterOf, tm0 = q.terms || {}, u = counter ? ((tm0.loadings || []).length || (tm0.exclusions || []).length ? 'both' : null) : calc.uwOf(q); if (!u || u === 'pending' || schema.UW_DECLINED.indexOf(u) >= 0) return '';
     var h = '<div class="uwv"><h4>' + (counter ? 'Underwriting terms of the counter offer' : 'Underwriting outcome') + '</h4>' + (counter ? '' : '<p class="uwok">' + esc(u === 'standard' ? 'Accepted at standard rates.' : schema.uwLabel[u] + '.') + '</p>'), tm = q.terms || {}, ls = Array.isArray(tm.loadings) ? tm.loadings : [], es = Array.isArray(tm.exclusions) ? tm.exclusions : [];
     if ((u === 'loadings' || u === 'both') && ls.length) h += tbl([24, 14, 14, 48], th('Loading on', '', 'l') + th('Percentage added') + th('Reason') + th('The reason in words', '', 'l'),
@@ -459,6 +467,7 @@
       else if (act === 'keys') setKeys(!ps.keys);
       else if (act === 'q') { ps.qi = +el.getAttribute('data-i'); ps.sub = 'quote'; ps.pil = null; ps.rows = []; render(); }
       else if (act === 'sub') setSub(el.getAttribute('data-s'));
+      else if (act === 'exw') { var xk = el.getAttribute('data-k'); ps.exShut[xk] = !ps.exShut[xk]; render(); }
       else if (act === 'pil') setPil(el.getAttribute('data-p'), true);
       else if (act === 'pol') go('policies', undefined, +el.getAttribute('data-i'));
       else if (act === 'polall') { ps.pol = null; ps.pil = null; ps.rows = []; render(); }
@@ -500,7 +509,7 @@
     if (!root) { kp = loadKP(); build(); }
     if (open) return;
     open = true; prevOverflow = document.body.style.overflow; document.body.style.overflow = 'hidden'; root.hidden = false;
-    ps = { tab: 'map', qi: 0, sub: 'quote', pil: null, rows: [], pol: null, keys: true };
+    ps = { tab: 'map', qi: 0, sub: 'quote', pil: null, rows: [], pol: null, keys: true, exShut: {} };
     render(); setTimeout(fit, 30); paintFs();
     if (OV.view && OV.view.warm) OV.view.warm();                                                          // a click opened this: the client's files are listed (no question to Chrome) so a button that cannot open its file is not shown
     if (wantFull === true) enterFs();                                                                   // "Present full screen": this click is what lets the browser do it

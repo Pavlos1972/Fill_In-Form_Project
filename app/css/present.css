@@ -212,3 +212,18 @@
 .pres .uwv h4 { margin: 0 0 6px; font-size: 15px; }
 .pres .uwv p { margin: 4px 0; }
 .pres .uwok { font-weight: 700; color: #1f6a3b; }
+/* The underwriting decision of a counter offer (round 1.3): per-pillar loadings, the one reason, and each exclusion's full wording that folds away with one click */
+.pres .uwsum h5 { margin: 6px 0 4px; font-size: 16.5px; color: var(--blue, #0F6E99); }
+.pres .uwsum h6 { margin: 12px 0 4px; font-size: 12.5px; letter-spacing: .07em; text-transform: uppercase; color: var(--muted, #5b6b78); }
+.pres .uwsum ul.uwld { list-style: none; margin: 0; padding: 0; }
+.pres .uwsum ul.uwld li { display: flex; gap: 18px; align-items: baseline; padding: 6px 0; border-bottom: 1px solid var(--line, #d7e1e8); font-size: 17px; }
+.pres .uwsum ul.uwld li:last-child { border-bottom: 0; }
+.pres .uwsum ul.uwld li b { width: 240px; flex: none; }
+.pres .uwsum .uwreason { margin: 8px 0 0; padding: 8px 12px; border-radius: 10px; background: #f4f8fb; font-size: 16px; }
+.pres .uwsum .uwex { padding: 4px 0 6px; border-bottom: 1px solid var(--line, #d7e1e8); }
+.pres .uwsum .uwex:last-child { border-bottom: 0; }
+.pres .uwsum .uwex .exh { display: flex; width: 100%; align-items: baseline; gap: 10px; background: none; border: 0; padding: 6px 2px; font: inherit; font-size: 16.5px; text-align: left; cursor: pointer; color: inherit; }
+.pres .uwsum .uwex .exh i { font-style: normal; width: 16px; color: var(--blue, #0F6E99); }
+.pres .uwsum .uwex .exh span { color: var(--muted, #5b6b78); }
+.pres .uwsum .uwex .exh em { margin-left: auto; font-style: normal; font-size: 13px; color: var(--blue, #0F6E99); text-decoration: underline; }
+.pres .uwsum .uwex .exw { margin: 2px 0 4px 26px; font-size: 15.5px; line-height: 1.4; }

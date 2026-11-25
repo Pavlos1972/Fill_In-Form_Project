@@ -53,6 +53,7 @@
     var last = parts[parts.length - 1];
     o[last] = val;
     if (parts.length >= 3) { var ln = pathGet(state, parts.slice(0, -2).join('.')); if (ln && ln.via && typeof ln.via === 'object') delete ln.via[parts.slice(-2).join('.')]; }          // a figure somebody types is no longer "from the FNA quote" or "from the email"
+    var pm = /^(.*\.quotes\.\d+)\.premium$/.exec(path); if (pm && calc.isNum(val)) { var pq = pathGet(state, pm[1]); if (pq && pq.counterOf && pq.offer && typeof pq.offer === 'object' && calc.isNum(pq.offer.revPremium)) { pq.offer.revPremium = val; pq.offer.quotePremium = val; } }          // a premium the adviser types on a counter offer is his check of the figure: the letter's figure follows it, so the next settling does not put the old one back
     var tr = /^(.*\.terms\.(?:loadings|exclusions)\.\d+)\.[A-Za-z]+$/.exec(path); if (tr) { var trow = pathGet(state, tr[1]); if (trow && typeof trow === 'object') trow.by = 'person'; }          // a figure typed in a term row is the adviser's, whatever its colour: a second reading of the letter does not overwrite it
     if (owner && !CHOICE.test(path)) { owner.st = 'confirmed'; owner.by = 'person'; delete owner.match; }                          // a person's typing is a person's check: the page's automatic match is over
     return val;
@@ -133,6 +134,15 @@
     var row = kind === 'loadings' ? { benefit: 'All benefits', pct: null, kind: 'medical', reason: '' } : { benefit: '', what: '', why: '' }; termList(q, kind).push(row); return row;
   }
   function removeTerm(state, path, kind, i) { var q = quoteAt(state, path); if (!q || (kind !== 'loadings' && kind !== 'exclusions')) return false; var l = termList(q, kind); if (!(i >= 0 && i < l.length)) return false; l.splice(i, 1); return true; }
+  /* The ONE reason for the loadings, typed by the adviser (round 1.3, contract revision o): it is his word, so no later e-mail or skill reading replaces it. An empty text takes the reason away. Returns the quote. */
+  function setUwReason(state, path, text) {
+    var q = quoteAt(state, path); if (!q) return null;
+    if (!q.terms || typeof q.terms !== 'object') q.terms = { loadings: [], exclusions: [] };
+    var t = String(text == null ? '' : text).trim();
+    if (!t) { delete q.terms.reason; return q; }
+    var old = q.terms.reason && typeof q.terms.reason === 'object' ? q.terms.reason : {};
+    q.terms.reason = { text: t, kind: old.kind || null, st: 'confirmed', by: 'person' }; return q;
+  }
   /* A counter offer to the quote at `path` (round 1.2): a new quote of the same kind in the same block, linked by counterOf to the quote the client accepted, with NO lines (they come from the counter offer quote) and the replacements of the
      original (a counter offer is the same replacement). o: what is known (number, date, premium, offer). Returns the new quote, or null when the quote at `path` is not one a counter offer can be added to. */
   function addCounterOffer(state, path, o) {
@@ -146,6 +156,7 @@
   function confirmTerms(state, path, qq) {
     var q = qq || quoteAt(state, path), n = 0; if (!q || !q.terms) return 0;
     ['loadings', 'exclusions'].forEach(function (k) { (q.terms[k] || []).forEach(function (r) { if (r && r.st === 'verify') { r.st = 'confirmed'; r.by = 'person'; n++; } }); });
+    var rs = q.terms.reason; if (rs && typeof rs === 'object' && rs.st === 'verify' && String(rs.text || '').trim()) { rs.st = 'confirmed'; rs.by = 'person'; n++; }          // the reason read from the underwriter's e-mail is checked with the terms
     if (n && q.counterOf && !calc.activeLines(q).length && q.st === 'verify') { q.st = 'confirmed'; q.by = 'person'; }          // a counter offer known only from its letter is checked when its terms are
     return n;
   }
@@ -526,7 +537,7 @@
     return out;
   }
 
-  return { blank: blank, uid: uid, parseCell: parseCell, setPath: setPath, setStatus: setStatus, setUw: setUw, setSecond: setSecond, addTerm: addTerm, removeTerm: removeTerm, addCounterOffer: addCounterOffer, confirmTerms: confirmTerms, setRepl: setRepl, toggleReplaced: toggleReplaced, setBrokerRecord: setBrokerRecord, pathGet: pathGet, accept: accept, acceptAll: acceptAll, walkRows: walkRows, newLine: newLine, newQuote: newQuote, addQuote: addQuote, findQuote: findQuote,
+  return { blank: blank, uid: uid, parseCell: parseCell, setPath: setPath, setStatus: setStatus, setUw: setUw, setSecond: setSecond, addTerm: addTerm, removeTerm: removeTerm, setUwReason: setUwReason, addCounterOffer: addCounterOffer, confirmTerms: confirmTerms, setRepl: setRepl, toggleReplaced: toggleReplaced, setBrokerRecord: setBrokerRecord, pathGet: pathGet, accept: accept, acceptAll: acceptAll, walkRows: walkRows, newLine: newLine, newQuote: newQuote, addQuote: addQuote, findQuote: findQuote,
     setRemoved: setRemoved, newCmp: newCmp, addCmp: addCmp, removeCmp: removeCmp, startReview: startReview, addLine: addLine, addItem: addItem, newProposed: newProposed, factsFrom: factsFrom, diffFacts: diffFacts, syncBlocks: syncBlocks, fillFromFactFind: fillFromFactFind, fileName: fileName,
     clientName: clientName, computed: computed, dedupeQuotes: dedupeQuotes, flattenPolicyLines: flattenPolicyLines, isBright: isBright, toJSON: toJSON, fromJSON: fromJSON, rows: rows, counts: counts, pendingRows: pendingRows, ffKeyFor: ffKeyFor, APP_ID: APP_ID };
 });
