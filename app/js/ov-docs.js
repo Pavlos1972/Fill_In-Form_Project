@@ -17,7 +17,7 @@
     var n = String(fileName == null ? '' : fileName).replace(/\.[A-Za-z0-9]{2,5}$/, ''), low = n.toLowerCase(), m, date = '', number = '';
     if ((m = /(\d{6,12})/.exec(n))) number = m[1];
     if ((m = /(\d{1,2})[.\/-](\d{1,2})[.\/-](\d{2}|\d{4})(?!\d)/.exec(n))) { var y = +m[3]; if (y < 100) y += 2000; date = two(+m[1]) + '/' + two(+m[2]) + '/' + y; }
-    var block = null;
+    var block = null, viaReview = false;
     if (/\.(eml|msg)$/i.test(String(fileName)) || (/\.txt$/i.test(String(fileName)) && /e-?mail|brightrock|\d{6,}/.test(low)) || /e-?mail/.test(low)) block = 'bremail';              // BrightRock's e-mail with the figures a quote does not print (round 4)
     else if (/cmpo|change[ _-]?moment/.test(low)) block = 'cmp';
     else if (/follow[ _-]?up|summary[ _-]?notes/.test(low)) block = 'followup';                           // the Follow-Up Appointment Summary Notes of a later meeting (2. Fact Find folder)
@@ -40,9 +40,9 @@
       var segs = String(dirPath).split(/\s*\\\s*/);
       if (segs.some(function (g) { return /^(\d+\.\s*)?comparative quotes?(\s*\(.*\))?$/i.test(g.trim()); })) block = 'comparative';
       else if (segs.some(function (g) { return /^(\d+\.\s*)?(accepted )?quotes?(\s*\(.*\))?$/i.test(g.trim()); })) block = block === 'investments' ? 'proposed' : 'comparative';
-      else if (segs.some(function (g) { return /review/i.test(g) && !/schedule/i.test(g); })) block = 'comparative';                  // 1.6: a document in a folder named Review ("2026 - Review", inside a policy folder or a quotes folder) is a review document, never a current investment or policy because its name has "RA" or "policy" in it
+      else if (segs.some(function (g) { return /review/i.test(g) && !/schedule|statement|valuation/i.test(g); })) { block = 'comparative'; viaReview = true; }                  // 1.6: a document in a folder named Review ("2026 - Review", inside a policy folder or a quotes folder) is a review document, never a current investment or policy because its name has "RA" or "policy" in it
     }
-    return block ? { block: block, number: number, date: date, label: BLOCK_LABEL[block] } : null;
+    return block ? { block: block, number: number, date: date, label: BLOCK_LABEL[block], viaReview: viaReview } : null;          // viaReview: it is a comparative quote only because it sits in a Review folder (its name says investment or policy): listed as one, NOT ticked (1.6)
   }
   /* The items of an overview (this one, or a saved one read from its .json) the policy folders are compared with: current policies (block 1), current investments (block 6), the provident and pension funds of the group block (kind 'group') and the legacy protection plan of
      block 11 (kind 'legacy', only once the Fact Find says the client has one). A folder's statement goes to the block of the item it is compared with (Paul, 25 November). Returns [{ kind: 'policies' | 'investments' | 'group' | 'legacy', who, product, no, ref }]. */

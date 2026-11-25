@@ -470,7 +470,7 @@
           if ((strict || depth === 0) && !SCHEDULE_NAME.test(low) && !isManual(e[0])) continue;      // a loose file of the policy folder, or one in Servicing: only when its name says what it is (the owner's manual is kept, as the last resort)
           g.files.push({ name: e[0], rel: rel, handle: e[1], role: isManual(e[0]) ? 'manual' : 'schedule', key: dateKey(e[0], rel) });
         } else if (e[1].kind === 'directory' && depth < 3) {
-          if (REVIEW_DIR.test(low) && !/schedule/.test(low)) { await lookQ(e[1], rel.concat([e[0]]), depth + 1); continue; }              // a Review folder is read by its folder: its files are review documents (g.quotes), never schedules
+          if (REVIEW_DIR.test(low) && !/schedule|statement|valuation/.test(low)) { await lookQ(e[1], rel.concat([e[0]]), depth + 1); continue; }              // a Review folder is read by its folder: its files are review documents (g.quotes), never schedules
           if (SKIP_DIR.test(low) && !/schedule/.test(low)) continue;                              // "Acceptance Letter & Policy Schedules" holds schedules: it is entered
           if (/servic/.test(low)) await look(e[1], rel.concat([e[0]]), depth + 1, true);
           else if (YEAR_DIR.test(low) || ENTER_DIR.test(low)) await look(e[1], rel.concat([e[0]]), depth + 1, strict);

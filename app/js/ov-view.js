@@ -138,11 +138,14 @@
     return { reason: 'missing', text: ref.name ? 'The file “' + ref.name + '” is not in the client’s folder any more (it may have been renamed or moved).' : 'No ' + WHAT[ref.role] + ' for ' + ref.label + ' was found in the client’s folder.' };
   }
   /* Several files with the same name (in different folders): those whose folders carry the item's policy number, else those whose folders name its insurer; with neither, they stay as they were. */
+  /* The year of the folder a file sits in ("2026 - Review", "2025"): 0 when no folder says. */
+  function folderYear(f) { var y = 0; ((f && f.rel) || []).forEach(function (r) { var m = /^((?:19|20)\d{2})(?!\d)/.exec(String(r).trim()); if (m) y = Math.max(y, +m[1]); }); return y; }
   function sameName(list, ref) {
     var dp = alnum(ref.policyNo), byNo = dp.length >= 4 ? list.filter(function (f) { return alnum((f.rel || []).join(' ')).indexOf(dp) >= 0; }) : [];
-    if (byNo.length) return byNo;
     var wi = whoInfo(ref.insurer), byWho = (wi.ws.length || wi.al.length) ? list.filter(function (f) { return hitN(' ' + K(f).rel + ' ', wi); }) : [];
-    return byWho.length ? byWho : list;
+    var cand = byNo.length ? byNo : byWho.length ? byWho : list, top = 0;
+    cand.forEach(function (f) { top = Math.max(top, folderYear(f)); });                                // round 1.6: the saved file holds the NAME only; when one name is in two year folders ("FNA Quote.pdf" in 2024 - Review and 2026 - Review) the newest year's file is the one the load ticked
+    return top ? cand.filter(function (f) { return folderYear(f) === top; }) : cand;
   }
   var REASONS = {
     connect: 'The client’s folders are not connected, so the page cannot open the file. Use More → Folders… to connect them.',

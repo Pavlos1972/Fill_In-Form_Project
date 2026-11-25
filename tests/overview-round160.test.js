@@ -32,7 +32,7 @@ function tree() {
   st.add('2026 - Review').file('Review Summary 2026.pdf', 'RA Review Valuation 2026.pdf', 'Owner\'s Manual.pdf'); st.add('2026 - Review', 'Charts').file('Policy Review Notes.pdf');
   st.add('Comparative Quotes', '2026 - Review').file('Coronation RA Quote 2026.pdf');
   st.add('Applications').file('Application.pdf');
-  const cr = c.add('Coronation RA - 458899'); cr.add('2024 - Review').file('Statement Review 2024.pdf'); cr.add('Policy Schedules', '2026').file('Statement 31.03.26.pdf');
+  const cr = c.add('Coronation RA - 458899'); cr.add('Annual Review Statements').file('Statement 31.12.25.pdf'); cr.add('2024 - Review').file('Statement Review 2024.pdf'); cr.add('Policy Schedules', '2026').file('Statement 31.03.26.pdf');
   return c;
 }
 
@@ -45,7 +45,7 @@ test('a folder named Review inside a policy folder: its documents are listed as 
   assert.deepStrictEqual(names(st.quotes).sort(), ['Policy Review Notes.pdf', 'RA Review Valuation 2026.pdf', 'Review Summary 2026.pdf'], 'the review documents, also one folder down; the owner\'s manual is not one');
   assert.ok(st.quotes.every(f => f.rel[0] === st.name && /review/i.test(f.rel.join(' '))), 'each carries the folder it was found in');
   assert.ok(!names(st.quotes).includes('Coronation RA Quote 2026.pdf'), 'Comparative Quotes is still not walked here (its own listing reads it): no document twice');
-  assert.deepStrictEqual(names(cr.files), ['Statement 31.03.26.pdf'], 'a 2024 review document is not a statement either');
+  assert.deepStrictEqual(names(cr.files).sort(), ['Statement 31.03.26.pdf', 'Statement 31.12.25.pdf'], 'a 2024 review document is not a statement either; a folder called Annual Review Statements IS a statements folder (it says statement), so its statement is a candidate');
   assert.deepStrictEqual(names(cr.quotes), ['Statement Review 2024.pdf'], 'the year of a review folder is in its rel, so the page can rank it');
   assert.ok(cr.quotes[0].key.year === 2024 && st.quotes.every(f => f.key.year === 2026 || f.key.exact === 0), 'a review document\'s key carries the year of its folder');
   assert.strictEqual(calls.write, 0, 'nothing was written, created or removed');
@@ -75,6 +75,11 @@ test('classify: a document in a folder named Review is a review document, never 
   assert.strictEqual(cls('Photo.pdf', 'Stanlib Invest - 7766554 \\ 2026 - Review'), null, 'a document that says nothing stays unclassified (listed, not ticked)');
   assert.strictEqual(cls('Statement.pdf', 'Stanlib Invest - 7766554 \\ Policy Schedules \\ 2026'), 'investments', 'a statement in the Policy Schedules year folder is still a statement');
   assert.strictEqual(cls('Policy Schedule 2026.pdf', 'Acceptance Letter & Policy Schedules'), 'policies', 'a folder with schedule in its name is not a review folder');
+  assert.strictEqual(cls('Statement 31.12.25.pdf', 'Coronation RA - 458899 \\ Annual Review Statements'), 'investments', 'nor is one with statement or valuation in its name');
+  const via = (n, d) => { const c = docs.classify(n, d); return !!(c && c.viaReview); };
+  assert.strictEqual(via('RA Review Valuation 2026.pdf', 'Stanlib Invest - 7766554 \\ 2026 - Review'), true, 'a comparative quote ONLY because of its Review folder says so (the list leaves it unticked)');
+  assert.strictEqual(via('Coronation RA Quote 2026.pdf', 'Coronation RA - 458899 \\ Comparative Quotes \\ 2026 - Review'), false, 'a quote by its Comparative Quotes folder is a quote, ticked');
+  assert.strictEqual(via('FNA Quote.pdf', '3. Quotes \\ 2026 - Review'), false);
 });
 
 /* ---------- 4. the wiring ---------- */
@@ -83,12 +88,24 @@ test('the page is 1.6, no key is added, the year rule covers every kind of quote
   const ui = app('js/ov-ui.js'), fu = app('js/folders-ui.js'), fo = app('js/folders.js'), html = app('overview.html');
   assert.ok(/QKIND = \{ fna: 1, shortfallQuote: 1, reduced: 1, comparative: 1, proposed: 1, cmp: 1, goals: 1 \}/.test(ui), 'every kind of quote');
   assert.ok(/var ruled = function \(kd\)/.test(ui) && /kd === 'comparative' \|\| byFolder\[kd\]/.test(ui), 'a kind is ruled by year when one of its files sits in a year folder (comparative quotes always)');
-  assert.ok(/the guide of an older quote: not ticked/.test(ui), 'a pay-out guide follows its quote');
+  assert.ok(/the guide of an older quote: not ticked/.test(ui) && /if \(kd === 'cmp'\) return;/.test(ui), 'a pay-out guide only follows its quote: it is not ruled by year');
+  assert.ok(/c\.viaReview/.test(ui) && /in a Review folder: not ticked, tick it if it is a quote/.test(ui), 'a document that is a quote only because of its Review folder is not ticked');
   assert.ok(/older: older/.test(ui) && !/older = new Set/.test(ui), 'the list says why a file is not ticked');
   assert.ok(/function uniqueFiles/.test(ui) && /dir \+ ' \\\\ '/.test(ui) && !/grp \? dir/.test(ui), 'every file is told apart by its folder');
   assert.ok(/\(g\.quotes \|\| \[\]\)\.forEach\(function \(f\) \{ flat\.push\(f\); \}\)/.test(fu), 'the review documents of a policy folder reach the flat list, in no group');
-  assert.ok(/REVIEW_DIR\.test\(low\) && !\/schedule\/\.test\(low\)/.test(fo) && /quotes: \[\]/.test(fo), 'the walk reads a Review folder by its folder');
+  assert.ok(/REVIEW_DIR\.test\(low\) && !\/schedule\|statement\|valuation\/\.test\(low\)/.test(fo) && /quotes: \[\]/.test(fo), 'the walk reads a Review folder by its folder');
   ['ov-schema', 'ov-docs', 'ov-ui', 'folders', 'folders-ui'].forEach(f => assert.ok(new RegExp(f + '\\.js\\?v=20261124t').test(html), f));
   ['index.html', 'short-risk.html', 'capture-sheet.html'].forEach(f => assert.ok(/folders\.js\?v=20261124t/.test(app(f)) && /folders-ui\.js\?v=20261124t/.test(app(f)), f));
   assert.ok(!/policyFolders|policyScan|latestOverview|g\.quotes/.test(app('js/ov-store.js') + app('js/ov-calc.js')), 'the saved file and its sums are untouched');
+});
+
+/* ---------- 5. the View button: one name in two year folders ---------- */
+test('View: when one file name is in two year folders the newest year\'s is the one the item was loaded from (the saved file holds the name only)', () => {
+  const V = require('../app/js/ov-view.js'), pool = [{ name: 'FNA Quote.pdf', rel: ['3. Quotes', '2024 - Review'] }, { name: 'FNA Quote.pdf', rel: ['3. Quotes', '2026 - Review'] }, { name: 'Other.pdf', rel: ['3. Quotes'] }];
+  const r = V.pick({ name: 'FNA Quote.pdf', role: 'quote', insurer: '', policyNo: '' }, pool, {});
+  assert.ok(r.file && r.file.rel.join('/') === '3. Quotes/2026 - Review', 'the 2026 - Review file: ' + JSON.stringify(r.file && r.file.rel));
+  const r2 = V.pick({ name: 'FNA Quote.pdf', role: 'quote', insurer: '', policyNo: '' }, pool.slice().reverse(), {});
+  assert.ok(r2.file && r2.file.rel.join('/') === '3. Quotes/2026 - Review', 'whatever the order of the listing');
+  const r3 = V.pick({ name: 'Policy Schedule.pdf', role: 'schedule', insurer: '', policyNo: '811234567' }, [{ name: 'Policy Schedule.pdf', rel: ['BR Personal Covers - 811234567', 'Policy Schedules', '2025'] }, { name: 'Policy Schedule.pdf', rel: ['BR Personal Covers - 811234567', 'Policy Schedules', '2026'] }], {});
+  assert.ok(r3.file && /2026$/.test(r3.file.rel.join('/')), 'two years of one policy: the newest');
 });
