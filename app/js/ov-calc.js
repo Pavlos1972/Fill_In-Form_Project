@@ -204,7 +204,7 @@
   }
   /* What a counter offer's underwriting terms say, in the plain form the screen, the PDF and the Presentation all draw (Paul, 25 November): a heading (loadings and exclusions, loadings, exclusions), the loadings of the pillars that carry one (from
      refsTotal, so this can never disagree with the Loadings and exclusions row under the totals; a pillar can carry two percentages), the reason once, and every exclusion once with its number, the pillars it covers and the insurer's own wording. */
-  function termsSummary(q) {
+  function termsSummary(q, opts) {
     var t = q && q.terms || {}, loadings = [], exclusions = [];
     schema.PILLARS.forEach(function (p) { var l = refsTotal(q, p.id).filter(function (r) { return r.kind === 'loading'; }); if (l.length) loadings.push({ pillar: p.id, label: schema.PILLAR_SHORT[p.id] || p.l, texts: l.map(function (r) { return r.text; }) }); });
     (Array.isArray(t.exclusions) ? t.exclusions : []).forEach(function (e, i) {
@@ -215,7 +215,9 @@
     });
     var heading = loadings.length && exclusions.length ? 'loadings and exclusions' : loadings.length ? 'loadings' : exclusions.length ? 'exclusions' : '',
       kind = loadings.length && exclusions.length ? 'both' : loadings.length ? 'loadings' : exclusions.length ? 'exclusions' : null;
-    return { heading: heading, kind: kind, decision: kind ? schema.uwLabel[kind] : '', loadings: loadings, reason: loadings.length || termsReason(q) ? termsReason(q) : null, exclusions: exclusions };
+    var reason = loadings.length || termsReason(q) ? termsReason(q) : null;
+    if (reason && opts && opts.client && reason.st === 'verify') reason = null;          // Paul, 25 November (question 1): a reason read from an e-mail waits for his tick before the PDF or the Presentation shows it to the client; the Studio shows it, in amber
+    return { heading: heading, kind: kind, decision: kind ? schema.uwLabel[kind] : '', loadings: loadings, reason: reason, exclusions: exclusions };
   }
 
   /* Block 1: the policies that are not removed, and every accepted quote that has been issued (policy number and start date): it is shown here as a WR policy and no longer as a quote.

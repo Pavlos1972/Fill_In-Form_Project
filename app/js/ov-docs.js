@@ -595,6 +595,22 @@
     t.reason = { text: reason, kind: schema.loadingKindLabel[data.kind] ? data.kind : null, src: src, st: 'verify', by: 'page' };
     res.set = true; return res;
   }
+  /* The underwriters' reply read WITHOUT Claude when it has the wording of a real BrightRock reply (the Fix Skills chat, 25 November, from real replies in Paul's Outlook): the reasons are ONE paragraph that starts "Our decision is based on the
+     information we received -" and ends before "Here's a summary of the terms we offered"; the subject carries both Cover Proposal numbers (nothing else); the headers give the subject, sender and date. The text never leaves this computer.
+     Returns { reason, subject, from, date, numbers, kind } or null when the reply has no such paragraph (an older reply says "Unfortunately the original terms we have offered will..." and gives no reason). */
+  var MONTHS = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 };
+  function mailDate(v) {
+    var t = String(v || ''), a = /(\d{1,2})\/(\d{1,2})\/(\d{4})/.exec(t); if (a) return two(+a[1]) + '/' + two(+a[2]) + '/' + a[3];
+    var b = /(\d{1,2})\s+([A-Za-z]{3})[a-z]*\.?,?\s+(\d{4})/.exec(t); return b && MONTHS[b[2].toLowerCase()] ? two(+b[1]) + '/' + two(MONTHS[b[2].toLowerCase()]) + '/' + b[3] : null;
+  }
+  function uwReasonLocal(raw) {
+    var text = String(raw == null ? '' : raw).replace(/\r/g, '');
+    var m = /our decision is based on the information we received\s*[-–—:]?\s*([\s\S]*?)(?=\n[ \t]*\n|here[’']s a summary|$)/i.exec(text), reason = m ? m[1].replace(/\s+/g, ' ').trim() : '';
+    if (!reason) return null;
+    var head = function (h) { var x = new RegExp('^' + h + ':[ \\t]*(.+)$', 'im').exec(text); return x ? x[1].trim() : ''; };
+    var nums = [], re = /cover proposal:?\s*((?:\d{6,12}[\s,]*)+)/gi, k; while ((k = re.exec(text))) (k[1].match(/\d{6,12}/g) || []).forEach(function (n) { if (nums.indexOf(n) < 0) nums.push(n); });
+    return { reason: reason, subject: head('subject') || null, from: head('from') || null, date: mailDate(head('date') || head('sent')), numbers: nums, kind: null };
+  }
   /* A counter offer quote that has just been read printed its own premium: it is kept in offer.quotePremium (alignPremiums then makes the letter's figure the one used, and premiumWarning compares the two). */
   function notePrinted(c) { if (c && c.counterOf && c.offer && typeof c.offer === 'object' && calc.isNum(c.premium)) c.offer.quotePremium = c.premium; }
   /* What was read has nothing in it (a document that is not the kind said, a scan that could not be read): the caller says so and only records the document. */
@@ -615,6 +631,6 @@
     return !Object.keys(data).some(function (k) { return has(data[k]) && typeof data[k] !== 'object'; }) && !Object.keys(data).some(function (k) { var v = data[k]; return v && typeof v === 'object' && Object.keys(v).some(function (j) { return has(v[j]); }); });
   }
 
-  return { glyphs: glyphs, applyUwEmail: applyUwEmail, classify: classify, promptFor: promptFor, parseReply: parseReply, readWithClaude: readWithClaude, applyQuote: applyQuote, counterRole: counterRole, applyCounterLetter: applyCounterLetter, enrich: enrich, factNote: factNote, applyPolicy: applyPolicy, applyOther: applyOther, applyFollowUp: applyFollowUp, dm: dm, factNotesText: factNotesText, applyNotesRead: applyNotesRead, emailText: emailText, msgText: msgText, applyBrEmail: applyBrEmail, setAstuteDate: setAstuteDate, brightQuotes: brightQuotes, applyGroup: applyGroup, applyInvestment: applyInvestment, applyAstute: applyAstute, applyAstutePolicies: applyAstutePolicies, applyAstuteGroup: applyAstuteGroup, astuteSrc: astuteSrc, applyProposed: applyProposed, applyGoal: applyGoal, isEmptyRead: isEmptyRead,
+  return { glyphs: glyphs, applyUwEmail: applyUwEmail, uwReasonLocal: uwReasonLocal, classify: classify, promptFor: promptFor, parseReply: parseReply, readWithClaude: readWithClaude, applyQuote: applyQuote, counterRole: counterRole, applyCounterLetter: applyCounterLetter, enrich: enrich, factNote: factNote, applyPolicy: applyPolicy, applyOther: applyOther, applyFollowUp: applyFollowUp, dm: dm, factNotesText: factNotesText, applyNotesRead: applyNotesRead, emailText: emailText, msgText: msgText, applyBrEmail: applyBrEmail, setAstuteDate: setAstuteDate, brightQuotes: brightQuotes, applyGroup: applyGroup, applyInvestment: applyInvestment, applyAstute: applyAstute, applyAstutePolicies: applyAstutePolicies, applyAstuteGroup: applyAstuteGroup, astuteSrc: astuteSrc, applyProposed: applyProposed, applyGoal: applyGoal, isEmptyRead: isEmptyRead,
     applyCmp: applyCmp, matchItem: matchItem, logDoc: logDoc, findQuoteByNumber: findQuoteByNumber, quoteIn: quoteIn, quoteRead: quoteRead, SPEC_OF: SPEC_OF, BLOCK_LABEL: BLOCK_LABEL, QUOTE_OF: QUOTE_OF, ENDPOINT: ENDPOINT };
 });

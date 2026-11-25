@@ -175,7 +175,7 @@
   /* The underwriting decision of a counter offer (round 1.3, Paul 25 November): the same plain summary as the screen and the PDF (calc.termsSummary). Each exclusion's wording is in FULL and can be folded away with one click (open until the adviser
      folds it): the page is drawn at one size and scaled to fit, so a long paragraph folds to give the rest room. The fold is kept in ps.exShut, because render() draws the slide again. */
   function uwSummaryView(q) {
-    var sm = calc.termsSummary(q); if (!sm.loadings.length && !sm.exclusions.length) return '';
+    var sm = calc.termsSummary(q, { client: true }); if (!sm.loadings.length && !sm.exclusions.length) return '';
     var h = '<div class="uwv uwsum"><h4>Underwriting decision</h4>' + (sm.decision ? '<p class="uwok">Decision: <b>' + esc(sm.decision) + '</b></p>' : '') + '<h5>Underwriting terms of the counter offer letter: ' + esc(sm.heading) + '</h5>';
     if (sm.loadings.length) h += '<h6>Loadings</h6><ul class="uwld">' + sm.loadings.map(function (l) { return '<li><b>' + esc(l.label) + '</b><span class="rednote">' + esc(l.texts.join(', ')) + '</span></li>'; }).join('') + '</ul>';
     var rs = sm.reason; if (rs) h += '<p class="uwreason"><b>Reason</b> ' + esc(rs.text) + (rs.src && rs.src.kind === 'uwemail' ? ' <small>(underwriter’s e-mail' + (rs.src.date ? ', ' + esc(rs.src.date) : '') + ')</small>' : '') + '</p>';

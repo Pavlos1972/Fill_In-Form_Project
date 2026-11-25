@@ -150,7 +150,7 @@
   /* The underwriting decision of a counter offer (round 1.3, Paul 25 November): the decision and ONE plain summary, "Underwriting terms of the counter offer letter": the loadings of the pillars that carry one, the ONE reason for them, and every exclusion
      once with the pillars it covers and the insurer's own wording. The same words as the screen and the Presentation (calc.termsSummary). A reason read from the e-mail and not yet checked prints too, as an amber term does. */
   function uwSummaryPDF(doc, y, q) {
-    var sm = calc.termsSummary(q); if (!sm.loadings.length && !sm.exclusions.length) return y;
+    var sm = calc.termsSummary(q, { client: true }); if (!sm.loadings.length && !sm.exclusions.length) return y;
     setText(doc, DEEP, FS.sub, true); doc.text('Underwriting decision', M, y + 5); y += 8;
     if (sm.decision) y = note(doc, y, 'Decision: ' + sm.decision + '.', GREEN);
     y = note(doc, y + 1, 'Underwriting terms of the counter offer letter: ' + sm.heading + '.', DEEP);

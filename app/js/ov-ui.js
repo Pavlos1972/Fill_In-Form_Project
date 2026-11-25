@@ -1132,22 +1132,27 @@
     if (!q || !q.counterOf) return Promise.resolve();
     if (!file && !txt) { uwSay(qid, 'Paste the e-mail first, or choose its file.', true); return Promise.resolve(); }
     var key = aiKey(); keepOpen['mail|' + qid] = true;
-    if (!aiOn() || !key.apiKey) { toastLink('Reading the e-mail needs your Anthropic key.', 'Add the key in Settings', openSettings, 20000); uwSay(qid, 'Reading needs your key (More → Settings).', true); return Promise.resolve(); }
     var nb = schema.blockOfQuote[q.kind], label = file ? file.name : 'pasted e-mail', isText = !file || /\.(eml|msg|txt|html?)$/i.test(file.name);
     progStart(nb); progStep(nb, 30, 'Reading the underwriter’s e-mail…'); uwSay(qid, 'Reading…');
     var textP = !file ? Promise.resolve(D.emailText(txt)) : !isText ? Promise.resolve(null) : /\.msg$/i.test(file.name) ? file.arrayBuffer().then(function (b) { return D.msgText(new Uint8Array(b)); }) : file.text().then(D.emailText);
     return textP.then(function (t) {
-      return t != null ? D.readWithClaude({ apiKey: key.apiKey, model: key.model, block: 'uwemail', text: t, textLabel: 'THE E-MAIL' })
-        : toBase64(file).then(function (b64) { return D.readWithClaude({ apiKey: key.apiKey, model: key.model, mediaType: file.type || 'application/pdf', base64: b64, block: 'uwemail' }); });
+      var local = t != null ? D.uwReasonLocal(t) : null;                                                       // round 1.4: the exact wording of a real BrightRock reply is read here, nothing is sent anywhere, and no key is needed
+      if (local) return { data: local, local: true };
+      if (!aiOn() || !key.apiKey) {
+        toastLink('Reading the e-mail in other words needs your Anthropic key.', 'Add the key in Settings', openSettings, 20000);
+        var e0 = new Error(t != null ? 'No “Our decision is based on the information we received” paragraph was found in it, and reading it in other words needs your Anthropic key (More → Settings). You can type the reason in Correct by hand.' : 'Reading a PDF or a picture of the e-mail needs your Anthropic key (More → Settings).'); e0.soft = true; throw e0;
+      }
+      return (t != null ? D.readWithClaude({ apiKey: key.apiKey, model: key.model, block: 'uwemail', text: t, textLabel: 'THE E-MAIL' })
+        : toBase64(file).then(function (b64) { return D.readWithClaude({ apiKey: key.apiKey, model: key.model, mediaType: file.type || 'application/pdf', base64: b64, block: 'uwemail' }); })).then(function (r) { return { data: r.data, local: false }; });
     }).then(function (r) {
       if (D.isEmptyRead('uwemail', r.data)) { progEnd(nb, 'done', 'E-mail read: no reason in it'); uwSay(qid, 'The e-mail gives no reason for the loadings.', true); return; }
       var a = D.applyUwEmail(state, r.data, label, { quote: q }); if (a.set || a.kept) D.logDoc(state, label, 'uwemail', 'read');          // an e-mail that is not about this quote is not recorded against this client
       var nums = a.mismatch ? a.mismatch.map(function (x) { return 'CP ' + x; }).join(', ') : '';
-      var msg = a.set ? 'The reason was filled in from the e-mail: amber until you tick Terms checked.' : a.kept ? 'The reason was typed or checked already: kept.' : a.mismatch ? 'The e-mail names ' + nums + ', not this quote (CP ' + (q.number || 'no number yet') + '): nothing was filled in.' : 'Nothing was filled in.';
+      var msg = a.set ? 'The reason was filled in from the e-mail' + (r.local ? ' (read on this computer: nothing was sent anywhere)' : '') + ': amber until you tick Terms checked.' : a.kept ? 'The reason was typed or checked already: kept.' : a.mismatch ? 'The e-mail names ' + nums + ', not this quote (CP ' + (q.number || 'no number yet') + '): nothing was filled in.' : 'Nothing was filled in.';
       lastLog.push({ msg: label + ': ' + msg, warn: !a.set }); uwSay(qid, msg, !a.set);
       if (a.set) { check.settleAll(state); touch(); }
       redraw(); progEnd(nb, 'done', a.set ? 'E-mail read: reason filled' : 'E-mail read: nothing filled');
-    }).catch(function (e) { progEnd(nb, 'error', 'Could not read the e-mail: ' + (e && e.message || 'an error')); uwSay(qid, 'Could not read it: ' + (e && e.message || 'an error'), true); });
+    }).catch(function (e) { var m = e && e.message || 'an error'; progEnd(nb, e && e.soft ? 'done' : 'error', e && e.soft ? 'E-mail: no reason found' : 'Could not read the e-mail: ' + m); uwSay(qid, e && e.soft ? m : 'Could not read it: ' + m, true); });
   }
   /* Documents, one after the other (each may be read by Claude, which takes a moment): QUOTES FIRST, then the pay-out guides (a guide needs its quote), then the ones the adviser had to sort. */
   function ingest(files, o) {
