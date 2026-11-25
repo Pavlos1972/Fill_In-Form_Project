@@ -105,7 +105,7 @@ srv.listen(0, async () => {
 
   /* ---- 0. the version ---- */
   let p = await fresh({});
-  ok(/Version 1\.[0123456789]/.test(await p.evaluate(() => document.body.innerText)), '0. the header says Version 1.0');
+  ok(/Version (1\.[0123456789]|2\.0)/.test(await p.evaluate(() => document.body.innerText)), '0. the header says Version 1.0');
   await p.close();
 
   /* ---- 1. both saved links are stale (Chrome never answers about them): the window says so and offers Reconnect my folders ---- */

@@ -380,8 +380,9 @@
      A line is matched by its need (a debt by its name, a child by hers); a line only in the quote is NEW, a line only in the policy is REMOVED. Returns { policy, rows, totals: { now, next, delta }, premium: { now, next, diff, pct }, changed }. */
   function servicingDiff(state, q) {
     var pol = servicingPolicy(state, q), now = pol ? activeLines(pol) : [], next = activeLines(q), used = [], rows = [];
+    function settled(l) { if (!l) return l; var c = JSON.parse(JSON.stringify(l)); settleLine(c); return c; }          // the two rules every line obeys (a debt's instalment is also its disability income portion), so a policy line and a quote line are compared like for like
     function cellsOf(a, b) {
-      var out = [];
+      var out = []; a = settled(a); b = settled(b);
       P.forEach(function (p) { p.keys.forEach(function (k) {
         var x = a ? lineVal(a, p.id, k) : null, y = b ? lineVal(b, p.id, k) : null, d = null;
         if (isNum(x) || isNum(y)) d = r2((isNum(y) ? y : 0) - (isNum(x) ? x : 0));
@@ -398,7 +399,10 @@
     next.forEach(function (l) {
       var key = svKey(l), at = -1, i;
       for (i = 0; i < now.length && at < 0; i++) if (used.indexOf(i) < 0 && svKey(now[i]) === key) at = i;
-      if (at < 0 && l.type === 'debt') for (i = 0; i < now.length && at < 0; i++) if (used.indexOf(i) < 0 && now[i].type === 'debt' && now[i].debt && l.debt && sameDebtName(now[i].debt, l.debt)) at = i;
+      if (at < 0 && l.type === 'debt') for (i = 0; i < now.length && at < 0; i++) {                       // a debt named a little differently is the same debt only when its cover is the same too (a bond and a home loan are the same kind of debt, but a NEW bond is another debt)
+        var wl = lineVal(now[i], 'life', 'lump'), nl = lineVal(l, 'life', 'lump');
+        if (used.indexOf(i) < 0 && now[i].type === 'debt' && now[i].debt && l.debt && sameDebtName(now[i].debt, l.debt) && isNum(wl) && isNum(nl) && Math.abs(wl - nl) < 0.005) at = i;
+      }
       if (at >= 0) used.push(at);
       var was = at >= 0 ? now[at] : null, cells = cellsOf(was, l), status = !was ? 'added' : cells.some(function (x) { return isNum(x.delta) && Math.abs(x.delta) >= 0.005; }) ? 'changed' : 'same';
       rows.push({ type: l.type, label: l.label, debt: l.debt || '', name: ((l.name || '') + ' ' + (l.sname || '')).trim(), bank: l.bank || '', now: was, next: l, status: status, cells: cells, text: textOf(status, cells) });

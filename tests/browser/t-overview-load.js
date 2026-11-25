@@ -70,15 +70,15 @@ srv.listen(0, async () => {
   ok((await Promise.all(['btnLoad', 'btnFolders', 'btnReview', 'btnSaveAs', 'btnSettings'].map(id => vis(p0, id)))).every(Boolean), '1. the More menu holds Fill from Fact Find, Folders, New review year, Save as and Settings');
   await p0.keyboard.press('Escape'); ok(!(await vis(p0, 'btnSettings')), '1. Escape closes the More menu');
   ok(!top.docs, '1. there is no Documents panel on the right');
-  ok(top.nums.length === 12 && top.nums.every(t => !/^\d/.test(t)) && top.nums[2] === 'FNA quote' && top.nums[6] === 'Reduced quotes' && top.h2 === 'Client details', '1. the menu has no block numbers: ' + top.nums.join(' | '));
+  ok(top.nums.length === 17 && top.nums.every(t => !/^\d/.test(t)) && top.nums[11] === 'FNA quote' && top.nums[13] === 'Reduced quotes' && top.h2 === 'Client details', '1. the menu has no block numbers: ' + top.nums.join(' | '));
   await p0.evaluate(t => OV.app.fillFactFindText(t, 'ff.json'), JSON.stringify(FFJ));
   /* the pager skips a page that does not apply */
   const pager = async id => { await p0.evaluate(i => OV.app.go(i), id); await p0.waitForTimeout(80); return p0.evaluate(() => [...document.querySelectorAll('#main .pagenav button')].map(x => x.textContent.replace(/\s+/g, ' ').trim())); };
-  ok(JSON.stringify(await pager('shortfall')) === JSON.stringify(['\u2039 Back: Group benefits & personal investments', 'Next: Shortfall quote \u203a']), '1. with group risk, Next from Shortfall is the Shortfall quote page');
+  ok(JSON.stringify(await pager('shortfall')) === JSON.stringify(['\u2039 Back: Medical aid, will & short-term', 'Next: FNA quote \u203a']), '1. Next from Shortfall is the FNA quote: the five servicing pages are passed by while they are empty (round 2.0)');
   await p0.evaluate(() => { OV.app.state.blocks.group.items.forEach(g => { g.removed = true; }); OV.app.redraw(); });
-  ok(JSON.stringify(await pager('shortfall')) === JSON.stringify(['\u2039 Back: Group benefits & personal investments', 'Next: Reduced quotes \u203a']), '1. without group risk the Shortfall quote page is skipped going forward');
-  ok(JSON.stringify(await pager('reduced')) === JSON.stringify(['\u2039 Back: Shortfall', 'Next: Comparative quotes \u203a']), '1. and going back');
-  ok((await pager('_client')).join('|') === 'Next: Current policies \u203a' && (await pager('other')).join('|') === '\u2039 Back: Goal analysis reports', '1. Client details has only Next; the last page only Back');
+  ok(JSON.stringify(await pager('shortfall')) === JSON.stringify(['\u2039 Back: Medical aid, will & short-term', 'Next: FNA quote \u203a']), '1. and without group risk too');
+  ok(JSON.stringify(await pager('reduced')) === JSON.stringify(['\u2039 Back: FNA quote', 'Next: Comparative quotes \u203a']), '1. without group risk the Shortfall quote page is skipped, going back too');
+  ok((await pager('_client')).join('|') === 'Next: Current policies \u203a' && (await pager('goals')).join('|') === '\u2039 Back: Proposed investments', '1. Client details has only Next; the last page only Back');
   await p0.evaluate(() => { OV.app.state.blocks.group.items.forEach(g => { g.removed = false; }); OV.app.redraw(); });
   /* reading is on, there is no key: said plainly, with a link to Settings */
   await p0.evaluate(() => OV.app.ingest([new File(['FNA11'], 'BR FNA - 100000011 - 19.11.26.pdf', { type: 'application/pdf' })], { block: 'fna' }));
@@ -101,7 +101,7 @@ srv.listen(0, async () => {
   await p0.evaluate(() => OV.app.go('fna')); await p0.click('[data-upc=fna]'); await p0.waitForTimeout(500);
   const pk0 = await p0.evaluate(() => window.__picks);
   ok(pk0.length === 1 && pk0[0].startIn === null && pk0[0].id === 'overview-docs', '1. Upload from client folder, with no folders connected, opens the normal file window by itself: ' + JSON.stringify(pk0));
-  ok(await p0.evaluate(() => !/Upload from another folder|\+ Add new|Add another/.test(document.querySelector('#main').textContent) && /type in by hand/.test(document.querySelector('#main').textContent) && document.querySelectorAll('#main [data-upc]').length === 1), '1. one upload button in the block, and a small "type in by hand" link');
+  ok(await p0.evaluate(() => !/Upload from another folder|\+ Add new|Add another/.test(document.querySelector('#main').textContent) && /\+ Add [A-Za-z ]+quote/.test(document.querySelector('#main').textContent) && !/type in by hand/.test(document.querySelector('#main').textContent) && document.querySelectorAll('#main [data-upc]').length === 1), '1. one "+ Add ... quote" button in the block and no "type in by hand" link (round 2.0: a quote is added whole)');
   ok(errs.length === 0, '1. no page error: ' + errs.join(' | '));
   await c0.close();
 

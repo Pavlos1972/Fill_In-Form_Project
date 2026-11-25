@@ -43,6 +43,7 @@
     medical: 'M10 4h4v6h6v4h-6v6h-4v-6H4v-4h6z',
     home: 'M4 11l8-7 8 7v9H4z M10 20v-6h4v6'
   };
+  [['svFna', 'fna'], ['svShortfall', 'shortfall'], ['svReduced', 'reduced'], ['svIncrease', 'policies'], ['svReduction', 'policies']].forEach(function (x) { IC[x[0]] = IC[x[1]]; });          // round 2.0: the servicing pages borrow the icon of what they re-quote
   function ico(id, cls) { return IC[id] ? '<svg class="' + (cls || 'ic') + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="' + IC[id] + '"/></svg>' : ''; }
 
   /* ---------- the little pieces of every table (the same words and figures as the PDF) ---------- */

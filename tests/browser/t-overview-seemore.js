@@ -71,7 +71,7 @@ srv.listen(0, async () => {
   await go('reduced'); await pg.click('#main .qcard .see'); await pg.waitForTimeout(150);
   ok(await pg.evaluate(() => document.querySelector('#main .qcard table.lines tbody td .aci').textContent === '10% fixed' && /^BrightRock Reduced Quote CP 100000002/.test(document.querySelector('#main .qcard h3').textContent)), '2. a quote that gives only a figure shows 10% fixed, under the heading BrightRock Reduced Quote CP …');
   await go('shortfallQuote'); await pg.click('#main .qcard .see'); await pg.waitForTimeout(150);
-  ok(await pg.evaluate(() => document.querySelectorAll('#main .qcard .adders .addrow').length === 6 && /Nothing was read into this quote yet/.test(document.querySelector('#main .qcard .adders').textContent)), '2. a quote with nothing in it yet (typed by hand) may still be given its lines (the buttons show only then)');
+  ok(await pg.evaluate(() => document.querySelectorAll('#main .qcard .adders .addrow').length === 0 && !document.querySelector('#main .qcard .xbtn') && /Nothing was read into this quote yet/.test(document.querySelector('#main .qcard').textContent)), '2. a quote with nothing in it yet has no add-line buttons either (round 2.0): it says to load its document');
   await go('comparative'); await pg.click('#main .qcard .see'); await pg.waitForTimeout(150);
   ok(await pg.evaluate(() => document.querySelectorAll('#main .qcard .adders .addrow').length === 0 && !document.querySelector('#main .qcard .xbtn')), '2. a comparative quote with its Cover line has no add buttons and no remove column either');
 
@@ -140,7 +140,7 @@ srv.listen(0, async () => {
   });
   ok(pr.bg === 'rgb(255, 255, 255)', '8. the Presentation has a white background: ' + pr.bg);
   ok(pr.logo, '8. the Wealth Revolution logo is in the bar');
-  ok(pr.tabs === 'Overview,Current policies,FNA quote,Group benefits,Shortfall,Reduced quotes,Investments,Goal analysis,Other' && pr.off === 8 && pr.cards === 11, '8. nine tabs; with nothing in the overview every tab but Overview is greyed and disabled (no strike-through), and the Overview still shows its eleven cards: ' + JSON.stringify(pr));
+  ok(pr.tabs === 'Overview' && pr.off === 0 && pr.cards === 11, '8. with nothing in the overview only the Overview tab is there (round 2.0: a heading none of whose tabs has anything is not shown), and the Overview still shows its eleven cards: ' + JSON.stringify(pr));
   await pg.screenshot({ path: out + '/seemore-present-map.png' });
   await pg.keyboard.press('ArrowRight'); await pg.waitForTimeout(150);
   ok(await pg.evaluate(() => OV.present.ps.tab === 'map' && !document.querySelector('.pcard.bright')), '8. next and back have nowhere to go while no page has anything to show, and no card opens a page');

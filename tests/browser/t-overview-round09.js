@@ -79,8 +79,8 @@ srv.listen(0, async () => {
   await p.evaluate(() => { OV.app.go('policies'); OV.app.openAll(true); });
   const view = await p.evaluate(() => { const c = [...document.querySelectorAll('article.qcard')]; const lib = c.filter(x => /Liberty/.test(x.querySelector('h3').textContent))[0], br = c.filter(x => /BrightRock/.test(x.querySelector('h3').textContent))[0];
     const adders = a => a ? [...a.querySelectorAll('[data-addl]')].map(x => x.textContent.trim()) : null; return { libHead: lib.querySelector('th.need').textContent, libRows: lib.querySelectorAll('table.lines tbody:first-of-type tr.ln').length, libAdd: adders(lib), brHead: br.querySelector('th.need').textContent, brAdd: adders(br), libNeedRows: lib.querySelectorAll('tr.ln b').length }; });
-  ok(view.libHead === 'Benefits' && view.libRows === 1 && JSON.stringify(view.libAdd) === JSON.stringify(['+ A benefit']), '3. the Liberty policy shows "Benefits", one row, and only "+ A benefit": ' + JSON.stringify(view));
-  ok(view.brHead === 'Need' && view.brAdd.length === 6 && /Household needs/.test(view.brAdd.join('|')), '3. a BrightRock policy keeps "Need" and the buttons for its needs');
+  ok(view.libHead === 'Benefits' && view.libRows === 1 && view.libAdd.length === 0, '3. the Liberty policy shows "Benefits", one row, and no add button (round 2.0: a schedule is added whole): ' + JSON.stringify(view));
+  ok(view.brHead === 'Need' && view.brAdd.length === 0, '3. a BrightRock policy keeps "Need" and has no add-line buttons either');
   await p.evaluate(() => { OV.app.go('policies'); document.querySelector('#toast').hidden = true; }); await p.waitForTimeout(3600);
   await p.setViewportSize({ width: 1440, height: 1500 }); await p.waitForTimeout(150);
   await p.screenshot({ path: out + '/r09-policies.png', fullPage: false });

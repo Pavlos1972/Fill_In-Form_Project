@@ -100,7 +100,7 @@
       ((facts && facts.debts) || []).forEach(function (d) { q.lines.push(ffLine(newLine('debt', { debt: d.desc || d.type || '', bank: d.prov || '', label: 'Debt' }))); });
       q.lines.push(ffLine(newLine('death'))); q.lines.push(ffLine(newLine('dread')));
       if (facts && facts.children && facts.children.length + (facts.debts || []).length) q.st = 'ff';
-    } else q.lines.push(newLine('other', { label: 'Cover', term: 'Whole of life' }));          // another insurer's quote is tailored to what it prints: often one whole-of-life amount for each benefit
+    } else if (!sv) q.lines.push(newLine('other', { label: 'Cover', term: 'Whole of life' }));          // another insurer's quote is tailored to what it prints: often one whole-of-life amount for each benefit
     return Object.assign(q, o || {});
   }
   function addQuote(state, kind, o) { var q = newQuote(state, kind, o); state.blocks[schema.blockOfQuote[kind]].quotes.push(q); return q; }

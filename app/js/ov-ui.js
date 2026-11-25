@@ -696,7 +696,7 @@
   /* The page before and the page after this one, skipping a page that does not apply (no shortfall quote page without group risk). */
   function pageName(id) { return id === CLIENT ? 'Client details' : id === COUNTERS ? 'Counter offers' : schema.blocksById[id].title; }
   function pagerHTML() {
-    var order = [CLIENT].concat(schema.BLOCKS.map(function (b) { return b.id; })).concat(counterRows().length ? [COUNTERS] : []), i = order.indexOf(cur), ok = function (id) { return id === CLIENT || (last.dots || {})[id] !== 'na'; }, prev = null, next = null, j;
+    var order = [CLIENT].concat(schema.BLOCKS.map(function (b) { return b.id; })).concat(counterRows().length ? [COUNTERS] : []), i = order.indexOf(cur), ok = function (id) { var bd = schema.blocksById[id]; return id === CLIENT || ((last.dots || {})[id] !== 'na' && !(bd && bd.servicing && !calc.quotes(state, id).length)); }, prev = null, next = null, j;          // round 2.0: Back and Next pass an empty servicing page by (the menu still reaches it)
     for (j = i - 1; j >= 0 && !prev; j--) if (ok(order[j])) prev = order[j];
     for (j = i + 1; j < order.length && !next; j++) if (ok(order[j])) next = order[j];
     return '<div class="pagenav"><span>' + (prev ? '<button type="button" class="btn small" data-block="' + prev + '">&lsaquo; Back: ' + esc(pageName(prev)) + '</button>' : '') + '</span><span>' + (next ? '<button type="button" class="btn small" data-block="' + next + '">Next: ' + esc(pageName(next)) + ' &rsaquo;</button>' : '') + '</span></div>';
@@ -897,7 +897,11 @@
     var all = allIds(), shows = function (id) { var p = prog[id]; return !!p && (p.st === 'reading' || p.st === 'done' || p.st === 'recorded' || p.st === 'error'); };
     all.forEach(function (id) { if (shows(id)) finished[id] = true; });                                    // a block that shows a document read has searched: it keeps its bar
     last = check.run(state, runOpts()); paintDots();
-    var ids = all.filter(function (id) { return !shows(id); });
+    var ids = all.filter(function (id) { var bd = schema.blocksById[id]; return !shows(id) && !(bd && bd.servicing && !calc.quotes(state, id).length); });          // round 2.0: an empty servicing block has nothing to check and no verdict to give
+    all.forEach(function (id) {                                                                           // an empty servicing block is finished at once: its "searching" bar goes
+      if (ids.indexOf(id) >= 0 || shows(id)) return; finished[id] = true;
+      if (prog[id] && /^(searching|waiting|checking)$/.test(prog[id].st)) { delete prog[id]; var el0 = document.querySelector('[data-prog="' + id + '"]'); if (el0) el0.hidden = true; }
+    });
     return new Promise(function (resolve) {
       if (!ids.length) { resolve(); return; }
       var left = ids.length, at = function (ms, fn) { checkTimers.push(setTimeout(fn, ms)); };
