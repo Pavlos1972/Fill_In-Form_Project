@@ -170,6 +170,32 @@ test('1.4 (Paul, question 2): the exact wording of a real reply is read on this 
   // an older reply with no such paragraph, empty, nothing
   assert.strictEqual(docs.uwReasonLocal('Unfortunately the original terms we have offered will stand after the review.'), null); assert.strictEqual(docs.uwReasonLocal('Our decision is based on the information we received -\n\nHere\u2019s a summary'), null, 'an empty paragraph is no reason'); assert.strictEqual(docs.uwReasonLocal(''), null); assert.strictEqual(docs.uwReasonLocal(null), null);
   assert.ok(!/api\.anthropic/.test(docs.uwReasonLocal.toString()), 'no call');
-  // the page tries it first and falls back to Claude only when it finds no such paragraph
-  const ui = app('js/ov-ui.js'); assert.ok(/D\.uwReasonLocal\(t\)/.test(ui) && /nothing was sent anywhere/.test(ui));
+  // the page reads a text e-mail this way and no other (a PDF or a picture of it is the only thing sent to the reading)
+  const ui = app('js/ov-ui.js'); assert.ok(/D\.uwReasonLocal\(x\.t, x\.raw\)/.test(ui) && /nothing was sent anywhere/.test(ui));
+});
+
+test('1.4 (review): the local reader copes with how real replies arrive: an Outlook paste whose reason is the first paragraph (the readable text drops it, the text as pasted keeps it), an HTML e-mail in quoted-printable, an entity apostrophe, a run-on with no end marker', () => {
+  const QSUB = 'Re: Counter-offer - Your BrightRock application - The cover terms we can offer you (Cover Proposal: 400500600 400500777) for Ruby Test';
+  // 1. Outlook paste: the quoted From / Sent / To / Subject block is lower down and the reason is the FIRST paragraph
+  const OUT = 'Our decision is based on the information we received - raised blood pressure, a lower back condition.\n\nHere\u2019s a summary of the terms we offered, mapped to the different benefits on our product grid:\nDecision Approved\n\nFrom: The Distribution Specialist\nSent: Thursday, 12 November 2026 09:14\nTo: Paul\nSubject: ' + QSUB + '\n\nPlease see below feedback from UW.';
+  assert.ok(docs.emailText(OUT).indexOf('Our decision') < 0, 'precondition: the readable text lost the first paragraph (it took it for headers)');
+  const a = docs.uwReasonLocal(docs.emailText(OUT), OUT);
+  assert.strictEqual(a.reason, 'raised blood pressure, a lower back condition.'); assert.deepStrictEqual(a.numbers, ['400500600', '400500777']); assert.strictEqual(a.date, '12/11/2026', 'the date from the Sent line'); assert.strictEqual(a.from, 'The Distribution Specialist'); assert.strictEqual(a.subject, QSUB);
+  // the reason in a later paragraph: the readable text has it, the headers come from the text as pasted
+  const OUT2 = 'Please see below feedback.\n\nOur decision is based on the information we received - smoking history.\n\nHere\u2019s a summary of the terms\n\nFrom: A\nSent: 3 March 2026\nSubject: ' + QSUB;
+  const b = docs.uwReasonLocal(docs.emailText(OUT2), OUT2); assert.strictEqual(b.reason, 'smoking history.'); assert.strictEqual(b.subject, QSUB); assert.strictEqual(b.date, '03/03/2026');
+  // 2. an HTML e-mail in quoted-printable (the apostrophe as =E2=80=99; blank lines collapse in the stripped text)
+  const HTML = 'From: The Distribution Specialist\nSubject: ' + QSUB + '\nDate: Thu, 12 Nov 2026 09:14:00 +0200\nMIME-Version: 1.0\nContent-Type: text/html; charset=utf-8\nContent-Transfer-Encoding: quoted-printable\n\n<html><body><p>Please see below:</p><p>Our decision is based on the information we received - raised blood pressure, a lower back condition.</p><p>Here=E2=80=99s a summary of the terms we offered, mapped to the product grid:</p><p>Decision Approved</p></body></html>';
+  const c = docs.uwReasonLocal(docs.emailText(HTML), HTML); assert.strictEqual(c.reason, 'raised blood pressure, a lower back condition.', 'the lead-in and the grid are left out of an HTML e-mail'); assert.deepStrictEqual(c.numbers, ['400500600', '400500777']); assert.strictEqual(c.date, '12/11/2026');
+  // the apostrophe left as an entity (stripHtml decodes numbers only)
+  const ENT = 'Subject: x\nContent-Type: text/html\n\n<p>Our decision is based on the information we received - an occupation.</p><p>Here&rsquo;s a summary of the terms we offered</p>';
+  assert.strictEqual(docs.uwReasonLocal(docs.emailText(ENT), ENT).reason, 'an occupation.');
+  // 3. no end marker at all: a short run stays, an implausibly long run-on (the grid and the thread swallowed) is not a reason; a summary line without the apostrophe also ends it
+  assert.strictEqual(docs.uwReasonLocal('Our decision is based on the information we received - ' + 'word '.repeat(200)), null);
+  assert.strictEqual(docs.uwReasonLocal('Our decision is based on the information we received - asthma\nA summary of the terms we offered: x').reason, 'asthma');
+  assert.strictEqual(docs.uwReasonLocal('Our decision is based on the information we received - asthma').reason, 'asthma');
+  // a reply that does not have the paragraph is read as no reason, whatever the page's reading switch says (the page never sends a text e-mail anywhere)
+  assert.strictEqual(docs.uwReasonLocal('Unfortunately the original terms we have offered will stand.', 'Unfortunately the original terms we have offered will stand.'), null);
+  const ui = app('js/ov-ui.js'); assert.ok(!/block: 'uwemail', text:/.test(ui), 'a text e-mail is never sent to the reading'); assert.ok(/block: 'uwemail'/.test(ui), 'a PDF or a picture of the e-mail still can be (it cannot be read here)');
+  assert.ok(/here\\S\{0,8\}s/.test(app('js/ov-docs.js')) && /a summary of the terms/.test(app('js/ov-docs.js')));
 });

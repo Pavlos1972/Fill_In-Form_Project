@@ -34,9 +34,11 @@ const init = () => {
     if (String(url).indexOf('api.anthropic.com') < 0) return real(url, opt);
     const body = JSON.parse(opt.body), c0 = body.messages[0].content[0]; let answer = {};
     if (c0.type === 'text' && c0.text.indexOf('THE E-MAIL:') >= 0) { window.__mail.push(c0.text); answer = window.__uw(c0.text); }
+    else if (c0.type !== 'text') { window.__mail.push('[document]'); answer = { subject: 'Scanned reply', from: 'The Distribution Specialist', date: '12/11/2026', numbers: ['400500777'], reason: 'From a scanned e-mail.', kind: null }; }
     return Promise.resolve({ ok: true, status: 200, json: async () => ({ content: [{ type: 'text', text: JSON.stringify(answer) }], usage: { input_tokens: 5, output_tokens: 5 } }) });
   };
 };
+const reply = (subjectNums, reason, extra) => 'Subject: Underwriting outcome (Cover Proposal: ' + subjectNums + ')\nFrom: The Underwriting Team\nDate: ' + ((extra && extra.date) || 'Thu, 12 Nov 2026 09:00:00 +0200') + '\n\nPlease see below feedback from UW regarding the loadings and exclusions placed on this cover proposal:\n\nOur decision is based on the information we received - ' + reason + '\n\nHere’s a summary of the terms we offered, mapped to the different benefits on our product grid:\nDecision Approved';
 srv.listen(0, async () => {
   const addr = 'http://localhost:' + srv.address().port + '/';
   const b = await chromium.launch({ executablePath: process.env.CHROMIUM || undefined, args: ['--no-sandbox'] });
@@ -82,21 +84,21 @@ srv.listen(0, async () => {
 
   /* ---- 3. the e-mail: pasted, then as a file ---- */
   await p.click(CARD + ' details.uwmail summary'); await p.waitForTimeout(200);
-  await p.fill(CARD + ' textarea[data-uw-text]', 'Subject: Underwriting outcome for the proposal\nFrom: The Underwriting Team\nDate: Thu, 12 Nov 2026 09:00:00 +0200\n\nThe proposal (CP 400500777) was loaded for raised blood pressure at the medical.');
+  await p.fill(CARD + ' textarea[data-uw-text]', reply('400500600 400500777', 'raised blood pressure at the medical.'));
   await p.click(CARD + ' [data-uw-read]'); await p.waitForTimeout(900);
   const r1 = await p.evaluate(sel => ({ line: (document.querySelector(sel + ' .uwreason') || { innerText: '' }).innerText.replace(/\s+/g, ' '), amber: !!document.querySelector(sel + ' .uwreason.tocheck'), noReason: !!document.querySelector(sel + ' .uwnoreason'), mailOpen: document.querySelector(sel + ' details.uwmail').open, msg: document.querySelector(sel + ' [data-uw-msg]').textContent, title: (document.querySelector(sel + ' .uwreason') || { title: '' }).title }), CARD);
-  ok(/Reason Raised blood pressure at the medical\./.test(r1.line) && /underwriter.s e-mail, 12\/11\/2026/.test(r1.line) && r1.amber && !r1.noReason, '3. the pasted e-mail fills the ONE reason, amber, with its date: ' + r1.line);
+  ok(/Reason raised blood pressure at the medical\./.test(r1.line) && /underwriter.s e-mail, 12\/11\/2026/.test(r1.line) && r1.amber && !r1.noReason, '3. the pasted e-mail fills the ONE reason, amber, with its date: ' + r1.line);
   ok(r1.mailOpen && /filled in from the e-mail/.test(r1.msg), '3. the e-mail fold stays open and says what happened: ' + r1.msg);
-  ok(/Subject: Underwriting outcome for the proposal/.test(r1.title) && /From: The Underwriting Team/.test(r1.title), '3. the subject and sender are on the reason (hover): ' + r1.title);
+  ok(/Subject: Underwriting outcome \(Cover Proposal: 400500600 400500777\)/.test(r1.title) && /From: The Underwriting Team/.test(r1.title), '3. the subject and sender are on the reason (hover): ' + r1.title);
   await p.click(CARD + ' details.uwmail summary'); await p.waitForTimeout(200); await p.locator(CARD).screenshot({ path: out + '/r17-block-reason.png' }); await p.click(CARD + ' details.uwmail summary'); await p.waitForTimeout(200);
-  const st1 = (await p.evaluate(() => OV.app.state)).blocks.fna.quotes[1].terms.reason; ok(st1.st === 'verify' && st1.by === 'page' && st1.src.kind === 'uwemail' && st1.src.subject === 'Underwriting outcome for the proposal' && st1.src.sender === 'The Underwriting Team' && st1.src.date === '12/11/2026' && st1.kind === 'medical', '3. the saved reason: ' + JSON.stringify(st1));
-  ok((await p.evaluate(() => window.__mail.length)) === 1 && /raised blood pressure/.test(await p.evaluate(() => window.__mail[0])), '3. only the e-mail’s text went to the reading (one call)');
+  const st1 = (await p.evaluate(() => OV.app.state)).blocks.fna.quotes[1].terms.reason; ok(st1.st === 'verify' && st1.by === 'page' && st1.src.kind === 'uwemail' && st1.src.subject === 'Underwriting outcome (Cover Proposal: 400500600 400500777)' && st1.src.sender === 'The Underwriting Team' && st1.src.date === '12/11/2026' && st1.text === 'raised blood pressure at the medical.', '3. the saved reason: ' + JSON.stringify(st1));
+  ok((await p.evaluate(() => window.__mail.length)) === 0, '3. a text e-mail in the real wording is read on this computer: NO call went to the reading, with the key saved');
   // a second e-mail as a FILE: the button opens the file window; it names the quote and replaces an amber reason
   const [fc] = await Promise.all([p.waitForEvent('filechooser'), p.click(CARD + ' [data-uwfile]')]);
-  await fc.setFiles({ name: 'UW reply 2.eml', mimeType: 'message/rfc822', buffer: Buffer.from('Subject: second reading\nFrom: The Underwriting Team\nDate: Fri, 14 Nov 2026 09:00:00 +0200\n\nCP 400500777: second reading of the file.') }); await p.waitForTimeout(900);
+  await fc.setFiles({ name: 'UW reply 2.eml', mimeType: 'message/rfc822', buffer: Buffer.from(reply('400500600 400500777', 'raised blood pressure and a high cholesterol reading.', { date: 'Fri, 14 Nov 2026 09:00:00 +0200' })) }); await p.waitForTimeout(900);
   const r2 = await p.evaluate(sel => (document.querySelector(sel + ' .uwreason') || { innerText: '' }).innerText.replace(/\s+/g, ' '), CARD); ok(/high cholesterol reading/.test(r2) && /14\/11\/2026/.test(r2), '3. an e-mail chosen as a file works the same and replaces an amber reason in place: ' + r2);
   // an e-mail that names another quote fills nothing
-  await p.fill(CARD + ' textarea[data-uw-text]', 'Subject: Another client\n\nThis concerns CP 999888777 only.'); await p.click(CARD + ' [data-uw-read]'); await p.waitForTimeout(800);
+  await p.fill(CARD + ' textarea[data-uw-text]', reply('999888777 999888778', 'another client.')); await p.click(CARD + ' [data-uw-read]'); await p.waitForTimeout(800);
   const r3 = await p.evaluate(sel => ({ line: document.querySelector(sel + ' .uwreason').innerText.replace(/\s+/g, ' '), msg: document.querySelector(sel + ' [data-uw-msg]').textContent, bad: document.querySelector(sel + ' [data-uw-msg]').classList.contains('bad') }), CARD);
   ok(/high cholesterol reading/.test(r3.line) && /999888777/.test(r3.msg) && /not this quote/.test(r3.msg) && r3.bad, '3. an e-mail that names only another quote fills nothing and says so: ' + r3.msg);
   await p.locator(CARD).screenshot({ path: out + '/r17-block-refused.png' });
@@ -106,7 +108,7 @@ srv.listen(0, async () => {
   const t1 = await p.evaluate(sel => ({ amber: !!document.querySelector(sel + ' .uwreason.tocheck'), btn: !!document.querySelector(sel + ' [data-confirmterms]'), line: !!document.querySelector(sel + ' p.amberline:not(.premwarn)') }), CARD);
   ok(!t1.amber && !t1.btn && !t1.line, '3. Terms checked confirms the terms AND the reason: no amber, no button');
   const st2 = (await p.evaluate(() => OV.app.state)).blocks.fna.quotes[1].terms.reason; ok(st2.st === 'confirmed' && st2.by === 'person', '3. the reason is now checked by a person');
-  await p.fill(CARD + ' textarea[data-uw-text]', 'CP 400500777 third note, second reading again.'); await p.click(CARD + ' [data-uw-read]'); await p.waitForTimeout(800);
+  await p.fill(CARD + ' textarea[data-uw-text]', reply('400500600 400500777', 'a third note.')); await p.click(CARD + ' [data-uw-read]'); await p.waitForTimeout(800);
   ok(/typed or checked already: kept/.test(await p.evaluate(sel => document.querySelector(sel + ' [data-uw-msg]').textContent, CARD)) && /high cholesterol/.test(await p.evaluate(sel => document.querySelector(sel + ' .uwreason').innerText, CARD)), '3. a checked reason is never replaced by a later e-mail');
 
   /* ---- Correct by hand ---- */
@@ -153,6 +155,16 @@ srv.listen(0, async () => {
   const old = await p.evaluate(sel => ({ msg: document.querySelector(sel + ' [data-uw-msg]').textContent, reason: OV.app.state.blocks.fna.quotes[1].terms.reason }), CARD);
   ok(/No .Our decision is based on the information we received. paragraph was found/.test(old.msg) && /type the reason in Correct by hand/.test(old.msg) && !old.reason, '6. an older reply with no such paragraph, and no key: it says so and fills nothing: ' + old.msg.slice(0, 90));
   await p.evaluate(() => FF.lookup.saveSettings({ apiKey: 'sk-test-key', model: 'claude-test' }));
+  // the same older reply WITH the key saved: still nothing is sent and nothing is filled (Paul chose the exact wording: the page does not guess at a reply that has no such paragraph)
+  const mail1 = await p.evaluate(() => window.__mail.length);
+  await p.click(CARD + ' [data-uw-read]'); await p.waitForTimeout(600);
+  const old2 = await p.evaluate(sel => ({ msg: document.querySelector(sel + ' [data-uw-msg]').textContent, reason: OV.app.state.blocks.fna.quotes[1].terms.reason, mail: window.__mail.length }), CARD);
+  ok(/paragraph was found/.test(old2.msg) && !old2.reason && old2.mail === mail1, '6. the same older reply WITH the key saved: no call went out and nothing was filled in: ' + old2.msg.slice(0, 80));
+  // a PDF or a picture of the e-mail cannot be read here: that one goes to the reading
+  const [fc2] = await Promise.all([p.waitForEvent('filechooser'), p.click(CARD + ' [data-uwfile]')]);
+  await fc2.setFiles({ name: 'UW reply scan.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4 test') }); await p.waitForTimeout(900);
+  const scan = await p.evaluate(sel => ({ msg: document.querySelector(sel + ' [data-uw-msg]').textContent, text: ((OV.app.state.blocks.fna.quotes[1].terms.reason) || {}).text, mail: window.__mail.length }), CARD);
+  ok(scan.mail === mail1 + 1 && /filled in from the e-mail/.test(scan.msg) && !/read on this computer/.test(scan.msg) && scan.text === 'From a scanned e-mail.', '6. a PDF of the e-mail IS sent to the reading (it cannot be read here) and fills the reason: ' + scan.msg.slice(0, 70));
 
   /* ---- 4. the Presentation ---- */
   await load(true); await p.waitForTimeout(300);
