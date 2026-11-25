@@ -14,7 +14,7 @@
   function two(n) { return (n < 10 ? '0' : '') + n; }
   /* The block a file belongs to, and what its name says: the quote number (6 to 12 digits), the date (dd.mm.yy). Returns null when the name does not say. */
   /* 1.7 (Paul, 25 November 14:55: "a mix"): a Review or Servicing folder directly inside a policy folder holds new review quotes AND paperwork about the change. A document there is a quote only when its NAME says so (a quote, a proposal, FNA, shortfall, reduced, a CP number);
-     never a letter, a signed or accepted copy, an SROA or ROA, a premium increase, a schedule, an application, a form, a consent or the owner's manual. */
+     never a letter, a signed or accepted copy, an SROA or ROA, a premium increase, a schedule, an application, a form, a consent or the owner's manual. (1.8: a schedule or statement that the folder walk finds in a policy folder's Review folder is the policy's schedule candidate and never reaches this list; classify only sees what the walk did not take.) */
   var PAPERWORK = /signed|accept|letter|sroa|(^|[^a-z])roa([^a-z]|$)|premium increase|manual|owner|schedule|change ?of ?details|plan details|application|cancel|consent|terms|conditions|notice|invoice|receipt|e-?mail/;
   var QUOTEISH = /quote|proposal|illustration|(^|[^a-z])fna([^a-z]|$)|shortfall|reduced|(^|[^a-z])cp[\s_#:-]*\d{6,12}/;
   function reviewSegs(dirPath) { return String(dirPath == null ? '' : dirPath).split(/\s*\\\s*/).filter(Boolean); }

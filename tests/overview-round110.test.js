@@ -26,7 +26,7 @@ const pol = (s, ins) => s.blocks.policies.items.filter(i => i.insurer === ins)[0
 const entry = (s, it) => calc.policies(s).filter(e => e.item === it)[0];
 
 test('the page is 1.1 (the layout stays 0.1), the changed scripts carry new tags in every page that loads them', () => {
-  assert.ok(/^1\.[1234567]$/.test(schema.pageVersion), 'the page version is 1.1 to 1.6'); assert.strictEqual(schema.version, '0.1');
+  assert.ok(/^1\.[12345678]$/.test(schema.pageVersion), 'the page version is 1.1 to 1.6'); assert.strictEqual(schema.version, '0.1');
   assert.ok(parseFloat(schema.pageVersion) > parseFloat('1.0'), 'compared as decimals');
   const h = app('overview.html');
   ['ov-schema', 'ov-calc', 'ov-store', 'ov-check', 'ov-docs', 'ov-pdf', 'ov-view', 'ov-ui', 'ov-present'].forEach(f => assert.ok(new RegExp(f + '\\.js\\?v=20261124[a-z]').test(h), f + ' has a new tag'));

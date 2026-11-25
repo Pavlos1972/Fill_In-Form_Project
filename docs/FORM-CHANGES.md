@@ -4,6 +4,11 @@ A dated list of what changed in the form's boxes, newest first. **One line for e
 
 The version is `version` in `app/js/schema.js` (the Fact Find), `app/js/sr-schema.js` (the Short Risk Application) and `app/js/cs-schema.js` (the Investment Capture Sheet); a saved file carries it as `schema`. Earlier changes are in the README and in the git history; this list starts with 3.1.
 
+## Client Overview Studio 1.8: 25 November 2026 (Client Overview Studio 1.7 to 1.8; Fact Find 5.5, Risk Application 1.6 and Investment Application 1.5 keep their numbers; display and folder search only)
+
+**No id, list, box, choice, sum or saved-file key changed** (contract revision o unchanged; layout `0.1`). What changed for a skill: **nothing in the saved file**; the folder rules `client-overview-skill` follows change as below.
+- Paul's answers of 25 November (*1 yes, 2 yes, 3 leave, 4 each*): a schedule, a statement, an IS (investment statement) or a PS in a policy folder's Review folder is the policy's own schedule candidate (the newest across Policy Schedules, Servicing and Review is ticked; a *Review Summary*, a letter, a form, a quote, a signed or accepted copy, the manual and another insurer's file are not); a signed quote in a review folder stays listed and not ticked; the paperwork and quote words are unchanged; proposals of different products (retirement annuity, tax-free, living annuity, endowment, unit trust) and goal reports of different kinds (retirement, education) are one group each and the newest of EACH is ticked (`folders.js` `quoteSub`, `ageQuotes`).
+
 ## Client Overview Studio 1.7: 25 November 2026 (Client Overview Studio 1.6 to 1.7; Fact Find 5.5, Risk Application 1.6 and Investment Application 1.5 keep their numbers; display and folder search only)
 
 **No id, list, box, choice, sum or saved-file key changed** (contract revision o unchanged; layout `0.1`). What changed for a skill: **nothing in the saved file**; the folder rule `client-overview-skill` follows for a kind of quote with no year folder anywhere changes from "all ticked" to "the newest by the date in its name; none dated: all ticked".

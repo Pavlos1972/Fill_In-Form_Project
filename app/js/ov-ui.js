@@ -1224,7 +1224,7 @@
     var keyOf = function (f) { var c = D.classify(f.name, (f.rel || []).join(' \\ ')); if (!c || (c.block !== 'policies' && c.block !== 'investments' && c.block !== 'group')) return null; var nk = F && F.numKey ? F.numKey(c.number) : c.number; return c.block + ':' + (nk && nk.length >= 5 ? nk : String(f.name).toLowerCase().replace(/\.[a-z0-9]{2,5}$/, '').replace(/[^a-z]+/g, ' ').trim()); };
     var kn = F && F.keyedNewest ? F.keyedNewest(others, keyOf) : { tick: new Map(), tied: [] };
     /* The latest year folder FIRST, for every kind of quote (round 1.6; Paul, 25 November: "look in the latest year folder as the first port of call. If that's not present, then look at what is the latest review documents ... within the folders"): a file's year is the year of the
-       folder it sits in ("2026 - Review", "2025"), else the year in its name; per kind of document (an FNA quote, a shortfall quote, a reduced quote, a comparative quote, a proposal, a pay-out guide, a goal report) over the WHOLE client, only the newest year's are ticked and the
+       folder it sits in ("2026 - Review", "2025"), else the year in its name; per kind of document (an FNA quote, a shortfall quote, a reduced quote, a comparative quote, a proposal, a pay-out guide, a goal report; since 1.8 a proposal's kind is its PRODUCT and a goal report's its TYPE) over the WHOLE client, only the newest year's are ticked and the
        others are listed unticked with the reason. A kind is ruled by year when one of its files sits in a year folder (comparative quotes always: since 1.5, by the folder's year or the name's); a kind with NO year folder anywhere is ruled by the DATE IN THE NAME (round 1.7, Paul's answer of 25 November: only the newest dated one is ticked, none dated = all ticked): see F.ageQuotes. */
     var QKIND = { fna: 1, shortfallQuote: 1, reduced: 1, comparative: 1, proposed: 1, cmp: 1, goals: 1 };
     var inCq = function (f) { return (f.rel || []).some(function (r) { return /comparative quotes?/.test(F.norm(r)); }); };                  // the rule is about the FOLDER too: a file under Comparative Quotes whose name says "RA quote" is a proposal by its name and a comparative quote by its place
@@ -1234,7 +1234,7 @@
     others.forEach(function (f) {
       var kd = F && F.dateKey ? kindOf(f) : null; if (!kd) return;
       var k = F.dateKey(f.name, f.rel), nd = F.nameDate ? F.nameDate(f.name) : k.exact;                         // nd: the date, the month or the bare year the NAME carries (0 when none)
-      entries.push({ id: f, kind: kd, y: k.year || (nd ? Math.floor(nd / 10000) : 0), fy: k.year, ex: nd, no: nkOf(f) });
+      entries.push({ id: f, kind: kd, sub: F.quoteSub ? F.quoteSub(kd, f.name) : '', y: k.year || (nd ? Math.floor(nd / 10000) : 0), fy: k.year, ex: nd, no: nkOf(f) });          // sub: the product of a proposal or the kind of a goal report (1.8): the newest of EACH is ticked
     });
     var older = F && F.ageQuotes ? F.ageQuotes(entries) : new Map();                                            // which are not the newest of their kind, and why (folders.js: the year rule, the date rule of 1.7, a guide follows its quote)
     var tick = res.files.map(function (f) {
