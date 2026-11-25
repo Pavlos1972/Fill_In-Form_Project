@@ -146,6 +146,19 @@ test('classify, a Review or Servicing folder directly inside a policy folder: a 
   assert.strictEqual(cls('Statement 31.03.26.pdf', 'NinetyOne Invest - 449900 \\ Policy Schedules \\ 2026'), 'investments', 'a statement in Policy Schedules is untouched');
   assert.ok(!D.reviewPaperwork('Signed Quote.pdf', 'NinetyOne Invest - 449900 \\ Policy Schedules'), 'outside a Review or Servicing folder the paperwork rule does not apply');
 });
+test('classify, the paperwork rule touches only what could be taken for a quote: an e-mail, a pay-out guide, an Astute report, a goal report, follow-up notes and a group statement keep their block in a Review or Servicing path, and a schedule folder is never ruled by it', () => {
+  const cls = (n, d) => { const c = D.classify(n, d); return c ? c.block + (c.viaReview ? '*' : '') : null; };
+  const V = '3. Quotes \\ 2026 - Review', P = 'NinetyOne Invest - 449900 \\ Servicing';
+  assert.strictEqual(cls('BrightRock reply.eml', V), 'bremail'); assert.strictEqual(cls('Email from BrightRock 400500777.txt', P), 'bremail');
+  assert.strictEqual(cls('BR CMPO - 400500777.pdf', V), 'cmp'); assert.strictEqual(cls('Astute Report 2026.pdf', P), 'astute');
+  assert.strictEqual(cls('RGAR Report 2026.pdf', V), 'goals'); assert.strictEqual(cls('Follow-Up Summary Notes 2026.pdf', V), 'followup');
+  assert.strictEqual(cls('Provident Fund Statement 2026.pdf', P), 'group', 'a group statement is a group statement wherever it sits');
+  const S = '6. Policy Schedules \\ 2026 - Review';
+  assert.strictEqual(cls('Policy Schedule 2026.pdf', S), 'policies', 'a schedule in a schedule folder stays a schedule: the folder says what it is');
+  assert.strictEqual(cls('Investment Statement 30.06.26.pdf', S), 'investments');
+  assert.ok(!D.reviewPaperwork('Policy Schedule 2026.pdf', S), 'and it is not called paperwork');
+  assert.strictEqual(cls('Premium Letter 2026.pdf', S), 'policies', 'a schedule folder is not ruled by the paperwork rule at all (its name still says policy)');
+});
 test('walkPolicy: Servicing\'s schedules are candidates, its other documents are listed (g.quotes), its manual is the last resort, and nothing is written', async () => {
   calls.write = 0;
   const c = new Dir('Test, Dora'), pf = c.add('NinetyOne Invest - 449900'), sv = pf.add('Servicing');

@@ -18,7 +18,9 @@
   var PAPERWORK = /signed|accept|letter|sroa|(^|[^a-z])roa([^a-z]|$)|premium increase|manual|owner|schedule|change ?of ?details|plan details|application|cancel|consent|terms|conditions|notice|invoice|receipt|e-?mail/;
   var QUOTEISH = /quote|proposal|illustration|(^|[^a-z])fna([^a-z]|$)|shortfall|reduced|(^|[^a-z])cp[\s_#:-]*\d{6,12}/;
   function reviewSegs(dirPath) { return String(dirPath == null ? '' : dirPath).split(/\s*\\\s*/).filter(Boolean); }
-  function inReviewOrServicing(dirPath) { return reviewSegs(dirPath).some(function (g) { return /review|servic/i.test(g) && !/schedule|statement|valuation/i.test(g); }); }
+  /* A path with a segment that says schedule, statement or valuation is a schedule folder ("6. Policy Schedules\2026 - Review"): the folder says what its files are, so the rule does not apply there. */
+  function inReviewOrServicing(dirPath) { var s = reviewSegs(dirPath); return s.some(function (g) { return /review|servic/i.test(g); }) && !s.some(function (g) { return /schedule|statement|valuation/i.test(g); }); }
+  var REVIEW_KINDS = { fna: 1, shortfallQuote: 1, reduced: 1, comparative: 1, proposed: 1, investments: 1, policies: 1 };          // the rule may only touch what could be taken for a quote or a current policy / investment: never an e-mail, a pay-out guide, an Astute report, a goal report, follow-up notes or a group statement
   /* True for a document in a Review or Servicing folder whose name says it is paperwork about a change (never a quote): the list says so. */
   function reviewPaperwork(fileName, dirPath) { var low = String(fileName == null ? '' : fileName).replace(/\.[A-Za-z0-9]{2,5}$/, '').toLowerCase(); return inReviewOrServicing(dirPath) && PAPERWORK.test(low); }
   function classify(fileName, dirPath) {
@@ -50,7 +52,7 @@
       else if (segs.some(function (g) { return /^(\d+\.\s*)?(accepted )?quotes?(\s*\(.*\))?$/i.test(g.trim()); })) block = block === 'investments' ? 'proposed' : 'comparative';
       /* (a Review or Servicing folder: handled below, 1.7) */
     }
-    if (dirPath && inReviewOrServicing(dirPath)) {                                                              // 1.6 and 1.7: a document in a folder named Review or Servicing
+    if (dirPath && (!block || REVIEW_KINDS[block]) && inReviewOrServicing(dirPath)) {                                                              // 1.6 and 1.7: a document in a folder named Review or Servicing
       var rsegs = reviewSegs(dirPath);
       if (PAPERWORK.test(low)) block = null;                                                                  // never a quote: a letter, a signed or accepted copy, an SROA, a schedule, the owner's manual ...
       else if (rsegs.length > 1 && !/^\d+\.\s/.test(rsegs[0].trim()) && QUOTEISH.test(low) && (!block || block === 'investments' || block === 'policies')) block = 'comparative';          // directly inside a policy folder: its name says it is a quote, so it is a quote (of the policy's review)
