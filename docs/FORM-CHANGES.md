@@ -4,6 +4,11 @@ A dated list of what changed in the form's boxes, newest first. **One line for e
 
 The version is `version` in `app/js/schema.js` (the Fact Find), `app/js/sr-schema.js` (the Short Risk Application) and `app/js/cs-schema.js` (the Investment Capture Sheet); a saved file carries it as `schema`. Earlier changes are in the README and in the git history; this list starts with 3.1.
 
+## Client Overview Studio 2.0: 25 November 2026 (Client Overview Studio 1.9 to 2.0; Fact Find 5.5, Risk Application 1.6 and Investment Application 1.5 keep their numbers; contract revision p)
+
+**New block ids, quote kinds and keys in the Overview's saved file (layout `0.1`):** blocks `svFna`, `svShortfall`, `svReduced`, `svIncrease`, `svReduction` (each `{ "quotes": [] }`); quote kinds `svfna`, `svshortfall`, `svreduced`, `svincrease`, `svreduction`; on a servicing quote `onPolicy` { id, insurer, number } (id may be null: tied by the policy number until the schedule is read) and `reason`, `servicing` always true; on a policy item `notInFF: true`. A file saved before 2.0 opens with the five blocks empty. Nothing in the Fact Find, the Risk Application or the Investment Application changed. What changed for a skill: see `docs/OVERVIEW-DATA-CONTRACT.md` revision p.
+- The menu, the PDF and the Presentation are under four headings; the five servicing blocks; a servicing quote is tied to one policy and shows the old and the new (worked out, never stored); Load routes a quote of a life policy folder (name with the policy number) to its servicing block; no line is added or removed by hand; a *+ Add …* button ends every block; a schedule the Fact Find does not list is added and marked.
+
 ## Client Overview Studio 1.9: 25 November 2026 (Client Overview Studio 1.8 to 1.9; Fact Find 5.5, Risk Application 1.6 and Investment Application 1.5 keep their numbers; display and folder search only)
 
 **No id, list, box, choice, sum or saved-file key changed** (contract revision o unchanged; layout `0.1`). What changed for a skill: **nothing in the saved file**; the folder-name rule `client-overview-skill` follows: a negated word is not the status.
