@@ -434,6 +434,34 @@
     if (tied.length > 1 && same.length === 1) { var own = tied.filter(function (x) { return !x.f.from; })[0] || tied[0]; return { file: own.f, tie: false, tied: [own.f] }; }
     return { file: tied.length > 1 ? null : top.f, tie: tied.length > 1, tied: tied.map(function (x) { return x.f; }) };
   }
+  /* Which of the client's quote-like documents are NOT the newest of their kind (round 1.7; the rule of 1.6 and Paul's answer of 25 November, relayed 14:52).
+     entries: [{ id, kind, y (the year: its folder's, else its name's, 0 when none), fy (the year of its folder, 0 when it sits in no year folder), ex (the date in its name as yyyymmdd, yyyymm00 for a month, 0 when none), no (its CP or policy number, '' when none) }];
+     kind is fna, shortfallQuote, reduced, comparative, proposed, goals or cmp (a change moment pay-out guide). Returns a Map id -> the reason it is not ticked.
+     (1) A kind is ruled by YEAR when one of its documents sits in a year folder (comparative quotes always): only the newest year's are ticked; a document with no year loses to a year.
+     (2) A kind with NO year folder anywhere (comparative quotes apart) is ruled by the DATE IN THE NAME: only the newest dated one is ticked (the same date: all of that date), a document with no date loses to a dated one; when NO document of the kind has a date, all are ticked (Paul, 25 November: "tick only the newest by the date in its name; if no date at all, keep both ticked").
+     (3) A pay-out guide has no date of its own: it only follows its quote (the same number): the guide of a quote that is not ticked is not ticked, unless a ticked quote carries that number. */
+  function ageQuotes(entries) {
+    var older = new Map(), maxY = {}, byFolder = {}, maxEx = {}, dated = {}, list = entries || [];
+    var fmt = function (ex) { var y = Math.floor(ex / 10000), m = Math.floor(ex / 100) % 100, d = ex % 100, p = function (n) { return (n < 10 ? '0' : '') + n; }; return (d ? p(d) + '/' : '') + p(m) + '/' + y; };
+    list.forEach(function (x) {
+      if (x.kind === 'cmp') return;
+      if ((x.y || 0) > (maxY[x.kind] || 0)) maxY[x.kind] = x.y; if (x.fy) byFolder[x.kind] = true;
+      if (x.ex) { dated[x.kind] = true; if (x.ex > (maxEx[x.kind] || 0)) maxEx[x.kind] = x.ex; }
+    });
+    var ruled = function (kd) { return !!maxY[kd] && (kd === 'comparative' || byFolder[kd]); };
+    list.forEach(function (x) {
+      if (x.kind === 'cmp') return;
+      if (ruled(x.kind)) { if ((x.y || 0) < maxY[x.kind]) older.set(x.id, x.y ? 'older year (' + x.y + '): not ticked, the newest is ' + maxY[x.kind] : 'no year found in its folder or name, and ' + maxY[x.kind] + ' exists: not ticked'); }
+      else if (x.kind !== 'comparative' && dated[x.kind]) {
+        if (!x.ex) older.set(x.id, 'no date in its name, and a dated one exists: not ticked');
+        else if (x.ex < maxEx[x.kind]) older.set(x.id, 'older date (' + fmt(x.ex) + '): not ticked, the newest is ' + fmt(maxEx[x.kind]));
+      }
+    });
+    var oldNo = {}, newNo = {};
+    list.forEach(function (x) { if (x.kind === 'cmp' || !x.no) return; (older.has(x.id) ? oldNo : newNo)[x.no] = true; });
+    list.forEach(function (x) { if (x.kind !== 'cmp' || !x.no || older.has(x.id)) return; if (oldNo[x.no] && !newNo[x.no]) older.set(x.id, 'the guide of an older quote: not ticked'); });
+    return older;
+  }
   var DOC_FILE = /\.(pdf|png|jpe?g)$/i;
   /* A file in a policy folder that is NOT a schedule or a statement: acceptance letters, applications, cancellations, claims, medical reports, ROA, RAR, questionnaires, e-mails, quotes and so on, the Astute report (read from its own folder). */
   var NOT_SCHEDULE = /accept|applic|cancel|claim|medical|(^|[^a-z])forms?([^a-z]|$)|change ?of ?details|plan details change|letter|premium increase|(^|[^a-z])roa([^a-z]|$)|(^|[^a-z])rar([^a-z]|$)|questionnaire|e-?mail|correspond|quote|proposal|comparative|counter|consent|invoice|receipt|(^|[^a-z])fna([^a-z]|$)|cmpo|change[ _-]?moment|follow[ _-]?up|astute|transfer|section ?14|tax ?cert|irp5|it3/;
@@ -676,7 +704,7 @@
   return {
     MAX_PATH: MAX_PATH, SWAP: SWAP, RULES: RULES, ALIASES: ALIASES, norm: norm, tokens: tokens, clientFolderName: clientFolderName, parseClient: parseClient, clientMatches: clientMatches, letterOf: letterOf, letterFolder: letterFolder,
     isLetterFolder: isLetterFolder, isStandard: isStandard, nameIs: nameIs, insurerWords: insurerWords, productWords: productWords, numbersIn: numbersIn, hasWord: hasWord, scoreDeal: scoreDeal, chooseDeal: chooseDeal, pathCheck: pathCheck, tooLongText: tooLongText,
-    comparePolicies: comparePolicies, mergeClientLists: mergeClientLists, keyedNewest: keyedNewest, parsePolicyFolder: parsePolicyFolder, policyFolders: policyFolders, policyScan: policyScan, joinSchedules: joinSchedules, latestOverview: latestOverview, dateKey: dateKey, newestOf: newestOf, isManual: isManual, isReviewDir: function (n) { return REVIEW_DIR.test(norm(n)); }, canonInsurer: canonInsurer, numKey: numKey, FOLDER_INSURERS: FOLDER_INSURERS,
+    comparePolicies: comparePolicies, mergeClientLists: mergeClientLists, keyedNewest: keyedNewest, parsePolicyFolder: parsePolicyFolder, policyFolders: policyFolders, policyScan: policyScan, joinSchedules: joinSchedules, latestOverview: latestOverview, dateKey: dateKey, newestOf: newestOf, ageQuotes: ageQuotes, isManual: isManual, isReviewDir: function (n) { return REVIEW_DIR.test(norm(n)); }, canonInsurer: canonInsurer, numKey: numKey, FOLDER_INSURERS: FOLDER_INSURERS,
     listDirs: listDirs, clientSubfolder: clientSubfolder, findFiles: findFiles, viewableFiles: viewableFiles, findClients: findClients, clientFromFile: clientFromFile, dirOfFile: dirOfFile, dealCandidates: dealCandidates, resolveTarget: resolveTarget, factFindCandidates: factFindCandidates, resolveFactFind: resolveFactFind, overviewCandidate: overviewCandidate, clientDocuments: clientDocuments, counterOfferDocuments: counterOfferDocuments, resolveOverview: resolveOverview, ensureOverview: ensureOverview, relOf: relOf, labelOf: labelOf, probeFile: probeFile, makeFile: makeFile, discardEmpty: discardEmpty,
     saveHandle: saveHandle, loadHandle: loadHandle, getPaths: getPaths, setPath: setPath, permission: permission, enabled: enabled
   };

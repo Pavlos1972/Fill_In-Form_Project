@@ -4,6 +4,12 @@ A dated list of what changed in the form's boxes, newest first. **One line for e
 
 The version is `version` in `app/js/schema.js` (the Fact Find), `app/js/sr-schema.js` (the Short Risk Application) and `app/js/cs-schema.js` (the Investment Capture Sheet); a saved file carries it as `schema`. Earlier changes are in the README and in the git history; this list starts with 3.1.
 
+## Client Overview Studio 1.7: 25 November 2026 (Client Overview Studio 1.6 to 1.7; Fact Find 5.5, Risk Application 1.6 and Investment Application 1.5 keep their numbers; display and folder search only)
+
+**No id, list, box, choice, sum or saved-file key changed** (contract revision o unchanged; layout `0.1`). What changed for a skill: **nothing in the saved file**; the folder rule `client-overview-skill` follows for a kind of quote with no year folder anywhere changes from "all ticked" to "the newest by the date in its name; none dated: all ticked".
+- Paul's answer of 25 November (relayed 14:52): a kind with NO year folder anywhere (comparative quotes apart, which are always ruled by year) is ruled by the DATE IN THE NAME: only the newest dated document is ticked (several on the same date: all of that date), an undated one loses to a dated one, and when NO document of the kind has a date every one stays ticked. The two other readings of 1.6 stand.
+- The age rule of the quotes is one pure function, `ageQuotes` in `folders.js` (year rule, date rule, a pay-out guide follows its quote); `tickPlan` asks it instead of holding its own copy.
+
 ## Client Overview Studio 1.6: 25 November 2026 (Client Overview Studio 1.5 to 1.6; Fact Find 5.5, Risk Application 1.6 and Investment Application 1.5 keep their numbers; display and folder search only)
 
 **No id, list, box, choice, sum or saved-file key changed** (contract revision o unchanged; layout `0.1`). What changed for a skill: **nothing in the saved file**; the folder rules `client-overview-skill` follows gain two (the newest year folder first for every kind of quote, a Review folder read by its folder).
