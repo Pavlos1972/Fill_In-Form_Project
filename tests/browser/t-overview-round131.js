@@ -77,7 +77,7 @@ srv.listen(0, async () => {
   ok(/R5,420\.01/.test(pw.warn) && /R5,420\.00/.test(pw.warn) && /letter/.test(pw.warn), '2. a ONE-cent difference gives the amber warning naming both figures: ' + pw.warn);
   ok(pw.bar.length === 1 && /^R?\s?5[ , ]?420([.,]00)?$/.test(pw.bar[0].trim()), '2. the premium box shows the letter’s figure: ' + JSON.stringify(pw.bar));
   const ck = await p.evaluate(() => OV.app.last.problems.filter(x => x.id === 'counter.premium').map(x => x.message)); ok(ck.length === 1 && /5,420\.01/.test(ck[0]), '2. and the Checks say it too');
-  await p.locator(CARD).screenshot({ path: out + '/r17-block-nobody.png' });
+  await p.locator(CARD).screenshot({ path: out + '/r17-block-noreason.png' });
 
   /* ---- 3. the e-mail: pasted, then as a file ---- */
   await p.click(CARD + ' details.uwmail summary'); await p.waitForTimeout(200);
@@ -87,6 +87,7 @@ srv.listen(0, async () => {
   ok(/Reason Raised blood pressure at the medical\./.test(r1.line) && /underwriter.s e-mail, 12\/11\/2026/.test(r1.line) && r1.amber && !r1.noReason, '3. the pasted e-mail fills the ONE reason, amber, with its date: ' + r1.line);
   ok(r1.mailOpen && /filled in from the e-mail/.test(r1.msg), '3. the e-mail fold stays open and says what happened: ' + r1.msg);
   ok(/Subject: Underwriting outcome for the proposal/.test(r1.title) && /From: The Underwriting Team/.test(r1.title), '3. the subject and sender are on the reason (hover): ' + r1.title);
+  await p.click(CARD + ' details.uwmail summary'); await p.waitForTimeout(200); await p.locator(CARD).screenshot({ path: out + '/r17-block-reason.png' }); await p.click(CARD + ' details.uwmail summary'); await p.waitForTimeout(200);
   const st1 = (await p.evaluate(() => OV.app.state)).blocks.fna.quotes[1].terms.reason; ok(st1.st === 'verify' && st1.by === 'page' && st1.src.kind === 'uwemail' && st1.src.subject === 'Underwriting outcome for the proposal' && st1.src.sender === 'The Underwriting Team' && st1.src.date === '12/11/2026' && st1.kind === 'medical', '3. the saved reason: ' + JSON.stringify(st1));
   ok((await p.evaluate(() => window.__mail.length)) === 1 && /raised blood pressure/.test(await p.evaluate(() => window.__mail[0])), '3. only the e-mail’s text went to the reading (one call)');
   // a second e-mail as a FILE: the button opens the file window; it names the quote and replaces an amber reason
@@ -97,7 +98,7 @@ srv.listen(0, async () => {
   await p.fill(CARD + ' textarea[data-uw-text]', 'Subject: Another client\n\nThis concerns CP 999888777 only.'); await p.click(CARD + ' [data-uw-read]'); await p.waitForTimeout(800);
   const r3 = await p.evaluate(sel => ({ line: document.querySelector(sel + ' .uwreason').innerText.replace(/\s+/g, ' '), msg: document.querySelector(sel + ' [data-uw-msg]').textContent, bad: document.querySelector(sel + ' [data-uw-msg]').classList.contains('bad') }), CARD);
   ok(/high cholesterol reading/.test(r3.line) && /999888777/.test(r3.msg) && /not this quote/.test(r3.msg) && r3.bad, '3. an e-mail that names only another quote fills nothing and says so: ' + r3.msg);
-  await p.locator(CARD).screenshot({ path: out + '/r17-block.png' });
+  await p.locator(CARD).screenshot({ path: out + '/r17-block-refused.png' });
 
   /* ---- Terms checked ---- */
   await p.click(CARD + ' [data-confirmterms]'); await p.waitForTimeout(400);
@@ -123,7 +124,16 @@ srv.listen(0, async () => {
   await p.evaluate(sel => { const b = document.querySelector(sel + ' [data-see]'); if (b && !document.querySelector(sel + ' .uwdecision')) b.click(); }, CARD); await p.waitForTimeout(300);
   const none = await p.evaluate(sel => ({ open: (document.querySelector(sel + ' details.uwhand') || {}).open, h5: document.querySelector(sel + ' .uwdecision h5.uwh').textContent, msg: /No loadings or exclusions have been read/.test(document.querySelector(sel + ' .uwdecision').innerText) }), CARD);
   ok(none.open === true && none.h5 === 'Underwriting terms of the counter offer letter' && none.msg, '1. with no terms read yet Correct by hand is OPEN (it is the only way in) and the block says so: ' + JSON.stringify(none));
-  await p.locator(CARD).screenshot({ path: out + '/r17-block-nobody.png' });
+  await p.locator(CARD).screenshot({ path: out + '/r17-block-notermsyet.png' });
+
+  /* ---- 2b. a premium typed on the counter offer quote ---- */
+  await load(true); await p.waitForTimeout(400);
+  await p.evaluate(sel => { const b = document.querySelector(sel + ' [data-see]'); if (b && !document.querySelector(sel + ' .uwdecision')) b.click(); }, CARD); await p.waitForTimeout(300);
+  const PB = CARD + ' input[data-p="blocks.fna.quotes.1.premium"]';
+  ok(await p.evaluate(sel => !!document.querySelector(sel + ' p.premwarn') && /after R5,420 p\.m\./.test(document.querySelector(sel + ' .premline').textContent), CARD), '2b. before typing: the warning and the line "after R5,420" are there');
+  await p.fill(PB, '5500'); await p.dispatchEvent(PB, 'change'); await p.waitForTimeout(500);
+  const pt = await p.evaluate(sel => ({ warn: !!document.querySelector(sel + ' p.premwarn'), line: document.querySelector(sel + ' .premline').textContent, box: (document.querySelector(sel + ' input[data-p="blocks.fna.quotes.1.premium"]') || { value: '' }).value, q: OV.app.state.blocks.fna.quotes[1].offer, prem: OV.app.state.blocks.fna.quotes[1].premium }), CARD);
+  ok(!pt.warn && /after R5,500 p\.m\./.test(pt.line) && pt.q.revPremium === 5500 && pt.q.quotePremium === 5500 && pt.prem === 5500, '2b. a premium typed on the counter offer quote is the adviser\u2019s check of the figure: the warning goes, the line under it and the letter\u2019s stored figure follow at once: ' + JSON.stringify({ warn: pt.warn, line: pt.line.slice(0, 60), rev: pt.q.revPremium }));
 
   /* ---- 4. the Presentation ---- */
   await load(true); await p.waitForTimeout(300);
@@ -158,6 +168,20 @@ srv.listen(0, async () => {
   ok(/4\* Severe illness, income protector We will not pay a claim that arises directly or indirectly from any condition of the lower back/.test(qt) && /5\* Lump sum disability We will not pay a claim that arises from a hazardous pursuit/.test(qt) && qt.indexOf('for as long as the cover lasts') > 0, '5. the PDF has every exclusion once, with its pillars and the wording in full');
   ok(!/Percentage added|The reason in words/.test(qt) && !/severe illness and income protector/i.test(qt), '5. the old tables and the combined label are not in the PDF');
   if (qp) cp.execFileSync('pdftoppm', ['-f', String(qp), '-l', String(qp), '-r', '80', '-png', '-singlefile', pdfFile, out + '/r17-pdf']);
+
+  /* ---- 4b. a realistic long wording, three exclusions: does the slide still read, open and folded? ---- */
+  const LONG = 'We will not pay any claim that arises directly or indirectly from, is caused by, or is in any way related to a condition of the lower back or spine, including a disc, a nerve or a muscle disorder, whether or not it was diagnosed, treated or investigated before the cover started or before this revised proposal was issued, and whether the condition is the sole cause of the claim or only one of several causes. This exclusion applies for as long as the cover remains in force and also to any increase in cover that is made at a later date, unless we agree otherwise in writing.';
+  await p.evaluate(LONG => { const q = OV.app.state.blocks.fna.quotes[1]; q.terms.exclusions.forEach(e => { e.what = LONG; }); q.terms.exclusions.push({ no: '6*', benefit: 'Life cover', what: LONG.replace('lower back or spine', 'neck'), why: 'Medical', st: 'verify', by: 'page', applies: [{ need: 'needs', column: 'death' }], page: 4 }); }, LONG);
+  await p.evaluate(() => OV.present.open()); await p.waitForTimeout(500); await p.evaluate(() => OV.present.go('fna')); await p.waitForTimeout(400);
+  await p.click('#pres .pchip[data-act=q][data-i="1"]'); await p.waitForTimeout(400); await p.click('#pres .psub[data-s=uw]'); await p.waitForTimeout(500);
+  const scaleOf = () => p.evaluate(() => { const m = /scale\(([\d.]+)\)/.exec(document.querySelector('#pSlide').style.transform || ''); return m ? parseFloat(m[1]) : 1; });
+  const fits2 = () => p.evaluate(() => { const st = document.querySelector('#pStage'), sl = document.querySelector('#pSlide'), r = sl.getBoundingClientRect(), s2 = st.getBoundingClientRect(); return r.bottom <= s2.bottom + 2 && r.top >= s2.top - 2 && st.scrollHeight <= st.clientHeight + 2; });
+  const lo = await scaleOf(); ok(await p.evaluate(() => document.querySelectorAll('#pSlide .uwex .exw').length === 3) && await fits2(), '4b. three long wordings open: the slide fits (scale ' + lo.toFixed(2) + ') and never scrolls');
+  await p.screenshot({ path: out + '/r17-pres-long-open.png' });
+  await p.click('#pSlide .uwex:nth-of-type(1) .exh'); await p.click('#pSlide .uwex:nth-of-type(1) .exh'); await p.waitForTimeout(200);
+  await p.evaluate(() => { [...document.querySelectorAll('#pSlide .uwex .exh')].slice(0, 2).forEach(b => b.click()); }); await p.waitForTimeout(400);
+  const lf = await scaleOf(); ok(await p.evaluate(() => document.querySelectorAll('#pSlide .uwex.shut').length === 1 || document.querySelectorAll('#pSlide .uwex.shut').length === 2) && await fits2() && lf >= lo, '4b. wordings folded: the slide fits and the type is at least as large (scale ' + lf.toFixed(2) + ' against ' + lo.toFixed(2) + ' open)');
+  await p.screenshot({ path: out + '/r17-pres-long-folded.png' }); await p.evaluate(() => OV.present.close());
 
   ok(errs.length === 0, 'no page errors' + (errs.length ? ': ' + errs.join(' | ') : ''));
   await b.close(); srv.close(); console.log(bad ? bad + ' FAILED' : 'ALL PASSED'); process.exit(bad ? 1 : 0);

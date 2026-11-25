@@ -1140,9 +1140,9 @@
       return t != null ? D.readWithClaude({ apiKey: key.apiKey, model: key.model, block: 'uwemail', text: t, textLabel: 'THE E-MAIL' })
         : toBase64(file).then(function (b64) { return D.readWithClaude({ apiKey: key.apiKey, model: key.model, mediaType: file.type || 'application/pdf', base64: b64, block: 'uwemail' }); });
     }).then(function (r) {
-      D.logDoc(state, label, 'uwemail', 'read');
       if (D.isEmptyRead('uwemail', r.data)) { progEnd(nb, 'done', 'E-mail read: no reason in it'); uwSay(qid, 'The e-mail gives no reason for the loadings.', true); return; }
-      var a = D.applyUwEmail(state, r.data, label, { quote: q }), nums = a.mismatch ? a.mismatch.map(function (x) { return 'CP ' + x; }).join(', ') : '';
+      var a = D.applyUwEmail(state, r.data, label, { quote: q }); if (a.set || a.kept) D.logDoc(state, label, 'uwemail', 'read');          // an e-mail that is not about this quote is not recorded against this client
+      var nums = a.mismatch ? a.mismatch.map(function (x) { return 'CP ' + x; }).join(', ') : '';
       var msg = a.set ? 'The reason was filled in from the e-mail: amber until you tick Terms checked.' : a.kept ? 'The reason was typed or checked already: kept.' : a.mismatch ? 'The e-mail names ' + nums + ', not this quote (CP ' + (q.number || 'no number yet') + '): nothing was filled in.' : 'Nothing was filled in.';
       lastLog.push({ msg: label + ': ' + msg, warn: !a.set }); uwSay(qid, msg, !a.set);
       if (a.set) { check.settleAll(state); touch(); }
@@ -1513,6 +1513,7 @@
     if (el.tagName === 'SELECT') { typed(el); if (/\.status$|\.requested$|\.wr$|\.uw$|\.terms\.loadings\.\d+\.kind$/.test(p)) { touch(); redraw(); if (/\.uw$/.test(p)) warnAcceptance(p.replace(/\.uw$/, '')); return; } }
     if (el.tagName === 'INPUT' && /\.brokerChangedDate$/.test(p)) { typed(el); touch(); redraw(); return; }
     if (el.tagName === 'INPUT' && /\.terms\.(loadings|exclusions)\.\d+\./.test(p)) { touch(); redraw(); return; }
+    if (el.tagName === 'INPUT' && /\.quotes\.\d+\.premium$/.test(p) && (store.pathGet(state, p.replace(/\.premium$/, '')) || {}).counterOf) { check.settleAll(state); touch(); redraw(); return; }          // a premium typed on a counter offer quote is the adviser's check of the figure (the letter's figure follows it): the warning and the premium line are drawn again
     var k = el.getAttribute('data-k'), v = store.pathGet(state, p);
     if (el.tagName === 'INPUT') { el.value = dispIn(v, k); el.classList.toggle('isna', v === 'N/A' || v === 'Not found'); }
     touch(); paintComputed(); paintStatuses();

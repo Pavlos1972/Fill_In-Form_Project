@@ -28,7 +28,7 @@ const mkLetter = o => Object.assign({ originalNumber: '400500600', revisedNumber
   exclusions: [{ no: '4*', type: 'Medical', what: 'No cover for conditions of the lower back', page: 4 }], notes: null }, o || {});
 const problems = s => check.run(s, { ran: true, done: { fna: true } }).problems;
 
-test('the page is 1.3 (the layout stays 0.1), the changed scripts carry new tags, the contract has no new key', () => {
+test('the page is 1.3 (the layout stays 0.1), the changed scripts carry new tags', () => {
   assert.strictEqual(schema.pageVersion, '1.3'); assert.strictEqual(schema.version, '0.1'); assert.ok(parseFloat(schema.pageVersion) > parseFloat('1.2'), 'compared as decimals');
   ['ov-schema', 'ov-calc', 'ov-docs', 'ov-check'].forEach(f => assert.ok(new RegExp(f + '\\.js\\?v=20261124[n-z]').test(app('overview.html')), f));
 });
