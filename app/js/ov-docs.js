@@ -13,6 +13,16 @@
   /* ---------- sorting a document by its name ---------- */
   function two(n) { return (n < 10 ? '0' : '') + n; }
   /* The block a file belongs to, and what its name says: the quote number (6 to 12 digits), the date (dd.mm.yy). Returns null when the name does not say. */
+  /* 1.7 (Paul, 25 November 14:55: "a mix"): a Review or Servicing folder directly inside a policy folder holds new review quotes AND paperwork about the change. A document there is a quote only when its NAME says so (a quote, a proposal, FNA, shortfall, reduced, a CP number);
+     never a letter, a signed or accepted copy, an SROA or ROA, a premium increase, a schedule, an application, a form, a consent or the owner's manual. */
+  var PAPERWORK = /signed|accept|letter|sroa|(^|[^a-z])roa([^a-z]|$)|premium increase|manual|owner|schedule|change ?of ?details|plan details|application|cancel|consent|terms|conditions|notice|invoice|receipt|e-?mail/;
+  var QUOTEISH = /quote|proposal|illustration|(^|[^a-z])fna([^a-z]|$)|shortfall|reduced|(^|[^a-z])cp[\s_#:-]*\d{6,12}/;
+  function reviewSegs(dirPath) { return String(dirPath == null ? '' : dirPath).split(/\s*\\\s*/).filter(Boolean); }
+  /* A path with a segment that says schedule, statement or valuation is a schedule folder ("6. Policy Schedules\2026 - Review"): the folder says what its files are, so the rule does not apply there. */
+  function inReviewOrServicing(dirPath) { var s = reviewSegs(dirPath); return s.some(function (g) { return /review|servic/i.test(g); }) && !s.some(function (g) { return /schedule|statement|valuation/i.test(g); }); }
+  var REVIEW_KINDS = { fna: 1, shortfallQuote: 1, reduced: 1, comparative: 1, proposed: 1, investments: 1, policies: 1 };          // the rule may only touch what could be taken for a quote or a current policy / investment: never an e-mail, a pay-out guide, an Astute report, a goal report, follow-up notes or a group statement
+  /* True for a document in a Review or Servicing folder whose name says it is paperwork about a change (never a quote): the list says so. */
+  function reviewPaperwork(fileName, dirPath) { var low = String(fileName == null ? '' : fileName).replace(/\.[A-Za-z0-9]{2,5}$/, '').toLowerCase(); return inReviewOrServicing(dirPath) && PAPERWORK.test(low); }
   function classify(fileName, dirPath) {
     var n = String(fileName == null ? '' : fileName).replace(/\.[A-Za-z0-9]{2,5}$/, ''), low = n.toLowerCase(), m, date = '', number = '';
     if ((m = /(\d{6,12})/.exec(n))) number = m[1];
@@ -40,7 +50,13 @@
       var segs = String(dirPath).split(/\s*\\\s*/);
       if (segs.some(function (g) { return /^(\d+\.\s*)?comparative quotes?(\s*\(.*\))?$/i.test(g.trim()); })) block = 'comparative';
       else if (segs.some(function (g) { return /^(\d+\.\s*)?(accepted )?quotes?(\s*\(.*\))?$/i.test(g.trim()); })) block = block === 'investments' ? 'proposed' : 'comparative';
-      else if (segs.some(function (g) { return /review/i.test(g) && !/schedule|statement|valuation/i.test(g); })) { block = 'comparative'; viaReview = true; }                  // 1.6: a document in a folder named Review ("2026 - Review", inside a policy folder or a quotes folder) is a review document, never a current investment or policy because its name has "RA" or "policy" in it
+      /* (a Review or Servicing folder: handled below, 1.7) */
+    }
+    if (dirPath && (!block || REVIEW_KINDS[block]) && inReviewOrServicing(dirPath)) {                                                              // 1.6 and 1.7: a document in a folder named Review or Servicing
+      var rsegs = reviewSegs(dirPath);
+      if (PAPERWORK.test(low)) block = null;                                                                  // never a quote: a letter, a signed or accepted copy, an SROA, a schedule, the owner's manual ...
+      else if (rsegs.length > 1 && !/^\d+\.\s/.test(rsegs[0].trim()) && QUOTEISH.test(low) && (!block || block === 'investments' || block === 'policies')) block = 'comparative';          // directly inside a policy folder: its name says it is a quote, so it is a quote (of the policy's review)
+      else if (block === 'investments' || block === 'policies') { block = 'comparative'; viaReview = true; }          // its name says investment or policy and nothing says quote: listed as a comparative quote by its folder, NOT ticked (an RA Review, a Review Valuation)
     }
     return block ? { block: block, number: number, date: date, label: BLOCK_LABEL[block], viaReview: viaReview } : null;          // viaReview: it is a comparative quote only because it sits in a Review folder (its name says investment or policy): listed as one, NOT ticked (1.6)
   }
@@ -651,6 +667,6 @@
     return !Object.keys(data).some(function (k) { return has(data[k]) && typeof data[k] !== 'object'; }) && !Object.keys(data).some(function (k) { var v = data[k]; return v && typeof v === 'object' && Object.keys(v).some(function (j) { return has(v[j]); }); });
   }
 
-  return { comparableItems: comparableItems, glyphs: glyphs, applyUwEmail: applyUwEmail, uwReasonLocal: uwReasonLocal, classify: classify, promptFor: promptFor, parseReply: parseReply, readWithClaude: readWithClaude, applyQuote: applyQuote, counterRole: counterRole, applyCounterLetter: applyCounterLetter, enrich: enrich, factNote: factNote, applyPolicy: applyPolicy, applyOther: applyOther, applyFollowUp: applyFollowUp, dm: dm, factNotesText: factNotesText, applyNotesRead: applyNotesRead, emailText: emailText, msgText: msgText, applyBrEmail: applyBrEmail, setAstuteDate: setAstuteDate, brightQuotes: brightQuotes, applyGroup: applyGroup, applyInvestment: applyInvestment, applyAstute: applyAstute, applyAstutePolicies: applyAstutePolicies, applyAstuteGroup: applyAstuteGroup, astuteSrc: astuteSrc, applyProposed: applyProposed, applyGoal: applyGoal, isEmptyRead: isEmptyRead,
+  return { comparableItems: comparableItems, glyphs: glyphs, applyUwEmail: applyUwEmail, uwReasonLocal: uwReasonLocal, classify: classify, reviewPaperwork: reviewPaperwork, promptFor: promptFor, parseReply: parseReply, readWithClaude: readWithClaude, applyQuote: applyQuote, counterRole: counterRole, applyCounterLetter: applyCounterLetter, enrich: enrich, factNote: factNote, applyPolicy: applyPolicy, applyOther: applyOther, applyFollowUp: applyFollowUp, dm: dm, factNotesText: factNotesText, applyNotesRead: applyNotesRead, emailText: emailText, msgText: msgText, applyBrEmail: applyBrEmail, setAstuteDate: setAstuteDate, brightQuotes: brightQuotes, applyGroup: applyGroup, applyInvestment: applyInvestment, applyAstute: applyAstute, applyAstutePolicies: applyAstutePolicies, applyAstuteGroup: applyAstuteGroup, astuteSrc: astuteSrc, applyProposed: applyProposed, applyGoal: applyGoal, isEmptyRead: isEmptyRead,
     applyCmp: applyCmp, matchItem: matchItem, logDoc: logDoc, findQuoteByNumber: findQuoteByNumber, quoteIn: quoteIn, quoteRead: quoteRead, SPEC_OF: SPEC_OF, BLOCK_LABEL: BLOCK_LABEL, QUOTE_OF: QUOTE_OF, ENDPOINT: ENDPOINT };
 });

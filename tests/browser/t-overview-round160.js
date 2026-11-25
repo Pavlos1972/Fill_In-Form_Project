@@ -1,7 +1,7 @@
 /* Client Overview Studio 1.6 (25 November, Paul's answers relayed by the Fix Skills chat at 13:02): "look in the latest year folder as the first port of call. If that's not present, then look at what is the latest review documents" and "only latest for the same
    policy number / schedule". A real folder tree of an invented client ("Test, Dora") with a MIXED set of folders: a numbered quotes folder with 2026 and 2024 review folders and loose files, a policy folder with its own review folder, a policy folder with only a
    2024 review folder, comparative quotes loose and in review folders, a policy folder holding two schedules of different products. Checked in the page's own pick list and in what Load sends to Anthropic: for every kind of quote only the newest year's are ticked
-   (the others say why), the same file name in two year folders is two files, a kind with no year folder keeps its old behaviour, a pay-out guide follows its quote, a document in a Review folder is a review document and never a schedule or a current investment,
+   (the others say why), the same file name in two year folders is two files, (1.7, Paul's answer of 25 November 14:52) a kind with no year folder ticks only the newest by the date in its name and keeps all ticked when none has a date, a pay-out guide follows its quote, a document in a Review folder is a review document and never a schedule or a current investment,
    one schedule per policy folder (the newest), and nothing is written (a counter on the folder calls). Screenshot (deviceScaleFactor 2): r16-list. */
 const { chromium } = require(process.argv[2] + '/playwright');
 const http = require('http'), fs = require('fs'), path = require('path');
@@ -20,16 +20,18 @@ const TREE = {
   NB: { 'Test, Dora': {
       '1. Overview': {}, '2. Fact Find': {},
       '3. Quotes': {
-        'Reduced Quote 02.02.25.pdf': one('Reduced quote loose 2025'), 'Shortfall Quote 03.03.24.pdf': one('Shortfall quote 2024'), 'Shortfall Quote 10.01.26.pdf': one('Shortfall quote 2026'),
+        'Reduced Quote 02.02.25.pdf': one('Reduced quote loose 2025'), 'Shortfall Quote 03.03.24.pdf': one('Shortfall quote 2024'), 'Shortfall Quote 10.01.26.pdf': one('Shortfall quote 2026'), 'Shortfall Quote Draft.pdf': one('Shortfall quote draft undated'), 'Shortfall Quote 2026 Final.pdf': one('Shortfall quote bare year 2026'), 'Loose FNA 2026.pdf': one('FNA quote loose 2026'),
+        'Retirement Annuity Proposal A.pdf': one('Proposal RA undated'), 'Tax Free Proposal B.pdf': one('Proposal TFSA undated'),
         '2026 - Review': { 'FNA CP 400500602.pdf': one('FNA numbered quote 2026 CP 400500602'), 'FNA Quote.pdf': one('FNA quote 2026'), 'Reduced Quote.pdf': one('Reduced quote 2026') },
         '2024 - Review': { 'BR CMPO - 400500601.pdf': one('Guide 2024 CP 400500601'), 'RGAR Report 2024.pdf': one('RGAR report 2024'), 'FNA CP 400500601.pdf': one('FNA numbered quote 2024 CP 400500601'), 'FNA Quote.pdf': one('FNA quote 2024'), 'Reduced Quote.pdf': one('Reduced quote 2024') } ,
         'BR CMPO - 400500602.pdf': one('Guide 2026 CP 400500602') },
       '6. Policy Schedules': {},
       'Coronation RA - 458899': { 'Policy Schedules': { '2026': { 'Statement 31.03.26.pdf': one('Coronation statement 31.03.26') } }, 'Annual Review Statements': { 'Statement 31.12.25.pdf': one('Coronation statement 31.12.25') },
-        '2026 - Review': { 'RA Review 2026.pdf': one('RA review document 2026'), 'Review Summary 2026.pdf': one('Review summary 2026'), 'Charts': { 'Review Letter 2026.pdf': one('Review letter 2026') } },
+        '2026 - Review': { 'Cover Proposal 400500777.pdf': one('Cover proposal review 400500777'), 'Accepted Quote 2026.pdf': one('Accepted quote 2026'), 'RA Review 2026.pdf': one('RA review document 2026'), 'Review Summary 2026.pdf': one('Review summary 2026'), 'Charts': { 'Review Letter 2026.pdf': one('Review letter 2026') } },
         'Comparative Quotes': { '2026 - Review': { 'Coronation RA Quote 2026.pdf': one('Coronation comparative quote 2026') }, '2024 - Review': { 'Old Mutual Quote 12.03.24.pdf': one('Old Mutual comparative quote 2024') } } },
       'Sanlam Invest - 889977': { 'Policy Schedules': { '2025': { 'Invest PS 31.12.25.pdf': one('Sanlam invest schedule 2025') }, '2026': { 'UT PS 31.03.26.pdf': one('Sanlam unit trust schedule 2026') } },
-        '2024 - Review': { 'Sanlam Quote 2024.pdf': one('Sanlam comparative quote 2024') } },
+        '2024 - Review': { 'Sanlam Quote 2024.pdf': one('Sanlam comparative quote 2024') },
+        'Servicing': { 'Policy Schedule 30.09.26.pdf': one('Sanlam servicing schedule 2026'), 'Premium Increase Letter 2026.pdf': one('Premium letter 2026'), 'Signed FNA Quote 2026.pdf': one('Signed FNA quote 2026'), 'Quote 2026.pdf': one('Servicing quote 2026'), 'SROA 2026.pdf': one('SROA 2026') } },
       'Discovery Life - 8877665': { 'Comparative Quotes': { 'Discovery Quote 08.03.26.pdf': one('Discovery comparative quote 2026'), 'Hollard Quote.pdf': one('Hollard comparative quote undated') } } },
     '1. ON HOLD': {}, '2. Awaiting compliance from client': {} },
   CF: { 'T - Files': {} }
@@ -100,7 +102,14 @@ srv.listen(0, async () => {
   const red26 = one1(oth, /2026 - Review \\ Reduced Quote\.pdf/), red24 = one1(oth, /2024 - Review \\ Reduced Quote\.pdf/), red25 = one1(oth, /Reduced Quote 02\.02\.25\.pdf/);
   ok(red26 && red26.on && red24 && !red24.on && red25 && !red25.on && /older year \(2025\)/.test(red25.t), '1. reduced quotes: the 2026 review folder is ticked, the 2024 one and a loose 2025 file are not: ' + [red26 && red26.on, red24 && red24.on, red25 && red25.on].join(', '));
   const sf24 = one1(oth, /Shortfall Quote 03\.03\.24/), sf26 = one1(oth, /Shortfall Quote 10\.01\.26/);
-  ok(sf24 && sf26 && sf24.on && sf26.on, '1. a kind with NO year folder keeps its old behaviour: both shortfall quotes (2024 and 2026, loose) stay ticked: ' + [sf24 && sf24.on, sf26 && sf26.on].join(', '));
+  const sfd = one1(oth, /Shortfall Quote Draft/);
+  ok(sf24 && sf26 && sf26.on && !sf24.on && /older date \(03\/03\/2024\): not ticked, the newest is 10\/01\/2026/.test(sf24.t), '1.7. a kind with NO year folder anywhere: only the NEWEST BY THE DATE IN ITS NAME is ticked (Paul, 25 November): the 2026 shortfall quote yes, the 2024 one no, and it says why: ' + (sf24 && sf24.t));
+  ok(sfd && !sfd.on && /no date in its name, and a dated one exists: not ticked/.test(sfd.t), '1.7. a shortfall quote with no date loses to the dated ones: ' + (sfd && sfd.t));
+  const sfy = one1(oth, /Shortfall Quote 2026 Final/), lfna = one1(oth, /Loose FNA 2026/);
+  ok(sfy && sfy.on && !/not ticked/.test(sfy.t), '1.7. a shortfall quote with only a YEAR in its name (2026) is not older than 10/01/2026 and is ticked: ' + (sfy && sfy.t));
+  ok(lfna && lfna.on && !/no year found/.test(lfna.t), '1.7. a loose FNA quote with only a year in its name (2026) beside the 2024 and 2026 review folders is the newest year, ticked: ' + (lfna && lfna.t));
+  const pa = one1(oth, /Retirement Annuity Proposal A/), pb = one1(oth, /Tax Free Proposal B/);
+  ok(pa && pb && pa.on && pb.on && !/not ticked/.test(pa.t + pb.t), '1.7. a kind with no year folder and no date at all (two loose proposals) keeps both ticked: ' + [pa && pa.on, pb && pb.on].join(', '));
   const g26 = one1(oth, /BR CMPO - 400500602/), g24 = one1(oth, /BR CMPO - 400500601/);
   ok(g26 && g26.on && g24 && !g24.on && /guide of an older quote/.test(g24.t) && !/no year/.test(g26.t), '1. a change moment pay-out guide only follows its quote (its name carries no date): the current guide loose in 3. Quotes is ticked, the guide of the 2024 quote in 2024 - Review is not: ' + [g26 && g26.on, g24 && g24.on].join(', ') + ' (' + (g24 && g24.t.slice(-60)) + ')');
 
@@ -114,12 +123,19 @@ srv.listen(0, async () => {
   ok(hq && !hq.on && /no year found in its folder or name, and 2026 exists: not ticked/.test(hq.t), '2. a comparative quote with no year at all is NOT ticked while a year folder exists elsewhere: ' + (hq && hq.t));
   ok(sq && !sq.on && /older year \(2024\)/.test(sq.t) && /Comparative quote/.test(sq.t), '2. a policy folder with only a 2024 - Review folder: its document is a comparative quote of 2024, listed, not ticked (client-wide the newest year is 2026): ' + (sq && sq.t));
   const rv = one1(oth, /2026 - Review \\ RA Review 2026\.pdf/), rs = one1(oth, /2026 - Review \\ Review Summary 2026/), rl = one1(oth, /Charts \\ Review Letter 2026/);
-  ok(rv && /Comparative quote/.test(rv.t) && !/Current investments/.test(rv.t) && !rv.on && /in a Review folder: not ticked, tick it if it is a quote/.test(rv.t), '2. a document in the Coronation folder\'s own review folder (its name has RA in it) is listed as a review document (a comparative quote by its folder, never a current investment) and is NOT ticked: nothing says it is a quote: ' + (rv && rv.t));
+  ok(rv && /Comparative quote/.test(rv.t) && !/Current investments/.test(rv.t) && !rv.on && /in a Review or Servicing folder: not ticked, tick it if it is a quote/.test(rv.t), '2. a document in the Coronation folder\'s own review folder (its name has RA in it) is listed as a review document (a comparative quote by its folder, never a current investment) and is NOT ticked: nothing says it is a quote: ' + (rv && rv.t));
   ok(rs && rl && !rl.on && !L.rows.some(r => /Coronation RA - 458899/.test(r.g) && / - Review/.test(r.t)), '2. the review documents are among the Other documents, not in the Coronation group, so none can be its statement; one that says nothing (Review Letter) is listed and not ticked: ' + [rs && rs.t.slice(0, 70), rl && rl.t.slice(0, 70)].join(' / '));
+
+  /* ---- 2b. a Review or Servicing folder inside a policy folder is a MIX of new quotes and paperwork (Paul, 25 November 14:55) ---- */
+  const svq = one1(oth, /Servicing \\ Quote 2026\.pdf/), cpr = one1(oth, /2026 - Review \\ Cover Proposal 400500777/);
+  ok(svq && svq.on && /Comparative quote/.test(svq.t) && cpr && cpr.on && /Comparative quote/.test(cpr.t), '2.1. a file whose NAME says it is a quote ("Quote 2026" in Servicing, "Cover Proposal <number>" in a Review folder) is treated as one and ticked: ' + [svq && svq.t, cpr && cpr.t].map(x => (x || '').slice(-60)).join(' / '));
+  const pw = [/Premium Increase Letter 2026/, /Signed FNA Quote 2026/, /SROA 2026/, /Accepted Quote 2026/].map(re => one1(oth, re));
+  ok(pw.every(r => r && !r.on && /paperwork about a change/.test(r.t)), '2.1. paperwork (a premium increase letter, a signed FNA quote, an SROA, an accepted quote) is listed, says it is paperwork and is NOT ticked, even when its name says quote or FNA: ' + pw.map(r => r && ((r.on ? '[x] ' : '[ ] ') + r.t.slice(-70))).join(' | '));
+  ok(!L.rows.some(r => /Sanlam Invest/.test(r.g) && /Servicing \\ (Quote 2026|Premium Increase|Signed|SROA)/.test(r.t)), '2.1. Servicing\'s quotes and paperwork are among the Other documents, not in the policy\'s group (they are not its schedule)');
 
   /* ---- 3. one schedule per policy folder: the newest ---- */
   const sl = grp('Sanlam Invest');
-  ok(sl.length === 2 && sl.filter(r => r.on).length === 1 && /UT PS 31\.03\.26\.pdf \(newest/.test(sl.filter(r => r.on)[0].t) && /older/.test(sl.filter(r => !r.on)[0].t) && /Invest PS 31\.12\.25/.test(sl.filter(r => !r.on)[0].t), '3. two schedules of different products in one policy folder: only the newest (UT PS 2026) is ticked, the Invest PS of 2025 says older: ' + brief(sl));
+  ok(sl.length === 3 && sl.filter(r => r.on).length === 1 && /Servicing \\ Policy Schedule 30\.09\.26\.pdf \(newest/.test(sl.filter(r => r.on)[0].t) && sl.filter(r => !r.on).every(r => /older/.test(r.t)) && sl.some(r => /Invest PS 31\.12\.25/.test(r.t)) && sl.some(r => /UT PS 31\.03\.26/.test(r.t)), '3. schedules of one policy folder (two products, and one newer in Servicing): only the newest, the Servicing schedule of 30.09.26, is ticked; the other two say older: ' + brief(sl));
   const co = grp('Coronation RA');
   ok(co.length === 2 && co.filter(r => r.on).length === 1 && /Statement 31\.03\.26\.pdf \(newest/.test(co.filter(r => r.on)[0].t) && co.some(r => /Annual Review Statements \\ Statement 31\.12\.25/.test(r.t) && !r.on), '3. the Coronation group holds its two statements (a folder called Annual Review Statements is a statements folder, not a review folder) and only the newest is ticked; the review documents are not in it: ' + brief(co));
   await p.screenshot({ path: out + '/r16-list.png' });
@@ -128,9 +144,10 @@ srv.listen(0, async () => {
   await p.click('dialog.fdlg [data-yes]'); await waitDone(p); await p.waitForTimeout(800);
   const api = await p.evaluate(() => window.__api.slice());
   const sent = k => api.some(t => t.indexOf(k) >= 0);
-  ok(sent('FNA quote 2026') && sent('FNA numbered quote 2026') && sent('Reduced quote 2026') && sent('Guide 2026') && sent('Shortfall quote 2024') && sent('Shortfall quote 2026') && sent('Coronation comparative quote 2026') && sent('Discovery comparative quote 2026') && sent('RGAR report 2024'), '4. the ticked documents were sent for reading: ' + api.length + ' document(s)');
-  ok(!sent('FNA quote 2024') && !sent('FNA numbered quote 2024') && !sent('Reduced quote 2024') && !sent('Reduced quote loose 2025') && !sent('Guide 2024') && !sent('Old Mutual comparative quote 2024') && !sent('Sanlam comparative quote 2024') && !sent('Hollard comparative quote undated') && !sent('RA review document 2026'), '4. the documents that were not ticked were NOT sent to Anthropic (the 2024 and 2025 quotes, the 2024 guide, the quote with no year)');
-  ok(!sent('Review summary 2026') && !sent('Review letter 2026') && !sent('Sanlam invest schedule 2025'), '4. a review summary, a review letter and the older Sanlam schedule were not sent');
+  ok(sent('FNA quote 2026') && sent('FNA numbered quote 2026') && sent('Reduced quote 2026') && sent('Guide 2026') && sent('Shortfall quote 2026') && sent('Shortfall quote bare year 2026') && sent('FNA quote loose 2026') && sent('Proposal RA undated') && sent('Proposal TFSA undated') && sent('Servicing quote 2026') && sent('Cover proposal review 400500777') && sent('Coronation comparative quote 2026') && sent('Discovery comparative quote 2026') && sent('RGAR report 2024'), '4. the ticked documents were sent for reading: ' + api.length + ' document(s)');
+  ok(!sent('FNA quote 2024') && !sent('FNA numbered quote 2024') && !sent('Reduced quote 2024') && !sent('Reduced quote loose 2025') && !sent('Guide 2024') && !sent('Old Mutual comparative quote 2024') && !sent('Sanlam comparative quote 2024') && !sent('Hollard comparative quote undated') && !sent('RA review document 2026') && !sent('Shortfall quote 2024') && !sent('Shortfall quote draft undated') && !sent('Premium letter 2026') && !sent('Signed FNA quote 2026') && !sent('SROA 2026') && !sent('Accepted quote 2026'), '4. the documents that were not ticked were NOT sent to Anthropic (the 2024 and 2025 quotes, the 2024 guide, the quote with no year, the 2024 shortfall quote and the undated shortfall draft)');
+  ok(!sent('Review summary 2026') && !sent('Review letter 2026') && !sent('Sanlam invest schedule 2025') && !sent('Sanlam unit trust schedule 2026'), '4. a review summary, a review letter and the older Sanlam schedules were not sent');
+  ok(sent('Sanlam servicing schedule 2026'), '4.1 the newest schedule of the Sanlam policy folder, which sits in its Servicing folder, is ticked in its group and was sent for reading (the paperwork rule does not touch a schedule candidate)');
   const cards = await p.evaluate(() => OV.app.state.blocks.comparative.quotes.map(q => q.src && q.src.file));
   ok(cards.indexOf('RA Review 2026.pdf') < 0 && cards.indexOf('Review Summary 2026.pdf') < 0, '4. no quote card was made from a review document: the comparative quotes read are ' + cards.join(', '));
   const w = await p.evaluate(() => window.__writes);

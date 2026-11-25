@@ -1225,23 +1225,18 @@
     var kn = F && F.keyedNewest ? F.keyedNewest(others, keyOf) : { tick: new Map(), tied: [] };
     /* The latest year folder FIRST, for every kind of quote (round 1.6; Paul, 25 November: "look in the latest year folder as the first port of call. If that's not present, then look at what is the latest review documents ... within the folders"): a file's year is the year of the
        folder it sits in ("2026 - Review", "2025"), else the year in its name; per kind of document (an FNA quote, a shortfall quote, a reduced quote, a comparative quote, a proposal, a pay-out guide, a goal report) over the WHOLE client, only the newest year's are ticked and the
-       others are listed unticked with the reason. A kind is ruled by year when one of its files sits in a year folder (comparative quotes always: since 1.5, by the folder's year or the name's); a kind with no year folder keeps its old behaviour (all ticked). */
+       others are listed unticked with the reason. A kind is ruled by year when one of its files sits in a year folder (comparative quotes always: since 1.5, by the folder's year or the name's); a kind with NO year folder anywhere is ruled by the DATE IN THE NAME (round 1.7, Paul's answer of 25 November: only the newest dated one is ticked, none dated = all ticked): see F.ageQuotes. */
     var QKIND = { fna: 1, shortfallQuote: 1, reduced: 1, comparative: 1, proposed: 1, cmp: 1, goals: 1 };
     var inCq = function (f) { return (f.rel || []).some(function (r) { return /comparative quotes?/.test(F.norm(r)); }); };                  // the rule is about the FOLDER too: a file under Comparative Quotes whose name says "RA quote" is a proposal by its name and a comparative quote by its place
     var kindOf = function (f) { var c = D.classify(f.name, (f.rel || []).join(' \\ ')); if (!c || c.viaReview) return null; if (c.block === 'cmp') return 'cmp'; if (inCq(f)) return 'comparative'; return QKIND[c.block] ? c.block : null; };          // a guide has no date of its own (it only follows its quote); a document that is a quote only because it sits in a Review folder is not a kind of its own
-    var older = new Map(), info = new Map(), maxY = {}, byFolder = {};
+    var nkOf = function (f) { var c = D.classify(f.name, (f.rel || []).join(' \\ ')), n = c && c.number ? (F && F.numKey ? F.numKey(c.number) : c.number) : ''; return n && n.length >= 5 ? n : ''; };
+    var entries = [];
     others.forEach(function (f) {
       var kd = F && F.dateKey ? kindOf(f) : null; if (!kd) return;
-      var k = F.dateKey(f.name, f.rel), y = k.year || (k.exact ? Math.floor(k.exact / 10000) : 0); info.set(f, { kind: kd, y: y });
-      if (kd === 'cmp') return;                                                                              // a pay-out guide is not ruled by year: its name carries no date, so a current guide would lose to an old one in a year folder; it follows its quote below
-      if (y > (maxY[kd] || 0)) maxY[kd] = y; if (k.year) byFolder[kd] = true;
+      var k = F.dateKey(f.name, f.rel), nd = F.nameDate ? F.nameDate(f.name) : k.exact;                         // nd: the date, the month or the bare year the NAME carries (0 when none)
+      entries.push({ id: f, kind: kd, y: k.year || (nd ? Math.floor(nd / 10000) : 0), fy: k.year, ex: nd, no: nkOf(f) });
     });
-    var ruled = function (kd) { return !!maxY[kd] && (kd === 'comparative' || byFolder[kd]); };
-    info.forEach(function (x, f) { if (x.kind !== 'cmp' && ruled(x.kind) && x.y < maxY[x.kind]) older.set(f, x.y ? 'older year (' + x.y + '): not ticked, the newest is ' + maxY[x.kind] : 'no year found in its folder or name, and ' + maxY[x.kind] + ' exists: not ticked'); });
-    var nkOf = function (f) { var c = D.classify(f.name, (f.rel || []).join(' \\ ')), n = c && c.number ? (F && F.numKey ? F.numKey(c.number) : c.number) : ''; return n && n.length >= 5 ? n : ''; };
-    var oldNo = {}, newNo = {};                                                                                // a change moment pay-out guide follows its quote (the same CP number): the guide of an older quote is not ticked on its own
-    info.forEach(function (x, f) { if (x.kind === 'cmp') return; var n = nkOf(f); if (n) (older.has(f) ? oldNo : newNo)[n] = true; });
-    info.forEach(function (x, f) { if (x.kind !== 'cmp' || older.has(f)) return; var n = nkOf(f); if (n && oldNo[n] && !newNo[n]) older.set(f, 'the guide of an older quote: not ticked'); });
+    var older = F && F.ageQuotes ? F.ageQuotes(entries) : new Map();                                            // which are not the newest of their kind, and why (folders.js: the year rule, the date rule of 1.7, a guide follows its quote)
     var tick = res.files.map(function (f) {
       if (f.group != null) { var g = groups[f.group], pr = plan && plan.live ? plan.live[f.group] : null; return !!(g && g.block && f.role !== 'manual' && g.pick && g.pick.file === f && !(pr && pr.ff === 'none')); }          // a policy the Fact Find does not list would be read and then refused (this page follows the Fact Find), so it is not ticked: the chip says why
       var c = D.classify(f.name, (f.rel || []).join(' \\ '));
@@ -1294,7 +1289,7 @@
     if (groups.length && rest.length) html += '<div class="pkh"><b>Other documents</b><span class="pkt">Astute reports, quotes, the schedules of the Policy Schedules folder, notes</span></div>';
     rest.forEach(function (x) {
       var c = D.classify(x.f.name, (x.f.rel || []).join(' \\ '));
-      html += fileRow(x.f, x.i, (c ? c.label : '') + (c && c.viaReview ? '; in a Review folder: not ticked, tick it if it is a quote' : '') + (tp.older.has(x.f) ? '; ' + tp.older.get(x.f) : '') + (F && F.isManual && F.isManual(x.f.name) ? '; owner’s manual: never ticked' : ''), '', '');
+      html += fileRow(x.f, x.i, (c ? c.label : '') + (c && c.viaReview ? '; in a Review or Servicing folder: not ticked, tick it if it is a quote' : '') + (!c && D.reviewPaperwork && D.reviewPaperwork(x.f.name, (x.f.rel || []).join(' \\ ')) ? 'paperwork about a change (a letter, a signed or accepted copy, an SROA, a schedule, the owner\u2019s manual): not a quote, not ticked' : '') + (tp.older.has(x.f) ? '; ' + tp.older.get(x.f) : '') + (F && F.isManual && F.isManual(x.f.name) ? '; owner’s manual: never ticked' : ''), '', '');
     });
     var notes = [];
     if (plan && plan.ffOnly && plan.ffOnly.length) notes.push({ cls: 'warn', text: 'In the Fact Find, but no policy folder was found for: ' + plan.ffOnly.map(function (it) { return [it.who, it.product].filter(Boolean).join(' '); }).join('; ') + '.' });
