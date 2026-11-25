@@ -136,7 +136,7 @@ test('the summary is drawn from ONE function on the screen, in the PDF and in th
   assert.ok(/Correct by hand/.test(ui) && /data-uwfile/.test(ui) && /data-uw-read/.test(ui) && /data-uwreason/.test(ui) && /Add the underwriter(\\u2019|\u2019)s e-mail/.test(ui)); assert.ok(/id="docMail"/.test(html) && /\.eml/.test(html));
   assert.ok(/data-act="exw"/.test(pres) && /exShut/.test(pres) && /Hide wording/.test(pres) && /Show wording/.test(pres));
   assert.ok(/premiumWarning/.test(ui) && /premiumWarning/.test(app('js/ov-check.js')), 'the card and the check use the one warning');
-  ['ov-store', 'ov-check', 'ov-docs', 'ov-calc', 'ov-ui', 'ov-pdf', 'ov-present', 'ov-schema'].forEach(f => assert.ok(new RegExp(f + '\\.js\\?v=20261124[q-z]').test(html), f + ' tag'));
+  ['ov-store', 'ov-check', 'ov-docs', 'ov-calc', 'ov-ui', 'ov-pdf', 'ov-present', 'ov-schema'].forEach(f => assert.ok(new RegExp(f + '\\.js\\?v=(?:20261124[q-z]|20261125[a-z])').test(html), f + ' tag'));
 });
 
 /* ---- round 1.4 (25 November, Paul's answers to my five questions): an unticked reason is not shown to the client; the reading of a real reply's exact wording happens on this computer ---- */

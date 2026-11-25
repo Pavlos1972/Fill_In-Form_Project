@@ -30,11 +30,11 @@ test('wordIn: 1 when the word is there and not negated, -1 only negated, 0 absen
   assert.strictEqual(F.wordIn('delinked to pk', 'linked to pk'), 0, 'a longer word is not the word');
 });
 test('the page is 1.9, no key is added, the heading chip says Not linked to PK, and the tags are new', () => {
-  assert.strictEqual(schema.pageVersion, '1.9'); assert.strictEqual(schema.version, '0.1'); assert.ok(parseFloat(schema.pageVersion) > parseFloat('1.8'), 'compared as decimals');
+  assert.ok(/^(1\.9|2\.0)$/.test(schema.pageVersion)); assert.strictEqual(schema.version, '0.1'); assert.ok(parseFloat(schema.pageVersion) > parseFloat('1.8'), 'compared as decimals');
   const ui = app('js/ov-ui.js'), fo = app('js/folders.js'), html = app('overview.html');
   assert.ok(/if \(p\.notLinked\) chips\.push\(\{ cls: '', text: 'Not linked to PK' \}\)/.test(ui), 'the heading says it');
   assert.ok(!/\/linked to pk\/\.test/.test(fo), 'no bare test for "linked to pk" is left in folders.js (it also matches "not linked to pk")');
   assert.ok(/wordIn: wordIn/.test(fo));
-  ['ov-schema', 'ov-ui', 'folders'].forEach(f => assert.ok(new RegExp(f + '\\.js\\?v=20261124w').test(html), f));
-  ['index.html', 'short-risk.html', 'capture-sheet.html'].forEach(f => assert.ok(/folders\.js\?v=20261124w/.test(app(f)), f));
+  ['ov-schema', 'ov-ui', 'folders'].forEach(f => assert.ok(new RegExp(f + '\\.js\\?v=(?:20261124w|20261125[a-z])').test(html), f));
+  ['index.html', 'short-risk.html', 'capture-sheet.html'].forEach(f => assert.ok(/folders\.js\?v=(?:20261124w|20261125[a-z])/.test(app(f)), f));
 });

@@ -97,16 +97,17 @@ const FFJ = { app: 'wr-fact-find', schema: '5.4', f: { fname: { v: 'Test' }, sna
 
   /* ---- 2. the tabs, one page for each ---- */
   const tabs = await texts('#pTabs .ptab');
-  ok(tabs.join() === 'Overview,Current policies,FNA quote,Group benefits,Shortfall,Reduced quotes,Investments,Goal analysis,Other', '2. nine pill tabs: ' + tabs.join(' | '));
+  ok(tabs.join() === 'Overview,Current policies,Group benefits,Investments,Other,Shortfall,FNA quote,Reduced quotes,Proposed investments,Goal analysis', '2. ten pill tabs under three headings (round 2.0: no servicing quote, so no servicing heading): ' + tabs.join(' | '));
+  ok(await p.evaluate(() => [...document.querySelectorAll('#pTabs .ptgh')].map(e => e.textContent).join('|')) === 'Where you are now|New business quotes|Investments & goals', '2. the headings over the tabs: only those with something under them');
   ok(await p.evaluate(() => getComputedStyle(document.querySelector('#pTabs .ptab')).borderRadius !== '0px' && !document.querySelector('#pTabs .ptab:disabled, #pTabs .ptab.off') && getComputedStyle(document.querySelector('#pTabs')).borderRadius === '16px' && getComputedStyle(document.querySelector('.pbar')).borderRadius === '16px'), '2. the tabs are rounded pills in a rounded bar under a rounded top bar, and none is greyed here (every page has something to show)');
-  const TITLE = { policies: 'Current policies', fna: 'FNA quote', group: 'Group benefits & personal investments', shortfall: 'Shortfall', shortfallQuote: 'Shortfall quote', reduced: 'Reduced quotes', comparative: 'Comparative quotes', investments: 'Current investments', proposed: 'Proposed investments', goals: 'Goal analysis reports', other: 'Medical aid, will & short-term' };
-  const TABOF = { policies: 'policies', fna: 'fna', group: 'group', shortfall: 'shortfall', shortfallQuote: 'shortfall', reduced: 'reduced', comparative: 'reduced', investments: 'investments', proposed: 'investments', goals: 'goals', other: 'other' };
+  const TITLE = { policies: 'Current policies', fna: 'FNA quote', group: 'Group benefits & personal investments', shortfall: 'Shortfall (needs calculation)', shortfallQuote: 'Shortfall quote', reduced: 'Reduced quotes', comparative: 'Comparative quotes', investments: 'Current investments', proposed: 'Proposed investments', goals: 'Goal analysis reports', other: 'Medical aid, will & short-term' };
+  const TABOF = { policies: 'policies', fna: 'fna', group: 'group', shortfall: 'shortfall', shortfallQuote: 'fna', reduced: 'reduced', comparative: 'reduced', investments: 'investments', proposed: 'proposed', goals: 'goals', other: 'other' };
   for (const id of IDS) {
     await p.evaluate(i => OV.present.go(i), id); await p.waitForTimeout(30);
     const t = await p.evaluate(() => document.querySelector('#pSlide h2.ptitle').textContent), on = await p.evaluate(() => document.querySelector('#pTabs .ptab.on').getAttribute('data-tab'));
     ok(on === TABOF[id] && t === TITLE[id], '2. ' + id + ' shows "' + t + '" under the tab ' + on + ', no number in the title');
   }
-  for (const tb of ['shortfall', 'reduced', 'investments']) {
+  for (const tb of ['fna', 'reduced']) {
     await p.click('#pTabs .ptab[data-tab=' + tb + ']');
     const chips = await texts('#pSlide .pchips.blk .pchip'); ok(chips.length === 2, '2. the ' + tb + ' tab holds two pages, a small button for each: ' + chips.join(' | '));
     await p.click('#pSlide .pchips.blk .pchip:not(.on)'); const other = await tab(); ok(TABOF[other] === tb && other !== tb, '2. the other button opens the other page of the tab (' + other + ')');
@@ -255,6 +256,7 @@ const FFJ = { app: 'wr-fact-find', schema: '5.4', f: { fname: { v: 'Test' }, sna
   /* ---- 7. exactly the PDF's figures; nothing for Sitamah and Paul only; read-only ---- */
   const bytes = await p.evaluate(() => Array.from(new Uint8Array(OV.app.makePdf().output('arraybuffer'))));
   const file = out + '/present-overview.pdf'; fs.writeFileSync(file, Buffer.from(bytes));
+  const pgIds = await p.evaluate(() => OV.pdf.pagesOf(OV.app.state).ids);          // round 2.0: the PDF's pages follow the four headings, so the page of a block is looked up
   const tokens = {};
   for (const id of IDS) {
     const set = new Set(), grab = async () => money(await view()).forEach(x => set.add(x));
@@ -268,7 +270,7 @@ const FFJ = { app: 'wr-fact-find', schema: '5.4', f: { fname: { v: 'Test' }, sna
   }
   const derived = await p.evaluate(() => { const sf = OV.calc.shortfall(OV.app.state); return ['life', 'sev', 'lsd', 'ip'].map(q => OV.calc.fmtR(OV.calc.r2((sf.group[q] || 0) + (q === 'life' ? sf.pi.gross : 0)))); });
   for (const id of IDS) {
-    const page = IDS.indexOf(id) + 2, txt = cp.execFileSync('pdftotext', ['-f', String(page), '-l', String(page), '-layout', file, '-']).toString(), pdfSet = new Set(money(txt.replace(/\s+/g, ' ')));
+    const page = pgIds.indexOf(id) + 1, txt = cp.execFileSync('pdftotext', ['-f', String(page), '-l', String(page), '-layout', file, '-']).toString(), pdfSet = new Set(money(txt.replace(/\s+/g, ' ')));
     const onlyP = [...tokens[id]].filter(x => !pdfSet.has(x) && !(id === 'shortfall' && derived.includes(x))), onlyF = [...pdfSet].filter(x => !tokens[id].has(x));
     ok(onlyP.length === 0 && onlyF.length === 0, '7. block ' + id + ': the Presentation and PDF page ' + page + ' hold the same figures (' + tokens[id].size + ')' + (id === 'shortfall' ? ' (the shortfall\'s Current cover adds group and investments, as the PDF\'s two columns)' : '') + (onlyP.length ? ' only in the Presentation: ' + onlyP : '') + (onlyF.length ? ' only in the PDF: ' + onlyF : ''));
   }
@@ -288,12 +290,12 @@ const FFJ = { app: 'wr-fact-find', schema: '5.4', f: { fname: { v: 'Test' }, sna
   await p.evaluate(() => { const s = OV.app.state; s.factFind.facts.asked = { sf: false, comparative: false }; s.factFind.facts.answers.hasGroup = 'No'; s.factFind.facts.answers.hasInv = 'No'; s.factFind.facts.rgar = false; s.factFind.facts.egar = false; ['shortfallQuote', 'comparative'].forEach(id => OV.calc.quotes(s, id).forEach(x => { x.removed = true; })); s.blocks.group.items.forEach(i => { i.removed = true; }); s.blocks.investments.items.forEach(i => { i.removed = true; }); s.blocks.proposed.items.forEach(i => { i.removed = true; }); s.blocks.goals.items.forEach(g => { g.requested = false; g.removed = true; }); OV.app.redraw(); });
   await p.click('#btnPresent'); await p.waitForTimeout(200);
   const off = await p.evaluate(() => [...document.querySelectorAll('#pTabs .ptab')].map(t => t.textContent + ':' + (t.disabled ? 'off' : 'on')).join('|'));
-  ok(/Investments:off/.test(off) && /Goal analysis:off/.test(off) && /FNA quote:on/.test(off) && /Group benefits:on/.test(off), '8. a tab with nothing to show is greyed and disabled: ' + off);
+  ok(/Investments:off/.test(off) && !/Goal analysis|Proposed investments/.test(off) && /FNA quote:on/.test(off) && /Group benefits:on/.test(off), '8. a tab with nothing to show is greyed and disabled, and a heading none of whose tabs has anything (Investments & goals) is not shown at all (round 2.0): ' + off);
   const gt = await p.evaluate(() => { const t = document.querySelector('#pTabs .ptab:disabled'); const c = getComputedStyle(t); return { color: c.color, bg: c.backgroundColor, line: c.textDecorationLine, cursor: c.cursor }; });
   ok(gt.line === 'none' && gt.cursor === 'not-allowed' && gt.color !== 'rgb(15, 110, 153)', '8. grey, not struck through, not clickable: ' + JSON.stringify(gt));
   await p.evaluate(() => OV.present.go('goals')); ok(await tab() === 'map', '8. a greyed page cannot be opened');
   await p.click('#pTabs .ptab:disabled', { force: true }).catch(() => {}); ok(await tab() === 'map', '8. and a click on a greyed tab does nothing');
-  await p.evaluate(() => OV.present.go('shortfall')); await p.keyboard.press('ArrowRight'); ok(await tab() === 'reduced', '8. next skips the pages that cannot be opened');
+  await p.evaluate(() => OV.present.go('shortfall')); await p.keyboard.press('ArrowRight'); ok(await tab() === 'fna', '8. next skips the pages that cannot be opened (the servicing pages that hold nothing)');
   ok(await p.evaluate(() => document.querySelectorAll('.pcard.bright').length) >= 0 && /We’ll show you the gap/.test(await p.evaluate(() => (OV.present.go('map'), document.querySelector('#pSlide').innerText))) === true || true, '8. (the cards that open a page follow the tabs)');
   const cardsNow = await p.evaluate(() => (OV.present.go('map'), [...document.querySelectorAll('#pSlide .pcard')].map(c => c.querySelector('.ct').textContent + '=' + c.querySelector('.cs').textContent)));
   ok(cardsNow.some(t => /^Group benefits=You have no group benefits in place\. Your employer doesn’t cover you for anything\.$/.test(t)) && cardsNow.some(t => /^Investments=You don’t have any investments right now\.$/.test(t)) && cardsNow.some(t => /^Goal analysis=You didn’t ask us for a goal analysis at this time\.$/.test(t)), '8. the sentences follow the answers: no group benefits, no investments, no goal analysis asked for');

@@ -94,11 +94,11 @@ srv.listen(0, async () => {
   /* the dots and what they mean, before anything is filled */
   const nav = await p.evaluate(() => ({ legend: document.querySelector('#legend').innerText.replace(/\s+/g, ' '), titles: [...document.querySelectorAll('#nav button[data-block]')].map(x => x.title).filter(Boolean).length, sf: document.querySelector('[data-dot=shortfall]').className, sfTitle: document.querySelector('[data-dot=shortfall]').closest('button').title }));
   ok(/Grey: nothing yet/.test(nav.legend) && /Amber: to check/.test(nav.legend) && /Green: checked/.test(nav.legend) && /Dashed: not needed/.test(nav.legend), '3. a legend under the menu says what the dots mean: ' + nav.legend);
-  ok(nav.titles === 11 && /grey/.test(nav.sf) && /as soon as the FNA quote has figures/.test(nav.sfTitle), '3. every block in the menu has a hover text, and the shortfall dot is grey while the FNA has no figures');
+  ok(nav.titles === 16 && /grey/.test(nav.sf) && /as soon as the FNA quote has figures/.test(nav.sfTitle), '3. every block in the menu has a hover text, and the shortfall dot is grey while the FNA has no figures');
 
   /* ---- 4. an FNA from the client's folder: the file window opens in 3. Quotes; the quote and its guide are read ---- */
   await p.evaluate(() => OV.app.go('fna'));
-  ok(await p.evaluate(() => [...document.querySelectorAll('[data-upc]')].map(x => x.textContent).join('|')) === 'Upload from client folder…', '4. the FNA block has Upload from client folder…');
+  ok(await p.evaluate(() => [...document.querySelectorAll('[data-upc]')].map(x => x.textContent).join('|')) === '+ Add FNA quote…', '4. the FNA block has + Add FNA quote… (round 2.0)');
   await open(['NB', 'Docs, Dina', '3. Quotes', 'BR FNA - 100000011 - R2900.00 - 19.11.26.pdf']); await kinds({ quote: QUOTE, cmp: CMP });
   await p.click('[data-upc=fna]'); await p.waitForTimeout(1800);
   const pk = await picks(); ok(pk.length === 1 && pk[0].startIn === '3. Quotes' && pk[0].multiple === false && pk[0].id === null, '4. the file window opened in the client\'s folder 3. Quotes: ' + JSON.stringify(pk));

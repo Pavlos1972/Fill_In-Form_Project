@@ -10,17 +10,20 @@
   if (typeof module === 'object' && module.exports) module.exports = factory(require('./ov-schema.js'), require('./ov-calc.js'));
   else { root.OV = root.OV || {}; root.OV.pres = factory(root.OV.schema, root.OV.calc); }
 })(typeof self !== 'undefined' ? self : this, function (schema, calc) {
-  /* ---------- the nine tabs (Paul, 22 November): a tab can hold two of the Studio's blocks, chosen by a small button on the page ---------- */
+  /* ---------- the tabs, under the FOUR headings (Paul, 25 November, round 2.0): Where you are now, Servicing your current policies, New business quotes, Investments & goals. A tab can hold several of the Studio's blocks, chosen by a small button on the page.
+     A tab with nothing to show is greyed and cannot be clicked; a heading none of whose tabs has anything is not shown. ---------- */
   var TABS = [
     { id: 'map', l: 'Overview', blocks: ['map'] },
-    { id: 'policies', l: 'Current policies', blocks: ['policies'] },
-    { id: 'fna', l: 'FNA quote', blocks: ['fna'] },
-    { id: 'group', l: 'Group benefits', blocks: ['group'] },
-    { id: 'shortfall', l: 'Shortfall', blocks: ['shortfall', 'shortfallQuote'] },
-    { id: 'reduced', l: 'Reduced quotes', blocks: ['reduced', 'comparative'] },
-    { id: 'investments', l: 'Investments', blocks: ['investments', 'proposed'] },
-    { id: 'goals', l: 'Goal analysis', blocks: ['goals'] },
-    { id: 'other', l: 'Other', blocks: ['other'] }
+    { id: 'policies', l: 'Current policies', group: 'now', blocks: ['policies'] },
+    { id: 'group', l: 'Group benefits', group: 'now', blocks: ['group'] },
+    { id: 'investments', l: 'Investments', group: 'now', blocks: ['investments'] },
+    { id: 'other', l: 'Other', group: 'now', blocks: ['other'] },
+    { id: 'shortfall', l: 'Shortfall', group: 'now', blocks: ['shortfall'] },
+    { id: 'servicing', l: 'Servicing quotes', group: 'servicing', blocks: ['svFna', 'svShortfall', 'svReduced', 'svIncrease', 'svReduction'] },
+    { id: 'fna', l: 'FNA quote', group: 'newbiz', blocks: ['fna', 'shortfallQuote'] },
+    { id: 'reduced', l: 'Reduced quotes', group: 'newbiz', blocks: ['reduced', 'comparative'] },
+    { id: 'proposed', l: 'Proposed investments', group: 'inv', blocks: ['proposed'] },
+    { id: 'goals', l: 'Goal analysis', group: 'inv', blocks: ['goals'] }
   ];
   var ORDER = ['map'].concat(schema.BLOCKS.map(function (b) { return b.id; }));
   var TAB_OF = {}; TABS.forEach(function (t) { t.blocks.forEach(function (b) { TAB_OF[b] = t.id; }); });
@@ -42,6 +45,7 @@
     if (id === 'map') return true;
     if (id === 'policies') return calc.policies(state).length > 0;
     if (id === 'fna' || id === 'shortfallQuote' || id === 'reduced' || id === 'comparative') return calc.quotes(state, id).length > 0;
+    if (schema.blocksById[id] && schema.blocksById[id].servicing) return calc.quotes(state, id).length > 0;
     if (id === 'group') return calc.groupItems(state).length > 0 || calc.personalInvestments(state).count > 0 || answers(state).hasGroup === 'No';      // "no group benefits" is something to show (three red lines)
     if (id === 'shortfall') return !!calc.shortfall(state).has;
     if (id === 'investments') return calc.investments(state).length > 0;

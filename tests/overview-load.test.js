@@ -124,7 +124,7 @@ test('the page: one load button, a More menu, Settings, no Documents panel, no b
   assert.ok(/class="prog/.test(ui) && /Downloaded and populated/.test(ui) && /data-prog=/.test(ui), 'the bar under a block\'s name');
   assert.ok(/&lsaquo; Back: /.test(ui) && /Next: ' \+ esc\(pageName\(next\)\)/.test(ui) && /\(last\.dots \|\| \{\}\)\[id\] !== 'na'/.test(ui), 'Back and Next name the pages and skip one that does not apply');
   assert.ok(!/data-upq=|Upload from another folder|type in by hand<\/button> <button/.test(ui.replace(/\/\*[\s\S]*?\*\//g, '')), 'one upload button per block');
-  assert.ok(/>type in by hand<\/button>/.test(ui) && (ui.match(/class="lnk small" data-add[qp]/g) || []).length === 2, 'and a small "type in by hand" link where there was "+ Add new"');
+  assert.ok(/>type in by hand<\/button>/.test(ui) && (ui.match(/class="lnk small" data-add[qp]/g) || []).length === 1, 'round 2.0: only the proposed investments keep a small "type in by hand" link (a quote is added whole, from its document); every other block has a "+ Add ..." button');
   assert.ok(/loadFromClientFolder/.test(ui) && /\$\('#docIn'\)\.click\(\)/.test(ui), 'Load falls back to the normal file window by itself');
 });
 
@@ -138,7 +138,7 @@ test('quotes are read before their pay-out guides in a bulk load; a guide is loo
 });
 
 test('the contract: revision g, the page version 0.92, the layout still 0.1; new keys are only the line\'s match', () => {
-  assert.ok(/^1\.[0123456789]$/.test(schema.pageVersion), 'the page version is 1.0 to 1.6'); assert.strictEqual(schema.version, '0.1');
+  assert.ok(/^(1\.[0123456789]|2\.0)$/.test(schema.pageVersion), 'the page version is 1.0 to 1.6'); assert.strictEqual(schema.version, '0.1');
   const s = filled(), q = read(s, [{ type: 'child', name: 'Amy', sname: 'Client', life: { lump: 1, monthly: 5000 } }]); check.autoMatch(s, q);
   const j = JSON.parse(store.toJSON(s)); assert.strictEqual(j.blocks.fna.quotes[0].lines[0].match, 'factfind');
   assert.ok(/Revision g/.test(fs.readFileSync(path.join(__dirname, '..', 'docs', 'OVERVIEW-DATA-CONTRACT.md'), 'utf8')), 'written in the contract');

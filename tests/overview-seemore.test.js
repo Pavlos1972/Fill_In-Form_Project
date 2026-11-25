@@ -125,7 +125,7 @@ test('the screen: See more / See less on every block\'s items, folded by default
   assert.ok(/class="qcard folded"/.test(ui), 'a folded quote shows only its heading');
   assert.ok(/tbody class="dtl"/.test(ui), 'the detail of a row opens directly under it');
   const lines = ui.slice(ui.indexOf('function lineHTML'), ui.indexOf('/* ---------- the figures the page works out'));
-  assert.ok(/\(isPolicy \? '<td class="x">/.test(lines) && /\(isPolicy \? '<th><\/th>' : ''\)/.test(lines) && /isPolicy \|\| bare/.test(lines), 'the remove column and the add buttons are only for a policy (and for a quote with nothing in it yet)');
+  assert.ok(!/<td class="x">/.test(lines) && !/<th><\/th>/.test(lines) && !/data-addl/.test(lines), 'round 2.0: no remove column and no add-line buttons anywhere, for a policy or for a quote: a schedule or a quote is added, replaced and removed whole');
   assert.ok(/NOTICE_MS = 10000/.test(ui) && /function fresh\(path\)/.test(ui) && /sweepNotices/.test(ui) && /data-notice=/.test(ui), 'removed notices last about 10 seconds');
   assert.ok(/recent\[path\] = Date\.now\(\)/.test(ui));
 });
@@ -144,7 +144,7 @@ test('the monthly figure under a BrightRock lump sum says what it is: "Income po
 });
 
 test('the page version is 0.9 and the saved file\'s layout is still 0.1 (revisions f and g add keys, remove none)', () => {
-  assert.ok(/^1\.[0123456789]$/.test(schema.pageVersion), 'the page version is 1.0 to 1.6'); assert.strictEqual(schema.version, '0.1');
+  assert.ok(/^(1\.[0123456789]|2\.0)$/.test(schema.pageVersion), 'the page version is 1.0 to 1.6'); assert.strictEqual(schema.version, '0.1');
   const s = store.blank(); store.fillFromFactFind(s, ff(), 'ff.json'); const j = JSON.parse(store.toJSON(s));
   assert.ok('asked' in j.factFind.facts, 'factFind.facts.asked'); assert.ok('aciText' in j.blocks.fna.quotes.concat([store.newQuote(s, 'fna')])[0] || true);
   const q = store.newQuote(s, 'fna'); assert.ok('aciText' in q);

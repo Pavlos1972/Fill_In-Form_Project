@@ -7,8 +7,9 @@
   else { root.OV = root.OV || {}; root.OV.docs = factory(root.FF.util, root.OV.schema, root.OV.calc, root.OV.store); }
 })(typeof self !== 'undefined' ? self : this, function (util, schema, calc, store) {
   var ENDPOINT = 'https://api.anthropic.com/v1/messages', API_VERSION = '2023-06-01';
-  var BLOCK_LABEL = { followup: 'Follow-Up Summary Notes', policies: 'Current policies', fna: 'FNA quote', group: 'Group benefits', shortfallQuote: 'Shortfall quote', reduced: 'Reduced quote', comparative: 'Comparative quote', investments: 'Current investments', astute: 'Astute report', cmp: 'Change moment pay-out guide', proposed: 'Proposed investment', goals: 'Goal analysis report', other: 'Legacy protection plan', bremail: 'BrightRock email', counterletter: 'Counter offer letter', uwemail: 'Underwriter\'s e-mail' };
-  var QUOTE_OF = { fna: 'fna', shortfallQuote: 'shortfall', reduced: 'reduced', comparative: 'comparative' };
+  var BLOCK_LABEL = { followup: 'Follow-Up Summary Notes', policies: 'Current policies', fna: 'FNA quote', group: 'Group benefits', shortfallQuote: 'Shortfall quote', reduced: 'Reduced quote', comparative: 'Comparative quote', investments: 'Current investments', astute: 'Astute report', cmp: 'Change moment pay-out guide', proposed: 'Proposed investment', goals: 'Goal analysis report', other: 'Legacy protection plan', bremail: 'BrightRock email', counterletter: 'Counter offer letter', uwemail: 'Underwriter\'s e-mail',
+    svFna: 'Servicing FNA quote', svShortfall: 'Servicing shortfall quote', svReduced: 'Servicing reduced quote', svIncrease: 'Straight increase quote', svReduction: 'Straight reduction quote' };
+  var QUOTE_OF = { fna: 'fna', shortfallQuote: 'shortfall', reduced: 'reduced', comparative: 'comparative', svFna: 'svfna', svShortfall: 'svshortfall', svReduced: 'svreduced', svIncrease: 'svincrease', svReduction: 'svreduction' };
 
   /* ---------- sorting a document by its name ---------- */
   function two(n) { return (n < 10 ? '0' : '') + n; }
@@ -23,6 +24,24 @@
   var REVIEW_KINDS = { fna: 1, shortfallQuote: 1, reduced: 1, comparative: 1, proposed: 1, investments: 1, policies: 1 };          // the rule may only touch what could be taken for a quote or a current policy / investment: never an e-mail, a pay-out guide, an Astute report, a goal report, follow-up notes or a group statement
   /* True for a document in a Review or Servicing folder whose name says it is paperwork about a change (never a quote): the list says so. */
   function reviewPaperwork(fileName, dirPath) { var low = String(fileName == null ? '' : fileName).replace(/\.[A-Za-z0-9]{2,5}$/, '').toLowerCase(); return inReviewOrServicing(dirPath) && PAPERWORK.test(low); }
+  /* Round 2.0 (Paul, 25 November): a quote inside a policy folder of a LIFE policy is a SERVICING quote, tied to that policy, never a comparative quote. Its name says which: FNA, shortfall and reduced give the servicing FNA, shortfall and reduced quote; Increase gives a straight increase;
+     Decrease or Reduction a straight reduction; Serv, Servicing, Service, Alteration or Amendment alone is a straight quote whose direction is told by its premium against the policy's when it is read (bare: true; up = increase, down = reduction, the same or unknown = increase, flagged).
+     An investment, provident, pension, preservation or legacy policy folder is not a servicing folder (there is no servicing block for investments): its quotes stay as they were. One table. */
+  var NOT_LIFE_FOLDER = /(^|[^a-z])(ra|invest(ment)?s?|tf|tax[\s-]*free|endowment|living annuity|unit trust|provident|pension|preservation|legacy)([^a-z]|$)/i;
+  var SV_DEC = /decrease|reduction|(^|[^a-z])reduce([^a-z]|$)/, SV_INC = /increase/, SV_BARE = /(^|[^a-z])(serv|servicing|service|alteration|alterations|amendment)([^a-z]|$)/;
+  var SV_OF_BLOCK = { fna: 'svFna', shortfallQuote: 'svShortfall', reduced: 'svReduced' };
+  function servicingFolder(dirPath) {
+    var segs = reviewSegs(dirPath); if (!segs.length) return false;
+    var first = segs[0].trim();
+    return !/^\d+\.\s/.test(first) && !/^(accepted )?quotes?(\s*\(.*\))?$|^comparative quotes?$/i.test(first) && !NOT_LIFE_FOLDER.test(first) && /\d{5,}/.test(first);          // a servicing quote is about ONE policy, so the folder must name it (its number); an older deal-style folder without a number keeps its quotes as new business
+  }
+  function servicingOf(low, dirPath, block, number) {
+    if (!dirPath || !servicingFolder(dirPath) || (block && block !== 'comparative' && !SV_OF_BLOCK[block])) return null;
+    if (SV_OF_BLOCK[block]) return { block: SV_OF_BLOCK[block] };
+    var w = SV_DEC.test(low) ? 'svReduction' : SV_INC.test(low) ? 'svIncrease' : SV_BARE.test(low) ? 'bare' : '';
+    if (!w || PAPERWORK.test(low) || !(QUOTEISH.test(low) || number)) return null;
+    return w === 'bare' ? { block: 'svIncrease', bare: true } : { block: w };
+  }
   function classify(fileName, dirPath) {
     var n = String(fileName == null ? '' : fileName).replace(/\.[A-Za-z0-9]{2,5}$/, ''), low = n.toLowerCase(), m, date = '', number = '';
     if ((m = /(\d{6,12})/.exec(n))) number = m[1];
@@ -58,7 +77,8 @@
       else if (rsegs.length > 1 && !/^\d+\.\s/.test(rsegs[0].trim()) && QUOTEISH.test(low) && (!block || block === 'investments' || block === 'policies')) block = 'comparative';          // directly inside a policy folder: its name says it is a quote, so it is a quote (of the policy's review)
       else if (block === 'investments' || block === 'policies') { block = 'comparative'; viaReview = true; }          // its name says investment or policy and nothing says quote: listed as a comparative quote by its folder, NOT ticked (an RA Review, a Review Valuation)
     }
-    return block ? { block: block, number: number, date: date, label: BLOCK_LABEL[block], viaReview: viaReview } : null;          // viaReview: it is a comparative quote only because it sits in a Review folder (its name says investment or policy): listed as one, NOT ticked (1.6)
+    var sv = servicingOf(low, dirPath, block, number), bare = false; if (sv) { block = sv.block; bare = !!sv.bare; viaReview = false; }                 // round 2.0: a quote in a life policy folder is a servicing quote
+    return block ? { block: block, number: number, date: date, label: BLOCK_LABEL[block], viaReview: viaReview, bare: bare } : null;          // viaReview: it is a comparative quote only because it sits in a Review folder (its name says investment or policy): listed as one, NOT ticked (1.6)
   }
   /* The items of an overview (this one, or a saved one read from its .json) the policy folders are compared with: current policies (block 1), current investments (block 6), the provident and pension funds of the group block (kind 'group') and the legacy protection plan of
      block 11 (kind 'legacy', only once the Fact Find says the client has one). A folder's statement goes to the block of the item it is compared with (Paul, 25 November). Returns [{ kind: 'policies' | 'investments' | 'group' | 'legacy', who, product, no, ref }]. */
@@ -131,7 +151,7 @@
       'Write null for anything the e-mail does not say. Copy the reason as the e-mail states it; never work anything out, never guess, and never copy the client\'s ID number, telephone number or e-mail address.',
     cmp: 'This is a BrightRock change moment pay-out guide. Return { "number": "the CP number", "activationDate": "dd/mm/yyyy", "reason": "BrightRock\'s reason, only if it gives no pay-out, else null", "rows": [ { "key": "total" | "retirement" | "childcare" | "child", "name": "child first name", "sname": "child surname", "today": n, "projected": n, "payoutDate": "dd/mm/yyyy" or null } ] }.'
   };
-  var SPEC_OF = { fna: 'quote', shortfallQuote: 'quote', reduced: 'quote', comparative: 'quote', policies: 'policy', group: 'group', investments: 'investment', astute: 'astute', cmp: 'cmp', proposed: 'proposal', goals: 'goal', other: 'policy', followup: 'followup', ffnotes: 'ffnotes', bremail: 'bremail', counterletter: 'counterletter', uwemail: 'uwemail' };
+  var SPEC_OF = { fna: 'quote', shortfallQuote: 'quote', reduced: 'quote', comparative: 'quote', svFna: 'quote', svShortfall: 'quote', svReduced: 'quote', svIncrease: 'quote', svReduction: 'quote', policies: 'policy', group: 'group', investments: 'investment', astute: 'astute', cmp: 'cmp', proposed: 'proposal', goals: 'goal', other: 'policy', followup: 'followup', ffnotes: 'ffnotes', bremail: 'bremail', counterletter: 'counterletter', uwemail: 'uwemail' };
   /* What the Fact Find says about the client's debts and children, for the reading of a quote (the quote often prints no bank or the debt's name): Claude is asked to name each debt line from it. '' when there is nothing. */
   function factNote(state) {
     var f = state && state.factFind && state.factFind.facts; if (!f) return '';
@@ -218,7 +238,9 @@
   /* The quote of this block with this number (the digits are compared), not removed. quoteRead: it holds figures from a document (not only the Fact Find's lines). */
   function quoteIn(state, block, num) {
     var k = qkey(num); if (!k) return null;
-    return calc.quotes(state, block).filter(function (x) { return qkey(x.number) === k; })[0] || null;
+    var bd = schema.blocksById[block], blocks = bd && bd.servicing ? schema.SV_KINDS.map(function (x) { return schema.blockOfQuote[x]; }) : [block], hit = null;          // a servicing quote is one quote wherever it landed (a bare Serv quote is placed by its premium)
+    blocks.forEach(function (b) { if (!hit) hit = calc.quotes(state, b).filter(function (x) { return qkey(x.number) === k; })[0] || null; });
+    return hit;
   }
   function quoteRead(q) { return calc.activeLines(q).some(function (l) { return l.st === 'verify' || l.st === 'confirmed'; }); }
   function findQuoteByNumber(state, num) {
@@ -251,7 +273,17 @@
     if (Array.isArray(data.aciPoints)) { var qp = data.aciPoints.map(s).filter(Boolean).slice(0, 3); if (qp.length) q.aciPoints = qp; }
     if (data.premium !== undefined && !o.nameOnly) q.premium = n(data.premium);
     if (data.servicing === true || data.servicing === false) q.servicing = data.servicing;
+    if (schema.isServicingKind(kind)) {
+      q.servicing = true;                                                                                  // round 2.0: a servicing quote is about ONE current policy (o.onPolicy: the policy folder the file was picked in)
+      if (o.onPolicy && typeof o.onPolicy === 'object' && (o.onPolicy.id || o.onPolicy.number)) q.onPolicy = { id: o.onPolicy.id || null, insurer: o.onPolicy.insurer || '', number: o.onPolicy.number || '' };
+    }
     if (data.disabilityAge !== undefined && calc.isNum(n(data.disabilityAge))) q.disabilityAge = n(data.disabilityAge);
+    var unsure = false;
+    if (o.bare && schema.isServicingKind(kind)) {                                                          // a bare Serv quote: its premium against the policy's decides straight increase or straight reduction
+      var tied = calc.servicingPolicy(state, q), np = q.premium, op = tied && tied.premium;
+      if (calc.isNum(np) && calc.isNum(op) && np !== op) kind = np < op ? 'svreduction' : 'svincrease'; else unsure = true;
+      kind = kind || 'svincrease'; q.kind = kind; block = schema.blockOfQuote[kind];
+    }
     if (read) q.lines = data.lines.map(function (l) { return line(l, src, { quote: true, abi: data.abi }); });
     if (!s(data.aciText) && read) { var lw = data.lines.filter(function (l) { return l && s(l.aciText); })[0]; if (lw) q.aciText = s(lw.aciText); }          // the ACI words belong to the quote: the lines show the same
     if (read) enrich(state, q);
@@ -263,6 +295,7 @@
       var old = store.findQuote(state, o.replaces);
       if (old) {
         if (old.counterOf) { q.counterOf = old.counterOf; q.offer = JSON.parse(JSON.stringify(old.offer || {})); q.terms = JSON.parse(JSON.stringify(old.terms || { loadings: [], exclusions: [] })); q.uw = null; if (!read) q.lines = []; place = old; }       // a counter offer that is replaced stays a counter offer, with its letter and terms
+        if (schema.isServicingKind(kind)) { if (!q.onPolicy && old.onPolicy) q.onPolicy = JSON.parse(JSON.stringify(old.onPolicy)); if (!q.reason && old.reason) q.reason = old.reason; }          // Replace quote keeps the policy the quote is about and the adviser's reason
         calc.allQuotes(state).forEach(function (x) { if (x.counterOf === old.id) x.counterOf = q.id; });                                          // and the counter offers of a quote that is replaced follow the new quote
         old.removed = true; old.replacedBy = q.id; q.replaces = old.id;
       }
@@ -271,14 +304,14 @@
     if (same && !!o.counterOf !== !!same.counterOf) same = null;                                          // a counter offer is never merged into an ordinary quote (or the other way round)                                         // the same number in the same block (not the quote that is being replaced): ONE quote, never two (Paul, 23 November)
     if (same) {
       if (!read && quoteRead(same)) return { quote: same, read: false, duplicate: same, merged: 'kept' };   // only a name and a number: what was read is never replaced by it
-      var keep = { id: same.id, status: same.status, uw: same.uw, second: same.second, counterOf: same.counterOf, offer: same.offer, terms: same.terms, repl: same.repl, policyNo: same.policyNo, startDate: same.startDate, cmp: same.cmp, replaces: same.replaces, replacedBy: same.replacedBy };          // the adviser's choices (status, underwriting, terms, replacements) are never lost to a second reading
+      var keep = { id: same.id, status: same.status, uw: same.uw, second: same.second, counterOf: same.counterOf, offer: same.offer, terms: same.terms, repl: same.repl, policyNo: same.policyNo, startDate: same.startDate, cmp: same.cmp, replaces: same.replaces, replacedBy: same.replacedBy, onPolicy: same.onPolicy || q.onPolicy, reason: same.reason || q.reason };          // the adviser's choices (status, underwriting, terms, replacements) are never lost to a second reading
       Object.keys(same).forEach(function (k) { delete same[k]; }); Object.assign(same, q, keep); notePrinted(same); calc.alignPremiums(state);
       return { quote: same, read: read, duplicate: same, merged: 'again' };
     }
     var dup = findQuoteByNumber(state, q.number);                                                           // a quote with this number (not removed) is already there: the caller says so
     var arr = state.blocks[schema.blockOfQuote[kind]].quotes; if (place && arr.indexOf(place) >= 0) arr.splice(arr.indexOf(place) + 1, 0, q); else arr.push(q);          // a replaced counter offer keeps its place: replacing the older one never makes the replacement the live one
     notePrinted(q); calc.alignPremiums(state);
-    return { quote: q, read: read, duplicate: dup || null };
+    return { quote: q, read: read, duplicate: dup || null, unsure: unsure };
   }
   /* A policy schedule fills the details of one item of block 1. Returns the item, or null when none matches (the schedule is for a policy that is not in the Fact Find). */
   function matchItem(items, data, getName) {

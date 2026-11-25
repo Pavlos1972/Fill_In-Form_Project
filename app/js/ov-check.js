@@ -7,12 +7,12 @@
   var isNum = calc.isNum, fmtR = calc.fmtR, norm = calc.norm;
   function qLabel(q) {
     var n = q.number ? (/bright/i.test(q.insurer) ? 'CP ' : 'Quote ') + q.number : '';
-    return [q.insurer, q.counterOf ? 'counter offer' : { fna: 'FNA', shortfall: 'shortfall quote', reduced: 'reduced quote', comparative: 'quote' }[q.kind], n].filter(Boolean).join(' ');
+    return [q.insurer, q.counterOf ? 'counter offer' : { fna: 'FNA', shortfall: 'shortfall quote', reduced: 'reduced quote', comparative: 'quote', svfna: 'servicing FNA', svshortfall: 'servicing shortfall quote', svreduced: 'servicing reduced quote', svincrease: 'straight increase', svreduction: 'straight reduction' }[q.kind], n].filter(Boolean).join(' ');
   }
   /* The heading of a quote as the screen shows it: "BrightRock Reduced Quote CP 100000051". */
   function qTitle(q) {
     var n = q.number ? (/bright/i.test(q.insurer) ? 'CP ' : 'Quote ') + q.number : '';
-    return [q.insurer, q.counterOf ? 'Counter Offer' : { fna: 'FNA', shortfall: 'Shortfall Quote', reduced: 'Reduced Quote', comparative: 'Comparative Quote' }[q.kind], n].filter(Boolean).join(' ');
+    return [q.insurer, q.counterOf ? 'Counter Offer' : { fna: 'FNA', shortfall: 'Shortfall Quote', reduced: 'Reduced Quote', comparative: 'Comparative Quote', svfna: 'Servicing FNA', svshortfall: 'Servicing Shortfall Quote', svreduced: 'Servicing Reduced Quote', svincrease: 'Straight Increase', svreduction: 'Straight Reduction' }[q.kind], n].filter(Boolean).join(' ');
   }
   /* Checks that stay in the Checks panel as notes but never hold a block's dot or a quote's row amber (Paul, 23 November: only real line differences, a missing pay-out guide or missing figures do): the quote's income against the client's net income,
      an increase that differs from the standard settings, a premium above the budget. */
@@ -35,6 +35,7 @@
       calc.quotes(state, block).forEach(function (q) {
         var where = qLabel(q), t = calc.totals(q), lines = calc.activeLines(q), figures = hasFigures(q), ffInst = {};
         var cf = conflicts.filter(function (c) { return c.quote === q; })[0];
+        if (calc.isServicing(q) && !calc.servicingPolicy(state, q)) add('sv.policy', block, where, q.onPolicy ? 'The current policy this quote is tied to (' + [q.onPolicy.insurer, q.onPolicy.number].filter(Boolean).join(' ') + ') is not in Current policies (it is no longer there, or its schedule has not been read yet): read its schedule, or choose the policy again.' : 'A servicing quote is about ONE current policy: choose which one (the policy box on the quote).');
         if (cf) add('accept.second', block, where, 'Another quote is also accepted (' + cf.others.map(qLabel).join(' and ') + '): only one quote can be accepted, unless this is a deliberate second policy alongside the first (tick that on the quote).');
         if (kind === 'fna' && isNum(h.netIncome) && figures) {
           [['life', t.life.monthly, 'Life cover'], ['lsd', t.lsd.monthly, 'Lump sum disability'], ['ip', t.ip.monthly, 'Income protector']].forEach(function (x) {
@@ -169,6 +170,7 @@
       else if (ff && !asked.sf) say('shortfallQuote', 'No shortfall quote requested', true);
       else if (ran) say('shortfallQuote', 'No shortfall quote found', true);
     }
+    if (ff || ran) schema.SV_KINDS.forEach(function (k) { var id = schema.blockOfQuote[k]; if (!calc.quotes(state, id).length) say(id, 'Not requested', false, 'na'); });          // round 2.0: nothing to look for in an empty servicing block, and nothing red about it
     if (ran && !calc.quotes(state, 'reduced').length) say('reduced', 'No reduced quotes found', true);
     if (!calc.quotes(state, 'comparative').length) {
       if (ff && !asked.comparative) say('comparative', 'No comparative quotes', true);

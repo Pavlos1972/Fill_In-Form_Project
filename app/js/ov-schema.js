@@ -5,7 +5,7 @@
   else { root.OV = root.OV || {}; root.OV.schema = factory(); }
 })(typeof self !== 'undefined' ? self : this, function () {
   /* VERSION is the layout of the saved file (docs/OVERVIEW-DATA-CONTRACT.md): the filling skill stops on one it does not know. PAGE_VERSION is the page's own version, which changes with every stage. */
-  var VERSION = '0.1', PAGE_VERSION = '1.9', APP_ID = 'wr-overview';
+  var VERSION = '0.1', PAGE_VERSION = '2.0', APP_ID = 'wr-overview';
 
   /* The four pillars, in the order of the columns. life and lsd have a lump sum and a monthly figure; sev only a lump sum; ip only a monthly figure. */
   var PILLARS = [
@@ -18,24 +18,42 @@
   /* The pillars' short names, as the summary of a counter offer's terms and the totals row name them. */
   var PILLAR_SHORT = { life: 'Life cover', sev: 'Severe illness', lsd: 'Lump sum disability', ip: 'Income protector' };
 
-  /* The eleven blocks, fixed order, the same on the screen, in the PDF and in the Presentation. kind says how the block is drawn; qkind is the kind of quote a quote block holds;
-     ff: the block follows the Fact Find (items are added and removed only there). */
+  /* The sixteen blocks under FOUR headings (Paul, 25 November, round 2.0), the same order on the screen, in the PDF and in the Presentation: where the client is now; servicing quotes (on a current policy, each tied to ONE policy);
+     new business quotes (a new policy); investments and goals. kind says how the block is drawn; qkind is the kind of quote a quote block holds; ff: the block follows the Fact Find (items are added and removed only there);
+     add: the label of the "+ Add" button at the bottom of the block (a schedule, a quote or a report is added WHOLE, read from its document: no line is ever added by hand). */
+  var GROUPS = [
+    { id: 'now', title: 'Where the client is now', pdf: 'Where you are now' },
+    { id: 'servicing', title: 'Servicing quotes (on a current policy)', pdf: 'Servicing your current policies' },
+    { id: 'newbiz', title: 'New business quotes (new policy)', pdf: 'New business quotes' },
+    { id: 'inv', title: 'Investments & goals', pdf: 'Investments & goals' }
+  ];
+  var groupsById = {}; GROUPS.forEach(function (g) { groupsById[g.id] = g; });
   var BLOCKS = [
-    { id: 'policies', n: 1, title: 'Current policies', kind: 'policies', ff: true },
-    { id: 'fna', n: 2, title: 'FNA quote', kind: 'quotes', qkind: 'fna', one: 'FNA quote' },
-    { id: 'group', n: 3, title: 'Group benefits & personal investments', kind: 'group', ff: true },
-    { id: 'shortfall', n: 4, title: 'Shortfall', kind: 'shortfall' },
-    { id: 'shortfallQuote', n: 5, title: 'Shortfall quote', kind: 'quotes', qkind: 'shortfall', one: 'shortfall quote' },
-    { id: 'reduced', n: 6, title: 'Reduced quotes', kind: 'quotes', qkind: 'reduced', one: 'reduced quote' },
-    { id: 'comparative', n: 7, title: 'Comparative quotes', kind: 'quotes', qkind: 'comparative', one: 'comparative quote' },
-    { id: 'investments', n: 8, title: 'Current investments', kind: 'investments', ff: true },
-    { id: 'proposed', n: 9, title: 'Proposed investments', kind: 'proposed' },
-    { id: 'goals', n: 10, title: 'Goal analysis reports', kind: 'goals' },
-    { id: 'other', n: 11, title: 'Medical aid, will & short-term', kind: 'other' }
+    { id: 'policies', n: 1, group: 'now', title: 'Current policies', kind: 'policies', ff: true, add: 'Add policy schedule' },
+    { id: 'group', n: 2, group: 'now', title: 'Group benefits & personal investments', kind: 'group', ff: true },
+    { id: 'investments', n: 3, group: 'now', title: 'Current investments', kind: 'investments', ff: true },
+    { id: 'other', n: 4, group: 'now', title: 'Medical aid, will & short-term', kind: 'other' },
+    { id: 'shortfall', n: 5, group: 'now', title: 'Shortfall (needs calculation)', kind: 'shortfall' },
+    { id: 'svFna', n: 6, group: 'servicing', title: 'Servicing FNA quote', kind: 'quotes', qkind: 'svfna', one: 'servicing FNA quote', add: 'Add servicing FNA quote', servicing: true },
+    { id: 'svShortfall', n: 7, group: 'servicing', title: 'Servicing shortfall quote', kind: 'quotes', qkind: 'svshortfall', one: 'servicing shortfall quote', add: 'Add servicing shortfall quote', servicing: true },
+    { id: 'svReduced', n: 8, group: 'servicing', title: 'Servicing reduced quote', kind: 'quotes', qkind: 'svreduced', one: 'servicing reduced quote', add: 'Add servicing reduced quote', servicing: true },
+    { id: 'svIncrease', n: 9, group: 'servicing', title: 'Straight increase', kind: 'quotes', qkind: 'svincrease', one: 'straight increase quote', add: 'Add straight increase quote', servicing: true },
+    { id: 'svReduction', n: 10, group: 'servicing', title: 'Straight reduction', kind: 'quotes', qkind: 'svreduction', one: 'straight reduction quote', add: 'Add straight reduction quote', servicing: true },
+    { id: 'fna', n: 11, group: 'newbiz', title: 'FNA quote', kind: 'quotes', qkind: 'fna', one: 'FNA quote', add: 'Add FNA quote' },
+    { id: 'shortfallQuote', n: 12, group: 'newbiz', title: 'Shortfall quote', kind: 'quotes', qkind: 'shortfall', one: 'shortfall quote', add: 'Add shortfall quote' },
+    { id: 'reduced', n: 13, group: 'newbiz', title: 'Reduced quotes', kind: 'quotes', qkind: 'reduced', one: 'reduced quote', add: 'Add reduced quote' },
+    { id: 'comparative', n: 14, group: 'newbiz', title: 'Comparative quotes', kind: 'quotes', qkind: 'comparative', one: 'comparative quote', add: 'Add comparative quote' },
+    { id: 'proposed', n: 15, group: 'inv', title: 'Proposed investments', kind: 'proposed', add: 'Add proposal' },
+    { id: 'goals', n: 16, group: 'inv', title: 'Goal analysis reports', kind: 'goals', add: 'Add goal report' }
   ];
   var blocksById = {}; BLOCKS.forEach(function (b) { blocksById[b.id] = b; });
-  var blockOfQuote = { fna: 'fna', shortfall: 'shortfallQuote', reduced: 'reduced', comparative: 'comparative' };
-  var QUOTE_KINDS = ['fna', 'shortfall', 'reduced', 'comparative'];
+  var blockOfQuote = { fna: 'fna', shortfall: 'shortfallQuote', reduced: 'reduced', comparative: 'comparative', svfna: 'svFna', svshortfall: 'svShortfall', svreduced: 'svReduced', svincrease: 'svIncrease', svreduction: 'svReduction' };
+  var NB_KINDS = ['fna', 'shortfall', 'reduced', 'comparative'];                                              // new business: a new policy (feeds the ROA)
+  var SV_KINDS = ['svfna', 'svshortfall', 'svreduced', 'svincrease', 'svreduction'];                           // servicing: a change to ONE current policy (feeds the SROA)
+  var QUOTE_KINDS = NB_KINDS.concat(SV_KINDS);
+  function isServicingKind(kind) { return SV_KINDS.indexOf(kind) >= 0; }
+  /* What a servicing quote means (Paul, 25 November): the current policy re-quoted to full needs; the gap added on top of the current schedule; the current policy cut down; one line added or raised; a line removed or lowered. */
+  var SV_MEANING = { svfna: 'The current policy re-quoted to full needs.', svshortfall: 'The gap, added on top of the current schedule.', svreduced: 'The current policy cut down.', svincrease: 'One line added or raised: no FNA and no shortfall.', svreduction: 'A line removed or lowered, or the premium reduced.' };
 
   var INSURERS = ['BrightRock', 'Momentum', 'Sanlam', 'Discovery', 'Old Mutual', 'Liberty', 'Hollard', 'Assupol'];
 
@@ -146,7 +164,7 @@
   /* The year folder the overview goes in (the year of its date). */
   function yearOf(state) { var d = parseDMY(state && state.header && state.header.overviewDate) || parseDMY(todayDMY()); return String(d.y); }
 
-  return { version: VERSION, pageVersion: PAGE_VERSION, released: 'November 2026', APP_ID: APP_ID, PILLARS: PILLARS, PILLAR_SHORT: PILLAR_SHORT, BLOCKS: BLOCKS, blocksById: blocksById, blockOfQuote: blockOfQuote, QUOTE_KINDS: QUOTE_KINDS, INSURERS: INSURERS,
+  return { version: VERSION, pageVersion: PAGE_VERSION, released: 'November 2026', APP_ID: APP_ID, PILLARS: PILLARS, PILLAR_SHORT: PILLAR_SHORT, GROUPS: GROUPS, groupsById: groupsById, BLOCKS: BLOCKS, blocksById: blocksById, blockOfQuote: blockOfQuote, QUOTE_KINDS: QUOTE_KINDS, NB_KINDS: NB_KINDS, SV_KINDS: SV_KINDS, isServicingKind: isServicingKind, SV_MEANING: SV_MEANING, INSURERS: INSURERS,
     STATUS: STATUS, statusLabel: statusLabel, UW: UW, uwLabel: uwLabel, UW_ISSUED: UW_ISSUED, UW_DECLINED: UW_DECLINED, LEGACY_STATUS: LEGACY_STATUS, TERM_BENEFITS: TERM_BENEFITS, LOADING_KINDS: LOADING_KINDS, loadingKindLabel: loadingKindLabel, BROKER_RECORD: BROKER_RECORD, NEED_GROUPS: NEED_GROUPS, COLUMN_GROUPS: COLUMN_GROUPS, needGroupById: needGroupById, columnGroupById: columnGroupById, cellOf: cellOf, cellsBenefit: cellsBenefit,BENEFIT_PILLARS: BENEFIT_PILLARS, LINE_TYPES: LINE_TYPES, lineTypesById: lineTypesById, STANDARDS: STANDARDS, PROPOSED_TYPES: PROPOSED_TYPES, CONTRIBUTIONS: CONTRIBUTIONS,
     contributionLabel: contributionLabel, OTHER_KEYS: OTHER_KEYS, FIGURES: FIGURES, GROUP_KINDS: GROUP_KINDS, PAID_BY: PAID_BY, ST_LABEL: ST_LABEL, fileName: fileName, yearOf: yearOf, clientName: clientName,
     clientFull: clientFull, parseDMY: parseDMY, todayDMY: todayDMY, safeName: safeName };

@@ -29,10 +29,10 @@ const LETTER = { originalNumber: '400500600', revisedNumber: '400500777', origPr
 const accepted = (s, q, uw) => { store.setStatus(s, qpath(s, q), 'accepted'); store.setUw(s, qpath(s, q), uw || 'both'); return q; };
 
 test('the page is 1.2 (the layout stays 0.1), the changed scripts carry new tags in every page that loads them', () => {
-  assert.ok(/^1\.[23456789]$/.test(schema.pageVersion), 'the page version is 1.2 to 1.6'); assert.strictEqual(schema.version, '0.1');
+  assert.ok(/^(1\.[23456789]|2\.0)$/.test(schema.pageVersion), 'the page version is 1.2 to 1.6'); assert.strictEqual(schema.version, '0.1');
   assert.ok(parseFloat(schema.pageVersion) > parseFloat('1.1'), 'compared as decimals');
-  ['ov-schema', 'ov-calc', 'ov-store', 'ov-check', 'ov-docs', 'ov-pdf', 'ov-pres', 'ov-ui', 'ov-present'].forEach(f => assert.ok(new RegExp(f + '\\.js\\?v=20261124[m-z]').test(app('overview.html')), f));
-  ['index.html', 'short-risk.html', 'capture-sheet.html', 'overview.html'].forEach(f => assert.ok(/folders-ui\.js\?v=20261124[m-z]/.test(app(f)) && /folders\.js\?v=20261124[m-z]/.test(app(f)), f));
+  ['ov-schema', 'ov-calc', 'ov-store', 'ov-check', 'ov-docs', 'ov-pdf', 'ov-pres', 'ov-ui', 'ov-present'].forEach(f => assert.ok(new RegExp(f + '\\.js\\?v=(?:20261124[m-z]|20261125[a-z])').test(app('overview.html')), f));
+  ['index.html', 'short-risk.html', 'capture-sheet.html', 'overview.html'].forEach(f => assert.ok(/folders-ui\.js\?v=(?:20261124[m-z]|20261125[a-z])/.test(app(f)) && /folders\.js\?v=(?:20261124[m-z]|20261125[a-z])/.test(app(f)), f));
 });
 
 test('the BrightRock column groups and need groups are ONE table (Paul\u2019s final word, 24 November: FOUR separate pillars, never a combined label): death = life cover, permanent = lump sum disability, recover from = income protector ONLY, the additional expense row = severe illness', () => {
@@ -353,7 +353,7 @@ test('review findings: the replacement note names a number even when the live co
   docs.applyCounterLetter(s, q, Object.assign({}, LETTER, { revisedNumber: null }), 'letter.pdf');
   assert.strictEqual(calc.policyNote(s, calc.policies(s).filter(e => e.item === bud)[0]).text, 'Budget Insurance 100200300 will be replaced by BrightRock quote CP 400500600');
   const ui = app('js/ov-ui.js'), pdf = app('js/ov-pdf.js'), pr = app('js/ov-present.js');
-  assert.ok(/q\.counterOf && !calc\.activeLines\(q\)\.length \? '' : '<h4>Compared with what you have now/.test(ui) && /q\.counterOf && !calc\.activeLines\(q\)\.length\)\) y = compareTable/.test(pdf) && /q\.counterOf && !calc\.activeLines\(q\)\.length \? \[\] : \[\['cmpr'/.test(pr));
+  assert.ok(/\(sv \|\| \(q\.counterOf && !calc\.activeLines\(q\)\.length\) \? '' : '<h4>Compared with what you have now/.test(ui) && /!sv && !\(q\.counterOf && !calc\.activeLines\(q\)\.length\)\) y = compareTable/.test(pdf) && /q\.counterOf && !calc\.activeLines\(q\)\.length \? \[\] : \[\['cmpr'/.test(pr));
 });
 
 test('review findings: a hand-edited file cannot crash the page (a loop of counter offers, a benefit named "constructor", a term row that is not an object)', () => {

@@ -100,7 +100,7 @@ test('a statement is only found again by its policy number, never by the provide
 });
 
 test('no saved-file key is added: the page version is 0.95, the layout is still 0.1, and looking at a document changes nothing', () => {
-  assert.ok(/^1\.[0123456789]$/.test(schema.pageVersion), 'the page version is 1.0 to 1.6'); assert.strictEqual(schema.version, '0.1');
+  assert.ok(/^(1\.[0123456789]|2\.0)$/.test(schema.pageVersion), 'the page version is 1.0 to 1.6'); assert.strictEqual(schema.version, '0.1');
   const { s } = build(); const before = JSON.stringify(s);
   V.refFor(s, path0(0)); V.takenBy(s, path0(0)); V.pick(V.refFor(s, path0(0)), [F('x.pdf')], V.takenBy(s, path0(0)));
   assert.strictEqual(JSON.stringify(s), before, 'reading what to open does not touch the overview');

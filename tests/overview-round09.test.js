@@ -126,7 +126,7 @@ test('the reading is told: the need-by-need lines are for BrightRock only; every
 
 test('the screen: a policy of another insurer is "Benefits" with only "+ A benefit"; a BrightRock policy keeps its needs and their buttons', () => {
   const ui = app('js/ov-ui.js');
-  assert.match(ui, /flat = isPolicy && !!String\(c\.insurer \|\| ''\)\.trim\(\) && !store\.isBright\(c\.insurer\)/); assert.match(ui, /flat \? 'Benefits' : 'Need'/); assert.match(ui, /flat \? \['other'\]/); assert.match(ui, /flat \? 'A benefit'/);
+  assert.match(ui, /flat = isPolicy && !!String\(c\.insurer \|\| ''\)\.trim\(\) && !store\.isBright\(c\.insurer\)/); assert.match(ui, /flat \? 'Benefits' : 'Need'/); assert.ok(!/data-addl/.test(ui), 'round 2.0: no "+ A benefit" or any other add-line button: a schedule is added whole');
 });
 
 /* ---------- 3. a quote once ---------- */

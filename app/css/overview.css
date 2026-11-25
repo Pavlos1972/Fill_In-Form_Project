@@ -329,3 +329,25 @@ label.chk input { margin-top: 3px; flex: none; }
 .fdlg .pknotes p { margin: 0; font-size: 12.5px; color: var(--muted); }
 .fdlg .pknotes p.warn { color: var(--warn); }
 .fdlg.wide .flist { max-height: 46vh; }
+
+/* Client Overview Studio 2.0 (25 November): the menu under four headings and the servicing quote's old-and-new table */
+.nav .sep.grp { padding-top: 14px; font-weight: 700; color: var(--ink, inherit); letter-spacing: .02em; }
+.nav .sep.grp:first-of-type { padding-top: 10px; }
+.qcard .svnote { margin: 8px 14px 4px; }
+.qcard h4 { margin-left: 14px; margin-right: 14px; }
+.qcard .svwhy { margin: 8px 14px 4px; }
+.qcard .svwhy textarea { width: 100%; min-height: 3.2em; font: inherit; }
+.ovt.svt { table-layout: fixed; width: 100%; }
+.ovt.svt .c-need { width: 17%; } .ovt.svt .c-chg { width: 24%; }
+.ovt.svt th small { display: block; font-weight: 400; font-size: 11px; color: var(--muted); }
+.ovt.svt td.c { text-align: right; white-space: normal; overflow-wrap: anywhere; }
+.ovt.svt .was { color: var(--muted); text-decoration: line-through; margin-right: 2px; }
+.ovt.svt tr.svr.added td { background: rgba(31, 138, 77, .08); }
+.ovt.svt tr.svr.removed td { background: rgba(197, 48, 48, .08); }
+.ovt.svt tr.svr.removed td.need { text-decoration: line-through; }
+.ovt.svt tr.svr.changed td { background: rgba(242, 140, 40, .10); }
+.ovt.svt tr.svr.same td { color: var(--muted); }
+.ovt.svt .chgtxt { font-size: 12.5px; line-height: 1.3; }
+.ovt.svt .muted { color: var(--muted); }
+.nav button small.cnt { margin-left: 8px; padding: 0 7px; border-radius: 9px; background: var(--line); color: var(--ink, inherit); font-size: 11px; font-weight: 600; line-height: 1.5; }
+.qcard .lnnote { margin: 6px 14px 8px; font-size: 12px; color: var(--muted); }

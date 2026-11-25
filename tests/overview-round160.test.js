@@ -85,9 +85,9 @@ test('classify: a document in a folder named Review is a review document, never 
 
 /* ---------- 4. the wiring ---------- */
 test('the page is 1.6, no key is added, the year rule covers every kind of quote, a file is told apart by its folder, and the review documents reach the list', () => {
-  assert.ok(/^1\.[6789]$/.test(schema.pageVersion), 'page 1.6, or 1.7 or 1.8 which came after it'); assert.strictEqual(schema.version, '0.1'); assert.ok(parseFloat(schema.pageVersion) > parseFloat('1.5'), 'compared as decimals');
+  assert.ok(/^(1\.[6789]|2\.0)$/.test(schema.pageVersion), 'page 1.6, or 1.7 or 1.8 which came after it'); assert.strictEqual(schema.version, '0.1'); assert.ok(parseFloat(schema.pageVersion) > parseFloat('1.5'), 'compared as decimals');
   const ui = app('js/ov-ui.js'), fu = app('js/folders-ui.js'), fo = app('js/folders.js'), html = app('overview.html');
-  assert.ok(/QKIND = \{ fna: 1, shortfallQuote: 1, reduced: 1, comparative: 1, proposed: 1, cmp: 1, goals: 1 \}/.test(ui), 'every kind of quote');
+  assert.ok(/QKIND = \{ fna: 1, shortfallQuote: 1, reduced: 1, comparative: 1, proposed: 1, cmp: 1, goals: 1, svFna: 1, svShortfall: 1, svReduced: 1, svIncrease: 1, svReduction: 1 \}/.test(ui), 'every kind of quote');
   assert.ok(/var ruled = function \(x\)/.test(fo) && /x\.kind === 'comparative' \|\| byFolder\[g\]/.test(fo), 'a kind is ruled by year when one of its files sits in a year folder (comparative quotes always)');
   assert.ok(/the guide of an older quote: not ticked/.test(fo) && /if \(x\.kind === 'cmp'\) return;/.test(fo), 'a pay-out guide only follows its quote: it is not ruled by year');
   assert.ok(/c\.viaReview/.test(ui) && /in a Review or Servicing folder: not ticked, tick it if it is a quote/.test(ui), 'a document that is a quote only because of its Review folder is not ticked');
@@ -95,8 +95,8 @@ test('the page is 1.6, no key is added, the year rule covers every kind of quote
   assert.ok(/function uniqueFiles/.test(ui) && /dir \+ ' \\\\ '/.test(ui) && !/grp \? dir/.test(ui), 'every file is told apart by its folder');
   assert.ok(/\(g\.quotes \|\| \[\]\)\.forEach\(function \(f\) \{ flat\.push\(f\); \}\)/.test(fu), 'the review documents of a policy folder reach the flat list, in no group');
   assert.ok(/REVIEW_DIR\.test\(low\) && !\/schedule\|statement\|valuation\/\.test\(low\)/.test(fo) && /quotes: \[\]/.test(fo), 'the walk reads a Review folder by its folder');
-  ['ov-schema', 'ov-docs', 'ov-ui', 'folders', 'folders-ui'].forEach(f => assert.ok(new RegExp(f + '\\.js\\?v=20261124[tuvw]').test(html), f));
-  ['index.html', 'short-risk.html', 'capture-sheet.html'].forEach(f => assert.ok(/folders\.js\?v=20261124[tuvw]/.test(app(f)) && /folders-ui\.js\?v=20261124[tuvw]/.test(app(f)), f));
+  ['ov-schema', 'ov-docs', 'ov-ui', 'folders', 'folders-ui'].forEach(f => assert.ok(new RegExp(f + '\\.js\\?v=(?:20261124[tuvw]|20261125[a-z])').test(html), f));
+  ['index.html', 'short-risk.html', 'capture-sheet.html'].forEach(f => assert.ok(/folders\.js\?v=(?:20261124[tuvw]|20261125[a-z])/.test(app(f)) && /folders-ui\.js\?v=(?:20261124[tuvw]|20261125[a-z])/.test(app(f)), f));
   assert.ok(!/policyFolders|policyScan|latestOverview|g\.quotes/.test(app('js/ov-store.js') + app('js/ov-calc.js')), 'the saved file and its sums are untouched');
 });
 

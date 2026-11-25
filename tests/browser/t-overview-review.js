@@ -46,7 +46,7 @@ const FFJ = { app: 'wr-fact-find', schema: '5.4', f: { fname: { v: 'Test' }, sna
   await p.fill('table.payout tbody tr:nth-child(2) input[data-p$=".today"]', '20000'); await p.fill('table.payout tbody tr:nth-child(2) input[data-p$=".projected"]', '60000');
 
   /* ---- 2. a comparative quote tailored to what the insurer prints ---- */
-  await p.evaluate(() => OV.app.go('comparative')); await p.click('[data-addq=comparative]'); await p.waitForTimeout(60);
+  await p.evaluate(() => { OV.app.go('comparative'); OV.store.addQuote(OV.app.state, 'comparative'); OV.app.redraw(); OV.app.openAll(); }); await p.waitForTimeout(60);          // round 2.0: a quote is added whole, from its document
   ok(/what the other insurer.s quote prints/.test(await text('.qcard')) && /whole-of-life amount/.test(await text('.qcard')), '2. a comparative quote says what to type');
   ok(await p.evaluate(() => document.querySelectorAll('.qcard .adders .addrow').length === 0 && !document.querySelector('.qcard .xbtn')), '2. no add buttons and no remove column: its lines come only from the quote');
   ok(await p.evaluate(() => { const l = OV.app.state.blocks.comparative.quotes[0].lines; return l.length === 1 && l[0].label === 'Cover' && l[0].term === 'Whole of life'; }) && await p.evaluate(() => document.querySelector('.qcard tr.ln input[data-p$=".label"]').value) === 'Cover', '2. it starts with one "Cover" line, whole of life');
@@ -64,8 +64,9 @@ const FFJ = { app: 'wr-fact-find', schema: '5.4', f: { fname: { v: 'Test' }, sna
   const bytes = await p.evaluate(() => Array.from(new Uint8Array(OV.app.makePdf().output('arraybuffer'))));
   const file = out + '/review-overview.pdf'; fs.writeFileSync(file, Buffer.from(bytes));
   const page = n => cp.execFileSync('pdftotext', ['-f', String(n), '-l', String(n), '-layout', file, '-']).toString();
-  ok(/Your change moment pay-out/.test(page(3)) && /R30,000/.test(page(3)) && /R80,000/.test(page(3)) && /R20,000/.test(page(3)) && /31\/12\/2046/.test(page(3)), '4. the PDF prints the typed pay-out under the quote');
-  ok(/Your change moment pay-out/.test(page(2)) && /R12,000/.test(page(2)) && /R33,000/.test(page(2)), '4. and under our BrightRock policy on the policies page');
+  const fnaPg = await p.evaluate(() => OV.pdf.pagesOf(OV.app.state).ids.indexOf('fna') + 1), polPg = await p.evaluate(() => OV.pdf.pagesOf(OV.app.state).ids.indexOf('policies') + 1);          // round 2.0: the pages follow the four headings, so their numbers are looked up
+  ok(/Your change moment pay-out/.test(page(fnaPg)) && /R30,000/.test(page(fnaPg)) && /R80,000/.test(page(fnaPg)) && /R20,000/.test(page(fnaPg)) && /31\/12\/2046/.test(page(fnaPg)), '4. the PDF prints the typed pay-out under the quote');
+  ok(/Your change moment pay-out/.test(page(polPg)) && /R12,000/.test(page(polPg)) && /R33,000/.test(page(polPg)), '4. and under our BrightRock policy on the policies page');
   const cmpPage = await p.evaluate(() => OV.pdf.pagesOf(OV.app.state).ids.indexOf('comparative') + 1);                       // a page with nothing to say is left out, so the number is looked up
   ok(cmpPage > 0 && /Whole of life/.test(page(cmpPage)) && /R450,000/.test(page(cmpPage)) && /Cover/.test(page(cmpPage)), '4. a comparative quote with its own line is on the comparative page (page ' + cmpPage + ')');
   await p.click('#btnPresent'); await p.waitForTimeout(150);

@@ -43,6 +43,7 @@
     medical: 'M10 4h4v6h6v4h-6v6h-4v-6H4v-4h6z',
     home: 'M4 11l8-7 8 7v9H4z M10 20v-6h4v6'
   };
+  [['svFna', 'fna'], ['svShortfall', 'shortfall'], ['svReduced', 'reduced'], ['svIncrease', 'policies'], ['svReduction', 'policies']].forEach(function (x) { IC[x[0]] = IC[x[1]]; });          // round 2.0: the servicing pages borrow the icon of what they re-quote
   function ico(id, cls) { return IC[id] ? '<svg class="' + (cls || 'ic') + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="' + IC[id] + '"/></svg>' : ''; }
 
   /* ---------- the little pieces of every table (the same words and figures as the PDF) ---------- */
@@ -62,7 +63,7 @@
   function tbl(widths, head, body, cls) {
     return '<div class="ptw"><table class="ptbl ' + (cls || '') + '"><colgroup>' + widths.map(function (w) { return '<col style="width:' + w + '%">'; }).join('') + '</colgroup><thead><tr>' + head + '</tr></thead><tbody>' + body + '</tbody></table></div>';
   }
-  var BLOCK_SHORT = { shortfall: 'Shortfall', shortfallQuote: 'Shortfall quote', reduced: 'Reduced quotes', comparative: 'Comparative quotes', investments: 'Current investments', proposed: 'Proposed investments' };
+  var BLOCK_SHORT = { shortfall: 'Shortfall', shortfallQuote: 'Shortfall quote', fna: 'FNA quote', reduced: 'Reduced quotes', comparative: 'Comparative quotes', investments: 'Current investments', proposed: 'Proposed investments', svFna: 'Servicing FNA', svShortfall: 'Servicing shortfall', svReduced: 'Servicing reduced', svIncrease: 'Straight increase', svReduction: 'Straight reduction' };
   /* A tab that holds two blocks has a small button for each (only the ones that can be opened). */
   function blockChips(b) {
     var bl = P.tabBlocks(state(), b.id); if (bl.length < 2) return '';
@@ -121,10 +122,10 @@
   }
 
   /* ---------- a quote: its tabs ---------- */
-  var KIND = { fna: 'FNA', shortfall: 'Shortfall quote', reduced: 'Reduced quote', comparative: 'Comparative quote' };
+  var KIND = { fna: 'FNA', shortfall: 'Shortfall quote', reduced: 'Reduced quote', comparative: 'Comparative quote', svfna: 'Servicing FNA quote', svshortfall: 'Servicing shortfall quote', svreduced: 'Servicing reduced quote', svincrease: 'Straight increase', svreduction: 'Straight reduction' };
   function quoteHead(q, right) {
     var n = q.number ? (/bright/i.test(q.insurer) ? 'CP ' : 'Quote ') + q.number : '';
-    return '<div class="qhead"><span class="badge ' + esc(calc.statusClass(q, state())) + '">' + esc(calc.counterDead(state(), q) && calc.liveCounter(state(), q) ? 'Counter offer not accepted' : calc.statusText(q)) + '</span><span class="qinfo">' + esc([q.insurer, q.counterOf ? 'Counter offer' : KIND[q.kind], n, q.date, q.rates, q.servicing ? 'Servicing quote' : '', (function () { var g = calc.liveCounter(state(), q); return g && g.status !== 'notaccepted' ? (g.status === 'accepted' ? 'Counter offer accepted' : 'Counter offer received') : ''; })()].filter(Boolean).join('   |   ')) + '</span>' + (right || '') + '</div>';
+    return '<div class="qhead"><span class="badge ' + esc(calc.statusClass(q, state())) + '">' + esc(calc.counterDead(state(), q) && calc.liveCounter(state(), q) ? 'Counter offer not accepted' : calc.statusText(q)) + '</span><span class="qinfo">' + esc([q.insurer, q.counterOf ? 'Counter offer' : KIND[q.kind], n, q.date, q.rates, q.servicing && !calc.isServicing(q) ? 'Servicing quote' : '', (function () { var g = calc.liveCounter(state(), q); return g && g.status !== 'notaccepted' ? (g.status === 'accepted' ? 'Counter offer accepted' : 'Counter offer received') : ''; })()].filter(Boolean).join('   |   ')) + '</span>' + (right || '') + '</div>';
   }
   function cmpView(q) {
     var m = q.cmp; if (!m) return '';
@@ -143,16 +144,41 @@
       row('What you have now', c.now) + row('This quote', c.quote) + row('Difference', c.diff, true));
   }
   function currentQuote(b) { var qs = calc.quotes(state(), b.id); return qs[Math.min(ps.qi, Math.max(0, qs.length - 1))]; }
+  /* A servicing quote (round 2.0): the ONE policy it is about and what changes on it, line by line, then the premium before and after (the same figures as the screen and the PDF: calc.servicingDiff). */
+  function svView(q) {
+    var d = calc.servicingDiff(state(), q), pol = d.policy, ref = pol ? [pol.insurer || 'Policy', pol.policyNo].filter(Boolean).join(' ') + (pol.product ? ' (' + pol.product + ')' : '') : '';
+    var cell = function (r, pid) {
+      var key = pid === 'ip' ? 'monthly' : 'lump', c = r.cells.filter(function (x) { return x.pillar === pid && x.key === key; })[0], f = key === 'monthly' ? PM : A;
+      if (!c || (!calc.isNum(c.now) && !calc.isNum(c.next))) return td(c && (c.now === 'N/A' || c.next === 'N/A') ? '<span class="na">N/A</span>' : '', '', pid);
+      var same = calc.isNum(c.now) && calc.isNum(c.next) && Math.abs(c.delta) < 0.005;
+      return td(same ? f(c.next) : '<span class="was">' + (calc.isNum(c.now) ? f(c.now) : '&ndash;') + '</span> &rarr; ' + f(c.next), same ? 'same' : 'chg', pid);
+    };
+    var rows = d.rows.map(function (r) {
+      var nm = esc(r.label || r.type) + (r.debt || r.name ? '<small>' + esc(r.debt || r.name) + '</small>' : '');
+      return '<tr class="svr ' + r.status + '">' + td('<b>' + nm + '</b>', 'l') + cell(r, 'life') + cell(r, 'sev') + cell(r, 'lsd') + cell(r, 'ip') + td(r.status === 'same' ? '<span class="muted">' + esc(r.text) + '</span>' : '<b>' + esc({ added: 'New', removed: 'Removed', changed: 'Changed' }[r.status]) + '</b>' + (r.status === 'changed' ? '<small>' + esc(r.text) + '</small>' : ''), 'l') + '</tr>';
+    }).join('');
+    var pt = d.totals, tot = function (label, picks) {
+      return '<tr class="diff">' + td('<b>' + label + '</b>', 'l') + picks.map(function (x) {
+        if (x === 'na') return td('<span class="na">N/A</span>'); if (x === '') return td('');
+        var a = pt.now[x[0]][x[1]], b = pt.next[x[0]][x[1]], f = x[1] === 'monthly' ? PM : A;
+        return td(Math.abs(b - a) < 0.005 ? f(b) : '<span class="was">' + f(a) + '</span> &rarr; ' + f(b), '', x[0]);
+      }).join('') + td('') + '</tr>';
+    };
+    var pr = d.premium, prem = '<tr class="diff prem">' + td('<b>Monthly premium</b>', 'l') + '<td colspan="4">' + (calc.isNum(pr.now) ? A(pr.now) : '<span class="none">&ndash;</span>') + ' &rarr; ' + (calc.isNum(pr.next) ? A(pr.next) : '<span class="none">&ndash;</span>') + '</td>' + td(calc.isNum(pr.diff) ? '<b>' + esc(calc.fmtDiff(pr.diff)) + ' a month</b>' + (calc.isNum(pr.pct) ? '<small>' + (pr.pct > 0 ? '+' : '') + pr.pct + '%</small>' : '') : '', 'l') + '</tr>';
+    return note(schema.SV_MEANING[q.kind] + (ref ? '   On ' + ref + '.' : '')) + (String(q.reason || '').trim() ? '<p class="pnote svreason"><b>Why:</b> ' + esc(String(q.reason).trim()) + '</p>' : '') +
+      tbl([17, 17, 15, 17, 17, 17], th('Need', '', 'l') + th('Life cover\nnow \u2192 new', 'life') + th('Severe illness\nnow \u2192 new', 'sev') + th('Lump sum disability\nnow \u2192 new', 'lsd') + th('Income protector\nnow \u2192 new', 'ip') + th('Change', '', 'l'),
+        rows + tot('Total lump sum', [['life', 'lump'], ['sev', 'lump'], ['lsd', 'lump'], '']) + tot('Total income protected', [['life', 'monthly'], 'na', ['lsd', 'monthly'], ['ip', 'monthly']]) + prem, 'svt');
+  }
   function quotesView(b) {
     var qs = calc.quotes(state(), b.id);
     if (!qs.length) return head(b) + empty(b.id === 'shortfallQuote' && !calc.hasGroupRisk(state()) ? 'The client has no group risk, so no shortfall quote is needed.' : 'Nothing to show here for this client.');
-    var cur = Math.min(ps.qi, qs.length - 1), q = qs[cur], hasCmp = !!q.cmp, extra = counterView(q) + uwView(q) + replView(q), sub = (ps.sub === 'cmp' && !hasCmp) || (ps.sub === 'uw' && !extra) ? 'quote' : ps.sub;
+    var cur = Math.min(ps.qi, qs.length - 1), q = qs[cur], hasCmp = !!q.cmp, sv = calc.isServicing(q), extra = counterView(q) + uwView(q) + (sv ? '' : replView(q)), sub = (ps.sub === 'cmp' && !hasCmp) || (ps.sub === 'uw' && !extra) ? 'quote' : ps.sub;
     var chips = qs.length > 1 ? '<span class="sp"></span><span class="pchips">' + qs.map(function (x, i) { return '<button type="button" class="pchip' + (i === cur ? ' on' : '') + '" data-act="q" data-i="' + i + '">' + esc((x.counterOf ? 'Counter offer' : (x.insurer || 'Quote')) + (x.number ? ' ' + x.number : '')) + '</button>'; }).join('') + '</span>' : '';
-    var subs = [['quote', 'The quote']].concat(hasCmp ? [['cmp', 'Your change moment pay-out']] : [], (q.counterOf && !calc.activeLines(q).length ? [] : [['cmpr', 'Compared with what you have now']]), extra ? [['uw', q.counterOf ? 'Counter offer terms' : 'Underwriting and replacements']] : []);          // the terms and the replacements have a tab of their own: on the quote page they made the page too small to read (round 1.1)
+    var subs = [['quote', 'The quote']].concat(hasCmp ? [['cmp', 'Your change moment pay-out']] : [], (sv ? [['cmpr', 'What changes on your policy']] : q.counterOf && !calc.activeLines(q).length ? [] : [['cmpr', 'Compared with what you have now']]), extra ? [['uw', q.counterOf ? 'Counter offer terms' : 'Underwriting and replacements']] : []);          // the terms and the replacements have a tab of their own: on the quote page they made the page too small to read (round 1.1)
     var qpath = idxOf(b.id, 'quotes', q), out = head(b, sub !== 'cmp' && sub !== 'uw' ? hb(true) : '') + quoteHead(q, (sub === 'cmp' ? vp(qpath && qpath + '.cmp') : vp(qpath)) + chips);
     out += tools('<span class="psubs">' + subs.map(function (s) { return '<button type="button" class="psub' + (s[0] === sub ? ' on' : '') + '" data-act="sub" data-s="' + s[0] + '">' + s[1] + '</button>'; }).join('') + '</span>');
     if (sub === 'cmp') return out + cmpView(q);
-    if (sub === 'cmpr') return out + compareView(q);
+    if (sub === 'cmpr') return out + (sv ? svView(q) : compareView(q));
     if (sub === 'uw') return out + extra;
     out += linesTable(q, false, q.disabilityAge || state().header.disabilityAge);
     if (q.counterOf) out += counterPrem(q);
@@ -293,7 +319,8 @@
     }).join('');
     return head(b) + '<div class="ocards">' + cards + '</div>';
   }
-  var VIEWS = { policies: policiesView, fna: quotesView, group: groupView, shortfall: shortfallView, shortfallQuote: quotesView, reduced: quotesView, comparative: quotesView, investments: investmentsView, proposed: proposedView, goals: goalsView, other: otherView };
+  var VIEWS = { policies: policiesView, fna: quotesView, group: groupView, shortfall: shortfallView, shortfallQuote: quotesView, reduced: quotesView, comparative: quotesView, investments: investmentsView, proposed: proposedView, goals: goalsView, other: otherView,
+    svFna: quotesView, svShortfall: quotesView, svReduced: quotesView, svIncrease: quotesView, svReduction: quotesView };
 
   /* ---------- the Overview page: the client's name in a blue band, and one card for each area with ONE factual sentence (the wording table in js/ov-pres.js); no figures ---------- */
   function mapView() {
@@ -311,9 +338,13 @@
     var sl = slide(), b = schema.blocksById[ps.tab], st = state();
     root.classList.toggle('onmap', ps.tab === 'map');
     sl.className = 'pslide' + (ps.tab === 'map' ? ' pmap' : ''); sl.innerHTML = '<div class="pin">' + (ps.tab === 'map' ? mapView() : VIEWS[ps.tab](b)) + '</div>';
-    $('#pTabs').innerHTML = P.TABS.map(function (t) {
+    var tabBtn = function (t) {
       var on = P.tabOn(st, t.id), cur = P.TAB_OF[ps.tab] === t.id || (t.id === 'map' && ps.tab === 'map');
       return '<button type="button" class="ptab' + (cur ? ' on' : '') + (on ? '' : ' off') + '"' + (on ? ' data-act="tab" data-tab="' + t.id + '"' : ' disabled title="Nothing to show here for this client."') + '>' + esc(t.l) + '</button>';
+    };
+    $('#pTabs').innerHTML = P.TABS.filter(function (t) { return !t.group; }).map(tabBtn).join('') + schema.GROUPS.map(function (g) {          // round 2.0: the tabs under the four headings; a heading none of whose tabs has anything is not shown
+      var ts = P.TABS.filter(function (t) { return t.group === g.id; }); if (!ts.some(function (t) { return P.tabOn(st, t.id); })) return '';
+      return '<span class="ptg" data-group="' + g.id + '"><small class="ptgh">' + esc(g.pdf) + '</small><span class="ptgt">' + ts.map(tabBtn).join('') + '</span></span>';
     }).join('');
     $('#pWho').innerHTML = '<b>' + esc(schema.clientFull(st) || 'New client') + '</b><small>Client Overview \u00b7 Presentation \u00b7 ' + esc(st.header.overviewDate || schema.todayDMY()) + '</small>';
     syncButtons(); paintHL(); paintPanel(); paintState(); if (OV.view) OV.view.paint(); fit();

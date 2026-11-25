@@ -103,7 +103,7 @@ const POLICY = { insurer: 'Other Insurer', product: 'Test Protector', policyNo: 
   ok(/doc\.vs\.factfind|the document says R1,281\.90; the Fact Find has R1,200/.test(await p.evaluate(() => document.querySelector('#checks').textContent.replace(/\s+/g, ' '))) || /1,281\.90/.test(await p.evaluate(() => document.querySelector('#checks').textContent)), '6. the difference from the Fact Find is listed (the document wins)');
   await p.evaluate(p2 => { window.__reply = { status: 200, body: { content: [{ type: 'text', text: JSON.stringify(Object.assign({}, p2, { insurer: 'Nobody Assurance', policyNo: 'Z-9' })) }] } }; }, POLICY);
   await upload([file('Nobody Assurance Policy Schedule.pdf')]);
-  ok(/not in the Fact Find/.test(await side()) && (await st()).blocks.policies.items.length === items0, '6. a schedule for an insurer that is not in the Fact Find is not guessed: it says to add it in the Fact Find first, and adds nothing');
+  ok(/not in the Fact Find/.test(await side()) && (await st()).blocks.policies.items.length === items0 + 1 && (await st()).blocks.policies.items.some(i => i.notInFF === true && i.insurer === 'Nobody Assurance'), '6. a schedule for an insurer that is not in the Fact Find is ADDED and marked "Not in the Fact Find - add it there too" (round 2.0, Paul), and the message says so');
 
   /* ---- 7. reading off again: nothing is sent; the switch is remembered per browser ---- */
   await reading(false); const n1 = await calls();

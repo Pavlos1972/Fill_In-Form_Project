@@ -40,14 +40,15 @@ const say = (s, id) => pres.cover(s).filter(c => c.id === id)[0].text;
 const W = pres.WORDING;
 
 test('the nine tabs, which page each holds, and a tab with nothing to show is greyed', () => {
-  assert.deepStrictEqual(pres.TABS.map(t => t.l), ['Overview', 'Current policies', 'FNA quote', 'Group benefits', 'Shortfall', 'Reduced quotes', 'Investments', 'Goal analysis', 'Other']);
-  assert.deepStrictEqual(pres.TABS.map(t => t.id), ['map', 'policies', 'fna', 'group', 'shortfall', 'reduced', 'investments', 'goals', 'other']);
+  assert.deepStrictEqual(pres.TABS.map(t => t.l), ['Overview', 'Current policies', 'Group benefits', 'Investments', 'Other', 'Shortfall', 'Servicing quotes', 'FNA quote', 'Reduced quotes', 'Proposed investments', 'Goal analysis']);          // round 2.0: under four headings
+  assert.deepStrictEqual(pres.TABS.map(t => t.id), ['map', 'policies', 'group', 'investments', 'other', 'shortfall', 'servicing', 'fna', 'reduced', 'proposed', 'goals']);
+  assert.deepStrictEqual(pres.TABS.map(t => t.group || null), [null, 'now', 'now', 'now', 'now', 'now', 'servicing', 'newbiz', 'newbiz', 'inv', 'inv'], 'every tab sits under one of the four headings (Overview under none)');
   assert.ok(pres.TABS.every(t => !/\d/.test(t.l)), 'no number on any tab');
-  assert.deepStrictEqual(pres.TABS.filter(t => t.blocks.length > 1).map(t => t.blocks), [['shortfall', 'shortfallQuote'], ['reduced', 'comparative'], ['investments', 'proposed']], 'three tabs hold two blocks each, so no block of the Studio is lost');
+  assert.deepStrictEqual(pres.TABS.filter(t => t.blocks.length > 1).map(t => t.blocks), [['svFna', 'svShortfall', 'svReduced', 'svIncrease', 'svReduction'], ['fna', 'shortfallQuote'], ['reduced', 'comparative']], 'three tabs hold several blocks each, so no block of the Studio is lost');
   assert.deepStrictEqual(pres.ORDER, ['map'].concat(schema.BLOCKS.map(b => b.id)));
   schema.BLOCKS.forEach(b => assert.ok(pres.TAB_OF[b.id], b.id + ' has a tab'));
   const full = sample();
-  assert.ok(pres.TABS.every(t => t.id === 'goals' || pres.tabOn(full, t.id) || t.id === 'other' || t.id === 'investments'), 'sample: ' + pres.TABS.filter(t => !pres.tabOn(full, t.id)).map(t => t.id));
+  assert.ok(pres.TABS.every(t => t.id === 'goals' || t.id === 'servicing' || t.id === 'proposed' || pres.tabOn(full, t.id) || t.id === 'other' || t.id === 'investments'), 'sample: ' + pres.TABS.filter(t => !pres.tabOn(full, t.id)).map(t => t.id));
   const b = store.blank();
   assert.deepStrictEqual(pres.TABS.filter(t => pres.tabOn(b, t.id)).map(t => t.id), ['map'], 'an empty overview: only the Overview can be opened, every other tab is greyed');
   assert.strictEqual(pres.firstBlock(b, 'fna'), null); assert.strictEqual(pres.firstBlock(b, 'map'), 'map');
@@ -284,7 +285,7 @@ test('there is no voice in the Presentation: no microphone, no listener, no spok
   assert.ok(at('ov-calc.js') < at('ov-pres.js') && at('ov-pres.js') < at('ov-ui.js') && at('ov-ui.js') < at('ov-present.js') && at('folders-ui.js') < at('ov-present.js'), 'scripts in the right order');
   const ui = app('js/ov-present.js').replace(/\/\*[\s\S]*?\*\//g, '');
   assert.ok(!/anthropic|voiceBackend|voice-ai|messages\.create|api\.openai|fetch\(/i.test(ui), 'the Presentation never calls Claude or any service');
-  assert.ok(/^1\.[0123456789]$/.test(require('../app/js/ov-schema.js').pageVersion));
+  assert.ok(/^(1\.[0123456789]|2\.0)$/.test(require('../app/js/ov-schema.js').pageVersion));
 });
 
 test('the Presentation reads the overview and never writes to it', () => {

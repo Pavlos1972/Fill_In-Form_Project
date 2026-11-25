@@ -226,6 +226,7 @@
     var items = active(state && state.blocks && state.blocks.policies && state.blocks.policies.items), out = items.map(function (i) { return { item: i, derived: false }; });
     var have = {}; items.forEach(function (i) { if (i.policyNo) have[norm(i.policyNo)] = 1; });
     mainQuotes(state).forEach(function (root) {
+      if (isServicing(root)) return;                                                                          // round 2.0: an accepted servicing quote changes the policy it is about: it never becomes a second policy
       var q = chainIssued(state, root);                                                                       // round 1.2: when the insurer sent a counter offer, the policy that issues is the counter offer the client accepted
       if (!q || have[norm(q.policyNo)]) return;
       out.push({ derived: true, item: { id: q.id, wr: true, insurer: q.insurer, product: q.productName || (q.kind === 'fna' ? 'FNA' : q.kind), policyNo: q.policyNo, doc: q.startDate, premium: q.premium, aci: q.aci, aciText: q.aciText || null, abi: null,
@@ -247,6 +248,11 @@
     if (typeof q.second !== 'boolean') { q.second = q.second === true || q.second === 'true'; n++; }
     if (q.counterOf === undefined) q.counterOf = null; else if (q.counterOf === '' || (q.counterOf !== null && typeof q.counterOf !== 'string')) { q.counterOf = null; n++; }          // an older file has no counterOf: that is not a change worth counting
     if (q.counterOf) { if (q.uw) { q.uw = null; n++; } if (!q.offer || typeof q.offer !== 'object') { q.offer = {}; n++; } } else if (q.offer === undefined) q.offer = null;
+    if (schema.isServicingKind(q.kind)) {                                                                // round 2.0 (contract revision p): a servicing quote is tied to ONE current policy and says why
+      if (q.servicing !== true) { q.servicing = true; n++; }
+      if (q.onPolicy === undefined) q.onPolicy = null; else if (q.onPolicy !== null && (typeof q.onPolicy !== 'object' || Array.isArray(q.onPolicy))) { q.onPolicy = null; n++; }
+      if (typeof q.reason !== 'string') { q.reason = ''; n++; }
+    }
     var t = q.terms && typeof q.terms === 'object' ? q.terms : (q.terms = { loadings: [], exclusions: [] }, n++);
     if (!Array.isArray(t.loadings)) { t.loadings = []; n++; } if (!Array.isArray(t.exclusions)) { t.exclusions = []; n++; }
     if (t.reason !== undefined) { if (t.reason === null || typeof t.reason !== 'object' || Array.isArray(t.reason)) { delete t.reason; n++; } else if (typeof t.reason.text !== 'string') { t.reason.text = ''; n++; } }          // round 1.3 (contract revision o): the one reason for the loadings; a hand-edited file never breaks the page
@@ -276,7 +282,7 @@
     if (q.status === 'notaccepted') return 'notaccepted';
     var u = uwOf(q); return u === 'pending' ? 'underwriting' : u === 'declinedHealth' ? 'medical' : u === 'declinedOther' ? 'declined' : 'accepted';
   }
-  function acceptedQuotes(state) { return mainQuotes(state).filter(function (q) { return accepted(q) && !counterDead(state, q); }); }          // a quote and its counter offers are ONE acceptance; a counter offer the client did not accept ends it
+  function acceptedQuotes(state) { return mainQuotes(state).filter(function (q) { return !isServicing(q) && accepted(q) && !counterDead(state, q); }); }          // round 2.0: the one-acceptance rule is about NEW BUSINESS quotes; a servicing quote changes an existing policy          // a quote and its counter offers are ONE acceptance; a counter offer the client did not accept ends it
   /* The one-acceptance rule: across the FNA, shortfall, reduced and comparative quotes only one may be in an accepted state, unless the adviser has ticked "second policy alongside the first" on a quote. Every accepted quote that is not
      ticked is in conflict when there are two or more of them. Returns [{ quote, others }]. */
   function acceptanceConflicts(state) {
@@ -291,7 +297,7 @@
   function replaceable(state, q) { var ids = chainIds(state, q); return policies(state).filter(function (e) { return !ids[e.item.id]; }); }
   /* Which quotes replace which policy, from the quotes that are still alive (not removed, not declined by the client or the insurer); answered: at least one such quote has had its replacement question answered. */
   function replacementInfo(state) {
-    var live = mainQuotes(state).filter(function (q) { return !dead(q) && !counterDead(state, q); }), ids = {}, by = {};
+    var live = mainQuotes(state).filter(function (q) { return !isServicing(q) && !dead(q) && !counterDead(state, q); }), ids = {}, by = {};          // a servicing quote replaces nothing: it changes the policy it is about
     policies(state).forEach(function (e) { ids[e.item.id] = 1; });
     live.forEach(function (q) {
       var r = replOf(q), eff = effectiveQuote(state, q), own = chainIds(state, q); if (r.answer !== 'yes') return;                // the answer is given on the quote the client accepted; a counter offer is the same replacement, named by its own number
@@ -353,6 +359,63 @@
     var diff = {}; ['life', 'sev', 'lsd', 'ip', 'premium'].forEach(function (k) { diff[k] = r2(me[k] - now[k]); });
     return { now: now, quote: me, diff: diff, nowCount: pt.count.all };
   }
+
+  /* ---------- servicing quotes (round 2.0, Paul 25 November) ---------- */
+  /* A servicing quote is about ONE current policy of block 1 (q.onPolicy: { id, insurer, number }). The policy is found by its id, else by its policy number. null: none tied, or the policy is gone. */
+  function isServicing(q) { return !!q && schema.isServicingKind(q.kind); }
+  function servicingPolicy(state, q) {
+    var o = q && q.onPolicy; if (!o || typeof o !== 'object') return null;
+    var all = policies(state), hit = null, k = String(o.number == null ? '' : o.number).replace(/\D/g, '');
+    all.forEach(function (e) { if (!hit && o.id && e.item.id === o.id) hit = e.item; });
+    if (!hit && k.length >= 5) all.forEach(function (e) { if (!hit && String(e.item.policyNo == null ? '' : e.item.policyNo).replace(/\D/g, '') === k) hit = e.item; });
+    return hit;
+  }
+  function svKey(l) {
+    if (l.type === 'debt') return 'debt|' + norm(l.debt || '');
+    if (l.type === 'child') return 'child|' + norm(((l.name || '') + ' ' + (l.sname || '')).trim());
+    if (l.type === 'other') return 'other|' + norm(l.label || '');
+    return l.type;
+  }
+  /* What a servicing quote changes, line by line, premium and totals: the policy's own lines (its schedule) against the quote's lines. Nothing is stored: it is worked out at every draw from the two sets of lines, so it can never disagree with them.
+     A line is matched by its need (a debt by its name, a child by hers); a line only in the quote is NEW, a line only in the policy is REMOVED. Returns { policy, rows, totals: { now, next, delta }, premium: { now, next, diff, pct }, changed }. */
+  function servicingDiff(state, q) {
+    var pol = servicingPolicy(state, q), now = pol ? activeLines(pol) : [], next = activeLines(q), used = [], rows = [];
+    function settled(l) { if (!l) return l; var c = JSON.parse(JSON.stringify(l)); settleLine(c); return c; }          // the two rules every line obeys (a debt's instalment is also its disability income portion), so a policy line and a quote line are compared like for like
+    function cellsOf(a, b) {
+      var out = []; a = settled(a); b = settled(b);
+      P.forEach(function (p) { p.keys.forEach(function (k) {
+        var x = a ? lineVal(a, p.id, k) : null, y = b ? lineVal(b, p.id, k) : null, d = null;
+        if (isNum(x) || isNum(y)) d = r2((isNum(y) ? y : 0) - (isNum(x) ? x : 0));
+        out.push({ pillar: p.id, key: k, now: x, next: y, delta: d });
+      }); });
+      return out;
+    }
+    function textOf(status, cells) {
+      if (status === 'added') return 'New';
+      if (status === 'removed') return 'Removed';
+      var ch = cells.filter(function (x) { return isNum(x.delta) && Math.abs(x.delta) >= 0.005; }).map(function (x) { return schema.PILLAR_SHORT[x.pillar] + (x.key === 'monthly' && x.pillar !== 'ip' ? ' income portion' : '') + ' ' + fmtDiff(x.delta) + (x.key === 'monthly' ? ' p.m.' : ''); });
+      return ch.length ? ch.join(', ') : 'No change';
+    }
+    next.forEach(function (l) {
+      var key = svKey(l), at = -1, i;
+      for (i = 0; i < now.length && at < 0; i++) if (used.indexOf(i) < 0 && svKey(now[i]) === key) at = i;
+      if (at < 0 && l.type === 'debt') for (i = 0; i < now.length && at < 0; i++) {                       // a debt named a little differently is the same debt only when its cover is the same too (a bond and a home loan are the same kind of debt, but a NEW bond is another debt)
+        var wl = lineVal(now[i], 'life', 'lump'), nl = lineVal(l, 'life', 'lump');
+        if (used.indexOf(i) < 0 && now[i].type === 'debt' && now[i].debt && l.debt && sameDebtName(now[i].debt, l.debt) && isNum(wl) && isNum(nl) && Math.abs(wl - nl) < 0.005) at = i;
+      }
+      if (at >= 0) used.push(at);
+      var was = at >= 0 ? now[at] : null, cells = cellsOf(was, l), status = !was ? 'added' : cells.some(function (x) { return isNum(x.delta) && Math.abs(x.delta) >= 0.005; }) ? 'changed' : 'same';
+      rows.push({ type: l.type, label: l.label, debt: l.debt || '', name: ((l.name || '') + ' ' + (l.sname || '')).trim(), bank: l.bank || '', now: was, next: l, status: status, cells: cells, text: textOf(status, cells) });
+    });
+    now.forEach(function (l, i) {
+      if (used.indexOf(i) >= 0) return;
+      var cells = cellsOf(l, null); rows.push({ type: l.type, label: l.label, debt: l.debt || '', name: ((l.name || '') + ' ' + (l.sname || '')).trim(), bank: l.bank || '', now: l, next: null, status: 'removed', cells: cells, text: textOf('removed', cells) });
+    });
+    var tn = pol ? totals(pol) : emptyTotals(), tx = totals(q), dl = emptyTotals();
+    P.forEach(function (p) { p.keys.forEach(function (k) { dl[p.id][k] = r2(tx[p.id][k] - tn[p.id][k]); }); });
+    var before = pol && isNum(pol.premium) ? pol.premium : null, after = isNum(q && q.premium) ? q.premium : null, diff = isNum(before) && isNum(after) ? r2(after - before) : null;
+    return { policy: pol, rows: rows, totals: { now: tn, next: tx, delta: dl }, premium: { now: before, next: after, diff: diff, pct: isNum(diff) && before > 0 ? Math.round(diff / before * 10000) / 100 : null }, changed: rows.filter(function (r) { return r.status !== 'same'; }).length };
+  }
   /* A "+R1,234" or "−R1,234" for a difference; "R0" when there is none. */
   function fmtDiff(n) { if (!isNum(n)) return ''; if (Math.abs(n) < 0.005) return 'R0'; return (n > 0 ? '+' : '−') + fmtR(Math.abs(n)); }
   function pillarOfBlock() { return P; }
@@ -404,17 +467,18 @@
      The other eleven pages are always there (an empty Current investments page says there are none). */
   function asked(state) { var f = state && state.factFind && state.factFind.facts; return (f && f.asked) || {}; }
   function pageShown(state, id) {
-    var B = (state && state.blocks) || {};
+    var B = (state && state.blocks) || {}, bd = schema.blocksById[id];
+    if (bd && bd.servicing) return quotes(state, id).length > 0;                                             // round 2.0: a servicing page is there only when it holds a quote
     if (id === 'shortfallQuote') return hasGroupRisk(state) && (!!asked(state).sf || quotes(state, 'shortfallQuote').length > 0);
     if (id === 'comparative') return !!asked(state).comparative || quotes(state, 'comparative').length > 0;
     if (id === 'proposed') return active(B.proposed && B.proposed.items).length > 0;
     if (id === 'goals') return active(B.goals && B.goals.items).some(function (g) { return g.requested === true || ['currentValuePm', 'futureValuePm', 'aci', 'premium'].some(function (k) { return isNum(g[k]); }); });
     return true;
   }
-  var PAGE_WHY = { shortfallQuote: 'Left out: there is no group risk, or no shortfall quote was asked for.', comparative: 'Left out: no comparative quote was asked for in the Fact Find.', proposed: 'Left out: there are no proposed investments.', goals: 'Left out: no goal analysis report was asked for.' };
+  var PAGE_WHY = { svFna: 'Left out: no servicing FNA quote.', svShortfall: 'Left out: no servicing shortfall quote.', svReduced: 'Left out: no servicing reduced quote.', svIncrease: 'Left out: no straight increase.', svReduction: 'Left out: no straight reduction.', shortfallQuote: 'Left out: there is no group risk, or no shortfall quote was asked for.', comparative: 'Left out: no comparative quote was asked for in the Fact Find.', proposed: 'Left out: there are no proposed investments.', goals: 'Left out: no goal analysis report was asked for.' };
   function pageWhy(id) { return PAGE_WHY[id] || ''; }
 
   return { alignPremiums: alignPremiums, ownNumberOut: ownNumberOut, settleQuote: settleQuote, parentOf: parentOf, isCounter: isCounter, mainQuotes: mainQuotes, counterOffers: counterOffers, liveCounter: liveCounter, effectiveQuote: effectiveQuote, counterDead: counterDead, chainIds: chainIds, chainIssued: chainIssued, canCounter: canCounter, counterPremium: counterPremium, premiumWarning: premiumWarning, termsSummary: termsSummary, termsReason: termsReason, cents: cents, termRefs: termRefs, termBenefit: termBenefit, refsTotal: refsTotal, termsToCheck: termsToCheck, uwOf: uwOf, declined: declined, accepted: accepted, dead: dead, issued: issued, statusText: statusText, statusClass: statusClass, acceptedQuotes: acceptedQuotes, acceptanceConflicts: acceptanceConflicts, replOf: replOf, quoteRef: quoteRef, policyRef: policyRef, replaceable: replaceable, replacementInfo: replacementInfo, policyNote: policyNote, settleLine: settleLine, aciPoints: aciPoints, sameDebtName: sameDebtName, isNum: isNum, r2: r2, norm: norm, fmtR: fmtR, fmtPct: fmtPct, fmtAci: fmtAci, matchChildren: matchChildren, matchDebts: matchDebts, pageShown: pageShown, pageWhy: pageWhy, fmtDiff: fmtDiff, show: show, lineVal: lineVal, active: active, activeLines: activeLines, totals: totals, sumLines: sumLines,
-    quotes: quotes, allQuotes: allQuotes, policies: policies, policyTotals: policyTotals, groupItems: groupItems, hasGroupRisk: hasGroupRisk, groupTotals: groupTotals, investments: investments,
+    isServicing: isServicing, servicingPolicy: servicingPolicy, servicingDiff: servicingDiff, quotes: quotes, allQuotes: allQuotes, policies: policies, policyTotals: policyTotals, groupItems: groupItems, hasGroupRisk: hasGroupRisk, groupTotals: groupTotals, investments: investments,
     personalInvestments: personalInvestments, shortfall: shortfall, compare: compare, pillars: pillarOfBlock };
 });

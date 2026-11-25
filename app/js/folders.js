@@ -679,7 +679,7 @@
   /* The folder of a client's own folder where a kind of document is kept, for "Upload from client folder" in the Client Overview Studio (0.6): the numbered standard folder whose name says so (quotes, goal analysis,
      proposals), for comparative quotes the `Comparative Quotes` folder of a deal folder, else the client's folder itself. Only reads. kind: quote | comparative | goal | proposal.
      Returns { handle, parts } (parts: the folder names from the connected folder down). */
-  var DOC_KIND = { quote: [/quote/], comparative: [/quote/], goal: [/goal|rgar|egar/, /analysis/], proposal: [/proposal/, /investment/, /quote/] };          // the names of the standard folders to look for, the best first
+  var DOC_KIND = { quote: [/quote/], comparative: [/quote/], goal: [/goal|rgar|egar/, /analysis/], proposal: [/proposal/, /investment/, /quote/], schedule: [/polic(y|ies) schedules?/, /schedules?/] };          // the names of the standard folders to look for, the best first
   async function clientSubfolder(client, kind) {
     var kids = await listDirs(client.handle), parts = client.parts;
     async function comparative() {

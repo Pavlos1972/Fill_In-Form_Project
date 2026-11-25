@@ -166,7 +166,7 @@ srv.listen(0, async () => {
   ok(list.filter(x => x.on).length === 5 && !list.filter(x => /scan0001/.test(x.text))[0].on && !list.filter(x => /ignored\.pdf/.test(x.text))[0].on && /Comparative Quotes \\ BR FNA - 100000011/.test(list.map(x => x.text).join('|')), '8. the five the page can sort by name are ticked, the scan is not');
   await p.click('dialog.fdlg[open] [data-yes]'); await p.waitForTimeout(800);
   const st8 = await p.evaluate(() => ({ fna: OV.app.state.blocks.fna.quotes.map(q => q.number + '|' + q.src.file), docs: OV.app.state.documents.map(d => d.block).sort().join(',') }));
-  ok(st8.fna.join() === '100000011|BR FNA - 100000011 - R2900.00 - 19.11.26.pdf' && st8.docs === 'astute,cmp,fna,group,policies', '8. the ticked documents were loaded: the FNA quote started from its file name, the others recorded: ' + JSON.stringify(st8));
+  ok(st8.fna.join() === '100000011|BR FNA - 100000011 - R2900.00 - 19.11.26.pdf' && st8.docs === 'astute,cmp,fna,group,policies', '8. the ticked documents were loaded (round 2.0: a folder with no policy number is not a servicing folder, so its FNA quote stays a new business FNA quote): the quote started from its file name, the others recorded: ' + JSON.stringify(st8));
   ok(diff(t8, await tree()).length === 0, '8. the client\'s folders were only read: nothing was written or made');
   await fresh(); await client('Nina', 'Nobody', '05/01/2027');
   await p.evaluate(() => document.querySelector('#btnReadFolder').click()); await p.waitForTimeout(600);

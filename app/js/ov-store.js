@@ -17,7 +17,8 @@
     var s = { app: APP_ID, schema: schema.version, created: new Date().toISOString(), modified: null,
       header: { fname: '', sname: '', dob: null, broker: 'Paul Kafentzis', overviewDate: schema.todayDMY(), meetingDate: null, astuteDate: null, netIncome: null, grossIncome: null, disabilityAge: null, sevRequest: null, premiumBudget: null, previous: null },
       factFind: null, documents: [], settings: { standards: clone(schema.STANDARDS), tolerance: 1.00 },
-      blocks: { policies: { items: [] }, fna: { quotes: [] }, group: { items: [] }, shortfallQuote: { quotes: [] }, reduced: { quotes: [] }, comparative: { quotes: [] }, investments: { items: [] }, proposed: { items: [] }, goals: { items: [] }, other: { items: [] } },
+      blocks: { policies: { items: [] }, fna: { quotes: [] }, group: { items: [] }, shortfallQuote: { quotes: [] }, reduced: { quotes: [] }, comparative: { quotes: [] }, investments: { items: [] }, proposed: { items: [] }, goals: { items: [] }, other: { items: [] },
+        svFna: { quotes: [] }, svShortfall: { quotes: [] }, svReduced: { quotes: [] }, svIncrease: { quotes: [] }, svReduction: { quotes: [] } },
       computed: null };
     s.blocks.other.items = schema.OTHER_KEYS.map(function (k) { return otherItem(k.key); });
     return s;
@@ -90,14 +91,16 @@
   function newQuote(state, kind, o) {
     var q = { id: uid('q'), kind: kind, insurer: kind === 'comparative' ? '' : 'BrightRock', number: '', date: null, rates: 'Non-smoker rates', servicing: false, status: 'pending', uw: null, second: false, counterOf: null, offer: null, terms: { loadings: [], exclusions: [] }, repl: { answer: null, policies: [] }, disabilityAge: state.header.disabilityAge,
       aci: null, aciText: null, premium: null, printedTotals: null, lines: [], cmp: null, policyNo: null, startDate: null, replaces: null, replacedBy: null, st: 'empty', src: null, by: 'person', removed: false };
-    if (kind !== 'comparative') {
+    var sv = schema.isServicingKind(kind);
+    if (sv) { q.servicing = true; q.onPolicy = null; q.reason = ''; }                                       // round 2.0: a servicing quote is tied to ONE current policy; its lines come from the document (no Fact Find lines are started for it)
+    if (kind !== 'comparative' && !sv) {
       var facts = state.factFind && state.factFind.facts, ffLine = function (l) { l.st = 'ff'; l.by = 'page'; l.src = { kind: 'factfind' }; return l; };
       q.lines.push(ffLine(newLine('household')));
       ((facts && facts.children) || []).forEach(function (c) { q.lines.push(ffLine(newLine('child', { name: c.name, sname: c.sname, label: 'Child care' }))); });
       ((facts && facts.debts) || []).forEach(function (d) { q.lines.push(ffLine(newLine('debt', { debt: d.desc || d.type || '', bank: d.prov || '', label: 'Debt' }))); });
       q.lines.push(ffLine(newLine('death'))); q.lines.push(ffLine(newLine('dread')));
       if (facts && facts.children && facts.children.length + (facts.debts || []).length) q.st = 'ff';
-    } else q.lines.push(newLine('other', { label: 'Cover', term: 'Whole of life' }));          // another insurer's quote is tailored to what it prints: often one whole-of-life amount for each benefit
+    } else if (!sv) q.lines.push(newLine('other', { label: 'Cover', term: 'Whole of life' }));          // another insurer's quote is tailored to what it prints: often one whole-of-life amount for each benefit
     return Object.assign(q, o || {});
   }
   function addQuote(state, kind, o) { var q = newQuote(state, kind, o); state.blocks[schema.blockOfQuote[kind]].quotes.push(q); return q; }
@@ -111,6 +114,20 @@
     if (yes && !o.removed && Array.isArray(o.lines) && !o.counterOf) calc.counterOffers(state, o).forEach(function (c) { c.removed = true; c.removedWith = o.id; });          // the counter offers of a quote that goes go with it (and come back with it)
     if (!yes && o.removed) schema.QUOTE_KINDS.reduce(function (a, k) { return a.concat(state.blocks[schema.blockOfQuote[k]].quotes); }, []).forEach(function (c) { if (c.removed && c.removedWith === o.id) { c.removed = false; delete c.removedWith; } });
     o.removed = !!yes; return true;
+  }
+  /* The type of servicing (round 2.0, the mock-up's "Type of servicing" box): the quote, and the counter offers that belong to it, move to the block of the new type. Returns the quote, or null (not a servicing quote, an unknown type, or a counter offer: it follows its quote). */
+  function setServicingType(state, path, kind) {
+    var q = pathGet(state, path); if (!q || typeof q !== 'object' || !schema.isServicingKind(q.kind) || !schema.isServicingKind(kind) || q.counterOf) return null;
+    if (q.kind === kind) return q;
+    var from = schema.blockOfQuote[q.kind], to = schema.blockOfQuote[kind];
+    [q].concat(calc.counterOffers(state, q)).forEach(function (x) { var arr = state.blocks[from].quotes, i = arr.indexOf(x); if (i >= 0) arr.splice(i, 1); x.kind = kind; state.blocks[to].quotes.push(x); });
+    return q;
+  }
+  /* The ONE current policy a servicing quote is about (round 2.0): { id, insurer, number } of an entry of block 1. */
+  function setOnPolicy(state, path, policyId) {
+    var q = pathGet(state, path); if (!q || typeof q !== 'object' || !schema.isServicingKind(q.kind)) return null;
+    var hit = null; calc.policies(state).forEach(function (e) { if (e.item.id === policyId) hit = e.item; });
+    q.onPolicy = hit ? { id: hit.id, insurer: hit.insurer || '', number: hit.policyNo || '' } : null; return q.onPolicy;
   }
   function addLine(state, path, type, o) { var c = pathGet(state, path); if (!c || !Array.isArray(c.lines)) return null; var l = newLine(type, o); c.lines.push(l); return l; }
   function addItem(state, blockId, item) { state.blocks[blockId].items.push(item); return item; }
@@ -306,8 +323,10 @@
     }
     facts.risk.forEach(function (r) {
       var it = findByKey(B.policies.items, r.ffKey);
-      if (!it) { B.policies.items.push({ id: 'ff-' + r.ffKey.replace(/[^a-z0-9]+/g, '-'), ffKey: r.ffKey, wr: isWR(r.broker), insurer: r.prov, product: '', policyNo: '', doc: null, broker: r.broker, premium: r.spend, aci: null, aciText: null, abi: null, ipAge: null,
-        benefits: {}, cession: null, lines: [], cmp: null, st: 'ff', src: src, by: 'page', removed: false }); rep.added++; }
+      if (!it) { var adopt = B.policies.items.filter(function (x) { return x.notInFF && !x.ffKey && !x.removed && x.insurer && r.prov && calc.norm(x.insurer) === calc.norm(r.prov); })[0];          // round 2.0: a schedule added while the Fact Find did not list the policy joins the Fact Find's row when it appears
+        if (adopt) { adopt.ffKey = r.ffKey; delete adopt.notInFF; adopt.wr = isWR(r.broker); adopt.broker = r.broker; if (!calc.isNum(adopt.premium)) adopt.premium = r.spend; rep.updated++; }
+        else { B.policies.items.push({ id: 'ff-' + r.ffKey.replace(/[^a-z0-9]+/g, '-'), ffKey: r.ffKey, wr: isWR(r.broker), insurer: r.prov, product: '', policyNo: '', doc: null, broker: r.broker, premium: r.spend, aci: null, aciText: null, abi: null, ipAge: null,
+        benefits: {}, cession: null, lines: [], cmp: null, st: 'ff', src: src, by: 'page', removed: false }); rep.added++; } }
       else upd(it, [['insurer', r.prov], ['broker', r.broker], ['wr', isWR(r.broker)], ['premium', r.spend]]);
     });
     facts.grp.forEach(function (r) {
@@ -450,7 +469,7 @@
     var other = {};
     Object.keys(s.blocks).forEach(function (b) {
       var src = (j.blocks && j.blocks[b]) || {};
-      if (s.blocks[b].quotes) s.blocks[b].quotes = (src.quotes || []).map(function (q) { q = normRow(q); q.kind = q.kind || ({ fna: 'fna', shortfallQuote: 'shortfall', reduced: 'reduced', comparative: 'comparative' }[b]); calc.settleQuote(q); q.lines = q.lines || []; return q; });
+      if (s.blocks[b].quotes) s.blocks[b].quotes = (src.quotes || []).map(function (q) { q = normRow(q); q.kind = q.kind || schema.QUOTE_KINDS.filter(function (k) { return schema.blockOfQuote[k] === b; })[0]; calc.settleQuote(q); q.lines = q.lines || []; return q; });
       else if (b === 'other') { (src.items || []).forEach(function (it) { it = normRow(it); var k = it.key; s.blocks.other.items = s.blocks.other.items.filter(function (x) { return x.key !== k; }); s.blocks.other.items.push(it); }); }
       else s.blocks[b].items = (src.items || []).map(normRow);
     });
@@ -538,6 +557,6 @@
   }
 
   return { blank: blank, uid: uid, parseCell: parseCell, setPath: setPath, setStatus: setStatus, setUw: setUw, setSecond: setSecond, addTerm: addTerm, removeTerm: removeTerm, setUwReason: setUwReason, addCounterOffer: addCounterOffer, confirmTerms: confirmTerms, setRepl: setRepl, toggleReplaced: toggleReplaced, setBrokerRecord: setBrokerRecord, pathGet: pathGet, accept: accept, acceptAll: acceptAll, walkRows: walkRows, newLine: newLine, newQuote: newQuote, addQuote: addQuote, findQuote: findQuote,
-    setRemoved: setRemoved, newCmp: newCmp, addCmp: addCmp, removeCmp: removeCmp, startReview: startReview, addLine: addLine, addItem: addItem, newProposed: newProposed, factsFrom: factsFrom, diffFacts: diffFacts, syncBlocks: syncBlocks, fillFromFactFind: fillFromFactFind, fileName: fileName,
+    setRemoved: setRemoved, newCmp: newCmp, addCmp: addCmp, removeCmp: removeCmp, startReview: startReview, setOnPolicy: setOnPolicy, setServicingType: setServicingType, addLine: addLine, addItem: addItem, newProposed: newProposed, factsFrom: factsFrom, diffFacts: diffFacts, syncBlocks: syncBlocks, fillFromFactFind: fillFromFactFind, fileName: fileName,
     clientName: clientName, computed: computed, dedupeQuotes: dedupeQuotes, flattenPolicyLines: flattenPolicyLines, isBright: isBright, toJSON: toJSON, fromJSON: fromJSON, rows: rows, counts: counts, pendingRows: pendingRows, ffKeyFor: ffKeyFor, APP_ID: APP_ID };
 });
