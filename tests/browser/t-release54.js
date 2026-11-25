@@ -19,7 +19,7 @@ const FFJ = { app: 'wr-fact-find', schema: '5.4', f: { fname: { v: 'Test' }, sna
   const ov = watch(await ctx.newPage());
   await ov.goto('file://' + dir + '/overview.html'); await ov.waitForTimeout(400); await ov.evaluate(() => OV.app.openAll());          // the page starts folded (See more); this test is about what is inside
   ok(!(await ov.$('#buildBanner')), '1. no "Mixed versions" bar');
-  ok(await ov.evaluate(() => document.title) === 'Client Overview Studio' && /Version (0\.9|1\.[012345678])/.test(await ov.evaluate(() => document.querySelector('#verLine').textContent)), '1. the page says it is the Client Overview Studio, version 0.9');
+  ok(await ov.evaluate(() => document.title) === 'Client Overview Studio' && /Version (0\.9|1\.[0123456789])/.test(await ov.evaluate(() => document.querySelector('#verLine').textContent)), '1. the page says it is the Client Overview Studio, version 0.9');
   const nav = await ov.evaluate(() => [...document.querySelectorAll('#nav button')].map(x => x.textContent.replace(/\s+/g, ' ').trim()));
   ok(nav.length === 12 && nav[0] === 'Client details' && nav[6] === 'Reduced quotes' && nav[11] === 'Medical aid, will & short-term', '1. the menu: Client details and the eleven blocks in order: ' + nav.join(' | '));
   ok(await ov.evaluate(() => document.querySelectorAll('.dot[data-dot]').length === 11 && document.querySelectorAll('#legend .dot').length === 5), '1. a dot beside each block, and five in the legend under the menu (grey, amber, green, red, dashed)');

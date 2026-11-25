@@ -1268,6 +1268,7 @@
     groups.forEach(function (g, gi) {
       var row = rowOf(gi), chips = [], p = g.p, label = D.BLOCK_LABEL[g.block] || '';
       if (p.linked) chips.push({ cls: '', text: 'Linked to PK: Paul is the broker on record' });
+      if (p.notLinked) chips.push({ cls: '', text: 'Not linked to PK' });
       if (p.unknownStatus) chips.push({ cls: '', text: 'Status “' + p.unknownStatus + '” is not one the page knows: treated as live' });
       var fc = ffChip(row, g); if (fc) chips.push(fc);
       if (row && row.prior === 'number') chips.push({ cls: 'ok', text: 'In the last overview' }); else if (row && row.prior === 'name') chips.push({ cls: 'ok', text: 'In the last overview' });

@@ -11,7 +11,7 @@ const code = f => app(f).replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '
 
 test('the page version is 1.0 (0.99 in the 0.99 release), the layout is still 0.1, the saved file gains no key, the changed scripts have new tags', () => {
   const schema = require('../app/js/ov-schema.js');
-  assert.ok(/^1\.[012345678]$/.test(schema.pageVersion), 'the page version is 1.0 to 1.6'); assert.strictEqual(schema.version, '0.1');
+  assert.ok(/^1\.[0123456789]$/.test(schema.pageVersion), 'the page version is 1.0 to 1.6'); assert.strictEqual(schema.version, '0.1');
   const h = app('overview.html');
   ['ov-schema', 'ov-ui', 'folders-ui'].forEach(f => assert.ok(new RegExp(f + '\\.js\\?v=20261124[a-z]').test(h), f));
   ['index.html', 'short-risk.html', 'capture-sheet.html'].forEach(f => assert.ok(/folders-ui\.js\?v=2026112[0-9][a-z]/.test(app(f)), f));
