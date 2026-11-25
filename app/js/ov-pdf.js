@@ -73,16 +73,9 @@
     var isNA = function (p) { return l[p] === 'N/A'; };
     var hasIP = l.type === 'debt' && calc.isNum(l.ip && l.ip.monthly) && l.ip.monthly > 0, any = !isNA('life') || !isNA('lsd');
     var tall = any ? (hasIP ? 22 : 17) : 9; if (l.type !== 'other' && (l.accelerated === true || l.accelerated === false)) tall = Math.max(tall, 17);
-    var refsOf = function (p) {                                                                                           // round 1.2: the red references the quote's terms put on this cell (+10% loading, Exclusion 3*), only where it has an amount
-      if (!aci || !aci.terms || isNA(p)) return [];
-      var pl = schema.PILLARS.filter(function (x) { return x.id === p; })[0];
-      if (!pl || !pl.keys.some(function (k) { var v = calc.lineVal(l, p, k); return calc.isNum(v) && v > 0; })) return [];
-      return calc.refsAt(aci, l.type, p).map(function (r) { return r.text; });
-    };
-    var maxRefs = Math.max.apply(null, ['life', 'sev', 'lsd', 'ip'].map(function (p) { return refsOf(p).length; }).concat([0])); if (maxRefs) tall += 3.6 * maxRefs;           // the name, the bank and Accelerated / Standalone
     var pill = function (p, lump, monthly) {
       if (isNA(p)) return right('N/A', { textColor: MUTED });
-      var o = { p: p, lump: lump ? calc.lineVal(l, p, 'lump') : undefined, monthly: monthly ? calc.lineVal(l, p, 'monthly') : undefined, label: tp.monthly, protector: p === 'ip' && hasIP, refs: refsOf(p) };
+      var o = { p: p, lump: lump ? calc.lineVal(l, p, 'lump') : undefined, monthly: monthly ? calc.lineVal(l, p, 'monthly') : undefined, label: tp.monthly, protector: p === 'ip' && hasIP };
       return { content: '', ov: o, styles: { minCellHeight: tall } };
     };
     return [{ content: t(need), styles: { halign: 'left', fontStyle: 'bold', minCellHeight: tall } }, { content: t(l.term || ''), styles: { halign: 'left' } }, pill('life', true, true), pill('sev', true, false), pill('lsd', true, true), pill('ip', false, true),
@@ -104,12 +97,10 @@
     }
     function one(txt, size, color, bold) { setText(d, color, size, bold); d.text(t(txt), x, y, { align: 'right' }); y += size > 8 ? 4.5 : 3.4; }
     if (o.pol !== undefined) { one(o.pol, FS.body, INK, false); (o.desc || []).forEach(function (l) { one(l, FS.small, MUTED, false); }); return; }                  // a policy's amount with the description of the benefit under it
-    var refs = function () { (o.refs || []).forEach(function (r) { one(r, FS.small, RED, true); }); };
-    if (o.p === 'ip') { one(PM(o.monthly), FS.body, INK, false); if (o.protector) { one('Instalment Protector', FS.small, MUTED, false); one('To be ceded to the bank', FS.small, RED, true); } refs(); return; }
+    if (o.p === 'ip') { one(PM(o.monthly), FS.body, INK, false); if (o.protector) { one('Instalment Protector', FS.small, MUTED, false); one('To be ceded to the bank', FS.small, RED, true); } return; }
     if (!calc.isNum(o.lump) && !calc.isNum(o.monthly) && o.lump !== 'Not found') { one('-', FS.body, MUTED, false); return; }
     one(A(o.lump), FS.body, INK, false);
     if (o.monthly !== undefined) { one(A(o.monthly), FS.body, RED, false); one(o.label, FS.small, MUTED, false); }
-    refs();
   }
   var LINES_W = [54, 30, 32, 26, 31, 33, 20, 29, 18];
   function ageHead(age) { return age ? '\nAge ' + age : ''; }

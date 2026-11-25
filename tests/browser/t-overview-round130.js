@@ -1,9 +1,10 @@
-/* Client Overview Studio 1.3 on the real page: Paul's FOUR PILLARS (24 November, 22:15 to 22:30). One invented client ("Pillar, Pia"), an accepted FNA quote with a counter offer whose letter has a loading under each of the four pillars and two
-   exclusions, every line type with real amounts (household, child care, a debt with an instalment protector, death-related, additional expense). What it proves, on the Studio's screen, in the Presentation and in the PDF:
-   (1) a red reference sits under its PILLAR on EVERY need line that has an amount there: permanent on household, child care and debt; caused by death on household, child care, debt AND death-related; recover from under the INCOME PROTECTOR
-       only; the additional expense row's loading and exclusion only under ITS severe illness; (2) never a red reference in a cell that is N/A, "-" or R0; (3) the totals row carries each pillar's references; (4) the terms table says one pillar
-       for each loading (Income protector, Lump sum disability, Life cover, Severe illness), an exclusion printed in two cells lists its two pillars, and the words "severe illness and income protector" appear nowhere.
-   Screenshots r16-pillars-studio, r16-pillars-pres, r16-pillars-terms, r16-pillars-pdf. */
+/* Client Overview Studio 1.3 on the real page: Paul's FOUR PILLARS and, from 25 November 08:30, loadings and exclusions PER PILLAR, not per line ("a loading would apply NOT to individual line items BUT to pillars: life, disability, severe and
+   ICB"). One invented client ("Pillar, Pia"), an accepted FNA quote with a counter offer whose letter has a loading under each of the four pillars and two exclusions, every line type with real amounts (household, child care, a debt with an
+   instalment protector, death-related, additional expense). What it proves, on the Studio's screen, in the Presentation and in the PDF:
+   (1) NO red reference sits on any line's cell (household, child care, debt, death-related, additional expense); (2) the Loadings and exclusions row under the totals carries each PILLAR's loading and exclusion once, in the pillar's column
+       (Life cover, Severe illness, Lump sum disability, Income protector); (3) the terms table says one pillar for each loading (Income protector, Lump sum disability, Life cover, Severe illness), an exclusion printed in two cells lists
+       its two pillars, and the words "severe illness and income protector" appear nowhere.
+   Screenshots r16-pillars-studio, r16-pillars-pres, r16-pillars-terms, r16-pillars-pdf, r16-overview-cards. */
 const cp = require('child_process');
 const { chromium } = require(process.argv[2] + '/playwright');
 const http = require('http'), fs = require('fs'), path = require('path');
@@ -21,15 +22,6 @@ const DREAD = { type: 'dread', sev: { lump: 150000 }, abi: 3 };
 const LETTER = { originalNumber: '400500600', revisedNumber: '400500777', origPremium: 5000, revPremium: 5420, startDate: '01/12/2026', expires: '20/12/2026', termsPage: 3, exclusionsPage: 4, cells: [
   { need: 'needs', column: 'recover', loading: 9, exclusions: ['4*'] }, { need: 'needs', column: 'permanent', loading: 14, exclusions: ['5*'] }, { need: 'needs', column: 'death', loading: 6, exclusions: [] }, { need: 'dread', column: 'recover', loading: 11, exclusions: ['4*'] }],
   exclusions: [{ no: '4*', type: 'Medical', what: 'No cover for conditions of the lower back', page: 4 }, { no: '5*', type: 'Occupational', what: 'No cover for a hazardous pursuit', page: 4 }], notes: null };
-/* what each line must show under life, severe illness, lump sum disability, income protector (a reference joins its parts with a bar) */
-const WANT = {
-  household: ['+6% loading', '', '+14% loading|Exclusion 5*', '+9% loading|Exclusion 4*'],
-  child: ['+6% loading', '', '', ''],
-  debt: ['+6% loading', '', '+14% loading|Exclusion 5*', '+9% loading|Exclusion 4*'],
-  death: ['+6% loading', '', '', ''],
-  dread: ['', '+11% loading|Exclusion 4*', '', '']
-};
-const ORDER = ['household', 'child', 'debt', 'death', 'dread'];
 srv.listen(0, async () => {
   const addr = 'http://localhost:' + srv.address().port + '/';
   const b = await chromium.launch({ executablePath: process.env.CHROMIUM || undefined, args: ['--no-sandbox'] });
@@ -53,11 +45,10 @@ srv.listen(0, async () => {
   /* ---- 1 and 2. the Studio's table ---- */
   const grid = await p.evaluate(() => [...document.querySelectorAll('[data-row="blocks.fna.quotes.1"] table.qlines tr.ln')].map(r => ({ label: r.querySelector('td').textContent.replace(/\s+/g, ' ').trim(), cells: [...r.querySelectorAll('td.c')].slice(0, 4).map(td => ({ refs: [...td.querySelectorAll('small.rednote.ref')].map(x => x.textContent).join('|'), main: ([...td.querySelectorAll('input')].map(i => i.value).join(' ') + ' ' + [...td.childNodes].filter(n => !(n.nodeType === 1 && /ref|foot|bd|via|rednote/.test(n.className || ''))).map(n => n.textContent).join(' ')).replace(/\s+/g, ' ').trim() })) })));
   ok(grid.length === 5, '1. the Studio draws the five lines: ' + grid.map(g => g.label.slice(0, 18)).join(' / '));
-  ORDER.forEach((t, i) => { const g = grid[i]; ok(!!g && JSON.stringify(g.cells.map(c => c.refs)) === JSON.stringify(WANT[t]), '1. ' + t + ': the red references sit under life / severe illness / lump sum disability / income protector as ' + JSON.stringify(WANT[t]) + (g ? ' (got ' + JSON.stringify(g.cells.map(c => c.refs)) + ')' : '')); });
-  const empty = grid.flatMap(g => g.cells.filter(c => c.refs && !/R\s?[1-9]\d*/.test(c.main)));          // a cell with a reference must hold a positive rand amount
-  ok(empty.length === 0, '2. never a red reference in a cell that is N/A, "-" or R0: ' + (empty.length ? JSON.stringify(empty) : 'none found'));
+  ok(grid.every(g => g.cells.every(c => !c.refs)), '1. NO red reference on any line of the Studio\u2019s table (household, child care, debt, death-related, additional expense): ' + JSON.stringify(grid.map(g => g.cells.map(c => c.refs))));
+  ok(await p.evaluate(() => document.querySelectorAll('[data-row="blocks.fna.quotes.1"] table.qlines tr.ln small.rednote.ref').length === 0 && document.querySelectorAll('[data-row="blocks.fna.quotes.1"] table.qlines tr.tot.refs small.rednote.ref').length === 7), '1. and none anywhere but the Loadings and exclusions row (seven references: four loadings, and the two exclusions in the columns of the pillars they apply to: exclusion 4* is under two)');
   const tot = await p.evaluate(() => [...document.querySelectorAll('[data-row="blocks.fna.quotes.1"] tr.tot.refs td.c')].map(td => [...td.querySelectorAll('small.rednote.ref')].map(x => x.textContent).join('|')));
-  ok(JSON.stringify(tot) === JSON.stringify(['+6% loading', '+11% loading|Exclusion 4*', '+14% loading|Exclusion 5*', '+9% loading|Exclusion 4*']), '3. the totals row carries each pillar’s references: ' + JSON.stringify(tot));
+  ok(JSON.stringify(tot) === JSON.stringify(['+6% loading', '+11% loading|Exclusion 4*', '+14% loading|Exclusion 5*', '+9% loading|Exclusion 4*']), '2. the Loadings and exclusions row carries each pillar’s loading and exclusion once, in its column (life, severe illness, lump sum disability, income protector): ' + JSON.stringify(tot));
   const terms = await p.evaluate(() => ({ ld: [...document.querySelectorAll('[data-row="blocks.fna.quotes.1"] table.terms.ld tbody tr')].map(r => r.querySelector('td').textContent.replace(/\s+/g, ' ').trim()), ex: [...document.querySelectorAll('[data-row="blocks.fna.quotes.1"] table.terms.ex tbody tr')].map(r => r.querySelectorAll('td')[1].textContent.replace(/\s+/g, ' ').trim()) }));
   ok(terms.ld.length === 4 && /^Income protector/.test(terms.ld[0]) && /^Lump sum disability/.test(terms.ld[1]) && /^Life cover/.test(terms.ld[2]) && /^Severe illness/.test(terms.ld[3]), '4. each loading names ONE pillar: ' + terms.ld.map(t => t.slice(0, 40)).join(' | '));
   ok(/Additional expense needs$/.test(terms.ld[3]) && !/recover from/.test(terms.ld[3]) && /recover from$/.test(terms.ld[0]), '4. the additional expense row is not said to be "recover from": "' + terms.ld[3] + '"');
@@ -75,9 +66,9 @@ srv.listen(0, async () => {
   await p.click('#pres .pchip[data-act=q][data-i="1"]'); await p.waitForTimeout(600);
   const pg = await p.evaluate(() => [...document.querySelectorAll('#pres .ptbl tr[data-label]')].map(r => ({ label: r.getAttribute('data-label'), cells: [...r.children].slice(2, 6).map(td => ({ refs: [...td.querySelectorAll('small.rednote.ref')].map(x => x.textContent).join('|'), main: [...td.childNodes].filter(n => !(n.nodeType === 1 && /ref|foot|bd|via|rednote|bdesc/.test(n.className || ''))).map(n => n.textContent).join(' ').replace(/\s+/g, ' ').trim() })) })));
   ok(pg.length === 5, '5. the Presentation draws the five lines: ' + pg.map(g => g.label).join(' / '));
-  ORDER.forEach((t, i) => { const g = pg[i]; ok(!!g && JSON.stringify(g.cells.map(c => c.refs)) === JSON.stringify(WANT[t]), '5. Presentation, ' + t + ': the same references under the same pillars' + (g ? ' (got ' + JSON.stringify(g.cells.map(c => c.refs)) + ')' : '')); });
-  const pEmpty = pg.flatMap(g => g.cells.filter(c => c.refs && !/R\s?[1-9]\d*/.test(c.main)));
-  ok(pEmpty.length === 0, '5. and never one in an N/A, "-" or R0 cell: ' + (pEmpty.length ? JSON.stringify(pEmpty) : 'none found'));
+  ok(pg.every(g => g.cells.every(c => !c.refs)) && await p.evaluate(() => document.querySelectorAll('#pres .ptbl tr[data-label] small.rednote.ref').length === 0), '5. NO red reference on any line of the Presentation\u2019s table');
+  const ptot = await p.evaluate(() => { const r = document.querySelector('#pres .ptbl tr.tot.refs'); return r ? [...r.children].slice(1, 5).map(td => [...td.querySelectorAll('small.rednote.ref')].map(x => x.textContent).join('|')) : null; });
+  ok(JSON.stringify(ptot) === JSON.stringify(['+6% loading', '+11% loading|Exclusion 4*', '+14% loading|Exclusion 5*', '+9% loading|Exclusion 4*']), '5. the Presentation\u2019s Loadings and exclusions row carries the same, pillar by pillar: ' + JSON.stringify(ptot));
   await p.screenshot({ path: out + '/r16-pillars-pres.png' });
   await p.click('#pres .psub[data-s=uw]'); await p.waitForTimeout(500);
   const pu = await p.evaluate(() => document.querySelector('#pres').innerText.replace(/\s+/g, ' '));

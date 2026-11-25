@@ -221,14 +221,8 @@
   /* The reasons a line is to be checked, in the words for the line (the missing bank, the debt that is only in the quote ...). */
   function lineWhy(id) { return ((last && last.problems) || []).filter(function (p) { return p.line === id; }).map(function (p) { return p.short || p.message; }).join(' '); }
   function lineFlag(id) { return ((last && last.problems) || []).filter(function (p) { return p.line === id; }).map(function (p) { return p.message; }).join(' '); }
-  /* The red references a quote's terms put on a cell (derived from the terms: +10% loading, Exclusion 3*): only where the cell has an amount. */
+  /* The red references a quote's terms put on a PILLAR (derived from the terms: +10% loading, Exclusion 3*): in the Loadings and exclusions row under the totals, never on a line (Paul, 25 November). */
   function refSmall(r) { return '<small class="rednote ref" title="' + (r.kind === 'loading' ? 'A premium loading from the insurer' : 'An exclusion from the insurer') + '">' + esc(r.text) + '</small>'; }
-  function lineRefs(c, l, pid, isPolicy) {
-    if (isPolicy || !c || !c.terms || !l.type) return '';
-    var pl = schema.PILLARS.filter(function (x) { return x.id === pid; })[0];
-    if (!pl || !pl.keys.some(function (k) { var v = calc.lineVal(l, pid, k); return calc.isNum(v) && v > 0; })) return '';
-    return calc.refsAt(c, l.type, pid).map(refSmall).join('');
-  }
   function lineHTML(cpath, c, l, i, isPolicy) {
     var p = cpath + '.lines.' + i, t = schema.lineTypesById[l.type] || schema.lineTypesById.other, tt = t.monthly, cols = isPolicy ? 10 : 9;
     if (l.removed) return fresh(p) ? '<tr class="removed" data-row="' + p + '" data-notice="' + p + '"><td colspan="' + cols + '"><span class="gone">' + esc((l.label || t.l) + (l.name ? ' · ' + l.name + ' ' + (l.sname || '') : '') + (l.debt ? ' · ' + l.debt : '')) + ' removed.</span> <button type="button" class="lnk" data-undo="' + p + '">Undo</button></td></tr>' : '';
@@ -243,7 +237,7 @@
       if (hasLump) s += inp(p + '.' + pid + '.lump', 'money');
       if (hasMonthly) s += inp(p + '.' + pid + '.monthly', 'money') + (pid === 'ip' ? '<small class="pm">p.m.</small>' : '<small class="sm">' + esc(tt) + '</small>') + viaNote(l, pid);
       if (pid === 'ip' && l.type === 'debt' && calc.isNum(l.ip && l.ip.monthly) && l.ip.monthly > 0) s += '<small class="ip">Instalment Protector</small><small class="ced">To be ceded to the bank</small>';
-      return '<td class="c">' + s + lineRefs(c, l, pid, isPolicy) + '</td>';
+      return '<td class="c">' + s + '</td>';
     }
     var flag = lineFlag(l.id);
     return '<tr data-row="' + p + '" class="ln' + (flag ? ' ffdiff' : '') + '"' + (flag ? ' title="' + esc(flag) + '"' : '') + '><td class="need">' + stb(p) + need + '<small class="why" data-why="' + l.id + '">' + esc(lineWhy(l.id)) + '</small></td><td>' + inp(p + '.term', 'text', 'term', t.term || 'Term') + '</td>' + pillar('life', true, true) + pillar('sev', true, false) + pillar('lsd', true, true) + pillar('ip', false, true) +

@@ -62,11 +62,11 @@
      kind and block as the one the client accepted (counterOf = that quote's id). BrightRock's letter prints its terms in a grid: ROWS are need groups, the three COLUMN GROUPS are below. BrightRock has FOUR separate pillars and every loading or
      exclusion cell belongs to exactly ONE of them, never a combined label (Paul's final word, 24 November, 22:27; he first said "can recover from = income protector only"): caused by death = LIFE COVER (a death-related line is always life cover);
      permanent = LUMP SUM DISABILITY; can recover from = INCOME PROTECTOR (the temporary expenses cover of the household, child care and debt rows); and the ADDITIONAL EXPENSE needs row (dread), which only carries severe illness, is
-     SEVERE ILLNESS whatever column group the letter prints it under. A need is not a pillar: a pillar's red references go onto EVERY need line that has an amount in that pillar (the views check the amount). ONE table, here: the column groups
+     SEVERE ILLNESS whatever column group the letter prints it under. A need is not a pillar, and a loading or exclusion belongs to PILLARS, not to line items (Paul, 25 November 08:30): it is shown once per pillar, in the Loadings and exclusions row under the totals and in the terms block, never on a line. ONE table, here: the column groups
      and the need group that has only one pillar. Round 1.3 (the earlier readings, a combined "severe illness and income protector", are gone). */
   var NEED_GROUPS = [
-    { id: 'needs', l: 'Household, childcare, healthcare, debt and death-related needs', lines: ['household', 'child', 'debt', 'death', 'other'] },
-    { id: 'dread', l: 'Additional expense needs', lines: ['dread'], only: { pillars: ['sev'], benefit: 'Severe illness' } }          // the row that only carries severe illness: every cell of it is severe illness
+    { id: 'needs', l: 'Household, childcare, healthcare, debt and death-related needs' },
+    { id: 'dread', l: 'Additional expense needs', only: { pillars: ['sev'], benefit: 'Severe illness' } }          // the row that only carries severe illness: every cell of it is severe illness
   ];
   var COLUMN_GROUPS = [
     { id: 'recover', l: 'Cover that you can recover from', pillars: ['ip'], benefit: 'Income protector' },
@@ -91,7 +91,6 @@
     if (names.length > 1 && ['life', 'sev', 'lsd', 'ip'].every(function (p) { return pil[p]; })) return 'All benefits';
     return names.map(function (b, i) { return i ? b.charAt(0).toLowerCase() + b.slice(1) : b; }).join(', ');                 // a list of separate pillars (an exclusion printed in several cells), never one combined label
   }
-  var needGroupOfLine = Object.create(null); NEED_GROUPS.forEach(function (g) { g.lines.forEach(function (t) { needGroupOfLine[t] = g.id; }); });
   /* The four pillars a typed benefit name stands for. */
   var BENEFIT_PILLARS = Object.assign(Object.create(null), { 'All benefits': ['life', 'sev', 'lsd', 'ip'], 'Life cover': ['life'], 'Severe illness': ['sev'], 'Lump sum disability': ['lsd'], 'Income protector': ['ip'], 'Severe illness and income protector': ['sev', 'ip']          /* only so that a row typed with this label in 1.2 still draws; it is not offered any more */ });
   var LOADING_KINDS = [{ id: 'medical', l: 'Medical' }, { id: 'occupational', l: 'Occupational' }, { id: 'other', l: 'Other' }];
@@ -145,7 +144,7 @@
   function yearOf(state) { var d = parseDMY(state && state.header && state.header.overviewDate) || parseDMY(todayDMY()); return String(d.y); }
 
   return { version: VERSION, pageVersion: PAGE_VERSION, released: 'November 2026', APP_ID: APP_ID, PILLARS: PILLARS, BLOCKS: BLOCKS, blocksById: blocksById, blockOfQuote: blockOfQuote, QUOTE_KINDS: QUOTE_KINDS, INSURERS: INSURERS,
-    STATUS: STATUS, statusLabel: statusLabel, UW: UW, uwLabel: uwLabel, UW_ISSUED: UW_ISSUED, UW_DECLINED: UW_DECLINED, LEGACY_STATUS: LEGACY_STATUS, TERM_BENEFITS: TERM_BENEFITS, LOADING_KINDS: LOADING_KINDS, loadingKindLabel: loadingKindLabel, BROKER_RECORD: BROKER_RECORD, NEED_GROUPS: NEED_GROUPS, COLUMN_GROUPS: COLUMN_GROUPS, needGroupById: needGroupById, columnGroupById: columnGroupById, cellOf: cellOf, cellsBenefit: cellsBenefit,needGroupOfLine: needGroupOfLine, BENEFIT_PILLARS: BENEFIT_PILLARS, LINE_TYPES: LINE_TYPES, lineTypesById: lineTypesById, STANDARDS: STANDARDS, PROPOSED_TYPES: PROPOSED_TYPES, CONTRIBUTIONS: CONTRIBUTIONS,
+    STATUS: STATUS, statusLabel: statusLabel, UW: UW, uwLabel: uwLabel, UW_ISSUED: UW_ISSUED, UW_DECLINED: UW_DECLINED, LEGACY_STATUS: LEGACY_STATUS, TERM_BENEFITS: TERM_BENEFITS, LOADING_KINDS: LOADING_KINDS, loadingKindLabel: loadingKindLabel, BROKER_RECORD: BROKER_RECORD, NEED_GROUPS: NEED_GROUPS, COLUMN_GROUPS: COLUMN_GROUPS, needGroupById: needGroupById, columnGroupById: columnGroupById, cellOf: cellOf, cellsBenefit: cellsBenefit,BENEFIT_PILLARS: BENEFIT_PILLARS, LINE_TYPES: LINE_TYPES, lineTypesById: lineTypesById, STANDARDS: STANDARDS, PROPOSED_TYPES: PROPOSED_TYPES, CONTRIBUTIONS: CONTRIBUTIONS,
     contributionLabel: contributionLabel, OTHER_KEYS: OTHER_KEYS, FIGURES: FIGURES, GROUP_KINDS: GROUP_KINDS, PAID_BY: PAID_BY, ST_LABEL: ST_LABEL, fileName: fileName, yearOf: yearOf, clientName: clientName,
     clientFull: clientFull, parseDMY: parseDMY, todayDMY: todayDMY, safeName: safeName };
 });

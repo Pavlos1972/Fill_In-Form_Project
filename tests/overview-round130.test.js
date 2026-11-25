@@ -48,24 +48,23 @@ test('(e) Paul\u2019s FOUR pillars, ONE table: death = life cover, permanent = l
   ['ov-docs.js', 'ov-ui.js', 'ov-calc.js', 'ov-check.js', 'ov-pdf.js', 'ov-present.js', 'ov-pres.js'].forEach(f => assert.ok(!/severe illness and income protector/i.test(app('js/' + f)), f + ' has no combined label'));
 });
 
-test('(e) the red references go by PILLAR onto every need line: permanent on household, child care and debt; caused by death on household, child care, debt AND death-related; recover from on the income protector only; the additional expense row only on its severe illness; never on the wrong pillar', () => {
+test('(e) a loading or exclusion belongs to a PILLAR and is shown once per pillar (Paul, 25 November), not on each need line: life cover, lump sum disability, income protector, severe illness; never a combined label', () => {
   const s = fresh(), q = accepted(s, quote(s, '400500600')), L = mkLetter({ cells: [{ need: 'needs', column: 'recover', loading: 9, exclusions: [] }, { need: 'needs', column: 'permanent', loading: 14, exclusions: [] }, { need: 'needs', column: 'death', loading: 6, exclusions: [] }, { need: 'dread', column: 'recover', loading: 11, exclusions: ['4*'] }] });
-  const c = docs.applyCounterLetter(s, q, L, 'letter.pdf').quote, txt = (t, p) => calc.refsAt(c, t, p).map(r => r.text);
-  ['household', 'child', 'debt'].forEach(t => { assert.deepStrictEqual(txt(t, 'lsd'), ['+14% loading'], t + ': permanent'); assert.deepStrictEqual(txt(t, 'ip'), ['+9% loading'], t + ': recover from is the income protector'); assert.deepStrictEqual(txt(t, 'sev'), [], t + ': no severe illness under recover from'); });
-  ['household', 'child', 'debt', 'death'].forEach(t => assert.deepStrictEqual(txt(t, 'life'), ['+6% loading'], t + ': caused by death is life cover'));
-  assert.deepStrictEqual(txt('dread', 'sev'), ['+11% loading', 'Exclusion 4*']); ['life', 'lsd', 'ip'].forEach(p => assert.deepStrictEqual(txt('dread', p), [], 'the additional expense row has only severe illness: ' + p));
-  assert.deepStrictEqual(calc.refsTotal(c, 'ip').map(r => r.text), ['+9% loading']); assert.deepStrictEqual(calc.refsTotal(c, 'sev').map(r => r.text), ['+11% loading', 'Exclusion 4*']);
+  const c = docs.applyCounterLetter(s, q, L, 'letter.pdf').quote, tot = p => calc.refsTotal(c, p).map(r => r.text);
+  assert.deepStrictEqual(tot('life'), ['+6% loading']); assert.deepStrictEqual(tot('lsd'), ['+14% loading']); assert.deepStrictEqual(tot('ip'), ['+9% loading']); assert.deepStrictEqual(tot('sev'), ['+11% loading', 'Exclusion 4*']);
+  assert.strictEqual(calc.refsAt, undefined, 'no reference is worked out for a line');
+  ['js/ov-ui.js', 'js/ov-pdf.js', 'js/ov-present.js'].forEach(f => assert.ok(!/refsAt|lineRefs|cellRefs|refsOf/.test(app(f)), f + ' puts no reference on a line'));
   assert.deepStrictEqual(c.terms.loadings.map(l => calc.termBenefit(l)), ['Income protector', 'Lump sum disability', 'Life cover', 'Severe illness'], 'one pillar each, never a combined label');
 });
 
-test('(e) a file saved by 1.2 (the old labels stored on the rows) opens with the new labels and the new references; a row with no need group is the column\u2019s pillar; a typed row keeps what was typed', () => {
+test('(e) a file saved by 1.2 (the old labels stored on the rows) opens with the new labels and the references per pillar; a row with no need group is the column\u2019s pillar; a typed row keeps what was typed', () => {
   const s = fresh(), q = accepted(s, quote(s, '400500600')), c = docs.applyCounterLetter(s, q, mkLetter(), 'letter.pdf').quote;
   c.terms.loadings.forEach(l => { l.benefit = 'Severe illness and income protector'; }); c.terms.exclusions[0].benefit = 'Severe illness and income protector';          // what 1.2 stored
   const o = store.fromJSON(store.toJSON(s)), oc = o.blocks.fna.quotes[1];
   assert.deepStrictEqual(oc.terms.loadings.map(l => calc.termBenefit(l)), ['Income protector', 'Lump sum disability', 'Severe illness']);
   assert.strictEqual(calc.termBenefit(oc.terms.exclusions[0]), 'Severe illness, income protector');
-  const txt = (t, p) => calc.refsAt(oc, t, p).map(r => r.text);
-  assert.deepStrictEqual(txt('household', 'ip'), ['+9% loading', 'Exclusion 4*']); assert.deepStrictEqual(txt('household', 'sev'), []); assert.deepStrictEqual(txt('dread', 'sev'), ['+9% loading', 'Exclusion 4*']); assert.deepStrictEqual(txt('dread', 'ip'), []);
+  const tot = p => calc.refsTotal(oc, p).map(r => r.text);
+  assert.deepStrictEqual(tot('ip'), ['+9% loading', 'Exclusion 4*']); assert.deepStrictEqual(tot('sev'), ['+9% loading', 'Exclusion 4*']); assert.deepStrictEqual(tot('lsd'), ['+14% loading']); assert.deepStrictEqual(tot('life'), []);
   assert.strictEqual(calc.termBenefit({ column: 'recover', benefit: 'x' }), 'Income protector', 'no need group: the column\u2019s pillar');
   assert.strictEqual(calc.termBenefit({ benefit: 'Life cover' }), 'Life cover', 'a typed row'); assert.strictEqual(calc.termBenefit({ applies: [{ need: 'needs', column: 'death' }] }), 'Life cover');
 });

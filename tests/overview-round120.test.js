@@ -38,7 +38,7 @@ test('the page is 1.2 (the layout stays 0.1), the changed scripts carry new tags
 test('the BrightRock column groups and need groups are ONE table (Paul\u2019s final word, 24 November: FOUR separate pillars, never a combined label): death = life cover, permanent = lump sum disability, recover from = income protector ONLY, the additional expense row = severe illness', () => {
   const col = schema.columnGroupById;
   assert.deepStrictEqual(col.death.pillars, ['life']); assert.deepStrictEqual(col.permanent.pillars, ['lsd']); assert.deepStrictEqual(col.recover.pillars, ['ip']);
-  assert.strictEqual(schema.needGroupOfLine.household, 'needs'); assert.strictEqual(schema.needGroupOfLine.debt, 'needs'); assert.strictEqual(schema.needGroupOfLine.dread, 'dread');
+  assert.ok(schema.needGroupById.needs && schema.needGroupById.dread && !schema.needGroupOfLine, 'two need groups; a line type does not decide a reference any more (Paul, 25 November)');
   assert.ok(schema.TERM_BENEFITS.indexOf('Severe illness and income protector') < 0, 'no combined label is offered');
   assert.deepStrictEqual(schema.cellOf('needs', 'recover'), { pillars: ['ip'], benefit: 'Income protector' }); assert.deepStrictEqual(schema.cellOf('dread', 'recover'), { pillars: ['sev'], benefit: 'Severe illness' });
   assert.deepStrictEqual(schema.cellOf(null, 'recover'), { pillars: ['ip'], benefit: 'Income protector' });
@@ -87,18 +87,17 @@ test('a letter read again changes nothing twice, replaces only amber rows, and n
   assert.strictEqual(c.terms.loadings.filter(l => l.st === 'verify').length, 1);
 });
 
-test('the red references are derived from the terms: under the right pillar of the right need group, only where there is an amount; totals show every reference of a column', () => {
+test('the red references are derived from the terms and belong to PILLARS (Paul, 25 November): each pillar\u2019s loading and exclusion once, in the pillar\u2019s column of the totals; nothing on a line', () => {
   const s = fresh(), q = accepted(s, quote(s, 'fna', '400500600')), c = docs.applyCounterLetter(s, q, LETTER, 'letter.pdf').quote;
-  const txt = (qq, t, p) => calc.refsAt(qq, t, p).map(r => r.text);
-  assert.deepStrictEqual(txt(c, 'household', 'sev'), [], 'a loading under recover-from on the needs row is the income protector, not severe illness'); assert.deepStrictEqual(txt(c, 'household', 'ip'), ['+10% loading', 'Exclusion 3*']);
-  assert.deepStrictEqual(txt(c, 'household', 'lsd'), ['+15% loading']); assert.deepStrictEqual(txt(c, 'household', 'life'), [], 'the death column has no loading');
-  assert.deepStrictEqual(txt(c, 'dread', 'sev'), ['+10% loading', 'Exclusion 3*']); assert.deepStrictEqual(txt(c, 'dread', 'ip'), [], 'on the additional expense row recover-from is severe illness'); assert.deepStrictEqual(txt(c, 'dread', 'lsd'), []);
-  assert.deepStrictEqual(calc.refsTotal(c, 'sev').map(r => r.text), ['+10% loading', 'Exclusion 3*']); assert.deepStrictEqual(calc.refsTotal(c, 'ip').map(r => r.text), ['+10% loading', 'Exclusion 3*']); assert.deepStrictEqual(calc.refsTotal(c, 'lsd').map(r => r.text), ['+15% loading']);
+  const tot = (qq, p) => calc.refsTotal(qq, p).map(r => r.text);
+  assert.deepStrictEqual(tot(c, 'ip'), ['+10% loading', 'Exclusion 3*'], 'recover from is the income protector'); assert.deepStrictEqual(tot(c, 'sev'), ['+10% loading', 'Exclusion 3*'], 'the additional expense row is severe illness');
+  assert.deepStrictEqual(tot(c, 'lsd'), ['+15% loading']); assert.deepStrictEqual(tot(c, 'life'), [], 'the death column has no loading');
+  assert.strictEqual(calc.refsAt, undefined, 'there is no per-line reference any more');
   // a typed loading on one benefit (round 1.1) and "All benefits" are references too
   store.addTerm(s, qpath(s, q), 'loadings'); const t = q.terms.loadings[0]; t.benefit = 'Life cover'; t.pct = 40;
-  assert.deepStrictEqual(txt(q, 'death', 'life'), ['+40% loading']); assert.deepStrictEqual(txt(q, 'death', 'sev'), []);
-  t.benefit = 'All benefits'; assert.deepStrictEqual(txt(q, 'household', 'ip'), ['+40% loading']);
-  t.pct = 12.5; assert.deepStrictEqual(txt(q, 'household', 'life'), ['+12.5% loading']);
+  assert.deepStrictEqual(tot(q, 'life'), ['+40% loading']); assert.deepStrictEqual(tot(q, 'sev'), []);
+  t.benefit = 'All benefits'; assert.deepStrictEqual(tot(q, 'ip'), ['+40% loading']); assert.deepStrictEqual(tot(q, 'life'), ['+40% loading']);
+  t.pct = 12.5; assert.deepStrictEqual(tot(q, 'lsd'), ['+12.5% loading']);
 });
 
 test('premium before, after and the difference are derived: the LETTER’s original and revised premium (round 1.3: the letter is the source), else the quote before it and the counter offer’s own premium', () => {
@@ -238,12 +237,12 @@ test('the Overview card follows the client’s decisions (FNA and reduced): the 
   [].concat(Object.values(W.fna), Object.values(W.reduced)).forEach(t => assert.ok(!/\d/.test(t), t));
 });
 
-test('the screen, the PDF and the Presentation use the one set of functions: references in the cells and totals, the counter offer head, the Counter offers page', () => {
+test('the screen, the PDF and the Presentation use the one set of functions: references in the totals row only, the counter offer head, the Counter offers page', () => {
   const ui = app('js/ov-ui.js'), pdf = app('js/ov-pdf.js'), pr = app('js/ov-present.js');
-  assert.ok(/data-addcounter/.test(ui) && /data-confirmterms/.test(ui) && /calc\.canCounter\(state, q\)/.test(ui) && /calc\.refsAt\(c, l\.type, pid\)/.test(ui) && /calc\.refsTotal\(q, pid\)/.test(ui), 'the screen');
+  assert.ok(/data-addcounter/.test(ui) && /data-confirmterms/.test(ui) && /calc\.canCounter\(state, q\)/.test(ui) && !/refsAt|lineRefs/.test(ui) && /calc\.refsTotal\(q, pid\)/.test(ui), 'the screen');
   assert.ok(/var COUNTERS = 'counters'/.test(ui) && /function countersHTML\(\)/.test(ui) && /data-gocounter/.test(ui), 'the Counter offers page');
-  assert.ok(/calc\.refsAt\(aci, l\.type, p\)/.test(pdf) && /calc\.refsTotal\(q, p\)/.test(pdf) && /function counterHead\(/.test(pdf) && /calc\.counterPremium\(state, q\)/.test(pdf), 'the PDF');
-  assert.ok(/calc\.refsAt\(q, l\.type, p\)/.test(pr) && /calc\.refsTotal\(c, pid\)/.test(pr) && /function counterView\(/.test(pr) && /calc\.counterPremium\(state\(\), q\)/.test(pr), 'the Presentation');
+  assert.ok(!/refsAt|refsOf/.test(pdf) && /calc\.refsTotal\(q, p\)/.test(pdf) && /function counterHead\(/.test(pdf) && /calc\.counterPremium\(state, q\)/.test(pdf), 'the PDF');
+  assert.ok(!/refsAt|cellRefs/.test(pr) && /calc\.refsTotal\(c, pid\)/.test(pr) && /function counterView\(/.test(pr) && /calc\.counterPremium\(state\(\), q\)/.test(pr), 'the Presentation');
   assert.ok(!/ calc\.statusText\(q\)/.test(ui), 'every badge on the screen asks statusText with the state');
   [pdf, pr].forEach(src => assert.ok(/'Counter offer received'/.test(src), 'the PDF and the Presentation keep the badge short and say "Counter offer received" in the line beside it'));
 });
@@ -289,7 +288,7 @@ test('the labels of the terms come from the table (need group and column group) 
   assert.strictEqual(calc.termBenefit(l), 'Income protector'); assert.strictEqual(calc.termBenefit(e), 'Severe illness, income protector', 'an exclusion printed in two cells: the two pillars listed, never one combined label');
   assert.strictEqual(calc.termBenefit({ benefit: 'Life cover' }), 'Life cover');
   const old = schema.columnGroupById.recover.pillars.slice(), oldB = schema.columnGroupById.recover.benefit; schema.columnGroupById.recover.pillars = ['lsd']; schema.columnGroupById.recover.benefit = 'Lump sum disability';
-  assert.strictEqual(calc.termBenefit(l), 'Lump sum disability'); assert.deepStrictEqual(calc.refsAt(c, 'household', 'ip').map(r => r.text), [], 'and the red references follow the same table'); assert.ok(calc.refsAt(c, 'household', 'lsd').length > 0);
+  assert.strictEqual(calc.termBenefit(l), 'Lump sum disability'); assert.deepStrictEqual(calc.refsTotal(c, 'ip').map(r => r.text), [], 'and the red references follow the same table'); assert.ok(calc.refsTotal(c, 'lsd').length > 0);
   schema.columnGroupById.recover.pillars = old; schema.columnGroupById.recover.benefit = oldB;
 });
 
@@ -362,7 +361,7 @@ test('review findings: a hand-edited file cannot crash the page (a loop of count
   q.counterOf = c.id;                                                                                                                   // A -> B and B -> A
   assert.strictEqual(calc.parentOf(s, c), null); assert.strictEqual(calc.parentOf(s, q), null); assert.doesNotThrow(() => store.toJSON(s)); assert.doesNotThrow(() => check.run(s, { ran: true, done: { fna: true } }));
   q.counterOf = null; c.terms.loadings[0].benefit = 'constructor'; c.terms.loadings[0].column = 'constructor'; c.terms.exclusions[0].applies = [{ need: 'toString', column: '__proto__' }]; c.terms.loadings.push(null, 5, 'x');
-  assert.doesNotThrow(() => calc.termRefs(c)); assert.doesNotThrow(() => calc.refsAt(c, 'household', 'sev')); assert.doesNotThrow(() => calc.termBenefit(c.terms.loadings[0])); assert.doesNotThrow(() => calc.termsToCheck(c));
+  assert.doesNotThrow(() => calc.termRefs(c)); assert.doesNotThrow(() => calc.refsTotal(c, 'sev')); assert.doesNotThrow(() => calc.termBenefit(c.terms.loadings[0])); assert.doesNotThrow(() => calc.termsToCheck(c));
   assert.strictEqual(schema.needGroupById.constructor, undefined); assert.strictEqual(schema.BENEFIT_PILLARS.constructor, undefined);
 });
 

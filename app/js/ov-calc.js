@@ -143,30 +143,26 @@
     });
     return n;
   }
-  /* The red references a quote's terms put on the pillar columns: [{ kind, text, need, pillars }]. A loading belongs to a need group and a column group (BrightRock's letter), or to a benefit a person typed; an exclusion is
-     numbered as the insurer numbers it and lists the cells it applies to. Derived: nothing is stored per line. */
+  /* The red references a quote's terms put on the pillar columns: [{ kind, text, pillars }]. A loading or an exclusion belongs to PILLARS (Paul, 25 November: "a loading would apply NOT to individual line items BUT to pillars: life, disability,
+     severe and ICB"), so it is shown once per pillar, in the Loadings and exclusions row under the totals, never on a line. A loading is a cell of BrightRock's letter (a need group and a column group) or a benefit a person typed; an exclusion
+     is numbered as the insurer numbers it and lists the cells it applies to. Derived: nothing is stored per line. */
   function pctText(p) { return (Math.round(p * 100) / 100) + '%'; }
   function termRefs(q) {
     var out = [], t = q && q.terms || {};
     (t.loadings || []).forEach(function (l) {
       if (!l || !isNum(l.pct) || !(l.pct > 0)) return;
       var col = schema.cellOf(l.need, l.column), pil = col ? col.pillars : (schema.BENEFIT_PILLARS[l.benefit] || schema.BENEFIT_PILLARS['All benefits']);          // the need group decides the pillar where the table says so (round 1.3)
-      out.push({ kind: 'loading', text: '+' + pctText(l.pct) + ' loading', need: schema.needGroupById[l.need] ? l.need : null, pillars: pil });
+      out.push({ kind: 'loading', text: '+' + pctText(l.pct) + ' loading', pillars: pil });
     });
     (t.exclusions || []).forEach(function (e, i) {
       if (!e) return;
       var label = 'Exclusion ' + (String(e.no == null ? '' : e.no).trim() || (i + 1)), cells = Array.isArray(e.applies) ? e.applies.filter(function (a) { return a && schema.columnGroupById[a.column]; }) : [];
-      if (!cells.length) { out.push({ kind: 'exclusion', text: label, need: null, pillars: schema.BENEFIT_PILLARS[e.benefit] || schema.BENEFIT_PILLARS['All benefits'] }); return; }
-      cells.forEach(function (a) { out.push({ kind: 'exclusion', text: label, need: schema.needGroupById[a.need] ? a.need : null, pillars: schema.cellOf(a.need, a.column).pillars }); });
+      if (!cells.length) { out.push({ kind: 'exclusion', text: label, pillars: schema.BENEFIT_PILLARS[e.benefit] || schema.BENEFIT_PILLARS['All benefits'] }); return; }
+      cells.forEach(function (a) { out.push({ kind: 'exclusion', text: label, pillars: schema.cellOf(a.need, a.column).pillars }); });
     });
     return out;
   }
-  /* The references that belong in one cell: the line type's need group and the pillar. Duplicates (the same text) are shown once. */
-  function refsAt(q, lineType, pillarId) {
-    var g = schema.needGroupOfLine[lineType] || 'needs', seen = {}, out = [];
-    termRefs(q).forEach(function (r) { if ((r.need && r.need !== g) || r.pillars.indexOf(pillarId) < 0 || seen[r.text]) return; seen[r.text] = 1; out.push(r); });
-    return out;
-  }
+  /* The references of ONE pillar (the Loadings and exclusions row under the totals, in the pillar's column): duplicates (the same text) are shown once. */
   function refsTotal(q, pillarId) { var seen = {}, out = []; termRefs(q).forEach(function (r) { if (r.pillars.indexOf(pillarId) < 0 || seen[r.text]) return; seen[r.text] = 1; out.push(r); }); return out; }
   /* The benefit a term row is about, DERIVED from the column group (a loading) or the cells it applies to (an exclusion), so a correction of the mapping reaches every file; a typed row keeps what was typed. */
   function termBenefit(r) {
@@ -380,7 +376,7 @@
   var PAGE_WHY = { shortfallQuote: 'Left out: there is no group risk, or no shortfall quote was asked for.', comparative: 'Left out: no comparative quote was asked for in the Fact Find.', proposed: 'Left out: there are no proposed investments.', goals: 'Left out: no goal analysis report was asked for.' };
   function pageWhy(id) { return PAGE_WHY[id] || ''; }
 
-  return { alignPremiums: alignPremiums, ownNumberOut: ownNumberOut, settleQuote: settleQuote, parentOf: parentOf, isCounter: isCounter, mainQuotes: mainQuotes, counterOffers: counterOffers, liveCounter: liveCounter, effectiveQuote: effectiveQuote, counterDead: counterDead, chainIds: chainIds, chainIssued: chainIssued, canCounter: canCounter, counterPremium: counterPremium, termRefs: termRefs, termBenefit: termBenefit, refsAt: refsAt, refsTotal: refsTotal, termsToCheck: termsToCheck, uwOf: uwOf, declined: declined, accepted: accepted, dead: dead, issued: issued, statusText: statusText, statusClass: statusClass, acceptedQuotes: acceptedQuotes, acceptanceConflicts: acceptanceConflicts, replOf: replOf, quoteRef: quoteRef, policyRef: policyRef, replaceable: replaceable, replacementInfo: replacementInfo, policyNote: policyNote, settleLine: settleLine, aciPoints: aciPoints, sameDebtName: sameDebtName, isNum: isNum, r2: r2, norm: norm, fmtR: fmtR, fmtPct: fmtPct, fmtAci: fmtAci, matchChildren: matchChildren, matchDebts: matchDebts, pageShown: pageShown, pageWhy: pageWhy, fmtDiff: fmtDiff, show: show, lineVal: lineVal, active: active, activeLines: activeLines, totals: totals, sumLines: sumLines,
+  return { alignPremiums: alignPremiums, ownNumberOut: ownNumberOut, settleQuote: settleQuote, parentOf: parentOf, isCounter: isCounter, mainQuotes: mainQuotes, counterOffers: counterOffers, liveCounter: liveCounter, effectiveQuote: effectiveQuote, counterDead: counterDead, chainIds: chainIds, chainIssued: chainIssued, canCounter: canCounter, counterPremium: counterPremium, termRefs: termRefs, termBenefit: termBenefit, refsTotal: refsTotal, termsToCheck: termsToCheck, uwOf: uwOf, declined: declined, accepted: accepted, dead: dead, issued: issued, statusText: statusText, statusClass: statusClass, acceptedQuotes: acceptedQuotes, acceptanceConflicts: acceptanceConflicts, replOf: replOf, quoteRef: quoteRef, policyRef: policyRef, replaceable: replaceable, replacementInfo: replacementInfo, policyNote: policyNote, settleLine: settleLine, aciPoints: aciPoints, sameDebtName: sameDebtName, isNum: isNum, r2: r2, norm: norm, fmtR: fmtR, fmtPct: fmtPct, fmtAci: fmtAci, matchChildren: matchChildren, matchDebts: matchDebts, pageShown: pageShown, pageWhy: pageWhy, fmtDiff: fmtDiff, show: show, lineVal: lineVal, active: active, activeLines: activeLines, totals: totals, sumLines: sumLines,
     quotes: quotes, allQuotes: allQuotes, policies: policies, policyTotals: policyTotals, groupItems: groupItems, hasGroupRisk: hasGroupRisk, groupTotals: groupTotals, investments: investments,
     personalInvestments: personalInvestments, shortfall: shortfall, compare: compare, pillars: pillarOfBlock };
 });

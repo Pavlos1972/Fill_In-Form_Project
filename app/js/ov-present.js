@@ -90,21 +90,15 @@
     var tp = schema.lineTypesById[l.type] || schema.lineTypesById.other, name = l.type === 'child' ? ((l.name || '') + ' ' + (l.sname || '')).trim() : l.type === 'debt' ? (l.debt || l.bank || '') : '';
     return (l.type === 'other' ? (l.label || tp.l) : tp.l) + (name ? ' · ' + name : '');
   }
-  /* The red references a quote's terms put on a cell (round 1.2), only where the cell has an amount. */
+  /* The red references a quote's terms put on a PILLAR (round 1.2): in the Loadings and exclusions row under the totals, never on a line (Paul, 25 November). */
   function refSmall(r) { return '<small class="rednote ref">' + esc(r.text) + '</small>'; }
-  function cellRefs(q, l, p) {
-    if (!q || !q.terms || l[p] === 'N/A') return '';
-    var pl = schema.PILLARS.filter(function (x) { return x.id === p; })[0];
-    if (!pl || !pl.keys.some(function (k) { var v = calc.lineVal(l, p, k); return calc.isNum(v) && v > 0; })) return '';
-    return calc.refsAt(q, l.type, p).map(refSmall).join('');
-  }
   function pillCell(l, p, monthly, q) {
     var tp = schema.lineTypesById[l.type] || schema.lineTypesById.other, hasIP = l.type === 'debt' && calc.isNum(l.ip && l.ip.monthly) && l.ip.monthly > 0;
     if (l[p] === 'N/A') return td('<span class="na">N/A</span>', '', p);
-    if (p === 'ip') return td(PM(calc.lineVal(l, 'ip', 'monthly')) + (hasIP ? '<small>Instalment Protector</small><small class="red">To be ceded to the bank</small>' : '') + cellRefs(q, l, 'ip'), '', 'ip');
+    if (p === 'ip') return td(PM(calc.lineVal(l, 'ip', 'monthly')) + (hasIP ? '<small>Instalment Protector</small><small class="red">To be ceded to the bank</small>' : ''), '', 'ip');
     var L = calc.lineVal(l, p, 'lump'), M = monthly ? calc.lineVal(l, p, 'monthly') : undefined;
     if (!calc.isNum(L) && !calc.isNum(M) && L !== 'Not found') return td('<span class="none">&ndash;</span>', '', p);
-    return td(A(L) + (monthly ? A(M, 'red') + '<small>' + esc(tp.monthly) + '</small>' : '') + cellRefs(q, l, p), '', p);
+    return td(A(L) + (monthly ? A(M, 'red') + '<small>' + esc(tp.monthly) + '</small>' : ''), '', p);
   }
   function lineRow(l, aci) {
     var isNA = function (k) { return l[k] === 'N/A'; };
