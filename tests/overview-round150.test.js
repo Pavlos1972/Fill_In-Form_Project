@@ -288,15 +288,15 @@ test('two policy folders may both hold "Policy Schedule.pdf": the View button of
 });
 
 /* ---------- 10. wiring and the record ---------- */
-test('the page is 1.5, the layout stays 0.1, no key is added, the pick list is grouped per policy folder, a file carries its folder and block, and the changed scripts have new tags', () => {
-  assert.strictEqual(schema.pageVersion, '1.5'); assert.strictEqual(schema.version, '0.1'); assert.ok(parseFloat(schema.pageVersion) > parseFloat('1.4'), 'compared as decimals');
+test('the page is 1.5 or later, the layout stays 0.1, no key is added, the pick list is grouped per policy folder, a file carries its folder and block, and the changed scripts have new tags', () => {
+  assert.ok(/^1\.[56]$/.test(schema.pageVersion), 'page 1.5, or 1.6 which came after it'); assert.strictEqual(schema.version, '0.1'); assert.ok(parseFloat(schema.pageVersion) > parseFloat('1.4'), 'compared as decimals');
   const ui = app('js/ov-ui.js'), fu = app('js/folders-ui.js'), html = app('overview.html');
   assert.ok(/function pickList\(res, plan\)/.test(ui) && /class="pkh"/.test(ui) && /function tickPlan\(res, plan\)/.test(ui) && /F\.keyedNewest|FF\.folders/.test(ui), 'the grouped list and what is ticked');
   assert.ok(/file\.wrDir = /.test(ui) && /file\.wrBlock = g\.block/.test(ui) && /wrGroup/.test(ui) && /o\.block \|\| file\.wrBlock \|\| \(cls && cls\.block\)/.test(ui), 'a file carries where it was found and the block its policy folder says');
-  assert.ok(/function uniqueFiles/.test(ui) && /grp \? dir/.test(ui), 'two files with one name in two policy folders are not one file');
+  assert.ok(/function uniqueFiles/.test(ui) && /dir \+ ' \\\\ '/.test(ui), 'two files with one name in two policy folders are not one file');
   assert.ok(/async function listClient\(client, T\)/.test(fu) && /F\.policyScan\(client, \{ sink: sink, ms: T\.walk, perFolder: T\.policyFolder \}\)/.test(fu) && /race\(F\.policyScan/.test(fu) && /F\.latestOverview/.test(fu), 'the policy scan runs within the walk limit and hands back what it found');
-  ['ov-schema', 'ov-docs', 'ov-ui', 'ov-view', 'folders', 'folders-ui'].forEach(f => assert.ok(new RegExp(f + '\\.js\\?v=20261124s').test(html), f)); assert.ok(/overview\.css\?v=20261124s/.test(html));
-  ['index.html', 'short-risk.html', 'capture-sheet.html'].forEach(f => assert.ok(/folders\.js\?v=20261124s/.test(app(f)) && /folders-ui\.js\?v=20261124s/.test(app(f)), f));
+  ['ov-schema', 'ov-docs', 'ov-ui', 'ov-view', 'folders', 'folders-ui'].forEach(f => assert.ok(new RegExp(f + '\\.js\\?v=20261124[st]').test(html), f)); assert.ok(/overview\.css\?v=20261124[st]/.test(html));
+  ['index.html', 'short-risk.html', 'capture-sheet.html'].forEach(f => assert.ok(/folders\.js\?v=20261124[st]/.test(app(f)) && /folders-ui\.js\?v=20261124[st]/.test(app(f)), f));
   assert.ok(!/policyFolders|policyScan|latestOverview/.test(app('js/ov-store.js') + app('js/ov-calc.js')), 'the saved file and its sums are untouched');
   const src = app('js/folders.js').slice(app('js/folders.js').indexOf('the client\'s POLICY FOLDERS'), app('js/folders.js').indexOf('The folder of a client\'s own folder where a kind of document'));
   assert.ok(!/createWritable|getFileHandle|getDirectoryHandle|removeEntry|\{ create:/.test(src), 'the policy-folder code only reads');

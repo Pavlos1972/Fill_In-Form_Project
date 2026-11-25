@@ -284,7 +284,7 @@ test('there is no voice in the Presentation: no microphone, no listener, no spok
   assert.ok(at('ov-calc.js') < at('ov-pres.js') && at('ov-pres.js') < at('ov-ui.js') && at('ov-ui.js') < at('ov-present.js') && at('folders-ui.js') < at('ov-present.js'), 'scripts in the right order');
   const ui = app('js/ov-present.js').replace(/\/\*[\s\S]*?\*\//g, '');
   assert.ok(!/anthropic|voiceBackend|voice-ai|messages\.create|api\.openai|fetch\(/i.test(ui), 'the Presentation never calls Claude or any service');
-  assert.ok(/^1\.[012345]$/.test(require('../app/js/ov-schema.js').pageVersion));
+  assert.ok(/^1\.[0123456]$/.test(require('../app/js/ov-schema.js').pageVersion));
 });
 
 test('the Presentation reads the overview and never writes to it', () => {
