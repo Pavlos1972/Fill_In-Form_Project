@@ -65,6 +65,7 @@ test('a policy folder\'s name says the insurer, product, number and status: Tran
   const deal = P('Test, Dora - (BR - Personal - R 2,507.64 p.m.)'); assert.deepStrictEqual([deal.dealStyle, deal.insurer, deal.product, deal.number, deal.kind], [true, 'brightrock', 'Personal', '', 'policies'], 'the older shape: the bracket holds the policy and an amount is not a number');
   assert.strictEqual(P('Test, Dora - (Risk Covers)').kind, 'policies');
   assert.deepStrictEqual([P('Old Mutual Optimal RA - 12345678').insurer, P('OM Living Annuity - 1234567').kind, P('Momentum Wealth - 55555').kind], ['old mutual', 'investments', ''], 'a product the page cannot tell is left blank, for the adviser');
+  assert.deepStrictEqual([P('Capital Legacy Plan - 6677889').special, P('Sanlam Provident - 9911223').special, P('OM Preservation Fund - 1122334').special, P('BR Personal Covers - 811234567').special, P('Mom Endowment - 03112233445').special], ['legacy', 'group', 'group', '', ''], 'legacy plans and provident, pension and preservation funds are kept in other blocks');
   assert.strictEqual(P('View Family').policy, false, 'a folder with no insurer, product or number is not a policy folder'); assert.strictEqual(P('Momentum Wealth - 55555').policy, true);
   assert.strictEqual(P('Momentum Wealth - 55555').insurer, 'momentum', 'Momentum is Momentum, not Mom');
   assert.strictEqual(F.canonInsurer('Old Mutual Life Assurance'), 'old mutual'); assert.strictEqual(F.canonInsurer('Ninety One'), 'ninety one'); assert.strictEqual(F.canonInsurer('Some Unknown House'), '');
@@ -84,6 +85,8 @@ test('the newest schedule is told by the date in its name, else its year folder;
   assert.deepStrictEqual([t.file, t.tie, t.tied.length], [null, true, 2], 'two files as recent as each other: none is picked, and it is said');
   assert.strictEqual(F.newestOf([mk('Letter.pdf', ['P', '2026']), mk('Cover Summary.pdf', ['P', '2026'])]).file.name, 'Cover Summary.pdf', 'on the same date a summary, schedule or statement wins');
   assert.deepStrictEqual(F.newestOf([m]).file, null, 'only the manual: nothing is picked'); assert.deepStrictEqual(F.newestOf([]).file, null);
+  assert.strictEqual(F.newestOf([mk('Cover Letter.pdf', ['P', '2026']), mk('Policy Schedule.pdf', ['P', 'Policy Schedules', '2025'])]).file.name, 'Policy Schedule.pdf', 'a file whose name says schedule is chosen before one that says nothing: a letter of 2026 is not a newer schedule than the schedule of 2025');
+  assert.strictEqual(F.newestOf([mk('Cover Letter.pdf', ['P', '2025']), mk('Notice.pdf', ['P', '2026'])]).file.name, 'Notice.pdf', 'with no schedule-like name at all the newest is taken');
   assert.ok(F.isManual('Owner\'s Manual.pdf') && F.isManual('BR Policy Document.pdf') && !F.isManual('BR Policy Schedule and Terms Summary.pdf') && !F.isManual('Cover Summary.pdf'));
 });
 
@@ -156,6 +159,19 @@ test('of several schedules or statements of ONE policy among the other documents
   const t = F.keyedNewest([mk('Plan Schedule 9988776 a.pdf', ['S', '2026']), mk('Plan Schedule 9988776 b.pdf', ['S', '2026'])], keyOf); assert.deepStrictEqual([[...t.tick.values()], t.tied.length], [[false, false], 1]);
 });
 
+/* ---------- 5b. the same client in two connected folders ---------- */
+test('the same client in New Business and in Client Files: a policy folder of the same name is listed once, with its files, and no group is left empty', async () => {
+  const a = tree(), b = new Dir('Test, Dora'); b.add('BR Personal Covers - 811234567', 'Policy Schedules', '2026').file('Policy Schedule.pdf'); b.add('Mom Endowment - 03112233445 - (Linked to PK)', '2026').file('Mom Statement.pdf'); b.add('Zed Invest - 1122334').add('2026').file('Zed Statement.pdf');
+  const part = async c => { const sink = {}, sc = await F.policyScan(client(c), { sink }), fs = await F.clientDocuments(client(c)); F.joinSchedules(fs, sc.groups); const flat = fs.slice(); sc.groups.forEach((g, i) => g.files.forEach(f => { if (f.group == null) { f.group = i; flat.push(f); } })); return { files: flat, groups: sc.groups, notLive: sc.notLive, other: sc.other, partial: sc.partial, unfinished: sc.unfinished, overview: null }; };
+  const m = F.mergeClientLists([await part(a), await part(b)]);
+  assert.deepStrictEqual(m.groups.map(g => g.name).sort(), ['BR Legacy Plan - 3322110', 'BR Personal Covers - 811234567', 'Coronation RA - 458899', 'Discovery Life - 8877665 - (Paid up)', 'Mom Endowment - 03112233445 - (Linked to PK)', 'Old Mutual TFSA - 5544332', 'Zed Invest - 1122334'], 'each folder once; the one only the second place has is added');
+  m.groups.forEach((g, i) => g.files.forEach(f => assert.strictEqual(m.files.indexOf(f) >= 0 && f.group, i, g.name + ': ' + f.name + ' is in the list and its group index points at its own group')));
+  assert.ok(m.files.every(f => f.group == null || (f.group >= 0 && f.group < m.groups.length)), 'no file points at a group that is not there');
+  const br = m.groups.filter(g => g.name.indexOf('BR Personal') === 0)[0]; assert.strictEqual(br.files.filter(f => f.name === 'Policy Schedule.pdf').length, 2, 'the first place\'s files (2025 and 2026), not doubled by the second');
+  assert.ok(m.groups.filter(g => g.name.indexOf('Zed') === 0)[0].files.length === 1);
+  assert.deepStrictEqual(m.notLive.map(x => x.name).sort(), ['OM Optimal RA - 99001122 - (Cancelled)', 'San Invest - 0556677 - (Transfered)']); assert.deepStrictEqual(m.other, ['View Family']);
+});
+
 /* ---------- 6. the three sources ---------- */
 test('the comparison: matched by number, matched by insurer, the page does not guess between several, a folder with no Fact Find item, a Fact Find item with no folder, a not-live folder', () => {
   const it = (kind, who, product, no, extra) => Object.assign({ kind, who, product: product || '', no: no || '' }, extra || {});
@@ -172,19 +188,19 @@ test('the comparison: matched by number, matched by insurer, the page does not g
   assert.deepStrictEqual(r.ffNotLive.map(x => [x.item.who, x.folder.name]), [['Sanlam', 'San Invest - 0556677 - (Transfered)']], 'the Fact Find lists a policy whose only folder says Transferred: shown, not hidden');
   assert.deepStrictEqual(r.priorOnly.map(x => x.who), ['Sygnia'], 'in the last overview only');
   const unread = F.comparePolicies(live, dead, { read: false, items: [] }, null); assert.ok(unread.live.every(x => x.ff === 'unknown') && unread.ffOnly.length === 0, 'with no Fact Find read into this overview nothing is claimed about it');
-  const leg = F.comparePolicies([G('Capital Legacy Plan - 44444444')], [], { read: true, items: [it('policies', 'Capital Legacy', 'legacy', '', { legacy: true })] }, null); assert.strictEqual(leg.live[0].ff, 'name', 'the legacy protection plan of block 11 is matched by its product word');
+  const leg = F.comparePolicies([G('Capital Legacy Plan - 44444444'), G('Sanlam Provident - 5566778')], [], { read: true, items: [it('policies', 'Sanlam', 'Life'), it('investments', 'Sanlam', 'RA')] }, null);
+  assert.deepStrictEqual(leg.live.map(x => x.ff), ['elsewhere', 'elsewhere'], 'a legacy plan and a provident fund are kept in other blocks: no claim is made about them, and the Fact Find\'s Sanlam items are not called unmatched because of them'); assert.deepStrictEqual(leg.ffOnly.map(x => x.who), ['Sanlam', 'Sanlam'], 'the Sanlam items have no (comparable) folder, which is true');
   const nums = F.comparePolicies([G('Mom Endowment - 03112233445')], [], { read: true, items: [it('investments', 'Momentum', 'RA', '3112233445'), it('investments', 'Momentum', 'Tax Free', '')] }, null); assert.deepStrictEqual([nums.live[0].ff], ['number'], 'a number matches whatever the leading zeros and spaces');
 });
 
-test('the items an overview offers the comparison: block 1, block 6, the provident and pension funds of the group block, the legacy plan of block 11; a removed one never', () => {
+test('the items an overview offers the comparison: block 1 and block 6 only (not the provident funds of the group block, not the legacy plan of block 11); a removed one never', () => {
   const s = store.blank(); const B = s.blocks;
   B.policies.items.push({ id: 'p1', insurer: 'BrightRock', product: 'Lifestyle', policyNo: '811234567', removed: false }, { id: 'p2', insurer: 'Gone', removed: true });
   B.investments.items.push({ id: 'i1', provider: 'Momentum', product: 'RA', policyNo: '', removed: false });
   B.group.items.push({ id: 'g1', kind: 'risk', provider: 'Risk Co', removed: false }, { id: 'g2', kind: 'provident', provider: 'Test Provident', removed: false });
   const leg = B.other.items.filter(x => x.key === 'legacy')[0]; if (leg) { leg.company = 'Capital Legacy'; leg.wr = true; }
   const items = docs.comparableItems(s);
-  assert.deepStrictEqual(items.filter(x => !x.legacy).map(x => [x.kind, x.who]), [['policies', 'BrightRock'], ['investments', 'Momentum'], ['investments', 'Test Provident']]);
-  if (leg) assert.ok(items.some(x => x.legacy && x.who === 'Capital Legacy'));
+  assert.deepStrictEqual(items.map(x => [x.kind, x.who]), [['policies', 'BrightRock'], ['investments', 'Momentum']], 'only blocks 1 and 6: the provident fund (Group benefits) and the legacy plan (block 11) have no row a statement of a policy folder could fill');
   assert.deepStrictEqual(docs.comparableItems(null), []);
 });
 
@@ -224,7 +240,7 @@ test('two policy folders may both hold "Policy Schedule.pdf": the View button of
 test('the page is 1.5, the layout stays 0.1, no key is added, the pick list is grouped per policy folder, a file carries its folder and block, and the changed scripts have new tags', () => {
   assert.strictEqual(schema.pageVersion, '1.5'); assert.strictEqual(schema.version, '0.1'); assert.ok(parseFloat(schema.pageVersion) > parseFloat('1.4'), 'compared as decimals');
   const ui = app('js/ov-ui.js'), fu = app('js/folders-ui.js'), html = app('overview.html');
-  assert.ok(/function pickList\(res, plan\)/.test(ui) && /class="pkh"/.test(ui) && /function tickPlan\(res\)/.test(ui) && /F\.keyedNewest|FF\.folders/.test(ui), 'the grouped list and what is ticked');
+  assert.ok(/function pickList\(res, plan\)/.test(ui) && /class="pkh"/.test(ui) && /function tickPlan\(res, plan\)/.test(ui) && /F\.keyedNewest|FF\.folders/.test(ui), 'the grouped list and what is ticked');
   assert.ok(/file\.wrDir = /.test(ui) && /file\.wrBlock = g\.block/.test(ui) && /wrGroup/.test(ui) && /o\.block \|\| file\.wrBlock \|\| \(cls && cls\.block\)/.test(ui), 'a file carries where it was found and the block its policy folder says');
   assert.ok(/function uniqueFiles/.test(ui) && /grp \? dir/.test(ui), 'two files with one name in two policy folders are not one file');
   assert.ok(/async function listClient\(client, T\)/.test(fu) && /F\.policyScan\(client, \{ sink: sink, ms: T\.walk, perFolder: T\.policyFolder \}\)/.test(fu) && /race\(F\.policyScan/.test(fu) && /F\.latestOverview/.test(fu), 'the policy scan runs within the walk limit and hands back what it found');

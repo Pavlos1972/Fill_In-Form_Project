@@ -384,6 +384,7 @@
     out.product = out.product.replace(/(^|[^A-Za-z])(transfer+ed|cancel+ed|lapsed|linked to pk)(?![A-Za-z])/gi, ' ').replace(/\s+/g, ' ').trim();
     var pn = norm(out.product);
     out.kind = INV_RE.test(pn) ? 'investments' : POL_RE.test(pn) ? 'policies' : (INS_KIND[out.insurer] || '');
+    out.special = /legacy/.test(pn) ? 'legacy' : /provident|pension|preservation/.test(pn) ? 'group' : '';          // these two live in another block of the overview (block 11; Group benefits), where the page has no row for a statement to fill: they are listed, not ticked, not compared
     out.policy = !!(out.insurer || out.kind || out.number);
     return out;
   }
@@ -410,7 +411,8 @@
   }
   /* Of some files, the NEWEST (by dateKey; a tie on the date goes to the one whose name says summary, schedule or statement; a tie that is still a tie is SAID and nothing is picked: tied lists them). Returns { file, tie, tied }. */
   function newestOf(files) {
-    var c = (files || []).filter(function (f) { return f && f.role !== 'manual'; }).map(function (f) { var k = f.key || dateKey(f.name, f.rel); return { f: f, s: k.sort, w: /summary|schedule|statement/.test(norm(f.name)) ? 2 : 1 }; });
+    var c = (files || []).filter(function (f) { return f && f.role !== 'manual'; }).map(function (f) { var k = f.key || dateKey(f.name, f.rel); return { f: f, s: k.sort, w: /summary|schedule|statement/.test(norm(f.name)) ? 2 : 1, strong: SCHEDULE_NAME.test(norm(f.name)) }; });
+    if (c.some(function (x) { return x.strong; })) c = c.filter(function (x) { return x.strong; });                  // a file whose name says schedule, summary, statement, policy ... is chosen before one that says nothing (a letter of 2026 is not a newer schedule than the schedule of 2025)
     if (!c.length) return { file: null, tie: false, tied: [] };
     c.sort(function (a, b) { return b.s - a.s || b.w - a.w; });
     var top = c[0], tied = c.filter(function (x) { return x.s === top.s && x.w === top.w; });
@@ -499,10 +501,10 @@
     var fitems = (ff && ff.items) || [], pitems = (prior && prior.items) || [];
     function kindOk(it, fk) { return !fk || it.kind === fk; }
     function sameIns(it, p) { var c = canonInsurer(it.who); return !!c && c === p.insurer; }
-    function isLegacy(p) { return /legacy/.test(norm(p.product)); }
     function claimIn(items, list, rows, byNoToo) {                                       // returns nothing; fills rows[i].{ff|prior} and the claimed set
       var claimed = new Set(), res = rows;
       list.forEach(function (f, i) {                                                     // 1. the policy number
+        if (f.p.special) { res[i] = { how: 'elsewhere', item: null, n: 0 }; return; }
         var k = numKey(f.p.number); if (k.length < 5) return;
         var hit = items.filter(function (it) { return !claimed.has(it) && numKey(it.no) === k; });
         if (hit.length === 1) { claimed.add(hit[0]); res[i] = { how: 'number', item: hit[0], n: 1 }; }
@@ -510,7 +512,6 @@
       [true, false].forEach(function (liveFirst) {                                       // 2. the insurer and the kind: live folders first, a not-live one only for an item no live folder wants
         list.forEach(function (f, i) {
           if (res[i] || f.live !== liveFirst) return;
-          if (isLegacy(f.p)) { var lg = items.filter(function (it) { return it.legacy && !claimed.has(it); }); if (lg.length === 1) { claimed.add(lg[0]); res[i] = { how: 'name', item: lg[0], n: 1 }; return; } }
           if (!f.p.insurer) { res[i] = { how: 'unclear', item: null, n: 0 }; return; }
           var cands = items.filter(function (it) { return !claimed.has(it) && !it.legacy && kindOk(it, f.p.kind) && sameIns(it, f.p); });
           var peers = list.filter(function (g, j) { return !res[j] && g.live === f.live && g.p.insurer === f.p.insurer && (!g.p.kind || !f.p.kind || g.p.kind === f.p.kind); }).length;
@@ -525,9 +526,10 @@
     var fr = [], pr = [], fclaim = claimIn(fitems, list, fr), pclaim = claimIn(pitems, list, pr);
     var rows = list.map(function (f, i) {
       var a = fr[i] || { how: 'none', item: null, n: 0 }, b = pr[i];
+      if (f.p.special) return { ff: 'elsewhere', item: null, n: 0, prior: '' };                                     // provident, pension and legacy plans are kept in other blocks: not compared here
       return { ff: ff && ff.read ? a.how : 'unknown', item: a.item, n: a.n, prior: prior ? (b && (b.how === 'number' || b.how === 'name') ? b.how : b && b.how === 'maybe' ? 'maybe' : '') : '' };
     });
-    function hasFolder(it) { return list.some(function (f) { return (numKey(f.p.number).length >= 5 && numKey(f.p.number) === numKey(it.no)) || (f.p.insurer && sameIns(it, f.p) && kindOk(it, f.p.kind)) || (it.legacy && isLegacy(f.p)); }); }
+    function hasFolder(it) { return list.some(function (f) { return !f.p.special && ((numKey(f.p.number).length >= 5 && numKey(f.p.number) === numKey(it.no)) || (f.p.insurer && sameIns(it, f.p) && kindOk(it, f.p.kind))); }); }
     var ffOnly = ff && ff.read ? fitems.filter(function (it) { return !fclaim.has(it) && !hasFolder(it); }) : [];
     var ffNotLive = [];
     list.forEach(function (f, i) { if (!f.live && fr[i] && fr[i].item && ff && ff.read) ffNotLive.push({ item: fr[i].item, folder: notLive[i - groups.length] }); });
@@ -535,6 +537,21 @@
     return { live: rows.slice(0, groups.length), notLive: rows.slice(groups.length), ffOnly: ffOnly, ffNotLive: ffNotLive, priorOnly: priorOnly };
   }
 
+  /* The lists of several client folders (the same client in New Business and in Client Files) as ONE: a policy folder of the same name is kept once (the first: New Business is searched first), its files with it; not-live and other folders likewise.
+     parts: [{ files, groups, notLive, other, partial, docsPartial, unfinished, overview }]. Every file that belongs to a group has its group index moved to the merged list. */
+  function mergeClientLists(parts) {
+    var out = { files: [], groups: [], notLive: [], other: [], partial: false, docsPartial: false, unfinished: [], overview: null }, seen = {}, nl = {}, ot = {}, un = {};
+    (parts || []).forEach(function (one) {
+      var map = {};
+      (one.groups || []).forEach(function (g, i) { var k = norm(g.name); if (seen[k]) map[i] = -1; else { seen[k] = 1; map[i] = out.groups.length; out.groups.push(g); } });
+      (one.files || []).forEach(function (f) { if (f.group != null) { if (map[f.group] == null || map[f.group] < 0) return; f.group = map[f.group]; } out.files.push(f); });
+      (one.notLive || []).forEach(function (x) { var k = norm(x.name); if (!nl[k]) { nl[k] = 1; out.notLive.push(x); } });
+      (one.other || []).forEach(function (n) { var k = norm(n); if (!ot[k]) { ot[k] = 1; out.other.push(n); } });
+      (one.unfinished || []).forEach(function (n) { var k = norm(n); if (!un[k]) { un[k] = 1; out.unfinished.push(n); } });
+      out.partial = out.partial || !!one.partial; out.docsPartial = out.docsPartial || !!one.docsPartial; out.overview = out.overview || one.overview || null;
+    });
+    return out;
+  }
   /* The client's latest overview, for the comparison: the files of `1. Overview` and its newest three year folders; the newest .json is the one that is read, a PDF alone is only noticed. Only reads. Returns null (no overview folder) or { json, pdf, count } (each { name, rel, handle } or null). */
   async function latestOverview(client) {
     var kids = await listDirs(client.handle), ov = kids.filter(function (k) { return RULES.overview.test(norm(k.name)); })[0]; if (!ov) return null;
@@ -630,7 +647,7 @@
   return {
     MAX_PATH: MAX_PATH, SWAP: SWAP, RULES: RULES, ALIASES: ALIASES, norm: norm, tokens: tokens, clientFolderName: clientFolderName, parseClient: parseClient, clientMatches: clientMatches, letterOf: letterOf, letterFolder: letterFolder,
     isLetterFolder: isLetterFolder, isStandard: isStandard, nameIs: nameIs, insurerWords: insurerWords, productWords: productWords, numbersIn: numbersIn, hasWord: hasWord, scoreDeal: scoreDeal, chooseDeal: chooseDeal, pathCheck: pathCheck, tooLongText: tooLongText,
-    comparePolicies: comparePolicies, keyedNewest: keyedNewest, parsePolicyFolder: parsePolicyFolder, policyFolders: policyFolders, policyScan: policyScan, joinSchedules: joinSchedules, latestOverview: latestOverview, dateKey: dateKey, newestOf: newestOf, isManual: isManual, canonInsurer: canonInsurer, numKey: numKey, FOLDER_INSURERS: FOLDER_INSURERS,
+    comparePolicies: comparePolicies, mergeClientLists: mergeClientLists, keyedNewest: keyedNewest, parsePolicyFolder: parsePolicyFolder, policyFolders: policyFolders, policyScan: policyScan, joinSchedules: joinSchedules, latestOverview: latestOverview, dateKey: dateKey, newestOf: newestOf, isManual: isManual, canonInsurer: canonInsurer, numKey: numKey, FOLDER_INSURERS: FOLDER_INSURERS,
     listDirs: listDirs, clientSubfolder: clientSubfolder, findFiles: findFiles, viewableFiles: viewableFiles, findClients: findClients, clientFromFile: clientFromFile, dirOfFile: dirOfFile, dealCandidates: dealCandidates, resolveTarget: resolveTarget, factFindCandidates: factFindCandidates, resolveFactFind: resolveFactFind, overviewCandidate: overviewCandidate, clientDocuments: clientDocuments, counterOfferDocuments: counterOfferDocuments, resolveOverview: resolveOverview, ensureOverview: ensureOverview, relOf: relOf, labelOf: labelOf, probeFile: probeFile, makeFile: makeFile, discardEmpty: discardEmpty,
     saveHandle: saveHandle, loadHandle: loadHandle, getPaths: getPaths, setPath: setPath, permission: permission, enabled: enabled
   };

@@ -43,14 +43,12 @@
     }
     return block ? { block: block, number: number, date: date, label: BLOCK_LABEL[block] } : null;
   }
-  /* The items of an overview (this one, or a saved one read from its .json) the policy folders are compared with: current policies (block 1), current investments (block 6), the provident and pension funds of the group block, and the legacy protection plan of block 11.
-     Returns [{ kind: 'policies' | 'investments', who, product, no, legacy, ref }]. */
+  /* The items of an overview (this one, or a saved one read from its .json) the policy folders are compared with: current policies (block 1) and current investments (block 6). The provident and pension funds of the group block and the legacy protection plan of block 11
+     are not here: a statement for them has no row in these blocks to fill, so their folders are listed and not compared (round 1.5). Returns [{ kind: 'policies' | 'investments', who, product, no, ref }]. */
   function comparableItems(st) {
     var B = (st && st.blocks) || {}, out = [], list = function (b) { return (B[b] && B[b].items) || []; };
     list('policies').forEach(function (i) { if (i && !i.removed) out.push({ kind: 'policies', who: String(i.insurer || ''), product: String(i.product || ''), no: String(i.policyNo || ''), ref: i }); });
     list('investments').forEach(function (i) { if (i && !i.removed) out.push({ kind: 'investments', who: String(i.provider || ''), product: String(i.product || ''), no: String(i.policyNo || ''), ref: i }); });
-    list('group').forEach(function (i) { if (i && !i.removed && /provident|pension/.test(String(i.kind || ''))) out.push({ kind: 'investments', who: String(i.provider || ''), product: String(i.kind || ''), no: '', ref: i }); });
-    list('other').forEach(function (i) { if (i && i.key === 'legacy' && (String(i.company || '').trim() || i.wr)) out.push({ kind: 'policies', who: String(i.company || ''), product: 'legacy', no: String(i.policyNo || ''), legacy: true, ref: i }); });
     return out;
   }
 

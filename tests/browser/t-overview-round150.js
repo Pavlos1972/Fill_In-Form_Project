@@ -30,20 +30,24 @@ const TREE = {
       'Coronation RA - 458899': { '2025': { 'Statement 31.12.25.pdf': one('Coronation statement 31.12.25') }, '2026': { 'Statement 31.03.26.pdf': one('Coronation statement 31.03.26'), 'Policy Schedule.pdf': one('Coronation policy schedule 458899') }, 'Comparative Quotes': { '2024 Investment.pdf': one('Comparative investment 2024') } },
       'Mom Endowment - 03112233445 - (Linked to PK)': { 'Policy Schedules': { '2026': { 'Mom Schedule.pdf': one('Momentum schedule 03112233445') } } },
       'San Invest - 0556677 - (Transfered)': { 'Policy Schedules': { 'San Schedule.pdf': one('Sanlam schedule transferred') } },
-      'Old Mutual TFSA - 5544332': { 'Applications': { 'TFSA Application.pdf': one('TFSA application') } },
+      'Old Mutual TFSA - 5544332': { 'Policy Schedules': { '2026': { 'TFSA Schedule.pdf': one('Old Mutual TFSA schedule 5544332') } }, 'Applications': { 'TFSA Application.pdf': one('TFSA application') } },
+      'Prudential Invest - 7788990': { 'Applications': { 'Invest Application.pdf': one('Invest application') } },
+      'Capital Legacy Plan - 6677889': { 'Policy Schedules': { '2026': { 'Legacy Schedule.pdf': one('Capital Legacy schedule 6677889') } } },
+      'Sanlam Provident - 9911223': { '2026': { 'Provident Statement 31.03.26.pdf': one('Sanlam provident statement 9911223') } },
       'View Family': { 'Photo.pdf': one('Photo') } }, '1. ON HOLD': {}, '2. Awaiting compliance from client': {} },
   CF: { 'T - Files': {} }
 };
 const v = x => ({ v: x });
 const FFJ = { app: 'wr-fact-find', schema: '5.5', f: { fname: v('Dora'), sname: v('Test'), net: v('R 90 000.00'), ip_age: v('65'), date: v('20/11/2026') },
   l: { kids: [], debts: [], risk: [{ d: { prov: 'BrightRock', spend: 'R 2 000.00', broker: 'Paul K' } }],
-    ret_ra: [{ d: { prov: 'Momentum', status: 'Current', val: 'R 200 000.00', contrib: 'R 1 000.00', broker: 'Paul K' } }, { d: { prov: 'Sanlam', status: 'Current', val: 'R 50 000.00', contrib: 'R 500.00', broker: 'Other broker' } }],
-    inv: [{ d: { type: 'Tax-free investment', prov: 'Allan Gray', val: 'R 80 000.00', prem: 'R 1 000.00', broker: 'Paul K' } }] } };
+    ret_ra: [{ d: { prov: 'Momentum', status: 'Current', val: 'R 200 000.00', contrib: 'R 1 000.00', broker: 'Paul K' } }, { d: { prov: 'Old Mutual', status: 'Current', val: 'R 90 000.00', contrib: 'R 900.00', broker: 'Paul K' } }, { d: { prov: 'Sanlam', status: 'Current', val: 'R 50 000.00', contrib: 'R 500.00', broker: 'Other broker' } }],
+    inv: [{ d: { type: 'Tax-free investment', prov: 'Allan Gray', val: 'R 80 000.00', prem: 'R 1 000.00', broker: 'Paul K' } }, { d: { type: 'Tax-free investment', prov: 'Old Mutual', val: 'R 60 000.00', prem: 'R 800.00', broker: 'Paul K' } }] } };
 const READ = {
   'BrightRock policy schedule 811234567 dated 2026': { insurer: 'BrightRock', product: 'Personal Covers', policyNo: '811234567', premium: 2000, lines: [{ type: 'household', life: { lump: 2000000 } }] },
   'Momentum schedule 03112233445': { provider: 'Momentum', product: 'Retirement annuity', policyNo: '03112233445', gross: 250000, valueDate: '31/03/2026', valueKind: 'schedule' },
   'Coronation statement 31.03.26': { provider: 'Coronation', product: 'RA', policyNo: '458899', gross: 100000, valueDate: '31/03/2026', valueKind: 'schedule' },
   'Coronation policy schedule 458899': { provider: 'Coronation', product: 'RA', policyNo: '458899', gross: 99000, valueDate: '01/01/2026', valueKind: 'schedule' },
+  'Old Mutual TFSA schedule 5544332': { provider: 'Old Mutual', product: 'Tax-free investment', policyNo: '5544332', gross: 70000, valueDate: '31/03/2026', valueKind: 'schedule' },
   'Astute report 20.11.26': { reportDate: '20/11/2026', policies: [], investments: [], group: [] }
 };
 
@@ -106,30 +110,35 @@ srv.listen(0, async () => {
   let p = await fresh();
   await p.click('#btnReadFolder'); await p.waitForSelector('dialog.fdlg[open] .flist .pkh');
   const L = await dialog(p), G = n => L.rows.filter(r => L.heads.indexOf(r.g) >= 0 && r.g.indexOf(n) === 0), onOf = (rows, s) => rows.filter(r => r.t.indexOf(s) >= 0)[0];
-  ok(['BR Personal Covers - 811234567', 'Coronation RA - 458899', 'Mom Endowment - 03112233445 - (Linked to PK)', 'Old Mutual TFSA - 5544332', 'Other documents'].every(h => L.heads.indexOf(h) >= 0) && L.heads.length === 5, '1. one heading per live policy folder, and "Other documents": ' + L.heads.join(' | '));
+  ok(['BR Personal Covers - 811234567', 'Coronation RA - 458899', 'Mom Endowment - 03112233445 - (Linked to PK)', 'Old Mutual TFSA - 5544332', 'Prudential Invest - 7788990', 'Capital Legacy Plan - 6677889', 'Sanlam Provident - 9911223', 'Other documents'].every(h => L.heads.indexOf(h) >= 0) && L.heads.length === 8, '1. one heading per live policy folder, and "Other documents": ' + L.heads.join(' | '));
   ok(!L.heads.some(h => /San Invest|View Family/.test(h)) && !L.rows.some(r => /San Schedule|Photo|Application|Claim|Acceptance|Manual/.test(r.t)), '1. a transferred folder, a folder that is not a policy folder, Applications, Claims, an Acceptance Letter and the owner\'s manual are not in the list');
   const br = G('BR Personal Covers');
   ok(br.length === 3 && br.filter(r => /Policy Schedule\.pdf/.test(r.t)).length === 2, '1. the BrightRock folder lists BOTH files named Policy Schedule.pdf (2025 and 2026) and the 2025 summary of 6. Policy Schedules: ' + br.map(r => r.t.slice(0, 60)).join(' | '));
   ok(br.filter(r => r.on).length === 1 && /2026 \\ Policy Schedule\.pdf \(newest: Current policies\)/.test(br.filter(r => r.on)[0].t) && br.filter(r => !r.on).every(r => /older/.test(r.t)), '1. only the NEWEST one (the 2026 schedule) is ticked, the others say older: ' + br.map(r => (r.on ? '[x] ' : '[ ] ') + r.t.slice(0, 70)).join(' | '));
   const n91 = G('Coronation RA');
-  ok(onOf(n91, 'Statement 31.03.26') && onOf(n91, 'Statement 31.03.26').on && /newest: Current investments/.test(onOf(n91, 'Statement 31.03.26').t) && !onOf(n91, 'Statement 31.12.25').on && !onOf(n91, 'Policy Schedule.pdf').on, '1. Coronation: the 2026 statement is ticked and labelled Current investments (its folder says RA), the 2025 one and the other 2026 file are not');
+  ok(onOf(n91, 'Statement 31.03.26') && !onOf(n91, 'Statement 31.03.26').on && /newest: Current investments; not ticked: the Fact Find does not list this policy/.test(onOf(n91, 'Statement 31.03.26').t) && !onOf(n91, 'Statement 31.12.25').on && !onOf(n91, 'Policy Schedule.pdf').on, '1. Coronation (a folder the Fact Find does not list): its 2026 statement is the newest but is NOT ticked, because the page would read it and then refuse it: ' + (onOf(n91, 'Statement 31.03.26') || {}).t);
   ok(G('Mom Endowment').length === 1 && G('Mom Endowment')[0].on && /newest: Current investments/.test(G('Mom Endowment')[0].t), '1. Momentum (Linked to PK) is live: its schedule is ticked and is a CURRENT INVESTMENT because the folder is an RA, whatever the file\'s name says');
-  ok(G('Old Mutual TFSA').length === 0, '1. the folder with only Applications has no file');
+  ok(G('Prudential Invest').length === 0, '1. the folder with only Applications has no file');
+  const omr = G('Old Mutual TFSA'); ok(omr.length === 1 && omr[0].on && /newest: Current investments/.test(omr[0].t), '1. Old Mutual TFSA: the Fact Find lists TWO Old Mutual items, so the page does not pair them, and the newest schedule IS ticked (the reading may still tell them apart by its premium)');
+  const lgr = G('Capital Legacy Plan'), pvr = G('Sanlam Provident');
+  ok(lgr.length === 1 && !lgr[0].on && /not ticked: the legacy plan is filled from its own button/.test(lgr[0].t) && pvr.length === 1 && !pvr[0].on && /not ticked: a provident or pension fund is filled from the Group benefits block/.test(pvr[0].t), '1. a legacy plan and a provident fund are listed, NOT ticked, and say where they are filled in: ' + [lgr[0] && lgr[0].t, pvr[0] && pvr[0].t].join(' | ').slice(0, 260));
   const oth = L.rows.filter(r => L.heads.indexOf(r.g) >= 0 && r.g === 'Other documents'), cq = onOf(oth, '2024 Investment.pdf');
   ok(cq && /Comparative quote/.test(cq.t) && !/Current investments/.test(cq.t), '1. the 2024 comparative quote inside the Coronation folder is a COMPARATIVE QUOTE, not Current investments: ' + (cq && cq.t));
   ok(onOf(oth, 'Astute Report - 20.11.26') && onOf(oth, 'Astute Report - 20.11.26').on, '1. the Astute report is still listed and ticked, as before');
   ok(L.chips['BR Personal Covers - 811234567'].some(c => /In the Fact Find$/.test(c)) && L.chips['BR Personal Covers - 811234567'].some(c => /In the last overview/.test(c)), '1. chips for the BrightRock folder: ' + L.chips['BR Personal Covers - 811234567'].join(' / '));
   ok(L.chips['Coronation RA - 458899'].some(c => /In a folder, but not in the Fact Find/.test(c)) && L.chips['Coronation RA - 458899'].some(c => /Not in the last overview/.test(c)), '1. Coronation is in a folder but not in the Fact Find: ' + L.chips['Coronation RA - 458899'].join(' / '));
   ok(L.chips['Mom Endowment - 03112233445 - (Linked to PK)'].some(c => /Linked to PK/.test(c)) && L.chips['Mom Endowment - 03112233445 - (Linked to PK)'].some(c => /In the Fact Find$/.test(c)), '1. Momentum: Linked to PK, in the Fact Find');
-  ok(L.chips['Old Mutual TFSA - 5544332'].some(c => /No schedule or statement found/.test(c)), '1. the TFSA folder says no schedule or statement was found');
+  ok(L.chips['Prudential Invest - 7788990'].some(c => /No schedule or statement found/.test(c)) && L.chips['Prudential Invest - 7788990'].some(c => /In a folder, but not in the Fact Find/.test(c)), '1. the Prudential folder says no schedule or statement was found: ' + L.chips['Prudential Invest - 7788990'].join(' / '));
+  ok(L.chips['Old Mutual TFSA - 5544332'].some(c => /The Fact Find lists 2 of this insurer: the page cannot tell which this is/.test(c)) && L.chips['Capital Legacy Plan - 6677889'].some(c => /Kept in another block/.test(c)) && L.chips['Sanlam Provident - 9911223'].some(c => /Kept in another block/.test(c)) && !L.chips['Capital Legacy Plan - 6677889'].some(c => /In the Fact Find|not in the Fact Find/.test(c)), '1. two Old Mutual items: not paired; legacy and provident: kept in another block, no claim about the Fact Find');
   const N = L.notes.join(' || ');
   ok(/In the Fact Find, but no policy folder was found for: Allan Gray/.test(N) && /Sanlam.*its folder .San Invest - 0556677 - \(Transfered\). is not live/.test(N) && /In the last overview only.*Sygnia/.test(N) && /Not live, so not looked into: San Invest - 0556677 - \(Transfered\)/.test(N) && /not policy folders, not looked into: View Family/.test(N), '1. the notes: ' + N);
   await p.screenshot({ path: out + '/r15-list.png' });
   /* ---- 2. load: the ticked ones are read, with the block their folder says; two files with one name are both read ---- */
   await p.evaluate(() => { const d = document.querySelector('dialog.fdlg[open]'); [...d.querySelectorAll('label')].forEach(l => { if (/Coronation RA - 458899|Policy Schedule\.pdf/.test(l.textContent) && /Policy Schedule\.pdf/.test(l.textContent) && l.closest('.flist') && /2026 \\ Policy Schedule\.pdf \(older/.test(l.textContent.replace(/\s+/g, ' '))) l.querySelector('input').checked = true; }); });
   await p.click('dialog.fdlg [data-yes]'); await waitDone(p); await p.waitForTimeout(800);
-  const api = await p.evaluate(() => window.__api.map(t => (/(BrightRock policy schedule 811234567 dated \d+|BrightRock policy summary|Coronation statement [\d.]+|Coronation policy schedule|Momentum schedule|Astute report [\d.]+|Sanlam schedule|owners manual|Acceptance letter|Comparative investment)/.exec(t) || ['?'])[0]));
-  ok(['BrightRock policy schedule 811234567 dated 2026', 'Coronation statement 31.03.26', 'Momentum schedule', 'Astute report 20.11.26'].every(x => api.indexOf(x) >= 0), '2. the ticked files were read: ' + api.join(', '));
+  const api = await p.evaluate(() => window.__api.map(t => (/(BrightRock policy schedule 811234567 dated \d+|BrightRock policy summary|Coronation statement [\d.]+|Coronation policy schedule|Momentum schedule|Old Mutual TFSA schedule|Capital Legacy schedule|Sanlam provident statement|Astute report [\d.]+|Sanlam schedule|owners manual|Acceptance letter|Comparative investment)/.exec(t) || ['?'])[0]));
+  ok(['BrightRock policy schedule 811234567 dated 2026', 'Momentum schedule', 'Old Mutual TFSA schedule', 'Astute report 20.11.26'].every(x => api.indexOf(x) >= 0), '2. the ticked files were read: ' + api.join(', '));
+  ok(api.indexOf('Coronation statement 31.03.26') < 0 && api.indexOf('Capital Legacy schedule') < 0 && api.indexOf('Sanlam provident statement') < 0, '2. the files that were not ticked (a policy the Fact Find does not list, a legacy plan, a provident fund) were not sent to Anthropic');
   ok(api.indexOf('Coronation policy schedule') >= 0, '2. the second file named Policy Schedule.pdf (in the Coronation folder, ticked by hand) was read too, not dropped as a copy of the BrightRock one');
   ok(!api.some(x => /dated 2025|summary|owners manual|Acceptance|Sanlam|statement 31\.12/.test(x)), '2. the older files, the owner\'s manual, the acceptance letter and the transferred folder were NOT read: ' + api.join(', '));
   const S = await p.evaluate(() => OV.app.state), pols = S.blocks.policies.items, invs = S.blocks.investments.items;
@@ -138,7 +147,9 @@ srv.listen(0, async () => {
   ok(brp && brp.policyNo === '811234567' && brp.product === 'Personal Covers' && brp.src.file === 'Policy Schedule.pdf', '2. the BrightRock policy was filled from its 2026 schedule: ' + (brp && [brp.policyNo, brp.product, brp.src && brp.src.file].join(', ')));
   ok(api.indexOf('Comparative investment') >= 0 && !invs.some(i => /Comparative/.test(JSON.stringify(i))) && S.blocks.comparative.quotes.length === 1, '2. the 2024 comparative quote is ticked as before and went into COMPARATIVE QUOTES, not into Current investments: ' + S.blocks.comparative.quotes.length + ' comparative quote(s)');
   const log = await p.evaluate(() => OV.app.lastLog().map(l => l.msg));
-  ok(log.some(m => /In the Fact Find, but no policy folder was found: Allan Gray/.test(m)) && log.some(m => /The Fact Find lists Sanlam.*is not live/.test(m)) && log.some(m => /In a folder but not in the Fact Find: Coronation RA - 458899/.test(m)) && log.some(m => /Old Mutual TFSA - 5544332: no schedule or statement was found/.test(m)), '2. what the folders said about the Fact Find is kept with the last load\'s messages: ' + log.filter(m => /Fact Find|folder|schedule or statement/.test(m)).map(m => m.slice(0, 60)).join(' | '));
+  ok(log.some(m => /Policy Schedule\.pdf: this document is for Coronation, which is not in the Fact Find/.test(m)), '2. the one Coronation file that was ticked by hand was read and then refused in plain words: ' + log.filter(m => /Coronation/.test(m)).map(m => m.slice(0, 110)).join(' | '));
+  ok(log.some(m => /TFSA Schedule\.pdf: more than one item could be this one \(Old Mutual/.test(m)) && S.blocks.investments.items.filter(i => i.provider === 'Old Mutual').every(i => i.gross !== 70000), '2. the Old Mutual schedule that could be either of two Fact Find items was NOT forced into one of them, and the load says so');
+  ok(log.some(m => /In the Fact Find, but no policy folder was found: Allan Gray/.test(m)) && log.some(m => /The Fact Find lists Sanlam.*is not live/.test(m)) && log.some(m => /In a folder but not in the Fact Find: Coronation RA - 458899/.test(m)) && log.some(m => /Prudential Invest - 7788990: no schedule or statement was found/.test(m)), '2. what the folders said about the Fact Find is kept with the last load\'s messages: ' + log.filter(m => /Fact Find|folder|schedule or statement/.test(m)).map(m => m.slice(0, 60)).join(' | '));
   ok(await p.evaluate(() => window.__writes) === 0, '2. nothing was created, written or removed in any folder (a counter on the browser\'s folder calls: ' + (await p.evaluate(() => window.__writes)) + ')');
   await p.close();
 
@@ -155,7 +166,7 @@ srv.listen(0, async () => {
   ok(P.heads.indexOf('BR Personal Covers - 811234567') >= 0 && P.heads.indexOf('Mom Endowment - 03112233445 - (Linked to PK)') >= 0 && P.heads.indexOf('Old Mutual TFSA - 5544332') >= 0, '3. every live folder is still named, also the ones not reached: ' + P.heads.join(' | '));
   ok(P.chips['Mom Endowment - 03112233445 - (Linked to PK)'].some(c => /Not \(fully\) read: the search ran out of time/.test(c)) && !P.chips['Mom Endowment - 03112233445 - (Linked to PK)'].some(c => /No schedule or statement found/.test(c)), '3. the folder that did not answer says it was not read, not "no schedule found": ' + P.chips['Mom Endowment - 03112233445 - (Linked to PK)'].join(' / '));
   ok(/The search of the policy folders did not finish.*not \(fully\) read: .*Mom Endowment - 03112233445 - \(Linked to PK\)/.test(PN), '3. a note names it: ' + PN.slice(0, 200));
-  ok(P.rows.some(r => /BR Personal Covers/.test(r.g) && r.on) && P.rows.some(r => /Coronation/.test(r.g) && r.on) && !/Not \(fully\) read/.test(P.chips['BR Personal Covers - 811234567'].join('/')), '3. the folders on both sides of the one that never answered were read, and their newest files are ticked: ' + P.rows.filter(r => r.on).map(r => r.g.slice(0, 12)).join(', '));
+  ok(P.rows.some(r => /BR Personal Covers/.test(r.g) && r.on) && P.rows.some(r => /Old Mutual TFSA/.test(r.g) && r.on) && !/Not \(fully\) read/.test(P.chips['BR Personal Covers - 811234567'].join('/')), '3. the folders on both sides of the one that never answered were read, and their newest files are ticked: ' + P.rows.filter(r => r.on).map(r => r.g.slice(0, 12)).join(', '));
   await p.screenshot({ path: out + '/r15-partial.png' });
   await p.click('dialog.fdlg [data-no]'); await p.waitForTimeout(300); await p.close();
 

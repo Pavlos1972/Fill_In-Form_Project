@@ -1218,13 +1218,13 @@
   }
   /* Which files are ticked (round 1.5). A policy folder's NEWEST schedule or statement is ticked (a tie, or a folder whose product the page cannot tell, ticks none and says so); an owner's manual never. Every other document is ticked by what its name says, as before,
      and of several schedules or statements of one policy (the same number in the name, else the same name with its dates taken out) only the newest. Returns { tick: [bool per file], tied: [[files]] }. */
-  function tickPlan(res) {
+  function tickPlan(res, plan) {
     var F = window.FF && FF.folders, tickFu = newestFollowUp(res.files), tickAs = newestAstute(res.files), groups = res.groups || [];
     var others = res.files.filter(function (f) { return f.group == null; });
     var keyOf = function (f) { var c = D.classify(f.name, (f.rel || []).join(' \\ ')); if (!c || (c.block !== 'policies' && c.block !== 'investments' && c.block !== 'group')) return null; var nk = F && F.numKey ? F.numKey(c.number) : c.number; return c.block + ':' + (nk && nk.length >= 5 ? nk : String(f.name).toLowerCase().replace(/\.[a-z0-9]{2,5}$/, '').replace(/[^a-z]+/g, ' ').trim()); };
     var kn = F && F.keyedNewest ? F.keyedNewest(others, keyOf) : { tick: new Map(), tied: [] };
     var tick = res.files.map(function (f) {
-      if (f.group != null) { var g = groups[f.group]; return !!(g && g.block && f.role !== 'manual' && g.pick && g.pick.file === f); }
+      if (f.group != null) { var g = groups[f.group], pr = plan && plan.live ? plan.live[f.group] : null; return !!(g && g.block && f.role !== 'manual' && g.pick && g.pick.file === f && !(pr && pr.ff === 'none')); }          // a policy the Fact Find does not list would be read and then refused (this page follows the Fact Find), so it is not ticked: the chip says why
       var c = D.classify(f.name, (f.rel || []).join(' \\ '));
       var base = !!(c && (c.block !== 'followup' || f === tickFu) && (c.block !== 'astute' || !tickAs.best || f === tickAs.best));
       return base && (!kn.tick.has(f) || kn.tick.get(f));
@@ -1240,10 +1240,11 @@
     if (row.ff === 'maybe') return { cls: '', text: 'The Fact Find lists ' + row.n + ' of this insurer: the page cannot tell which this is' };
     if (row.ff === 'none') return { cls: 'warn', text: 'In a folder, but not in the Fact Find' };
     if (row.ff === 'unclear') return { cls: '', text: 'The page cannot tell which insurer this folder is' };
+    if (row.ff === 'elsewhere') return { cls: '', text: 'Kept in another block (provident and pension funds: Group benefits; the legacy plan: Medical aid, will & short-term): listed here, not ticked and not compared' };
     return { cls: '', text: 'The Fact Find has not been read into this overview yet, so nothing is compared with it' };
   }
   function pickList(res, plan) {
-    var F = window.FF && FF.folders, groups = res.groups || [], tp = tickPlan(res), tick = tp.tick, prior = res.priorRead, rowOf = function (i) { return plan && plan.live ? plan.live[i] : null; };
+    var F = window.FF && FF.folders, groups = res.groups || [], tp = tickPlan(res, plan), tick = tp.tick, prior = res.priorRead, rowOf = function (i) { return plan && plan.live ? plan.live[i] : null; };
     var fileRow = function (f, i, label, cls, warn) {
       var shown = f.group != null ? (f.rel || []).slice(1).concat([f.name]).join(' \\ ') : (f.rel || []).concat([f.name]).join(' \\ ');
       return '<label' + (cls ? ' class="' + cls + '"' : '') + '><input type="checkbox" data-i="' + i + '"' + (tick[i] ? ' checked' : '') + '><span>' + esc(shown) + (label ? ' <i>(' + esc(label) + ')</i>' : '') + (warn ? ' <em class="pkw">' + esc(warn) + '</em>' : '') + '</span></label>';
@@ -1259,12 +1260,13 @@
       var sched = g.files.filter(function (f) { return f.role !== 'manual'; }), manual = g.files.filter(function (f) { return f.role === 'manual'; });
       if (!g.done) chips.push({ cls: 'warn', text: 'Not (fully) read: the search ran out of time' });
       else if (!sched.length) chips.push({ cls: 'warn', text: manual.length ? 'Only the owner’s manual was found' : 'No schedule or statement found' });
-      if (!g.block) chips.push({ cls: '', text: 'The page cannot tell if this is a policy or an investment: it will ask you what each file is' });
+      if (!g.block && !g.special) chips.push({ cls: '', text: 'The page cannot tell if this is a policy or an investment: it will ask you what each file is' });
       html += '<div class="pkh"><b>' + esc(g.name) + '</b>' + (g.block ? ' <span class="pkt">' + esc(label) + '</span>' : '') + chips.map(function (c) { return '<span class="pkc ' + c.cls + '">' + esc(c.text) + '</span>'; }).join('') + '</div>';
       var top = g.pick && g.pick.file;
       sched.slice().sort(function (a, b) { return (b.key ? b.key.sort : 0) - (a.key ? a.key.sort : 0) || (b.name < a.name ? -1 : 1); }).forEach(function (f) {
         var tied = g.pick && g.pick.tie && g.pick.tied.indexOf(f) >= 0;
-        html += fileRow(f, idx(f), f === top ? 'newest: ' + (label || 'schedule') : tied ? 'as recent as another file here: tick the one you want' : 'older', '', f.from ? 'found in ' + f.from : '');
+        var why = f === top && row && row.ff === 'none' ? 'not ticked: the Fact Find does not list this policy, so the page would not fill it in' : f === top && g.special ? 'not ticked: ' + (g.special === 'legacy' ? 'the legacy plan is filled from its own button in Medical aid, will & short-term' : 'a provident or pension fund is filled from the Group benefits block') : f === top && !g.block ? 'not ticked: tick it and the page will ask what it is' : '';
+        html += fileRow(f, idx(f), f === top ? 'newest' + (label ? ': ' + label : '') + (why ? '; ' + why : '') : tied ? 'as recent as another file here: tick the one you want' : 'older', '', f.from ? 'found in ' + f.from : '');
       });
       if (!sched.length && g.done) manual.forEach(function (f) { html += fileRow(f, idx(f), 'owner’s manual: last resort', 'pkm', 'This is the owner’s manual, not the policy schedule. Load it only if there is nothing else.'); });
     });
@@ -1389,6 +1391,7 @@
     }
     function showList(res, click) {
       res.files = uniqueFiles(res.files);
+      (res.groups || []).forEach(function (g) { g.files = g.files.filter(function (f) { return res.files.indexOf(f) >= 0; }); if (window.FF && FF.folders) g.pick = FF.folders.newestOf(g.files); });          // a copy that was dropped as a duplicate is not in its group either
       if (!res.files.length) { normal('No documents were found in ' + res.label + '.', click); return; }
       $('#toast').hidden = true; searching();
       if (OV.view && OV.view.seed) OV.view.seed(res.label, res.files);                                    // the View buttons use this list: no second walk of the folder

@@ -256,7 +256,7 @@
     if (docsPartial && !fs.length && !scan.groups.some(function (g) { return g.files.length; })) return { slow: true };                    // nothing at all came back: as before, the search failed (slow-list)
     F.joinSchedules(fs, scan.groups);
     var flat = fs.slice();
-    scan.groups.forEach(function (g, i) { g.files.forEach(function (f) { if (f.group == null) { f.group = i; flat.push(f); } }); g.block = g.p.kind === 'investments' ? 'investments' : g.p.kind === 'policies' ? 'policies' : ''; g.pick = F.newestOf(g.files); });
+    scan.groups.forEach(function (g, i) { g.files.forEach(function (f) { if (f.group == null) { f.group = i; flat.push(f); } }); g.special = g.p.special || ''; g.block = g.special ? '' : g.p.kind === 'investments' ? 'investments' : g.p.kind === 'policies' ? 'policies' : ''; g.pick = F.newestOf(g.files); });
     var ov = both[2] === SLOW ? null : both[2];
     return { files: flat, groups: scan.groups, notLive: scan.notLive, other: scan.other, partial: !!scan.partial, docsPartial: docsPartial, unfinished: scan.unfinished || [], overview: ov };
   }
@@ -271,13 +271,9 @@
     if (f.slow) return { reason: 'slow-find' };
     var clients = f.clients;
     if (!clients.length) return { reason: 'client', skipped: f.skipped };
-    say('list'); var out = { label: clients[0].parts.join(' \\ '), files: [], groups: [], notLive: [], other: [], partial: false, docsPartial: false, unfinished: [], overview: null, skipped: f.skipped };
-    for (var c = 0; c < clients.length; c++) {
-      var one = await listClient(clients[c], T); if (one.slow) return { reason: 'slow-list' };
-      var off = out.groups.length; one.files.forEach(function (x) { if (x.group != null) x.group += off; });
-      out.files = out.files.concat(one.files); out.groups = out.groups.concat(one.groups); out.notLive = out.notLive.concat(one.notLive); out.other = out.other.concat(one.other);
-      out.partial = out.partial || one.partial; out.docsPartial = out.docsPartial || one.docsPartial; out.unfinished = out.unfinished.concat(one.unfinished); out.overview = out.overview || one.overview;
-    }
+    say('list'); var parts = [];
+    for (var c = 0; c < clients.length; c++) { var one = await listClient(clients[c], T); if (one.slow) return { reason: 'slow-list' }; parts.push(one); }
+    var out = F.mergeClientLists(parts); out.label = clients[0].parts.join(' \\ '); out.skipped = f.skipped;                    // the same client in both places: a policy folder of the same name is listed once
     return out;
   }
   /* The counter offer files of the client (round 1.2): found like clientFiles (the same early start, the same limits), but the list is what is in the policy folders' "Counter Offer Letter" subfolders. Reads only. */
