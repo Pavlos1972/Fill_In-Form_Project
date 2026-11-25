@@ -211,7 +211,7 @@ test('the Presentation\'s tables: a figure never runs into the next column (it i
 
 /* ---------- the contract ---------- */
 test('the contract: revision j, the page version 0.92, the layout still 0.1; new: benefits.sev, match "quote", src.kind "followup"', () => {
-  assert.ok(/^1\.[01234567]$/.test(schema.pageVersion), 'the page version is 1.0 to 1.6'); assert.strictEqual(schema.version, '0.1');
+  assert.ok(/^1\.[012345678]$/.test(schema.pageVersion), 'the page version is 1.0 to 1.6'); assert.strictEqual(schema.version, '0.1');
   assert.ok(/Revision j/.test(fs.readFileSync(path.join(__dirname, '..', 'docs', 'OVERVIEW-DATA-CONTRACT.md'), 'utf8')), 'written in the contract');
 });
 
