@@ -29,7 +29,7 @@ const mkLetter = o => Object.assign({ originalNumber: '400500600', revisedNumber
 const problems = s => check.run(s, { ran: true, done: { fna: true } }).problems;
 
 test('the page is 1.3 (the layout stays 0.1), the changed scripts carry new tags', () => {
-  assert.ok(/^(1\.[3456789]|2\.0)$/.test(schema.pageVersion), 'the page is 1.3 or later'); assert.strictEqual(schema.version, '0.1'); assert.ok(parseFloat(schema.pageVersion) > parseFloat('1.2'), 'compared as decimals');
+  assert.ok(/^(1\.[3456789]|2\.[01])$/.test(schema.pageVersion), 'the page is 1.3 or later'); assert.strictEqual(schema.version, '0.1'); assert.ok(parseFloat(schema.pageVersion) > parseFloat('1.2'), 'compared as decimals');
   ['ov-schema', 'ov-calc', 'ov-docs', 'ov-check'].forEach(f => assert.ok(new RegExp(f + '\\.js\\?v=(?:20261124[n-z]|20261125[a-z])').test(app('overview.html')), f));
 });
 

@@ -488,7 +488,14 @@
     list.forEach(function (x) {
       if (x.kind === 'cmp') return;
       var g = gk(x), t = tail(x);
-      if (ruled(x)) { if ((x.y || 0) < maxY[g]) older.set(x.id, (x.y ? 'older year (' + x.y + '): not ticked, the newest is ' + maxY[g] : 'no year found in its folder or name, and ' + maxY[g] + ' exists: not ticked') + t); }
+      if (ruled(x)) {
+        if ((x.y || 0) < maxY[g]) older.set(x.id, (x.y ? 'older year (' + x.y + '): not ticked, the newest is ' + maxY[g] : 'no year found in its folder or name, and ' + maxY[g] + ' exists: not ticked') + t);
+        else if (/^sv/.test(x.kind) && dated[g]) {                                                           // round 2.1 (Paul: "newest only" for several servicing quotes of one kind on one policy): within the newest year, the newest date in the name
+          var inYear = dated[g].filter(function (y) { return (y.y || 0) >= maxY[g]; });
+          if (!x.ex) { if (inYear.length) older.set(x.id, 'no date in its name, and a dated one exists: not ticked' + t); }
+          else { var nw = inYear.filter(function (y) { return before(x.ex, y.ex); }); if (nw.length) older.set(x.id, 'older date (' + fmt(x.ex) + '): not ticked, the newest is ' + fmt(nw.reduce(function (m, y) { return y.ex > m ? y.ex : m; }, 0)) + t); }
+        }
+      }
       else if (x.kind !== 'comparative' && dated[g]) {
         if (!x.ex) older.set(x.id, 'no date in its name, and a dated one exists: not ticked' + t);
         else {
@@ -502,6 +509,16 @@
     list.forEach(function (x) { if (x.kind !== 'cmp' || !x.no || older.has(x.id)) return; if (oldNo[x.no] && !newNo[x.no]) older.set(x.id, 'the guide of an older quote: not ticked'); });
     return older;
   }
+  /* Round 2.1 (Paul, 25 November: the BrightRock naming guide puts " - SIGNED" at the end of a signed copy's name): which signed copies have their unsigned quote in the list. entries: [{ id, kind, signed, no, base }] (kind: the block of the document, no: its quote number or '',
+     base: its name without the word signed). Returns a Map id -> true (the unsigned copy of the same quote is there: the signed one is not ticked) or false (it is the ONLY copy: ticked and read as the quote). Only signed entries are in the Map. */
+  function signedTwins(entries) {
+    var out = new Map(), list = entries || [];
+    list.forEach(function (e) {
+      if (!e || !e.signed) return;
+      out.set(e.id, list.some(function (g) { return g !== e && g && !g.signed && g.kind === e.kind && (e.no ? g.no === e.no : g.base === e.base); }));
+    });
+    return out;
+  }
   var DOC_FILE = /\.(pdf|png|jpe?g)$/i;
   /* A file in a policy folder that is NOT a schedule or a statement: acceptance letters, applications, cancellations, claims, medical reports, ROA, RAR, questionnaires, e-mails, quotes and so on, the Astute report (read from its own folder). */
   var NOT_SCHEDULE = /accept|applic|cancel|claim|medical|(^|[^a-z])forms?([^a-z]|$)|change ?of ?details|plan details change|letter|premium increase|(^|[^a-z])roa([^a-z]|$)|(^|[^a-z])rar([^a-z]|$)|questionnaire|e-?mail|correspond|quote|proposal|comparative|counter|consent|invoice|receipt|(^|[^a-z])fna([^a-z]|$)|cmpo|change[ _-]?moment|follow[ _-]?up|astute|transfer|section ?14|tax ?cert|irp5|it3/;
@@ -512,7 +529,9 @@
   var REVIEW_DIR = /review/;
   var REVIEW_SCHEDULE = /schedule|s(a)?tatement|(^|[^a-z])(ps|is)([^a-z]|$)/;          // what makes a file in a Review folder the policy's schedule (1.8): its name says schedule, statement, PS (policy schedule) or IS (investment statement)
   /* The owner's manual (and the other long documents) is never the schedule: manual or owner always; terms, conditions, policy document, wording, contract and brochure unless the name also says schedule, summary or statement. */
-  function isManual(name) { var n = norm(name); return /manual|owner/.test(n) || (/terms|conditions|policy ?document|policy ?wording|contract|brochure/.test(n) && !/schedule|summary|statement/.test(n)); }
+  /* Round 2.1: the BrightRock naming guide ends a name with the client,  - (<Initials Surname>)  (before  - SIGNED): a surname is not a word of the name (a Mr Ownership is not an owner's manual). The same cut as ov-docs.js withoutClient (a unit test keeps the two equal). */
+  function withoutClient(low) { return String(low == null ? '' : low).replace(/\s-\s\((?![^)]*(signed|accept|copy))[a-z'\u2019.\-]+(?:\s+[a-z'\u2019.\-]+)+\)(?=\s*(?:-\s*signed\s*)?$)/, ''); }
+  function isManual(name) { var n = norm(withoutClient(String(name == null ? '' : name).replace(/\.[A-Za-z0-9]{2,5}$/, '').toLowerCase())); return /manual|owner/.test(n) || (/terms|conditions|policy ?document|policy ?wording|contract|brochure/.test(n) && !/schedule|summary|statement/.test(n)); }
   /* One live policy folder, read for its schedules and statements: loose files whose names say so, `Policy Schedules` and every year folder (also inside it), `Servicing` (only files whose names say schedule, summary or statement), no deeper than three folders down.
      Acceptance Letter, Applications, Cancellations, Claims, Medical Reports, ROA, RAR, Questionnaires, Notes & Emails, Comparative Quotes and Quotes are not entered. st: { stop, cap, seen, partial } is shared by the whole scan. Fills g.files and sets g.done. */
   async function walkPolicy(g, st) {
@@ -756,7 +775,7 @@
   return {
     MAX_PATH: MAX_PATH, SWAP: SWAP, RULES: RULES, ALIASES: ALIASES, norm: norm, tokens: tokens, clientFolderName: clientFolderName, parseClient: parseClient, clientMatches: clientMatches, letterOf: letterOf, letterFolder: letterFolder,
     isLetterFolder: isLetterFolder, isStandard: isStandard, nameIs: nameIs, insurerWords: insurerWords, productWords: productWords, numbersIn: numbersIn, hasWord: hasWord, scoreDeal: scoreDeal, chooseDeal: chooseDeal, pathCheck: pathCheck, tooLongText: tooLongText,
-    comparePolicies: comparePolicies, mergeClientLists: mergeClientLists, keyedNewest: keyedNewest, parsePolicyFolder: parsePolicyFolder, policyFolders: policyFolders, policyScan: policyScan, joinSchedules: joinSchedules, latestOverview: latestOverview, dateKey: dateKey, newestOf: newestOf, ageQuotes: ageQuotes, nameDate: nameDate, quoteSub: quoteSub, wordIn: wordIn, isManual: isManual, isReviewDir: function (n) { return REVIEW_DIR.test(norm(n)); }, canonInsurer: canonInsurer, numKey: numKey, FOLDER_INSURERS: FOLDER_INSURERS,
+    signedTwins: signedTwins, withoutClient: withoutClient, comparePolicies: comparePolicies, mergeClientLists: mergeClientLists, keyedNewest: keyedNewest, parsePolicyFolder: parsePolicyFolder, policyFolders: policyFolders, policyScan: policyScan, joinSchedules: joinSchedules, latestOverview: latestOverview, dateKey: dateKey, newestOf: newestOf, ageQuotes: ageQuotes, nameDate: nameDate, quoteSub: quoteSub, wordIn: wordIn, isManual: isManual, isReviewDir: function (n) { return REVIEW_DIR.test(norm(n)); }, canonInsurer: canonInsurer, numKey: numKey, FOLDER_INSURERS: FOLDER_INSURERS,
     listDirs: listDirs, clientSubfolder: clientSubfolder, findFiles: findFiles, viewableFiles: viewableFiles, findClients: findClients, clientFromFile: clientFromFile, dirOfFile: dirOfFile, dealCandidates: dealCandidates, resolveTarget: resolveTarget, factFindCandidates: factFindCandidates, resolveFactFind: resolveFactFind, overviewCandidate: overviewCandidate, clientDocuments: clientDocuments, counterOfferDocuments: counterOfferDocuments, resolveOverview: resolveOverview, ensureOverview: ensureOverview, relOf: relOf, labelOf: labelOf, probeFile: probeFile, makeFile: makeFile, discardEmpty: discardEmpty,
     saveHandle: saveHandle, loadHandle: loadHandle, getPaths: getPaths, setPath: setPath, permission: permission, enabled: enabled
   };

@@ -462,20 +462,18 @@
     return { pairs: pairs, missing: missing, extra: debts.filter(function (l) { return !used[l.id]; }) };
   }
 
-  /* Which pages the PDF and the Presentation have (Paul, 22 November): a page with nothing to say is left out and its tab is greyed. The Shortfall quote page needs group risk AND a shortfall quote asked for in the Fact Find (or one
-     already there); the Comparative quotes page needs one asked for in the Fact Find (the standard quote lane) or one already there; Proposed investments and Goal analysis reports need at least one (a report that was asked for or has figures).
-     The other eleven pages are always there (an empty Current investments page says there are none). */
+  /* Which pages the PDF and the Presentation have (Paul, 25 November, round 2.1, replacing the 22 November rule): the five blocks of "Where the client is now" ALWAYS have a page, and an empty one says so in ONE line (There are no current investments in place.);
+     every QUOTE page (the five servicing pages and FNA, Shortfall, Reduced and Comparative quotes) is there only when it holds a quote; Proposed investments and Goal analysis reports keep the 22 November rule (there only when they hold something: a proposal, or a report that was asked for or has figures). */
   function asked(state) { var f = state && state.factFind && state.factFind.facts; return (f && f.asked) || {}; }
   function pageShown(state, id) {
     var B = (state && state.blocks) || {}, bd = schema.blocksById[id];
-    if (bd && bd.servicing) return quotes(state, id).length > 0;                                             // round 2.0: a servicing page is there only when it holds a quote
-    if (id === 'shortfallQuote') return hasGroupRisk(state) && (!!asked(state).sf || quotes(state, 'shortfallQuote').length > 0);
-    if (id === 'comparative') return !!asked(state).comparative || quotes(state, 'comparative').length > 0;
+    if (bd && bd.group === 'now') return true;                                                               // round 2.1: where the client is now always prints
+    if (bd && bd.kind === 'quotes') return quotes(state, id).length > 0;                                     // round 2.1: a quote page prints only when it holds a quote
     if (id === 'proposed') return active(B.proposed && B.proposed.items).length > 0;
     if (id === 'goals') return active(B.goals && B.goals.items).some(function (g) { return g.requested === true || ['currentValuePm', 'futureValuePm', 'aci', 'premium'].some(function (k) { return isNum(g[k]); }); });
     return true;
   }
-  var PAGE_WHY = { svFna: 'Left out: no servicing FNA quote.', svShortfall: 'Left out: no servicing shortfall quote.', svReduced: 'Left out: no servicing reduced quote.', svIncrease: 'Left out: no straight increase.', svReduction: 'Left out: no straight reduction.', shortfallQuote: 'Left out: there is no group risk, or no shortfall quote was asked for.', comparative: 'Left out: no comparative quote was asked for in the Fact Find.', proposed: 'Left out: there are no proposed investments.', goals: 'Left out: no goal analysis report was asked for.' };
+  var PAGE_WHY = { svFna: 'Left out: no servicing FNA quote.', svShortfall: 'Left out: no servicing shortfall quote.', svReduced: 'Left out: no servicing reduced quote.', svIncrease: 'Left out: no straight increase.', svReduction: 'Left out: no straight reduction.', fna: 'Left out: no FNA quote.', shortfallQuote: 'Left out: no shortfall quote.', reduced: 'Left out: no reduced quote.', comparative: 'Left out: no comparative quote.', proposed: 'Left out: there are no proposed investments.', goals: 'Left out: no goal analysis report was asked for.' };
   function pageWhy(id) { return PAGE_WHY[id] || ''; }
 
   return { alignPremiums: alignPremiums, ownNumberOut: ownNumberOut, settleQuote: settleQuote, parentOf: parentOf, isCounter: isCounter, mainQuotes: mainQuotes, counterOffers: counterOffers, liveCounter: liveCounter, effectiveQuote: effectiveQuote, counterDead: counterDead, chainIds: chainIds, chainIssued: chainIssued, canCounter: canCounter, counterPremium: counterPremium, premiumWarning: premiumWarning, termsSummary: termsSummary, termsReason: termsReason, cents: cents, termRefs: termRefs, termBenefit: termBenefit, refsTotal: refsTotal, termsToCheck: termsToCheck, uwOf: uwOf, declined: declined, accepted: accepted, dead: dead, issued: issued, statusText: statusText, statusClass: statusClass, acceptedQuotes: acceptedQuotes, acceptanceConflicts: acceptanceConflicts, replOf: replOf, quoteRef: quoteRef, policyRef: policyRef, replaceable: replaceable, replacementInfo: replacementInfo, policyNote: policyNote, settleLine: settleLine, aciPoints: aciPoints, sameDebtName: sameDebtName, isNum: isNum, r2: r2, norm: norm, fmtR: fmtR, fmtPct: fmtPct, fmtAci: fmtAci, matchChildren: matchChildren, matchDebts: matchDebts, pageShown: pageShown, pageWhy: pageWhy, fmtDiff: fmtDiff, show: show, lineVal: lineVal, active: active, activeLines: activeLines, totals: totals, sumLines: sumLines,

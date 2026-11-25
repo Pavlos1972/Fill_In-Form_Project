@@ -54,6 +54,8 @@ function filled() {
   s.blocks.group.items[0].life.amount = 810000; s.blocks.group.items[0].life.endAge = 'To age 70'; s.blocks.group.items[0].paidBy = 'employer'; s.blocks.group.items[0].statementDate = '28/09/2026';
   s.blocks.policies.items[0].lines.push(store.newLine('other', { label: 'Cover', life: { lump: 1000000, monthly: null }, sev: { lump: 300000 }, lsd: { lump: 500000, monthly: null }, ip: { monthly: 10000 } }));
   const r = store.addQuote(s, 'reduced'); r.number = '2'; r.premium = 1400; r.status = 'accepted';
+  const sq = store.addQuote(s, 'shortfall'); sq.number = '100000003'; sq.premium = 700;                    // round 2.1: a quote page is there only when it holds a quote, so the twelve pages need these two
+  const cq = store.addQuote(s, 'comparative'); cq.number = '100000004'; cq.insurer = 'Other Co'; cq.premium = 1900;
   return s;
 }
 const all = () => pages.map(p => p.join(' \n ')).join(' \n ');
@@ -124,9 +126,10 @@ const pageOf = (st, id) => PDF.pagesOf(st).ids.indexOf(id);
 test('an empty block says so in plain words; a page with nothing to say is left out and its tab is greyed', () => {
   const s = store.blank(); s.header.fname = 'Test'; s.header.sname = 'Client'; PDF.build(s);
   const ids = PDF.pagesOf(s).ids;
-  assert.deepStrictEqual(ids, ['cover', 'policies', 'group', 'investments', 'other', 'shortfall', 'fna', 'reduced'], 'no servicing quote, shortfall quote, comparative quotes, proposed investments or goal reports: those pages are left out');
+  assert.deepStrictEqual(ids, ['cover', 'policies', 'group', 'investments', 'other', 'shortfall'], 'round 2.1: the five pages of Where the client is now are always there; no quote page, proposed investments or goal reports: those pages are left out');
   assert.strictEqual(pages.length, ids.length);
-  assert.ok(/There is no FNA quote yet/.test(page(pageOf(s, 'shortfall'))) && /No current policies/.test(page(pageOf(s, 'policies'))) && /Nothing to show here for this client/.test(page(pageOf(s, 'fna'))));
+  assert.ok(/There is no FNA quote yet/.test(page(pageOf(s, 'shortfall'))) && /There are no current policies in place\./.test(page(pageOf(s, 'policies'))));
+  assert.ok(/No medical aid, gap cover, will, legacy plan or short-term insurance is recorded\./.test(page(pageOf(s, 'other'))) && !/Company & product/.test(page(pageOf(s, 'other'))), 'the Medical aid, will & short-term page says so in one line, with no table');
   assert.ok(/There are no current investments in place\./.test(page(pageOf(s, 'investments'))), 'the Current investments page is kept and says so');
   const grp = page(pageOf(s, 'group'));
   assert.ok(/There are no group benefits in place\./.test(grp) && /There are no personal investments in place\./.test(grp), 'each says so on its own: ' + grp);
@@ -136,29 +139,29 @@ test('an empty block says so in plain words; a page with nothing to say is left 
 test('left-out pages: the tab row has only the pages that exist (cover and the pages with something in them), each linked to its own page number', () => {
   const s = store.blank(); s.header.fname = 'Test'; s.header.sname = 'Client'; PDF.build(s);
   const n = PDF.pagesOf(s).ids.length;
-  assert.strictEqual(n, 8);
+  assert.strictEqual(n, 6);
   assert.strictEqual(links.length, n * n, 'each page links to every page that exists');
-  for (let from = 1; from <= n; from++) assert.deepStrictEqual(links.filter(l => l.page === from).map(l => l.to), [1, 2, 3, 4, 5, 6, 7, 8], 'page ' + from);
+  for (let from = 1; from <= n; from++) assert.deepStrictEqual(links.filter(l => l.page === from).map(l => l.to), [1, 2, 3, 4, 5, 6], 'page ' + from);
   const names = PDF.pagesOf(s).tabs.map(t => t.name);
-  assert.deepStrictEqual(names, ['Cover', '1 Policies', '2 Group', '3 Investments', '4 Other', '5 Shortfall', '6 FNA', '7 Reduced']);
+  assert.deepStrictEqual(names, ['Cover', '1 Policies', '2 Group', '3 Investments', '4 Other', '5 Shortfall']);
   pages.forEach((p, i) => { names.forEach(l => assert.ok(p.includes(l), 'page ' + (i + 1) + ' shows the tab ' + l)); assert.ok(!p.includes('Comparative') && !p.includes('Goals'), 'a left-out page has no tab: page ' + (i + 1)); });
-  assert.deepStrictEqual(PDF.pagesOf(s).no, [1, 2, 3, 4, 5, 6, 0, 0, 0, 0, 0, 7, 0, 8, 0, 0, 0], 'page number of every block in the order cover, the sixteen blocks; 0 = left out');
+  assert.deepStrictEqual(PDF.pagesOf(s).no, [1, 2, 3, 4, 5, 6, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], 'page number of every block in the order cover, the sixteen blocks; 0 = left out');
 });
 
-test('the Shortfall quote page needs group risk AND a shortfall quote asked for; the Comparative quotes page needs one asked for in the Fact Find (or one there); Proposed and Goals need something', () => {
+test('round 2.1: the five blocks of Where the client is now always have a page; every quote page only when it holds a quote; Proposed and Goals need something', () => {
   const s = filled();
   assert.ok(calc.pageShown(s, 'shortfallQuote') && calc.pageShown(s, 'comparative') && calc.pageShown(s, 'proposed') && calc.pageShown(s, 'goals'));
   s.factFind.facts.asked = { sf: false, comparative: false };
-  assert.ok(!calc.pageShown(s, 'shortfallQuote') && !calc.pageShown(s, 'comparative'), 'not asked, none there: left out');
-  store.addQuote(s, 'comparative').insurer = 'Other Co';
-  assert.ok(calc.pageShown(s, 'comparative'), 'a comparative quote that is there is shown');
-  s.factFind.facts.asked = { sf: true, comparative: false }; s.blocks.group.items.forEach(g => { g.removed = true; });
-  assert.ok(!calc.pageShown(s, 'shortfallQuote'), 'asked for, but without group risk: left out');
+  assert.ok(calc.pageShown(s, 'shortfallQuote') && calc.pageShown(s, 'comparative'), 'a quote that is there is shown whatever the Fact Find asked');
+  s.blocks.shortfallQuote.quotes.forEach(q => { q.removed = true; }); s.blocks.comparative.quotes.forEach(q => { q.removed = true; });
+  s.factFind.facts.asked = { sf: true, comparative: true };
+  assert.ok(!calc.pageShown(s, 'shortfallQuote') && !calc.pageShown(s, 'comparative'), 'asked for in the Fact Find but no quote there: left out (round 2.1)');
   const t = filled(); t.blocks.proposed.items.forEach(i => { i.removed = true; }); t.blocks.goals.items.forEach(g => { g.requested = false; });
   assert.ok(!calc.pageShown(t, 'proposed') && !calc.pageShown(t, 'goals'));
   t.blocks.goals.items[0].currentValuePm = 1000;
   assert.ok(calc.pageShown(t, 'goals'), 'a report with figures is shown');
-  assert.ok(['policies', 'fna', 'group', 'shortfall', 'reduced', 'investments', 'other'].every(id => calc.pageShown(store.blank(), id)), 'the other pages are always there');
+  assert.ok(['policies', 'group', 'shortfall', 'investments', 'other'].every(id => calc.pageShown(store.blank(), id)), 'Where the client is now is always there');
+  assert.ok(['fna', 'shortfallQuote', 'reduced', 'comparative', 'svFna', 'svShortfall', 'svReduced', 'svIncrease', 'svReduction'].every(id => !calc.pageShown(store.blank(), id)), 'no quote, no page');
 });
 
 test('the PDF always holds the full policies and quotes: nothing of the screen\'s See more / See less reaches it', () => {

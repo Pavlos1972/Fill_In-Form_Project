@@ -235,7 +235,7 @@
   function tickCell(inner, yes) { return '<td class="l tick"><i class="' + (yes ? 'yes' : 'no') + '">' + (yes ? '&#10003;' : '&#10005;') + '</i>' + inner + '</td>'; }
   function policiesView(b) {
     var s = state(), ps0 = calc.policies(s), pt = calc.policyTotals(s), age = s.header.disabilityAge;
-    if (!ps0.length) return head(b) + empty('No current policies.');
+    if (!ps0.length) return head(b) + empty('There are no current policies in place.');
     var one = ps.pol != null ? ps0[ps.pol] : null;
     if (one) {
       var it = one.item, ppath = idxOf('policies', 'items', it);
@@ -288,7 +288,7 @@
   }
   function investmentsView(b) {
     var items = calc.investments(state()), pi = calc.personalInvestments(state());
-    if (!items.length) return head(b) + empty('No current investments.');
+    if (!items.length) return head(b) + empty('There are no current investments in place.');
     var rows = items.map(function (i) {
       var vs = i.valueSource || {}, src = vs.kind ? (vs.kind === 'astute' ? 'Astute report' : 'Investment schedule') + (vs.date ? '<small>' + esc(vs.date) + '</small>' : '') : '-';
       return '<tr>' + tickCell('<b>' + esc(i.provider || 'Investment') + '</b><small>' + esc(i.product || '') + '</small>' + vp(idxOf('investments', 'items', i)), !!i.wr) + td(esc(i.valueDate || '-'), 'c') + td(src, 'c') + td(A(i.gross)) + td(A(i.penalty)) + td(calc.isNum(i.gross) ? A(calc.r2(i.gross - (calc.isNum(i.penalty) ? i.penalty : 0))) : A(null)) + td(PC(i.returnRate)) + td(PC(i.aci)) + td(A(i.monthly)) + '</tr>';

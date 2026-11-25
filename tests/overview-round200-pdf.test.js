@@ -47,14 +47,18 @@ function withServicing(s) {
   return q;
 }
 
-test('with no servicing quote the PDF has no servicing page, no servicing heading; with one, the page sits between the shortfall and the new business pages under its own heading', () => {
+test('with no servicing quote the PDF has no servicing page, no servicing heading; with one, the page sits between the shortfall and the new business pages under its own heading (round 2.1: and a heading with no page under it is not drawn)', () => {
   const s = filled(); PDF.build(s);
   assert.ok(!PDF.pagesOf(s).ids.includes('svIncrease')); assert.ok(!pages.some(p => p.includes('Servicing your current policies')));
   withServicing(s); PDF.build(s);
-  const ids = PDF.pagesOf(s).ids; assert.deepStrictEqual(ids, ['cover', 'policies', 'group', 'investments', 'other', 'shortfall', 'svIncrease', 'fna', 'reduced']);
-  const names = PDF.pagesOf(s).tabs.map(t => t.name); assert.deepStrictEqual(names, ['Cover', '1 Policies', '2 Group', '3 Investments', '4 Other', '5 Shortfall', '6 Increase', '7 FNA', '8 Reduced']);
-  pages.forEach((p, i) => { assert.ok(p.includes('Where you are now') && p.includes('Servicing your current policies') && p.includes('New business quotes'), 'the headings on page ' + (i + 1)); assert.ok(!p.includes('Investments & goals'), 'a heading with no page under it is not drawn'); });
+  let ids = PDF.pagesOf(s).ids; assert.deepStrictEqual(ids, ['cover', 'policies', 'group', 'investments', 'other', 'shortfall', 'svIncrease'], 'no FNA, reduced, shortfall or comparative quote: those pages are left out');
+  let names = PDF.pagesOf(s).tabs.map(t => t.name); assert.deepStrictEqual(names, ['Cover', '1 Policies', '2 Group', '3 Investments', '4 Other', '5 Shortfall', '6 Increase']);
+  pages.forEach((p, i) => { assert.ok(p.includes('Where you are now') && p.includes('Servicing your current policies'), 'the headings on page ' + (i + 1)); assert.ok(!p.includes('New business quotes') && !p.includes('Investments & goals'), 'a heading with no page under it is not drawn'); });
   assert.strictEqual(links.length, ids.length * ids.length, 'every page links to every page that exists'); assert.strictEqual(PDF.pagesOf(s).tabs[6].group, 'servicing');
+  const f = store.addQuote(s, 'fna'); f.number = '100000009'; f.premium = 2000; const r = store.addQuote(s, 'reduced'); r.number = '100000010'; r.premium = 900; PDF.build(s);
+  ids = PDF.pagesOf(s).ids; assert.deepStrictEqual(ids, ['cover', 'policies', 'group', 'investments', 'other', 'shortfall', 'svIncrease', 'fna', 'reduced'], 'a quote brings its page');
+  names = PDF.pagesOf(s).tabs.map(t => t.name); assert.deepStrictEqual(names, ['Cover', '1 Policies', '2 Group', '3 Investments', '4 Other', '5 Shortfall', '6 Increase', '7 FNA', '8 Reduced']);
+  pages.forEach((p, i) => assert.ok(p.includes('New business quotes'), 'the New business quotes heading is drawn once a page sits under it: page ' + (i + 1)));
 });
 
 test('the servicing page: the policy, the reason, every line old to new, the totals, the premium before and after and the difference; no comparison and no replacement lines', () => {

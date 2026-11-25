@@ -175,7 +175,7 @@ test('walkPolicy: Servicing\'s schedules are candidates, its other documents are
 
 /* ---------- 4. the wiring ---------- */
 test('the page is 1.7, no key is added, tickPlan asks the one function, and the tags are new', () => {
-  assert.ok(/^(1\.[789]|2\.0)$/.test(schema.pageVersion), 'page 1.7, or 1.8 which came after it'); assert.strictEqual(schema.version, '0.1'); assert.ok(parseFloat(schema.pageVersion) > parseFloat('1.6'), 'compared as decimals');
+  assert.ok(/^(1\.[789]|2\.[01])$/.test(schema.pageVersion), 'page 1.7, or 1.8 which came after it'); assert.strictEqual(schema.version, '0.1'); assert.ok(parseFloat(schema.pageVersion) > parseFloat('1.6'), 'compared as decimals');
   const ui = app('js/ov-ui.js'), fo = app('js/folders.js'), html = app('overview.html');
   assert.ok(/F\.ageQuotes \? F\.ageQuotes\(entries\)/.test(ui) && !/var ruled = function/.test(ui) && !/var oldNo/.test(ui), 'tickPlan has no copy of the rule');
   assert.ok(/function ageQuotes\(entries\)/.test(fo) && /ageQuotes: ageQuotes/.test(fo));
