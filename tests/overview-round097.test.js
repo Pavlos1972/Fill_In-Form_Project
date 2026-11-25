@@ -9,7 +9,7 @@ const app = f => fs.readFileSync(path.join(__dirname, '..', 'app', f), 'utf8');
 
 test('the page version moves on with the fixes (1.0 now), the layout is still 0.1 and the saved file gains no key', () => {
   const schema = require('../app/js/ov-schema.js');
-  assert.ok(/^1\.[0123]$/.test(schema.pageVersion), 'the page version is 1.0 to 1.3'); assert.strictEqual(schema.version, '0.1');
+  assert.ok(/^1\.[01234]$/.test(schema.pageVersion), 'the page version is 1.0 to 1.4'); assert.strictEqual(schema.version, '0.1');
   assert.ok(/ov-schema\.js\?v=20261124[a-z]/.test(app('overview.html')) && /ov-ui\.js\?v=20261124[a-z]/.test(app('overview.html')) && /folders-ui\.js\?v=20261124[a-z]/.test(app('overview.html')), 'the changed scripts have new ?v= tags');
   ['index.html', 'short-risk.html', 'capture-sheet.html'].forEach(f => assert.ok(/folders-ui\.js\?v=20261124[a-z]/.test(app(f)), f));
 });

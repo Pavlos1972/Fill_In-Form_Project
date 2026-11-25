@@ -131,10 +131,71 @@ test('the e-mail reading prompt asks for the one reason and the numbers, never c
 
 test('the summary is drawn from ONE function on the screen, in the PDF and in the Presentation; the tables are a closed Correct by hand fold; the e-mail has its own button and file input; the Presentation folds a long wording with one click', () => {
   const ui = app('js/ov-ui.js'), pdf = app('js/ov-pdf.js'), pres = app('js/ov-present.js'), html = app('overview.html');
-  [ui, pdf, pres].forEach(f => assert.ok(/calc\.termsSummary\(q\)/.test(f), 'the one summary function'));
+  [ui, pdf, pres].forEach(f => assert.ok(/calc\.termsSummary\(q[,)]/.test(f), 'the one summary function'));
   assert.ok(/Underwriting decision/.test(ui) && /Underwriting decision/.test(pdf) && /Underwriting decision/.test(pres)); assert.ok(/Underwriting terms of the counter offer letter/.test(ui) && /Underwriting terms of the counter offer letter/.test(pdf) && /Underwriting terms of the counter offer letter/.test(pres));
   assert.ok(/Correct by hand/.test(ui) && /data-uwfile/.test(ui) && /data-uw-read/.test(ui) && /data-uwreason/.test(ui) && /Add the underwriter(\\u2019|\u2019)s e-mail/.test(ui)); assert.ok(/id="docMail"/.test(html) && /\.eml/.test(html));
   assert.ok(/data-act="exw"/.test(pres) && /exShut/.test(pres) && /Hide wording/.test(pres) && /Show wording/.test(pres));
   assert.ok(/premiumWarning/.test(ui) && /premiumWarning/.test(app('js/ov-check.js')), 'the card and the check use the one warning');
-  ['ov-store', 'ov-check', 'ov-docs', 'ov-calc', 'ov-ui', 'ov-pdf', 'ov-present', 'ov-schema'].forEach(f => assert.ok(new RegExp(f + '\\.js\\?v=20261124q').test(html), f + ' tag'));
+  ['ov-store', 'ov-check', 'ov-docs', 'ov-calc', 'ov-ui', 'ov-pdf', 'ov-present', 'ov-schema'].forEach(f => assert.ok(new RegExp(f + '\\.js\\?v=20261124[q-z]').test(html), f + ' tag'));
+});
+
+/* ---- round 1.4 (25 November, Paul's answers to my five questions): an unticked reason is not shown to the client; the reading of a real reply's exact wording happens on this computer ---- */
+const REPLY = o => Object.assign({ subject: 'Re: Counter-offer - Your BrightRock application - The cover terms we can offer you (Cover Proposal: 400500600 400500777) for Ruby Test', from: 'The Distribution Specialist', date: 'Thu, 12 Nov 2026 09:14:00 +0200',
+  body: 'Please see below feedback from UW regarding the loadings and exclusions placed on this cover proposal:\n\nTerms: Life cover +6% / Perm & Temp disability +9% and excluding a lower back condition\n\nOur decision is based on the information we received - raised blood pressure,\nan elevated cholesterol reading and a lower back condition.\n\nHere\u2019s a summary of the terms we offered, mapped to the different benefits on our product grid:\nDecision Approved / Additional charge Medical 9%' }, o || {});
+const asEml = r => 'Subject: ' + r.subject + '\nFrom: ' + r.from + '\nDate: ' + r.date + '\n\n' + r.body;
+
+test('1.4 (Paul, question 1): a reason read from an e-mail and not yet ticked is shown on the Studio\u2019s screen but NOT in the PDF or the Presentation; once ticked (or typed) it is shown there; the summary says which', () => {
+  const s = fresh(), { c } = counter(s); docs.applyUwEmail(s, EMAIL(), 'UW reply.eml', { quote: c });
+  assert.strictEqual(calc.termsSummary(c).reason.text, 'Raised blood pressure at the medical.', 'the Studio shows it, amber'); assert.strictEqual(calc.termsSummary(c).reason.st, 'verify');
+  assert.strictEqual(calc.termsSummary(c, { client: true }).reason, null, 'the client\u2019s PDF and Presentation do not');
+  assert.strictEqual(calc.termsSummary(c, { client: true }).loadings.length, 4, 'the loadings and exclusions are as before'); assert.strictEqual(calc.termsSummary(c, { client: true }).exclusions.length, 2);
+  store.confirmTerms(s, qpath(s, c)); assert.strictEqual(calc.termsSummary(c, { client: true }).reason.text, 'Raised blood pressure at the medical.', 'ticked: shown');
+  const s2 = fresh(), { c: c2 } = counter(s2); store.setUwReason(s2, qpath(s2, c2), 'Typed by the adviser.'); assert.strictEqual(calc.termsSummary(c2, { client: true }).reason.text, 'Typed by the adviser.', 'typed: his own word, shown');
+  const s3 = fresh(), { c: c3 } = counter(s3); c3.terms.loadings[0].reason = 'Old typed reason'; assert.strictEqual(calc.termsSummary(c3, { client: true }).reason.text, 'Old typed reason', 'a reason typed in a row of an older file is his: shown');
+  const pdf = app('js/ov-pdf.js'), pres = app('js/ov-present.js'), ui = app('js/ov-ui.js'); assert.ok(/calc\.termsSummary\(q, \{ client: true \}\)/.test(pdf) && /calc\.termsSummary\(q, \{ client: true \}\)/.test(pres), 'the PDF and the Presentation ask for the client\u2019s view'); assert.ok(/calc\.termsSummary\(q\)/.test(ui), 'the Studio asks for the whole');
+});
+
+test('1.4 (Paul, question 2): the exact wording of a real reply is read on this computer: the reason from after "Our decision is based on the information we received -" up to "Here\u2019s a summary", the numbers from the subject, the headers; nothing is sent', () => {
+  const r = docs.uwReasonLocal(docs.emailText(asEml(REPLY())));
+  assert.strictEqual(r.reason, 'raised blood pressure, an elevated cholesterol reading and a lower back condition.', 'the paragraph, wrapped lines joined, the lead-in and the grid left out');
+  assert.deepStrictEqual(r.numbers, ['400500600', '400500777'], 'both Cover Proposal numbers, from the subject'); assert.strictEqual(r.date, '12/11/2026'); assert.strictEqual(r.from, 'The Distribution Specialist'); assert.ok(/^Re: Counter-offer/.test(r.subject)); assert.strictEqual(r.kind, null);
+  // applied: the same filling as a Claude reading, amber, with its source
+  const s = fresh(), { c } = counter(s), a = docs.applyUwEmail(s, r, 'Re Counter-offer.eml', { quote: c }); assert.strictEqual(a.set, true); assert.strictEqual(c.terms.reason.text, r.reason); assert.strictEqual(c.terms.reason.src.date, '12/11/2026'); assert.strictEqual(c.terms.reason.st, 'verify');
+  // other shapes of the same wording
+  assert.strictEqual(docs.uwReasonLocal('Fw: x\n\nOur decision is based on the information we received: a back problem\n\nHere\u2019s a summary of the terms').reason, 'a back problem', 'a colon, and the paragraph ends at a blank line');
+  assert.strictEqual(docs.uwReasonLocal('Our decision is based on the information we received \u2013 smoking history. Here\'s a summary of the terms we offered').reason, 'smoking history.', 'a dash, a straight apostrophe, no line breaks');
+  assert.strictEqual(docs.uwReasonLocal('OUR DECISION IS BASED ON THE INFORMATION WE RECEIVED - Occupation').reason, 'Occupation', 'capitals, the end of the text');
+  assert.deepStrictEqual(docs.uwReasonLocal('Our decision is based on the information we received - x\nCover Proposal 400500600, 400500777 and Cover Proposal: 400500888').numbers, ['400500600', '400500777', '400500888'], 'numbers after each Cover Proposal');
+  assert.deepStrictEqual(docs.uwReasonLocal('Our decision is based on the information we received - x').numbers, [], 'pasted without its subject: no number, so the e-mail is taken for the quote it was added to');
+  // an older reply with no such paragraph, empty, nothing
+  assert.strictEqual(docs.uwReasonLocal('Unfortunately the original terms we have offered will stand after the review.'), null); assert.strictEqual(docs.uwReasonLocal('Our decision is based on the information we received -\n\nHere\u2019s a summary'), null, 'an empty paragraph is no reason'); assert.strictEqual(docs.uwReasonLocal(''), null); assert.strictEqual(docs.uwReasonLocal(null), null);
+  assert.ok(!/api\.anthropic/.test(docs.uwReasonLocal.toString()), 'no call');
+  // the page reads a text e-mail this way and no other (a PDF or a picture of it is the only thing sent to the reading)
+  const ui = app('js/ov-ui.js'); assert.ok(/D\.uwReasonLocal\(x\.t, x\.raw\)/.test(ui) && /nothing was sent anywhere/.test(ui));
+});
+
+test('1.4 (review): the local reader copes with how real replies arrive: an Outlook paste whose reason is the first paragraph (the readable text drops it, the text as pasted keeps it), an HTML e-mail in quoted-printable, an entity apostrophe, a run-on with no end marker', () => {
+  const QSUB = 'Re: Counter-offer - Your BrightRock application - The cover terms we can offer you (Cover Proposal: 400500600 400500777) for Ruby Test';
+  // 1. Outlook paste: the quoted From / Sent / To / Subject block is lower down and the reason is the FIRST paragraph
+  const OUT = 'Our decision is based on the information we received - raised blood pressure, a lower back condition.\n\nHere\u2019s a summary of the terms we offered, mapped to the different benefits on our product grid:\nDecision Approved\n\nFrom: The Distribution Specialist\nSent: Thursday, 12 November 2026 09:14\nTo: Paul\nSubject: ' + QSUB + '\n\nPlease see below feedback from UW.';
+  assert.ok(docs.emailText(OUT).indexOf('Our decision') < 0, 'precondition: the readable text lost the first paragraph (it took it for headers)');
+  const a = docs.uwReasonLocal(docs.emailText(OUT), OUT);
+  assert.strictEqual(a.reason, 'raised blood pressure, a lower back condition.'); assert.deepStrictEqual(a.numbers, ['400500600', '400500777']); assert.strictEqual(a.date, '12/11/2026', 'the date from the Sent line'); assert.strictEqual(a.from, 'The Distribution Specialist'); assert.strictEqual(a.subject, QSUB);
+  // the reason in a later paragraph: the readable text has it, the headers come from the text as pasted
+  const OUT2 = 'Please see below feedback.\n\nOur decision is based on the information we received - smoking history.\n\nHere\u2019s a summary of the terms\n\nFrom: A\nSent: 3 March 2026\nSubject: ' + QSUB;
+  const b = docs.uwReasonLocal(docs.emailText(OUT2), OUT2); assert.strictEqual(b.reason, 'smoking history.'); assert.strictEqual(b.subject, QSUB); assert.strictEqual(b.date, '03/03/2026');
+  // 2. an HTML e-mail in quoted-printable (the apostrophe as =E2=80=99; blank lines collapse in the stripped text)
+  const HTML = 'From: The Distribution Specialist\nSubject: ' + QSUB + '\nDate: Thu, 12 Nov 2026 09:14:00 +0200\nMIME-Version: 1.0\nContent-Type: text/html; charset=utf-8\nContent-Transfer-Encoding: quoted-printable\n\n<html><body><p>Please see below:</p><p>Our decision is based on the information we received - raised blood pressure, a lower back condition.</p><p>Here=E2=80=99s a summary of the terms we offered, mapped to the product grid:</p><p>Decision Approved</p></body></html>';
+  const c = docs.uwReasonLocal(docs.emailText(HTML), HTML); assert.strictEqual(c.reason, 'raised blood pressure, a lower back condition.', 'the lead-in and the grid are left out of an HTML e-mail'); assert.deepStrictEqual(c.numbers, ['400500600', '400500777']); assert.strictEqual(c.date, '12/11/2026');
+  // the apostrophe left as an entity (stripHtml decodes numbers only)
+  const ENT = 'Subject: x\nContent-Type: text/html\n\n<p>Our decision is based on the information we received - an occupation.</p><p>Here&rsquo;s a summary of the terms we offered</p>';
+  assert.strictEqual(docs.uwReasonLocal(docs.emailText(ENT), ENT).reason, 'an occupation.');
+  // 3. no end marker at all: a short run stays, an implausibly long run-on (the grid and the thread swallowed) is not a reason; a summary line without the apostrophe also ends it
+  assert.strictEqual(docs.uwReasonLocal('Our decision is based on the information we received - ' + 'word '.repeat(200)), null);
+  assert.strictEqual(docs.uwReasonLocal('Our decision is based on the information we received - asthma\nA summary of the terms we offered: x').reason, 'asthma');
+  assert.strictEqual(docs.uwReasonLocal('Our decision is based on the information we received - asthma').reason, 'asthma');
+  // a reply that does not have the paragraph is read as no reason, whatever the page's reading switch says (the page never sends a text e-mail anywhere)
+  assert.strictEqual(docs.uwReasonLocal('Unfortunately the original terms we have offered will stand.', 'Unfortunately the original terms we have offered will stand.'), null);
+  const ui = app('js/ov-ui.js'); assert.ok(!/block: 'uwemail', text:/.test(ui), 'a text e-mail is never sent to the reading'); assert.ok(/block: 'uwemail'/.test(ui), 'a PDF or a picture of the e-mail still can be (it cannot be read here)');
+  assert.ok(/here\\S\{0,8\}s/.test(app('js/ov-docs.js')) && /a summary of the terms/.test(app('js/ov-docs.js')));
 });

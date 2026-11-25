@@ -11,7 +11,7 @@ const app = f => fs.readFileSync(path.join(__dirname, '..', 'app', f), 'utf8');
 
 test('the page version is 1.0 (the decimal after 0.99), the layout is still 0.1, the saved file gains no key, the changed scripts have new tags', () => {
   const schema = require('../app/js/ov-schema.js');
-  assert.ok(/^1\.[0123]$/.test(schema.pageVersion), 'the page version is 1.0 to 1.3'); assert.strictEqual(schema.version, '0.1');
+  assert.ok(/^1\.[01234]$/.test(schema.pageVersion), 'the page version is 1.0 to 1.4'); assert.strictEqual(schema.version, '0.1');
   assert.ok(parseFloat(schema.pageVersion) > parseFloat('0.99'), 'compared as decimals the new version is higher');
   const h = app('overview.html');
   ['ov-schema', 'ov-ui', 'folders-ui'].forEach(f => assert.ok(new RegExp(f + '\\.js\\?v=20261124[a-z]').test(h), f));
