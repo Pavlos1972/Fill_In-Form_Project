@@ -473,10 +473,34 @@
     if (id === 'goals') return active(B.goals && B.goals.items).some(function (g) { return g.requested === true || ['currentValuePm', 'futureValuePm', 'aci', 'premium'].some(function (k) { return isNum(g[k]); }); });
     return true;
   }
+  /* Round 2.2 (Paul, 25 November 18:48): is a quote block NEEDED? The adviser's own tick wins (blocks.<id>.needed, true or false, written only when he ticks or unticks); else what the Fact Find asked for (factFind.facts.asked.blocks, written when the Fact Find is read);
+     else nothing is known (no Fact Find read yet): on is null and Load looks for everything, as before. */
+  function needed(state, id) {
+    var B = state && state.blocks, o = B && B[id] && B[id].needed;
+    if (o === true || o === false) return { on: o, by: 'person' };
+    var ab = asked(state).blocks;
+    if (ab && typeof ab === 'object') return { on: ab[id] === true, by: 'factfind' };
+    return { on: null, by: 'none' };
+  }
+  /* The checklist: for each block with a tick box its state (outstanding: asked for and nothing loaded; loaded; extra: loaded but not asked for; notasked; unknown: no Fact Find read and nothing loaded), its quote count and its words. */
+  /* A proposed investment counts as LOADED only when a document or the adviser filled it: the Fact Find's own skeleton row (st ff) is only the request. */
+  function proposalsLoaded(state) { return active(((state && state.blocks) || {}).proposed && state.blocks.proposed.items).filter(function (it) { return it.st !== 'ff' && it.st !== 'empty'; }); }
+  function checklist(state) {
+    var rows = {}, askedN = 0, loadedN = 0, outN = 0;
+    schema.NEED_BLOCKS.forEach(function (id) {
+      var nd = needed(state, id), n = id === 'proposed' ? proposalsLoaded(state).length : quotes(state, id).length, st, text;
+      if (id === 'shortfallQuote' && !n && !hasGroupRisk(state)) { rows[id] = { id: id, on: nd.on, by: nd.by, n: 0, state: 'nogroup', text: '' }; return; }          // no group risk: the menu says "Not needed: no group risk" itself, and the line is neither asked for nor outstanding
+      if (nd.on === true) { askedN++; if (n) { loadedN++; st = 'loaded'; text = 'Asked for \u00b7 loaded (' + n + ')'; } else { outN++; st = 'outstanding'; text = 'Asked for \u00b7 outstanding'; } }
+      else if (nd.on === false) { if (n) { st = 'extra'; text = 'Loaded (' + n + ') \u00b7 not asked for'; } else { st = 'notasked'; text = 'Not asked for'; } }
+      else if (n) { st = 'loaded'; text = 'Loaded (' + n + ')'; } else { st = 'unknown'; text = ''; }
+      rows[id] = { id: id, on: nd.on, by: nd.by, n: n, state: st, text: text };
+    });
+    return { rows: rows, asked: askedN, loaded: loadedN, outstanding: outN, known: schema.NEED_BLOCKS.some(function (id) { return rows[id].on !== null; }) };
+  }
   var PAGE_WHY = { svFna: 'Left out: no servicing FNA quote.', svShortfall: 'Left out: no servicing shortfall quote.', svReduced: 'Left out: no servicing reduced quote.', svIncrease: 'Left out: no straight increase.', svReduction: 'Left out: no straight reduction.', fna: 'Left out: no FNA quote.', shortfallQuote: 'Left out: no shortfall quote.', reduced: 'Left out: no reduced quote.', comparative: 'Left out: no comparative quote.', proposed: 'Left out: there are no proposed investments.', goals: 'Left out: no goal analysis report was asked for.' };
   function pageWhy(id) { return PAGE_WHY[id] || ''; }
 
-  return { alignPremiums: alignPremiums, ownNumberOut: ownNumberOut, settleQuote: settleQuote, parentOf: parentOf, isCounter: isCounter, mainQuotes: mainQuotes, counterOffers: counterOffers, liveCounter: liveCounter, effectiveQuote: effectiveQuote, counterDead: counterDead, chainIds: chainIds, chainIssued: chainIssued, canCounter: canCounter, counterPremium: counterPremium, premiumWarning: premiumWarning, termsSummary: termsSummary, termsReason: termsReason, cents: cents, termRefs: termRefs, termBenefit: termBenefit, refsTotal: refsTotal, termsToCheck: termsToCheck, uwOf: uwOf, declined: declined, accepted: accepted, dead: dead, issued: issued, statusText: statusText, statusClass: statusClass, acceptedQuotes: acceptedQuotes, acceptanceConflicts: acceptanceConflicts, replOf: replOf, quoteRef: quoteRef, policyRef: policyRef, replaceable: replaceable, replacementInfo: replacementInfo, policyNote: policyNote, settleLine: settleLine, aciPoints: aciPoints, sameDebtName: sameDebtName, isNum: isNum, r2: r2, norm: norm, fmtR: fmtR, fmtPct: fmtPct, fmtAci: fmtAci, matchChildren: matchChildren, matchDebts: matchDebts, pageShown: pageShown, pageWhy: pageWhy, fmtDiff: fmtDiff, show: show, lineVal: lineVal, active: active, activeLines: activeLines, totals: totals, sumLines: sumLines,
+  return { needed: needed, checklist: checklist, proposalsLoaded: proposalsLoaded, alignPremiums: alignPremiums, ownNumberOut: ownNumberOut, settleQuote: settleQuote, parentOf: parentOf, isCounter: isCounter, mainQuotes: mainQuotes, counterOffers: counterOffers, liveCounter: liveCounter, effectiveQuote: effectiveQuote, counterDead: counterDead, chainIds: chainIds, chainIssued: chainIssued, canCounter: canCounter, counterPremium: counterPremium, premiumWarning: premiumWarning, termsSummary: termsSummary, termsReason: termsReason, cents: cents, termRefs: termRefs, termBenefit: termBenefit, refsTotal: refsTotal, termsToCheck: termsToCheck, uwOf: uwOf, declined: declined, accepted: accepted, dead: dead, issued: issued, statusText: statusText, statusClass: statusClass, acceptedQuotes: acceptedQuotes, acceptanceConflicts: acceptanceConflicts, replOf: replOf, quoteRef: quoteRef, policyRef: policyRef, replaceable: replaceable, replacementInfo: replacementInfo, policyNote: policyNote, settleLine: settleLine, aciPoints: aciPoints, sameDebtName: sameDebtName, isNum: isNum, r2: r2, norm: norm, fmtR: fmtR, fmtPct: fmtPct, fmtAci: fmtAci, matchChildren: matchChildren, matchDebts: matchDebts, pageShown: pageShown, pageWhy: pageWhy, fmtDiff: fmtDiff, show: show, lineVal: lineVal, active: active, activeLines: activeLines, totals: totals, sumLines: sumLines,
     isServicing: isServicing, servicingPolicy: servicingPolicy, servicingDiff: servicingDiff, quotes: quotes, allQuotes: allQuotes, policies: policies, policyTotals: policyTotals, groupItems: groupItems, hasGroupRisk: hasGroupRisk, groupTotals: groupTotals, investments: investments,
     personalInvestments: personalInvestments, shortfall: shortfall, compare: compare, pillars: pillarOfBlock };
 });

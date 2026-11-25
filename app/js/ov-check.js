@@ -158,7 +158,10 @@
     var n = {}, ff = state.factFind && state.factFind.facts, ran = !!(opts && opts.ran), B = state.blocks || {}, asked = (ff && ff.asked) || {};
     var done = opts && opts.done, say = function (id, text, all, kind) { if (done && !done[id]) return; n[id] = { text: text, all: !!all, kind: kind || (all ? 'red' : 'part') }; };
     if (ff && !calc.policies(state).length) say('policies', 'No current policies', true);
-    if (ran && !calc.quotes(state, 'fna').length) say('fna', 'No FNA quote found', true);
+    /* Round 2.2 (Paul, 25 November 18:48): a quote block that is not NEEDED (calc.needed: the adviser's tick, else what the Fact Find asked for) says "Not asked for" and is never red; a needed one that is still empty is outstanding (red once the folder was searched and nothing was found);
+       when nothing is known (no Fact Find read yet: needed.on is null) the earlier messages stand. */
+    var nd = function (id) { return calc.needed(state, id).on; }, notAsked = function (id) { say(id, 'Not asked for', false, 'na'); }, notYet = function (id) { say(id, 'Asked for: not loaded yet', false, 'part'); };
+    if (!calc.quotes(state, 'fna').length) { if (nd('fna') === false) notAsked('fna'); else if (ran) say('fna', 'No FNA quote found', true); else if (nd('fna') === true) notYet('fna'); }
     if (ff || ran) {
       var gi = calc.groupItems(state).length, pi = calc.personalInvestments(state).count;
       if (!gi && !pi) say('group', 'No group benefits and no personal investments', true);
@@ -167,17 +170,27 @@
     }
     if (!calc.quotes(state, 'shortfallQuote').length) {
       if (!calc.hasGroupRisk(state)) { if (ff || ran) say('shortfallQuote', 'Not needed: no group risk', false, 'na'); }
-      else if (ff && !asked.sf) say('shortfallQuote', 'No shortfall quote requested', true);
+      else if (nd('shortfallQuote') === false) notAsked('shortfallQuote');
+      else if (nd('shortfallQuote') === null && ff && !asked.sf) say('shortfallQuote', 'No shortfall quote requested', true);
       else if (ran) say('shortfallQuote', 'No shortfall quote found', true);
+      else if (nd('shortfallQuote') === true) notYet('shortfallQuote');
     }
-    if (ff || ran) schema.SV_KINDS.forEach(function (k) { var id = schema.blockOfQuote[k]; if (!calc.quotes(state, id).length) say(id, 'Not requested', false, 'na'); });          // round 2.0: nothing to look for in an empty servicing block, and nothing red about it
-    if (ran && !calc.quotes(state, 'reduced').length) say('reduced', 'No reduced quotes found', true);
+    if (ff || ran) schema.SV_KINDS.forEach(function (k) {                                                   // round 2.0: nothing red about an empty servicing block that nobody asked for; round 2.2: one that was asked for is outstanding
+      var id = schema.blockOfQuote[k]; if (calc.quotes(state, id).length) return;
+      if (nd(id) === true) { if (ran) say(id, 'Asked for: none found in the folder', true); else notYet(id); } else if (nd(id) === false) notAsked(id); else say(id, 'Not requested', false, 'na');
+    });
+    if (!calc.quotes(state, 'reduced').length) { if (nd('reduced') === false) notAsked('reduced'); else if (ran) say('reduced', 'No reduced quotes found', true); else if (nd('reduced') === true) notYet('reduced'); }
     if (!calc.quotes(state, 'comparative').length) {
-      if (ff && !asked.comparative) say('comparative', 'No comparative quotes', true);
+      if (nd('comparative') === false) notAsked('comparative');
+      else if (nd('comparative') === null && ff && !asked.comparative) say('comparative', 'No comparative quotes', true);
       else if (ran) say('comparative', 'No comparative quote found', true);
+      else if (nd('comparative') === true) notYet('comparative');
     }
     if (ff && !calc.investments(state).length) say('investments', 'No current investments', true);
-    if (ff && !calc.active((B.proposed || {}).items).length) say('proposed', 'No proposed investments', true);
+    if (ff) {                                                                                                // round 2.2: a proposal counts only once a document or the adviser filled it (the Fact Find's own row is the request)
+      var pLoaded = calc.proposalsLoaded(state).length, pAny = calc.active((B.proposed || {}).items).length, pn = nd('proposed');
+      if (pn === false) { if (!pLoaded) notAsked('proposed'); } else if (pn === true) { if (!pLoaded) { if (ran) say('proposed', 'Asked for: no proposal found', true); else notYet('proposed'); } } else if (!pAny) say('proposed', 'No proposed investments', true);
+    }
     if (ff && !calc.pageShown(state, 'goals')) say('goals', 'No goal analysis requested', true);
     var holds = function (it) { return ['company', 'product', 'policyNo', 'note'].some(function (k) { return String(it[k] == null ? '' : it[k]).trim() !== ''; }) || calc.isNum(it.premium); };            // an item the Fact Find only marked "not ours" holds nothing
     if (ff && calc.active((B.other || {}).items).length && !calc.active((B.other || {}).items).some(holds)) say('other', 'No medical aid, gap cover, will or short-term recorded', true);
@@ -281,6 +294,7 @@
       var blk = state.blocks[b.id] || {}, list = ((blk.items || []).concat(blk.quotes || [])).filter(function (r) { return !r.removed; }), amber = !!(bad[b.id] || []).length;
       if (b.id === 'shortfall') { var sfq = calc.shortfall(state); d[b.id] = sfq.has && hasFigures(sfq.quote) ? (amber ? 'amber' : 'green') : 'grey'; return; }          // green only when the FNA has figures, so the result has been worked out
       if (b.id === 'shortfallQuote' && !list.length && !calc.hasGroupRisk(state)) { d[b.id] = 'na'; return; }
+      if (b.need && !list.length && notes[b.id] && notes[b.id].kind === 'na') { d[b.id] = 'na'; return; }                  // round 2.2: a quote block nobody asked for is dashed (not needed), never grey and never red
       if (notes[b.id] && notes[b.id].all) { d[b.id] = 'red'; return; }                        // checked, and nothing is there
       if (b.id === 'group' && !list.length) { d[b.id] = notes.group && notes.group.text === 'No group benefits' ? 'green' : 'grey'; return; }          // no group benefits but personal investments: nothing here to wait for
       if (!list.length) { d[b.id] = 'grey'; return; }

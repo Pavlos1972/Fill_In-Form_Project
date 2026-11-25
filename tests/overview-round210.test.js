@@ -142,12 +142,12 @@ test('the pick list asks signedTwins, groups a quote with no policy folder by it
 });
 
 test('the page is 2.1 (the decimal after 2.0), the layout stays 0.1, no key is added (contract revision p), and the changed scripts carry new tags', () => {
-  assert.strictEqual(schema.pageVersion, '2.1'); assert.strictEqual(schema.version, '0.1'); assert.ok(parseFloat(schema.pageVersion) > parseFloat('2.0'), 'compared as decimals');
+  assert.ok(/^2\.[12]$/.test(schema.pageVersion), 'the page is 2.1 or later (2.2 now)'); assert.strictEqual(schema.version, '0.1'); assert.ok(parseFloat(schema.pageVersion) > parseFloat('2.0'), 'compared as decimals');
   const html = app('overview.html');
-  ['ov-schema', 'ov-calc', 'ov-docs', 'ov-pdf', 'ov-pres', 'ov-ui', 'ov-present', 'folders'].forEach(f => assert.ok(new RegExp(f + '\\.js\\?v=20261125b').test(html), f));
+  ['ov-schema', 'ov-calc', 'ov-docs', 'ov-pdf', 'ov-pres', 'ov-ui', 'ov-present', 'folders'].forEach(f => assert.ok(new RegExp(f + '\\.js\\?v=20261125[bc]').test(html), f));
   ['index.html', 'short-risk.html', 'capture-sheet.html'].forEach(f => assert.ok(/folders\.js\?v=20261125b/.test(app(f)), f));
   const contract = fs.readFileSync(path.join(__dirname, '..', 'docs', 'OVERVIEW-DATA-CONTRACT.md'), 'utf8');
-  assert.ok(/revision p/i.test(contract) && !/revision q/i.test(contract), 'the contract is still at revision p: 2.1 adds no key');
+  assert.ok(/revision p/i.test(contract) && /Studio 2\.1 \(25 November[^|]*NO revision and NO key/.test(contract), 'the contract says 2.1 added no key (revision q came with 2.2)');
 });
 
 /* ---------- 4. the client at the end of the name ---------- */

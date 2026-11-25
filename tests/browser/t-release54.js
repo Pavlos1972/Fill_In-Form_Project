@@ -19,7 +19,7 @@ const FFJ = { app: 'wr-fact-find', schema: '5.4', f: { fname: { v: 'Test' }, sna
   const ov = watch(await ctx.newPage());
   await ov.goto('file://' + dir + '/overview.html'); await ov.waitForTimeout(400); await ov.evaluate(() => OV.app.openAll());          // the page starts folded (See more); this test is about what is inside
   ok(!(await ov.$('#buildBanner')), '1. no "Mixed versions" bar');
-  ok(await ov.evaluate(() => document.title) === 'Client Overview Studio' && /Version (0\.9|1\.[0123456789]|2\.[01])/.test(await ov.evaluate(() => document.querySelector('#verLine').textContent)), '1. the page says it is the Client Overview Studio, version 0.9');
+  ok(await ov.evaluate(() => document.title) === 'Client Overview Studio' && /Version (0\.9|1\.[0123456789]|2\.[012])/.test(await ov.evaluate(() => document.querySelector('#verLine').textContent)), '1. the page says it is the Client Overview Studio, version 0.9');
   const nav = await ov.evaluate(() => [...document.querySelectorAll('#nav button')].map(x => x.textContent.replace(/\s+/g, ' ').trim()));
   ok(nav.length === 17 && nav[0] === 'Client details' && nav[1] === 'Current policies' && nav[5] === 'Shortfall (needs calculation)' && nav[9] === 'Straight increase' && nav[11] === 'FNA quote' && nav[13] === 'Reduced quotes' && nav[16] === 'Goal analysis reports', '1. the menu: Client details and the sixteen blocks in order, under four headings (round 2.0): ' + nav.join(' | '));
   ok(await ov.evaluate(() => document.querySelectorAll('.dot[data-dot]').length === 16 && document.querySelectorAll('#legend .dot').length === 5 && [...document.querySelectorAll('#nav .sep.grp')].map(e => e.textContent).join('|') === 'Where the client is now|Servicing quotes (on a current policy)|New business quotes (new policy)|Investments & goals'), '1. a dot beside each of the sixteen blocks, the four headings, and five in the legend under the menu (grey, amber, green, red, dashed)');
@@ -86,7 +86,7 @@ const FFJ = { app: 'wr-fact-find', schema: '5.4', f: { fname: { v: 'Test' }, sna
   await p.evaluate(() => OV.app.go('shortfall'));
   ok(/Life cover R3,900,000 none R50,000 R3,850,000/.test(await p.evaluate(() => document.querySelector('[data-comp="sf|"]').innerText.replace(/\s+/g, ' '))), '3. the shortfall is worked out: the personal investment (the retirement annuity) is taken off the life cover only');
   const dots = await p.evaluate(() => [...document.querySelectorAll('.dot')].map(d => d.className.replace('dot ', '')));
-  ok(dots[10] === 'amber' && dots[4] === 'green' && dots[0] === 'grey' && dots.slice(5, 10).every(d => d === 'grey'), '3. the dots (round 2.0 order: policies, group, investments, other, shortfall, the five servicing blocks, FNA ...): policies grey, FNA amber, shortfall green, the five servicing blocks grey: ' + dots.join(','));
+  ok(dots[10] === 'amber' && dots[4] === 'green' && dots[0] === 'grey' && dots.slice(5, 10).every(d => d === 'na'), '3. the dots (round 2.0 order: policies, group, investments, other, shortfall, the five servicing blocks, FNA ...): policies grey, FNA amber, shortfall green, the five servicing blocks dashed (nobody asked for them: round 2.2): ' + dots.join(','));
   await p.screenshot({ path: out + '/release54-shortfall.png', fullPage: true });
 
   /* ---- 4. layout ---- */

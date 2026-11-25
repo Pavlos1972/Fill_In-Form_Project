@@ -166,8 +166,8 @@ test('the Type of servicing moves a quote (and its counter offers) to the block 
   assert.strictEqual(store.setServicingType(s, 'blocks.svReduction.quotes.1', 'svfna'), null, 'a counter offer follows its quote'); assert.strictEqual(store.setServicingType(s, 'blocks.svReduction.quotes.0', 'fna'), null, 'only the five servicing types'); assert.strictEqual(store.setServicingType(s, 'blocks.svReduction.quotes.0', 'svreduction'), q);
   assert.strictEqual(store.setServicingType(s, 'blocks.policies.items.0', 'svfna'), null);
   const n = check.emptyNotes(s, { ran: true, done: { svFna: true, svIncrease: true, svReduction: true } });
-  assert.deepStrictEqual(n.svFna, { text: 'Not requested', all: false, kind: 'na' }); assert.deepStrictEqual(n.svIncrease, { text: 'Not requested', all: false, kind: 'na' }); assert.strictEqual(n.svReduction, undefined);
-  assert.notStrictEqual(check.run(s, { ran: true, done: { svFna: true } }).dots.svFna, 'red', 'an empty servicing block is grey, not red');
+  assert.deepStrictEqual(n.svFna, { text: 'Not asked for', all: false, kind: 'na' }); assert.deepStrictEqual(n.svIncrease, { text: 'Not asked for', all: false, kind: 'na' }); assert.strictEqual(n.svReduction, undefined);          // round 2.2: "Not requested" became "Not asked for"
+  assert.strictEqual(check.run(s, { ran: true, done: { svFna: true } }).dots.svFna, 'na', 'an empty servicing block nobody asked for is dashed (round 2.2), never red');
   const ui = app('js/ov-ui.js');
   assert.ok(/function svTypeSel\(/.test(ui) && /data-svtype=/.test(ui) && /store\.setServicingType\(state, svt, el\.value\)/.test(ui) && /class="cnt"/.test(ui) && /Lines come from the document only: to change a line, replace the document\./.test(ui), 'the screen: the Type of servicing box, the quote count in the menu, the note under the lines');
 });
@@ -213,7 +213,7 @@ test('the PDF and the Presentation put the pages and tabs under the same four he
 });
 
 test('the page is 2.0 or later (the layout stays 0.1), the contract says revision p with the new keys, the changed scripts carry new tags', () => {
-  assert.ok(/^2\.[01]$/.test(schema.pageVersion), 'the page is 2.0 or later (2.1 now)'); assert.strictEqual(schema.version, '0.1'); assert.ok(parseFloat(schema.pageVersion) > parseFloat('1.9'), 'compared as decimals');
+  assert.ok(/^2\.[012]$/.test(schema.pageVersion), 'the page is 2.0 or later'); assert.strictEqual(schema.version, '0.1'); assert.ok(parseFloat(schema.pageVersion) > parseFloat('1.9'), 'compared as decimals');
   const html = app('overview.html');
   ['ov-schema', 'ov-calc', 'ov-store', 'ov-check', 'ov-docs', 'ov-pdf', 'ov-pres', 'ov-ui', 'ov-present', 'folders'].forEach(f => assert.ok(new RegExp(f + '\\.js\\?v=20261125[a-z]').test(html), f));
   ['overview', 'present'].forEach(f => assert.ok(new RegExp('css/' + f + '\\.css\\?v=20261125[a-z]').test(html), f + '.css'));

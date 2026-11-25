@@ -5,7 +5,7 @@
   else { root.OV = root.OV || {}; root.OV.schema = factory(); }
 })(typeof self !== 'undefined' ? self : this, function () {
   /* VERSION is the layout of the saved file (docs/OVERVIEW-DATA-CONTRACT.md): the filling skill stops on one it does not know. PAGE_VERSION is the page's own version, which changes with every stage. */
-  var VERSION = '0.1', PAGE_VERSION = '2.1', APP_ID = 'wr-overview';
+  var VERSION = '0.1', PAGE_VERSION = '2.2', APP_ID = 'wr-overview';
 
   /* The four pillars, in the order of the columns. life and lsd have a lump sum and a monthly figure; sev only a lump sum; ip only a monthly figure. */
   var PILLARS = [
@@ -47,6 +47,9 @@
     { id: 'goals', n: 16, group: 'inv', title: 'Goal analysis reports', kind: 'goals', add: 'Add goal report' }
   ];
   var blocksById = {}; BLOCKS.forEach(function (b) { blocksById[b.id] = b; });
+  /* Round 2.2 (Paul, 25 November 18:48): every QUOTE line of the menu has a "needed" tick box: the five servicing blocks, the four new business blocks and Proposed investments (the investment quote requests of the Fact Find). The checklist reads: asked for / loaded / still outstanding. */
+  var NEED_BLOCKS = ['svFna', 'svShortfall', 'svReduced', 'svIncrease', 'svReduction', 'fna', 'shortfallQuote', 'reduced', 'comparative', 'proposed'];
+  NEED_BLOCKS.forEach(function (id) { blocksById[id].need = true; });
   var blockOfQuote = { fna: 'fna', shortfall: 'shortfallQuote', reduced: 'reduced', comparative: 'comparative', svfna: 'svFna', svshortfall: 'svShortfall', svreduced: 'svReduced', svincrease: 'svIncrease', svreduction: 'svReduction' };
   var NB_KINDS = ['fna', 'shortfall', 'reduced', 'comparative'];                                              // new business: a new policy (feeds the ROA)
   var SV_KINDS = ['svfna', 'svshortfall', 'svreduced', 'svincrease', 'svreduction'];                           // servicing: a change to ONE current policy (feeds the SROA)
@@ -164,7 +167,7 @@
   /* The year folder the overview goes in (the year of its date). */
   function yearOf(state) { var d = parseDMY(state && state.header && state.header.overviewDate) || parseDMY(todayDMY()); return String(d.y); }
 
-  return { version: VERSION, pageVersion: PAGE_VERSION, released: 'November 2026', APP_ID: APP_ID, PILLARS: PILLARS, PILLAR_SHORT: PILLAR_SHORT, GROUPS: GROUPS, groupsById: groupsById, BLOCKS: BLOCKS, blocksById: blocksById, blockOfQuote: blockOfQuote, QUOTE_KINDS: QUOTE_KINDS, NB_KINDS: NB_KINDS, SV_KINDS: SV_KINDS, isServicingKind: isServicingKind, SV_MEANING: SV_MEANING, INSURERS: INSURERS,
+  return { NEED_BLOCKS: NEED_BLOCKS, version: VERSION, pageVersion: PAGE_VERSION, released: 'November 2026', APP_ID: APP_ID, PILLARS: PILLARS, PILLAR_SHORT: PILLAR_SHORT, GROUPS: GROUPS, groupsById: groupsById, BLOCKS: BLOCKS, blocksById: blocksById, blockOfQuote: blockOfQuote, QUOTE_KINDS: QUOTE_KINDS, NB_KINDS: NB_KINDS, SV_KINDS: SV_KINDS, isServicingKind: isServicingKind, SV_MEANING: SV_MEANING, INSURERS: INSURERS,
     STATUS: STATUS, statusLabel: statusLabel, UW: UW, uwLabel: uwLabel, UW_ISSUED: UW_ISSUED, UW_DECLINED: UW_DECLINED, LEGACY_STATUS: LEGACY_STATUS, TERM_BENEFITS: TERM_BENEFITS, LOADING_KINDS: LOADING_KINDS, loadingKindLabel: loadingKindLabel, BROKER_RECORD: BROKER_RECORD, NEED_GROUPS: NEED_GROUPS, COLUMN_GROUPS: COLUMN_GROUPS, needGroupById: needGroupById, columnGroupById: columnGroupById, cellOf: cellOf, cellsBenefit: cellsBenefit,BENEFIT_PILLARS: BENEFIT_PILLARS, LINE_TYPES: LINE_TYPES, lineTypesById: lineTypesById, STANDARDS: STANDARDS, PROPOSED_TYPES: PROPOSED_TYPES, CONTRIBUTIONS: CONTRIBUTIONS,
     contributionLabel: contributionLabel, OTHER_KEYS: OTHER_KEYS, FIGURES: FIGURES, GROUP_KINDS: GROUP_KINDS, PAID_BY: PAID_BY, ST_LABEL: ST_LABEL, fileName: fileName, yearOf: yearOf, clientName: clientName,
     clientFull: clientFull, parseDMY: parseDMY, todayDMY: todayDMY, safeName: safeName };

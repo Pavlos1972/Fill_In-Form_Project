@@ -78,7 +78,7 @@ srv.listen(0, async () => {
   const dot = id => p.evaluate(i => document.querySelector('[data-dot="' + i + '"]').className.replace('dot ', ''), id);
   const quiet = () => p.evaluate(() => { document.querySelector('#toast').hidden = true; });
   const waitDone = () => p.waitForFunction(() => !document.querySelector('#nav .prog:not([hidden]).reading, #nav .prog:not([hidden]).searching, #nav .prog:not([hidden]).waiting, #nav .prog:not([hidden]).checking'), null, { timeout: 60000 });
-  await p.evaluate(t => OV.app.fillFactFindText(t, 'ff.json'), JSON.stringify(FFJ));
+  await p.evaluate(t => OV.app.fillFactFindText(t, 'ff.json'), JSON.stringify(FFJ)); await p.evaluate(() => { OV.schema.NEED_BLOCKS.forEach(id => OV.store.setNeeded(OV.app.state, id, true)); OV.app.setState(OV.app.state); });
 
   /* ---- 1. Load from client folder: the pick list (the folder tells what a file is; the e-mail is listed) ---- */
   await p.click('#btnReadFolder'); await p.waitForSelector('dialog.fdlg[open] .flist');
@@ -112,7 +112,7 @@ srv.listen(0, async () => {
     const old = OV.store.blank(); OV.store.fillFromFactFind(old, JSON.stringify({ app: 'wr-fact-find', schema: '5.4', f: { fname: { v: 'Rita' }, sname: { v: 'Round' }, date: { v: '01/11/2025' } }, l: { kids: [], debts: [], risk: [] } }), 'old.json');
     old.blocks.other.items.forEach(i => { i.st = 'ff'; });
     const r = OV.store.startReview(old, '24/11/2026'), s = r.state, was = s.blocks.other.items.map(i => i.st).join();
-    OV.store.fillFromFactFind(s, t, 'ff.json'); return { was, now: s.blocks.other.items.map(i => ({ k: i.key, st: i.st, note: i.note })) };
+    OV.store.fillFromFactFind(s, t, 'ff.json'); OV.schema.NEED_BLOCKS.forEach(id => OV.store.setNeeded(s, id, true)); return { was, now: s.blocks.other.items.map(i => ({ k: i.key, st: i.st, note: i.note })) };
   }, JSON.stringify(FFJ));
   ok(/verify|empty/.test(rev.was) && /\(Fact Find 20\/11\)$/.test(rev.now.filter(x => x.k === 'medical')[0].note) && /\(Fact Find 20\/11\)$/.test(rev.now.filter(x => x.k === 'gap')[0].note), '8. a New review year overview (items carried over to check, with nothing in them) gets this year\'s Fact Find answers: ' + JSON.stringify(rev.now.slice(0, 2)));
 

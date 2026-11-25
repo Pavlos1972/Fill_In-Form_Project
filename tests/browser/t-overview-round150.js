@@ -101,7 +101,7 @@ srv.listen(0, async () => {
     const p = await ctx.newPage(); p.on('pageerror', e => errs.push(String(e))); p.on('dialog', d => d.accept());
     await p.goto(addr + 'overview.html'); await p.waitForTimeout(900); await wireOn(p); if (await p.$('#restoreDraft')) await p.click('#restoreNew');
     await p.evaluate(() => FF.lookup.saveSettings({ apiKey: 'sk-test-key', model: 'claude-test' }));
-    await p.evaluate(ff => { const s = OV.store.blank(); OV.store.fillFromFactFind(s, JSON.stringify(ff), 'ff.json'); const lg = s.blocks.other.items.filter(i => i.key === 'legacy')[0]; lg.company = 'Capital Legacy'; lg.wr = true; OV.app.setState(s); OV.app.openAll(); window.__tracking = true; window.__writes = 0; }, FFJ);
+    await p.evaluate(ff => { const s = OV.store.blank(); OV.store.fillFromFactFind(s, JSON.stringify(ff), 'ff.json'); OV.schema.NEED_BLOCKS.forEach(id => OV.store.setNeeded(s, id, true)); const lg = s.blocks.other.items.filter(i => i.key === 'legacy')[0]; lg.company = 'Capital Legacy'; lg.wr = true; OV.app.setState(s); OV.app.openAll(); window.__tracking = true; window.__writes = 0; }, FFJ);
     return p;
   };
   const waitDone = p => p.waitForFunction(() => !document.querySelector('#nav .prog:not([hidden]).reading, #nav .prog:not([hidden]).searching, #nav .prog:not([hidden]).waiting, #nav .prog:not([hidden]).checking'), null, { timeout: 60000 });

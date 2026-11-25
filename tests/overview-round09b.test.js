@@ -21,7 +21,7 @@ const item = (s, key) => s.blocks.other.items.filter(i => i.key === key)[0];
 
 /* ---------- 1. nothing is said before the search of a block has finished ---------- */
 test('a block says "nothing found" only when its own search has finished (opts.done); until then every block is neutral (grey, no comment)', () => {
-  const s = withFF({}), none = check.run(s, { ran: true, done: {} });
+  const s = withFF({ bfred: [{ d: { req: 'Request a quote', type: 'New Business' } }] }, { bf_fna_req: { v: 'Request a quote' } }), none = check.run(s, { ran: true, done: {} });          // round 2.2: the FNA and the reduced quote are asked for, so they are needed (a quote nobody asked for is dashed, never red)
   assert.deepStrictEqual(Object.keys(none.notes), [], 'no note at all while nothing has finished');
   schema.BLOCKS.forEach(b => assert.notStrictEqual(none.dots[b.id], 'red', b.id + ' is not red before its search has finished'));
   assert.strictEqual(none.dots.policies, 'grey'); assert.strictEqual(none.dots.group, 'grey'); assert.strictEqual(none.dots.fna, 'grey'); assert.strictEqual(none.dots.reduced, 'grey');
@@ -211,7 +211,7 @@ test('the Presentation\'s tables: a figure never runs into the next column (it i
 
 /* ---------- the contract ---------- */
 test('the contract: revision j, the page version 0.92, the layout still 0.1; new: benefits.sev, match "quote", src.kind "followup"', () => {
-  assert.ok(/^(1\.[0123456789]|2\.[01])$/.test(schema.pageVersion), 'the page version is 1.0 to 1.6'); assert.strictEqual(schema.version, '0.1');
+  assert.ok(/^(1\.[0123456789]|2\.[012])$/.test(schema.pageVersion), 'the page version is 1.0 to 1.6'); assert.strictEqual(schema.version, '0.1');
   assert.ok(/Revision j/.test(fs.readFileSync(path.join(__dirname, '..', 'docs', 'OVERVIEW-DATA-CONTRACT.md'), 'utf8')), 'written in the contract');
 });
 

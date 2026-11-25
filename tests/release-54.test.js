@@ -248,13 +248,13 @@ test('the shortfall check compares the shortfall quote with what the form works 
 });
 
 test('the dot of every block: grey when waiting, amber when it needs a look, green when complete, hollow for a shortfall quote nobody needs', () => {
-  const s = filled(), d = () => check.run(s).dots;
+  const s = filled(), d = () => check.run(s).dots; store.setNeeded(s, 'fna', true);                          // round 2.2: the FNA waits only when it is needed (ticked here)
   assert.strictEqual(d().policies, 'grey'); assert.strictEqual(d().fna, 'grey'); assert.strictEqual(d().shortfall, 'grey');
   assert.strictEqual(d().other, 'amber', 'block 11 follows the Fact Find and has no document to wait for: what it says is to be checked');
   s.blocks.other.items.forEach(it => { if (it.st === 'ff') it.st = 'confirmed'; }); assert.strictEqual(d().other, 'green', 'a click confirms it; the items with nothing in them wait for nothing');
   s.blocks.other.items.forEach(it => { if (it.st === 'confirmed') it.st = 'ff'; });
-  assert.strictEqual(d().shortfallQuote, 'red', 'there is group risk, but the Fact Find asked for no shortfall quote: checked, nothing there (Paul, 23 November)');
-  s.factFind.facts.asked.sf = true; assert.strictEqual(d().shortfallQuote, 'grey', 'there is group risk and the Fact Find asked for one: it waits for the document'); s.factFind.facts.asked.sf = false;
+  assert.strictEqual(d().shortfallQuote, 'na', 'there is group risk, but the Fact Find asked for no shortfall quote: not asked for, dashed (round 2.2; it was red in 0.9)');
+  store.setNeeded(s, 'shortfallQuote', true); assert.strictEqual(d().shortfallQuote, 'grey', 'there is group risk and the quote is needed: it waits for the document'); delete s.blocks.shortfallQuote.needed;
   const none = filled(); none.blocks.group.items = none.blocks.group.items.filter(i => i.kind !== 'risk'); assert.strictEqual(check.run(none).dots.shortfallQuote, 'na');
   fnaFilled(s); assert.strictEqual(d().fna, 'amber'); assert.strictEqual(d().shortfall, 'green');
   calc.activeLines(s.blocks.fna.quotes[0]).forEach(l => { l.st = 'confirmed'; }); s.blocks.fna.quotes[0].st = 'confirmed'; assert.strictEqual(d().fna, 'amber', 'still the missing change moment pay-out guide');

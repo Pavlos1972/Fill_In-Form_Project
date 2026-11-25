@@ -120,7 +120,7 @@ srv.listen(0, async () => {
   await p.keyboard.press('Escape'); await p.waitForTimeout(250); if (await p.evaluate(() => OV.present.isOpen)) { await p.click('#pBtnClose'); await p.waitForTimeout(200); }
 
   /* ---- 2. Load from client folder: the pick list reads the new names ---- */
-  await p.evaluate(ff => { const s = OV.store.blank(); OV.store.fillFromFactFind(s, JSON.stringify(ff), 'ff.json'); OV.app.setState(s); OV.app.openAll(); window.__tracking = true; window.__writes = 0; window.__api = []; }, FFJ);
+  await p.evaluate(ff => { const s = OV.store.blank(); OV.store.fillFromFactFind(s, JSON.stringify(ff), 'ff.json'); OV.schema.NEED_BLOCKS.forEach(id => OV.store.setNeeded(s, id, true)); OV.app.setState(s); OV.app.openAll(); window.__tracking = true; window.__writes = 0; window.__api = []; }, FFJ);
   await p.click('#btnReadFolder'); await p.waitForSelector('dialog.fdlg[open] .flist .pkh');
   const L1 = await p.evaluate(() => {
     const d = document.querySelector('dialog.fdlg[open]'), res = { rows: [] };

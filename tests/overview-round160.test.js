@@ -85,7 +85,7 @@ test('classify: a document in a folder named Review is a review document, never 
 
 /* ---------- 4. the wiring ---------- */
 test('the page is 1.6, no key is added, the year rule covers every kind of quote, a file is told apart by its folder, and the review documents reach the list', () => {
-  assert.ok(/^(1\.[6789]|2\.[01])$/.test(schema.pageVersion), 'page 1.6, or 1.7 or 1.8 which came after it'); assert.strictEqual(schema.version, '0.1'); assert.ok(parseFloat(schema.pageVersion) > parseFloat('1.5'), 'compared as decimals');
+  assert.ok(/^(1\.[6789]|2\.[012])$/.test(schema.pageVersion), 'page 1.6, or 1.7 or 1.8 which came after it'); assert.strictEqual(schema.version, '0.1'); assert.ok(parseFloat(schema.pageVersion) > parseFloat('1.5'), 'compared as decimals');
   const ui = app('js/ov-ui.js'), fu = app('js/folders-ui.js'), fo = app('js/folders.js'), html = app('overview.html');
   assert.ok(/QKIND = \{ fna: 1, shortfallQuote: 1, reduced: 1, comparative: 1, proposed: 1, cmp: 1, goals: 1, svFna: 1, svShortfall: 1, svReduced: 1, svIncrease: 1, svReduction: 1 \}/.test(ui), 'every kind of quote');
   assert.ok(/var ruled = function \(x\)/.test(fo) && /x\.kind === 'comparative' \|\| byFolder\[g\]/.test(fo), 'a kind is ruled by year when one of its files sits in a year folder (comparative quotes always)');

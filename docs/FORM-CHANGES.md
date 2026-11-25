@@ -4,6 +4,12 @@ A dated list of what changed in the form's boxes, newest first. **One line for e
 
 The version is `version` in `app/js/schema.js` (the Fact Find), `app/js/sr-schema.js` (the Short Risk Application) and `app/js/cs-schema.js` (the Investment Capture Sheet); a saved file carries it as `schema`. Earlier changes are in the README and in the git history; this list starts with 3.1.
 
+## Client Overview Studio 2.2: 25 November 2026 (Client Overview Studio 2.1 to 2.2; Fact Find 5.5, Risk Application 1.6 and Investment Application 1.5 keep their numbers; contract revision q: TWO optional keys)
+
+**New optional keys in the Overview's saved file (layout `0.1`):** `blocks.<id>.needed` (`true` / `false`: the adviser's tick of the "needed" box, on the ten quote blocks `svFna`, `svShortfall`, `svReduced`, `svIncrease`, `svReduction`, `fna`, `shortfallQuote`, `reduced`, `comparative`, `proposed`) and `factFind.facts.asked.blocks` (`{ "<block id>": true }`, the quote blocks the Fact Find asks for).
+- A "needed" tick box on every quote line of the menu (and a real check box on the block's page), pre-ticked from the Fact Find, the adviser's tick wins; Load from client folder looks only for the needed quotes and lists the others once, collapsed, as *Found but not asked for*; the menu reads asked for / loaded / outstanding with a summary line; a quote nobody asked for says *Not asked for* and is dashed, never red.
+- Skills: `client-overview-skill` fills only the blocks that are needed and never writes `needed`. PAGE_VERSION 2.2, `?v=` tags `20261125c`.
+
 ## Client Overview Studio 2.1: 25 November 2026 (Client Overview Studio 2.0 to 2.1; Fact Find 5.5, Risk Application 1.6 and Investment Application 1.5 keep their numbers; display, printing and folder naming only: NO key added, contract revision p unchanged)
 
 - **What prints:** the five blocks of Where the client is now always print (an empty one says so in one line); every quote page (the five servicing pages, FNA, Shortfall, Reduced, Comparative) only when it holds a quote; Proposed investments and Goal analysis reports unchanged. One function, `calc.pageShown`.

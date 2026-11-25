@@ -79,7 +79,7 @@ srv.listen(0, async () => {
   const dot = id => p.evaluate(i => document.querySelector('[data-dot="' + i + '"]').className.replace('dot ', ''), id);
   const quiet = () => p.evaluate(() => { document.querySelector('#toast').hidden = true; });
   const waitDone = () => p.waitForFunction(() => !document.querySelector('#nav .prog:not([hidden]).reading, #nav .prog:not([hidden]).searching, #nav .prog:not([hidden]).waiting, #nav .prog:not([hidden]).checking'), null, { timeout: 60000 });
-  await p.evaluate(t => OV.app.fillFactFindText(t, 'ff.json'), JSON.stringify(FFJ));
+  await p.evaluate(t => OV.app.fillFactFindText(t, 'ff.json'), JSON.stringify(FFJ)); await p.evaluate(() => { OV.schema.NEED_BLOCKS.forEach(id => OV.store.setNeeded(OV.app.state, id, true)); OV.app.setState(OV.app.state); });
 
   /* ---- 1. a fresh load: the lines that lack a figure ---- */
   await p.click('#btnReadFolder'); await p.waitForSelector('dialog.fdlg[open] .flist'); await p.click('dialog.fdlg [data-yes]');

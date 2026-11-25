@@ -41,7 +41,7 @@ srv.listen(0, async () => {
   await p.evaluate(() => FF.lookup.saveSettings({ apiKey: 'sk-test-key', model: 'claude-test' }));
   const clean = () => p.evaluate(() => { document.querySelector('#toast').hidden = true; const d = document.getElementById('resultsDlg'); if (d) d.remove(); });
   const dot = id => p.evaluate(i => document.querySelector('[data-dot="' + i + '"]').className.replace('dot ', ''), id);
-  const note = id => p.evaluate(i => { const e = document.querySelector('[data-note="' + i + '"]'); return e && !e.hidden && e.checkVisibility() ? e.textContent : ''; }, id);
+  const note = id => p.evaluate(i => { const e = document.querySelector('[data-note="' + i + '"]'), st = document.querySelector('[data-state="' + i + '"]'); return e && !e.hidden && e.checkVisibility() ? e.textContent : (st && !st.hidden && st.checkVisibility() ? st.textContent : ''); }, id);          // round 2.2: a quote line's checklist line says "Not asked for" / "Asked for · outstanding" (the comment is not drawn twice)
   const file = (txt, name) => `new File(${JSON.stringify([txt])}, ${JSON.stringify(name)}, { type: 'application/pdf' })`;
   const ing = (files, o) => p.evaluate(`OV.app.ingest([${files.map(f => file(f[0], f[1])).join(',')}], ${JSON.stringify(o || {})})`);
 
@@ -59,18 +59,18 @@ srv.listen(0, async () => {
   ok(mid.bars >= 1 && /Checking/.test(mid.txt), '2. a bar "Checking…" runs under the name of the blocks while it looks: ' + mid.bars + ' at 230 ms');
   await p.evaluate(() => OV.app.checkPass()); await p.waitForTimeout(120);
   ok(await dot('group') === 'red' && /No group benefits and no personal investments/.test(await note('group')), '2. group benefits and personal investments: red, "No group benefits and no personal investments"');
-  ok(await dot('comparative') === 'red' && /No comparative quotes/.test(await note('comparative')), '2. comparative quotes: red, "No comparative quotes"');
-  ok(await dot('proposed') === 'red' && /No proposed investments/.test(await note('proposed')), '2. proposed investments: red');
+  ok(await dot('comparative') === 'na' && /Not asked for/.test(await note('comparative')), '2. comparative quotes: the Fact Find asks for none, so dashed, "Not asked for" (round 2.2; red "No comparative quotes" before)');
+  ok(await dot('proposed') === 'na' && /Not asked for/.test(await note('proposed')), '2. proposed investments: none asked for, dashed (round 2.2)');
   ok(await dot('goals') === 'red' && /No goal analysis requested/.test(await note('goals')), '2. goal analysis reports: red, "No goal analysis requested"');
   ok(await dot('investments') === 'red' && /No current investments/.test(await note('investments')), '2. current investments: red');
   ok(await dot('other') === 'red' && /No medical aid/.test(await note('other')), '2. medical aid, will & short-term: red');
-  ok(await dot('fna') === 'red' && /No FNA quote found/.test(await note('fna')) && await dot('reduced') === 'red', '2. after the check the FNA and the reduced quotes (documents only) say none was found');
+  ok(await dot('fna') === 'na' && /Not asked for/.test(await note('fna')) && await dot('reduced') === 'na', '2. the FNA and the reduced quotes (documents only) are not asked for, so even after the check they are dashed, never red (round 2.2)');
   ok(await dot('shortfallQuote') === 'na' && /Not needed: no group risk/.test(await note('shortfallQuote')), '2. the shortfall quote without group risk is dashed and says why');
   ok(await dot('policies') !== 'red' && !(await note('policies')), '2. the policies are there: no red, no comment');
   const title = await p.evaluate(() => document.querySelector('[data-block="group"]').title);
   ok(/^Checked, nothing there: No group benefits and no personal investments\./.test(title), '2. the hover text says what red means: ' + title);
   await p.waitForTimeout(2600);
-  ok(await p.evaluate(() => [...document.querySelectorAll('#nav .prog')].every(e => e.hidden)), '2. the bars are gone once every block has finished');
+  ok(await p.evaluate(() => [...document.querySelectorAll('#nav .prog')].every(e => e.hidden)), '2. the bars are gone once every block has finished: ' + await p.evaluate(() => [...document.querySelectorAll('#nav .prog')].filter(e => !e.hidden).map(e => e.getAttribute('data-prog') + ':' + e.className + ':' + e.textContent.trim()).join(' | ')));
 
   /* ---- 3. a policy of another insurer is ONE row; a BrightRock policy keeps its needs ---- */
   await ing([[ 'LIB', 'Liberty schedule.pdf' ]], { block: 'policies' }); await p.waitForTimeout(300);
