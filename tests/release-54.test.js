@@ -44,12 +44,12 @@ function fnaFilled(s) {
 }
 
 test('the schema: eleven blocks in the fixed order, four pillars, three decisions, seven underwriting steps, Paul\'s standards', () => {
-  assert.deepStrictEqual(schema.BLOCKS.map(b => b.n + ' ' + b.title), ['1 Current policies', '2 FNA quote', '3 Group benefits & personal investments', '4 Shortfall', '5 Shortfall quote', '6 Reduced quotes', '7 Comparative quotes', '8 Current investments', '9 Proposed investments', '10 Goal analysis reports', '11 Medical aid, will & short-term']);
+  assert.deepStrictEqual(schema.BLOCKS.map(b => b.n + ' ' + b.title), ['1 Current policies', '2 Group benefits & personal investments', '3 Current investments', '4 Medical aid, will & short-term', '5 Shortfall (needs calculation)', '6 Servicing FNA quote', '7 Servicing shortfall quote', '8 Servicing reduced quote', '9 Straight increase', '10 Straight reduction', '11 FNA quote', '12 Shortfall quote', '13 Reduced quotes', '14 Comparative quotes', '15 Proposed investments', '16 Goal analysis reports']);
   assert.deepStrictEqual(schema.PILLARS.map(p => p.id), ['life', 'sev', 'lsd', 'ip']);
   assert.deepStrictEqual(schema.STATUS.map(s => s.l), ['Pending client decision', 'Accepted', 'Not accepted']);
   assert.deepStrictEqual(schema.UW.map(s => s.l), ['Pending underwriting', 'Accepted at standard rates', 'Accepted with loadings', 'Accepted with exclusions', 'Accepted with loadings and exclusions', 'Declined (health)', 'Declined (other)']);
   assert.deepStrictEqual(schema.STANDARDS, { aci: 10, abi: { child: 5, household: 5, debt: 0, death: 3, dread: 3 } });
-  assert.deepStrictEqual(schema.BLOCKS.filter(b => b.ff).map(b => b.id), ['policies', 'group', 'investments'], 'blocks 1, 3 and 8 follow the Fact Find');
+  assert.deepStrictEqual(schema.BLOCKS.filter(b => b.ff).map(b => b.id), ['policies', 'group', 'investments'], 'Current policies, Group benefits and Current investments follow the Fact Find');
   assert.strictEqual(schema.version, '0.1');
 });
 
@@ -190,7 +190,7 @@ test('the saved file: the layout of the contract, computed figures written for r
   s._extra = { futureThing: { a: 1 } };
   const text = store.toJSON(s), j = JSON.parse(text);
   assert.strictEqual(j.app, 'wr-overview'); assert.strictEqual(j.schema, '0.1');
-  assert.deepStrictEqual(Object.keys(j.blocks), ['policies', 'fna', 'group', 'shortfallQuote', 'reduced', 'comparative', 'investments', 'proposed', 'goals', 'other']);
+  assert.deepStrictEqual(Object.keys(j.blocks), ['policies', 'fna', 'group', 'shortfallQuote', 'reduced', 'comparative', 'investments', 'proposed', 'goals', 'other', 'svFna', 'svShortfall', 'svReduced', 'svIncrease', 'svReduction']);
   assert.ok(j.header && j.factFind.facts.children.length === 2 && j.settings.standards.aci === 10 && j.settings.tolerance === 1);
   assert.strictEqual(j.computed.totals[s.blocks.fna.quotes[0].id].life.monthly, 40000); assert.ok(j.computed.shortfall && j.computed.policies.premium.all === 1200); assert.strictEqual(j.futureThing.a, 1);
   const back = store.fromJSON(text);

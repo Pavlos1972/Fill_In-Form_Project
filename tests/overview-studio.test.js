@@ -148,7 +148,7 @@ test('finding the change moment pay-out guide beside a quote: by name and by the
 test('the page: an Upload from client folder button in all six blocks, the file window opens in the client\'s folder, reading is on by default', () => {
   const ui = app('js/ov-ui.js');
   assert.ok((ui.match(/data-upc=/g) || []).length >= 3 && /data-upc="proposed"/.test(ui) && /data-upc="goals"/.test(ui) && /data-upc="' \+ b\.id \+ '"/.test(ui), 'quote blocks, proposed investments and goal reports each have the button');
-  assert.ok(/startIn: handle/.test(ui) && /CLIENT_KIND = \{ fna: 'quote', shortfallQuote: 'quote', reduced: 'quote', comparative: 'comparative', proposed: 'proposal', goals: 'goal' \}/.test(ui), 'the file window opens in the client\'s folder for that kind of document');
+  assert.ok(/startIn: handle/.test(ui) && /CLIENT_KIND = \{ fna: 'quote', shortfallQuote: 'quote', reduced: 'quote', comparative: 'comparative', proposed: 'proposal', goals: 'goal', policies: 'schedule', svFna: 'comparative', svShortfall: 'comparative', svReduced: 'comparative', svIncrease: 'comparative', svReduction: 'comparative' \}/.test(ui), 'the file window opens in the client\'s folder for that kind of document');
   assert.ok(/ingest\(\[file\], \{ block: block, dir: res\.handle \}\)/.test(ui), 'the document is read into the block it was picked for, with the folder to look in for the pay-out guide');
   assert.ok(!/Upload from another folder/.test(ui) && /function pickAny\(block, dir\)/.test(ui) && /pickAny\(block\)/.test(ui), 'there is one upload button per block: when the client\'s folder is not found the normal file window opens by itself');
   assert.ok(/!== '0'/.test(ui), 'reading is on unless switched off');

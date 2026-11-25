@@ -65,7 +65,7 @@ test('a comparative quote starts with one whole-of-life line and the other kinds
   assert.deepStrictEqual(calc.totals(c).life, { lump: 0, monthly: 0 });
   c.lines[0].life.lump = 450000; c.lines[0].sev.lump = 100000; assert.strictEqual(calc.totals(c).life.lump, 450000); assert.strictEqual(calc.totals(c).sev.lump, 100000);
   assert.strictEqual(store.addQuote(s, 'fna').lines.length, 3, 'an FNA still starts with household, death-related and dread (no Fact Find here)');
-  const ui = app('js/ov-ui.js'); assert.ok(/c\.kind === 'comparative' \? \['other'/.test(ui), 'a comparative quote offers "Other line" first'); assert.ok(/what the other insurer\\'s quote prints/.test(ui), 'and a note says what it is');
+  const ui = app('js/ov-ui.js'); assert.ok(!/data-addl/.test(ui), 'round 2.0: no line is added by hand any more (a quote is added whole, from its document)'); assert.ok(/what the other insurer\\'s quote prints/.test(ui), 'and a note says what it is');
 });
 
 test('a review year: the client, policies, group, investments, goals and other cover carry over to be checked; the quotes, proposals and documents start empty; the old overview is not touched', () => {

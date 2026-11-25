@@ -8,7 +8,9 @@
   var W = 297, M = 12, CW = W - 2 * M, MIN_H = 210, TAB_Y = 6.5, TAB_H = 8, TOP = 22;
   var ACCENT = [39, 168, 224], DEEP = [18, 118, 168], INK = [38, 41, 46], MUTED = [100, 110, 118], LINE = [200, 218, 230], HEAD = [213, 236, 248], ORANGE = [253, 239, 224], BLUE = [225, 243, 251], RED = [179, 38, 30], GREEN = [45, 106, 62], PALE = [243, 249, 252];
   var FS = { body: 9.5, head: 9, small: 7, h1: 19, name: 43, sub: 11 };
-  var TABS = ['Cover', '1 Policies', '2 FNA', '3 Group', '4 Shortfall', '5 Shortfall quote', '6 Reduced', '7 Comparative', '8 Investments', '9 Proposed', '10 Goals', '11 Other'];
+  /* The tab row (round 2.0, Paul 25 November): the cover and every page that has something to say, under the FOUR headings (Where you are now, Servicing your current policies, New business quotes, Investments & goals); a page with nothing in it is not in the document at all. */
+  var TAB_SHORT = { policies: 'Policies', group: 'Group', investments: 'Investments', other: 'Other', shortfall: 'Shortfall', svFna: 'Serv. FNA', svShortfall: 'Serv. shortfall', svReduced: 'Serv. reduced', svIncrease: 'Increase', svReduction: 'Reduction', fna: 'FNA', shortfallQuote: 'Shortfall quote', reduced: 'Reduced', comparative: 'Comparative', proposed: 'Proposed', goals: 'Goals' };
+  var TABS = ['Cover'].concat(schema.BLOCKS.map(function (b) { return TAB_SHORT[b.id] || b.title; }));
 
   /* Standard PDF fonts cannot show every character. Keep to what they can. */
   function t(s) {
@@ -34,16 +36,28 @@
 
   /* ---------- the tab row ---------- */
   function tabRow(doc, current, pages, measuring) {
-    var w = CW / TABS.length;
-    TABS.forEach(function (name, i) {
-      var x = M + i * w, on = i === current, here = !pages || pages.no[i] > 0;
-      doc.setFillColor.apply(doc, on ? ACCENT : here ? PALE : [236, 238, 240]);
+    var tabs = (pages && pages.tabs) || [{ id: 'cover', name: 'Cover', group: null, page: 1 }], w = CW / tabs.length, i = 0, j, g, width = function (txt, sz) { return typeof doc.getTextWidth === 'function' ? doc.getTextWidth(t(txt)) : String(txt).length * sz * 0.18; },
+      fit = function (txt, maxW, size, min, bold, color) { var sz = size; setText(doc, color || DEEP, sz, bold); while (sz > min && width(txt, sz) > maxW) { sz -= 0.5; doc.setFontSize(sz); } return sz; };
+    while (i < tabs.length) {                                                                                  // a heading over the tabs of each group that has a page
+      g = tabs[i].group; j = i; while (j + 1 < tabs.length && tabs[j + 1].group === g) j++;
+      if (g && schema.groupsById[g]) {
+        var x0 = M + i * w + 0.4, x1 = M + (j + 1) * w - 0.4, title = schema.groupsById[g].pdf;
+        fit(title, x1 - x0, 6.5, 5, true); doc.text(t(title), (x0 + x1) / 2, TAB_Y - 1.4, { align: 'center' });
+        doc.setDrawColor.apply(doc, ACCENT); doc.setLineWidth(0.3); doc.line(x0, TAB_Y - 0.6, x1, TAB_Y - 0.6); doc.setLineWidth(0.25); doc.setDrawColor.apply(doc, LINE);
+      }
+      i = j + 1;
+    }
+    tabs.forEach(function (tb, k) {
+      var x = M + k * w, on = tb.id === current;
+      doc.setFillColor.apply(doc, on ? ACCENT : PALE);
       doc.roundedRect(x + 0.4, TAB_Y, w - 0.8, TAB_H, 1.6, 1.6, 'F');
-      setText(doc, on ? [255, 255, 255] : here ? DEEP : [168, 174, 180], 7.5, on);
-      doc.text(t(name), x + w / 2, TAB_Y + TAB_H / 2 + 1.1, { align: 'center' });
-      if (!measuring && here) doc.link(x + 0.4, TAB_Y, w - 0.8, TAB_H, { pageNumber: pages ? pages.no[i] : i + 1 });
+      fit(tb.name, w - 2, 7.5, 5, on, on ? [255, 255, 255] : DEEP);
+      doc.text(t(tb.name), x + w / 2, TAB_Y + TAB_H / 2 + 1.1, { align: 'center' });
+      if (!measuring) doc.link(x + 0.4, TAB_Y, w - 0.8, TAB_H, { pageNumber: tb.page });
     });
   }
+  /* The number a page carries in its title: its place among the pages that are there (round 2.0: a page with nothing in it is left out, so the numbers follow what is printed). */
+  function pn(state, b) { return schema.BLOCKS.filter(function (x) { return calc.pageShown(state, x.id); }).indexOf(b) + 1; }
   function pageTitle(doc, text) { setText(doc, DEEP, FS.h1, true); doc.text(t(text), M, TOP + 6); return TOP + 14; }
   function note(doc, y, text, color) {
     setText(doc, color || MUTED, 8.5, false);
@@ -54,7 +68,7 @@
 
   /* ---------- the cover ---------- */
   function cover(doc, state, H, measuring, pages) {
-    tabRow(doc, 0, pages, measuring);
+    tabRow(doc, 'cover', pages, measuring);
     var name = schema.clientFull(state) || 'New client', h = state.header, lg = FF.logo, top = H / 2 - 22, bottom = H / 2 + 33;
     doc.setFillColor(ACCENT[0], ACCENT[1], ACCENT[2]); doc.rect(0, top, W, bottom - top, 'F');
     if (lg && lg.data) { try { doc.addImage(lg.data, 'PNG', M, H - 34, 40, 40 * lg.h / lg.w); } catch (e) { /* the logo is optional */ } }
@@ -126,9 +140,9 @@
     var b = BADGE[calc.statusClass(q, state)] || BADGE.pending, got = state && calc.liveCounter(state, q), refused = !!got && calc.counterDead(state, q), label = refused ? 'Counter offer not accepted' : calc.statusText(q), bw = Math.max(48, label.length * 2.5 + 8);          // the badge stays short: a counter offer received is said in the line beside it
     doc.setFillColor.apply(doc, b[0]); doc.setDrawColor.apply(doc, b[1]); doc.setLineWidth(0.4); doc.roundedRect(M, y, bw, 8, 1.8, 1.8, 'FD');
     setText(doc, b[1], 9.5, true); doc.text(t(label), M + bw / 2, y + 5.4, { align: 'center' });
-    var n = q.number ? (/bright/i.test(q.insurer) ? 'CP ' : 'Quote ') + q.number : '', kind = q.counterOf ? 'Counter offer' : { fna: 'FNA', shortfall: 'Shortfall quote', reduced: 'Reduced quote', comparative: 'Comparative quote' }[q.kind];
+    var n = q.number ? (/bright/i.test(q.insurer) ? 'CP ' : 'Quote ') + q.number : '', kind = q.counterOf ? 'Counter offer' : { fna: 'FNA', shortfall: 'Shortfall quote', reduced: 'Reduced quote', comparative: 'Comparative quote', svfna: 'Servicing FNA quote', svshortfall: 'Servicing shortfall quote', svreduced: 'Servicing reduced quote', svincrease: 'Straight increase', svreduction: 'Straight reduction' }[q.kind];
     setText(doc, INK, FS.sub, true);
-    doc.text(t([q.insurer, kind, n, q.date, q.rates, q.servicing ? 'Servicing quote' : ''].filter(Boolean).join('   |   ')), M + bw + 5, y + 5.6);
+    doc.text(t([q.insurer, kind, n, q.date, q.rates, q.servicing && !calc.isServicing(q) ? 'Servicing quote' : ''].filter(Boolean).join('   |   ')), M + bw + 5, y + 5.6);
     if (got && !refused) { setText(doc, DEEP, FS.sub, true); doc.text(t(got.status === 'accepted' ? 'Counter offer accepted' : 'Counter offer received'), M + 1, y + 13); return y + 17; }          // said on a line of its own: beside the long badge it ran off the page
     return y + 12;
   }
@@ -197,26 +211,57 @@
     picks.forEach(function (e) { y = note(doc, y, calc.policyRef(e.item) + ' will be replaced by ' + calc.quoteRef(live), RED); });
     return y;
   }
+  /* A servicing quote (round 2.0): the ONE policy it is about, what changes line by line (the policy's own lines against the quote's), the premium before and after, and the reason. Worked out by calc.servicingDiff, like the screen. */
+  function servicingPart(doc, y, state, q) {
+    var d = calc.servicingDiff(state, q), pol = d.policy, ref = pol ? [pol.insurer || 'Policy', pol.policyNo].filter(Boolean).join(' ') + (pol.product ? ' (' + pol.product + ')' : '') : 'No current policy chosen';
+    y = note(doc, y, schema.SV_MEANING[q.kind] + '   On: ' + ref + '.', DEEP);
+    if (String(q.reason || '').trim()) y = note(doc, y, 'Reason: ' + String(q.reason).trim(), INK);
+    var fill = { added: [223, 240, 227], removed: [251, 227, 224], changed: [253, 239, 207], same: [255, 255, 255] };
+    var cell = function (r, pid) {
+      var key = pid === 'ip' ? 'monthly' : 'lump', c = r.cells.filter(function (x) { return x.pillar === pid && x.key === key; })[0], f = key === 'monthly' ? PM : A;
+      if (!c || (!calc.isNum(c.now) && !calc.isNum(c.next))) return right(c && (c.now === 'N/A' || c.next === 'N/A') ? 'N/A' : '', { fillColor: fill[r.status] });
+      var same = calc.isNum(c.now) && calc.isNum(c.next) && Math.abs(c.delta) < 0.005;
+      return right(same ? f(c.next) : (calc.isNum(c.now) ? f(c.now) : '-') + ' to ' + (calc.isNum(c.next) ? f(c.next) : '-'), { fillColor: fill[r.status], fontStyle: same ? 'normal' : 'bold' });
+    };
+    var body = d.rows.map(function (r) {
+      var nm = (r.label || r.type) + (r.debt || r.name ? '\n' + (r.debt || r.name) : '');
+      return [{ content: t(nm), styles: { halign: 'left', fontStyle: 'bold', fillColor: fill[r.status] } }, cell(r, 'life'), cell(r, 'sev'), cell(r, 'lsd'), cell(r, 'ip'), { content: t(r.status === 'same' ? r.text : ({ added: 'New', removed: 'Removed', changed: 'Changed: ' + r.text }[r.status])), styles: { halign: 'left', fillColor: fill[r.status] } }];
+    });
+    var pt = d.totals, tot = function (label, now, next, picks) {
+      return [{ content: t(label), styles: { halign: 'left', fontStyle: 'bold', fillColor: ORANGE } }].concat(picks.map(function (x) {
+        if (x === 'na') return right('N/A', { fontStyle: 'bold', fillColor: ORANGE }); if (x === '') return right('', { fillColor: ORANGE });
+        var a = now[x[0]][x[1]], b = next[x[0]][x[1]], f = x[1] === 'monthly' ? PM : A;
+        return right(Math.abs(b - a) < 0.005 ? f(b) : f(a) + ' to ' + f(b), { fontStyle: 'bold', fillColor: ORANGE });
+      }), [{ content: '', styles: { fillColor: ORANGE } }]);
+    };
+    body.push(tot('Total lump sum', pt.now, pt.next, [['life', 'lump'], ['sev', 'lump'], ['lsd', 'lump'], '']), tot('Total income protected', pt.now, pt.next, [['life', 'monthly'], 'na', ['lsd', 'monthly'], ['ip', 'monthly']]));
+    var pr = d.premium;
+    body.push([{ content: t('Monthly premium'), styles: { halign: 'left', fontStyle: 'bold', fillColor: BLUE } }, { content: t((calc.isNum(pr.now) ? A(pr.now) : '-') + ' to ' + (calc.isNum(pr.next) ? A(pr.next) : '-')), colSpan: 4, styles: { halign: 'right', fontStyle: 'bold', fillColor: BLUE } },
+      { content: t(calc.isNum(pr.diff) ? calc.fmtDiff(pr.diff) + ' a month' + (calc.isNum(pr.pct) ? ' (' + (pr.pct > 0 ? '+' : '') + pr.pct + '%)' : '') : ''), styles: { halign: 'left', fontStyle: 'bold', fillColor: BLUE } }]);
+    return table(doc, y + 1, { head: [['Need', 'Life cover\nnow to new', 'Severe illness\nnow to new', 'Lump sum disability\nnow to new', 'Income protector\nnow to new', 'Change']], body: body, colw: [46, 43, 35, 45, 43, 61], align: ['left', 'right', 'right', 'right', 'right', 'left'] }) + 3;
+  }
   function quotesPage(doc, state, b) {
-    var y = pageTitle(doc, b.n + '. ' + b.title), qs = calc.quotes(state, b.id);
+    var y = pageTitle(doc, pn(state, b) + '. ' + b.title), qs = calc.quotes(state, b.id);
     if (!qs.length) return empty(doc, y, b.id === 'shortfallQuote' && !calc.hasGroupRisk(state) ? 'The client has no group risk, so no shortfall quote is needed.' : 'Nothing to show here for this client.');
     qs.forEach(function (q, i) {
       if (i) y += 6;
       y = quoteHeader(doc, y, q, state);
+      var sv = calc.isServicing(q);
+      if (sv) y = servicingPart(doc, y, state, q);
       y = linesTable(doc, y, q, false, q.disabilityAge || state.header.disabilityAge) + 3;
       if (calc.activeLines(q).some(function (l) { return l.type === 'debt' && calc.isNum(l.ip && l.ip.monthly) && l.ip.monthly > 0; })) y = note(doc, y, 'Instalment Protector: if you are retrenched, the insurer pays each debt\'s instalment straight to the bank, for a period set by the insurer\'s rules.') + 1;
       if (q.counterOf) y = counterHead(doc, y + 2, state, q);                                                    // the premium before and after sits UNDER the quote's own table, like the terms
       y = cmpTable(doc, y + 2, q);
-      if (!(q.counterOf && !calc.activeLines(q).length)) y = compareTable(doc, y + 3, state, q);                  // a counter offer known only from its letter compares nothing
+      if (!sv && !(q.counterOf && !calc.activeLines(q).length)) y = compareTable(doc, y + 3, state, q);          // a counter offer known only from its letter compares nothing; a servicing quote has its own table above
       y = uwBlock(doc, y + 3, q);
-      y = replLines(doc, y + 2, state, q);
+      if (!sv) y = replLines(doc, y + 2, state, q);
     });
     return y;
   }
 
   /* ---------- the other blocks ---------- */
   function policiesPage(doc, state, b) {
-    var y = pageTitle(doc, b.n + '. ' + b.title), ps = calc.policies(state), pt = calc.policyTotals(state), age = state.header.disabilityAge ? '\nAge ' + state.header.disabilityAge : '';
+    var y = pageTitle(doc, pn(state, b) + '. ' + b.title), ps = calc.policies(state), pt = calc.policyTotals(state), age = state.header.disabilityAge ? '\nAge ' + state.header.disabilityAge : '';
     if (!ps.length) return empty(doc, y, 'No current policies.');
     var ri = calc.replacementInfo(state);
     var tickCell = function (e) {
@@ -252,7 +297,7 @@
     return y;
   }
   function groupPage(doc, state, b) {
-    var y = pageTitle(doc, b.n + '. ' + b.title), items = calc.groupItems(state), pi = calc.personalInvestments(state), gt = calc.groupTotals(state), prem = 0, age = state.header.disabilityAge ? '\nAge ' + state.header.disabilityAge : '';
+    var y = pageTitle(doc, pn(state, b) + '. ' + b.title), items = calc.groupItems(state), pi = calc.personalInvestments(state), gt = calc.groupTotals(state), prem = 0, age = state.header.disabilityAge ? '\nAge ' + state.header.disabilityAge : '';
     var cell = function (g, p) { var c = g[p]; if (!c || !calc.isNum(c.amount)) return right(c && c.amount === 'Not found' ? 'Not found' : '-'); return right((p === 'ip' ? PM(c.amount) : A(c.amount)) + (c.endAge != null && c.endAge !== '' ? '\n' + (/^\d+$/.test(String(c.endAge)) ? 'To age ' + c.endAge : c.endAge) : '')); };
     var red = function (text) { setText(doc, RED, 11, true); doc.text(t(text), M, y + 5); y += 11; };
     if (!items.length) red('There are no group benefits in place.');
@@ -272,7 +317,7 @@
     return y;
   }
   function shortfallPage(doc, state, b) {
-    var y = pageTitle(doc, b.n + '. ' + b.title), s = calc.shortfall(state);
+    var y = pageTitle(doc, pn(state, b) + '. ' + b.title), s = calc.shortfall(state);
     if (!s.has) return empty(doc, y, 'There is no FNA quote yet, so the shortfall cannot be worked out.');
     var rows = [['life', 'Life cover'], ['sev', 'Severe illness'], ['lsd', 'Lump sum disability'], ['ip', 'Income protector (R p.m.)']].map(function (r) {
       var pi = r[0] === 'life' ? s.pi.gross : 0;
@@ -282,7 +327,7 @@
     return note(doc, y + 1, 'The FNA assumes you have nothing in place. The shortfall takes off what you already have through your group benefits and your personal investments (your retirement annuities and other investments count towards the life cover shortfall).');
   }
   function investmentsPage(doc, state, b) {
-    var y = pageTitle(doc, b.n + '. ' + b.title), items = calc.investments(state), pi = calc.personalInvestments(state);
+    var y = pageTitle(doc, pn(state, b) + '. ' + b.title), items = calc.investments(state), pi = calc.personalInvestments(state);
     if (!items.length) return empty(doc, y, 'There are no current investments in place.');
     var rows = items.map(function (i) {
       var vs = i.valueSource || {}, src = vs.kind ? (vs.kind === 'astute' ? 'Astute report' : 'Investment schedule') + (vs.date ? '\n' + vs.date : '') : '-';
@@ -294,39 +339,41 @@
     return table(doc, y, { head: [['Investment', 'Values at', 'Source', 'Gross fund value', 'Penalties', 'Net fund value', 'Rate of return', 'ACI', 'Premium']], colw: [56, 24, 40, 30, 26, 30, 20, 17, 30], align: ['left'], body: rows, draw: drawOv });
   }
   function proposedPage(doc, state, b) {
-    var y = pageTitle(doc, b.n + '. ' + b.title), items = calc.active(state.blocks.proposed.items);
+    var y = pageTitle(doc, pn(state, b) + '. ' + b.title), items = calc.active(state.blocks.proposed.items);
     if (!items.length) return empty(doc, y, 'No proposed investments.');
     return table(doc, y, { head: [['Investment type', 'Provider & quote', 'Contribution', 'Lump sum', 'Monthly premium', 'Boost', 'Net amount invested', 'ACI']], colw: [44, 52, 36, 28, 28, 20, 38, 27], align: ['left', 'left', 'left'],
       body: items.map(function (i) { return [{ content: t(i.type), styles: { halign: 'left', fontStyle: 'bold' } }, { content: t([i.provider, i.quote ? 'Quote ' + i.quote : ''].filter(Boolean).join('   ')), styles: { halign: 'left' } }, { content: t(schema.contributionLabel[i.contribution] || ''), styles: { halign: 'left' } }, right(A(i.lump)), right(A(i.monthly)), right(PC(i.boostPct)), right(A(i.netInvested)), right(PC(i.aci))]; }) });
   }
   function goalsPage(doc, state, b) {
-    var y = pageTitle(doc, b.n + '. ' + b.title), items = calc.active(state.blocks.goals.items);
+    var y = pageTitle(doc, pn(state, b) + '. ' + b.title), items = calc.active(state.blocks.goals.items);
     if (!items.length) return empty(doc, y, 'No goal analysis reports.');
     return table(doc, y, { head: [['Report', 'Requested', 'Note', 'Current value (R p.m. gross)', 'Future value (R p.m. gross)', 'ACI', 'Premium']], colw: [80, 28, 60, 30, 30, 15, 30], align: ['left', 'center', 'left'],
       body: items.map(function (i) { return [{ content: t(i.kind === 'rgar' ? 'Retirement Goal Analysis Report (RGAR)' : 'Education Goal Analysis Report (EGAR)'), styles: { halign: 'left', fontStyle: 'bold' } }, center(i.requested ? 'Yes' : 'No'), { content: t(i.note || ''), styles: { halign: 'left' } }, right(A(i.currentValuePm)), right(A(i.futureValuePm)), right(PC(i.aci)), right(A(i.premium))]; }) });
   }
   function otherPage(doc, state, b) {
-    var y = pageTitle(doc, b.n + '. ' + b.title);
+    var y = pageTitle(doc, pn(state, b) + '. ' + b.title);
     return table(doc, y, { head: [['Item', 'Company & product', 'Policy number', 'Broker', 'Premium', 'Notes']], colw: [50, 70, 40, 24, 30, 59], align: ['left', 'left', 'left', 'center'], draw: drawOv,
       body: state.blocks.other.items.filter(function (i) { return !i.removed; }).map(function (i) {
         var nm = (schema.OTHER_KEYS.filter(function (k) { return k.key === i.key; })[0] || { l: i.key }).l;
         return [{ content: t(nm), styles: { halign: 'left', fontStyle: 'bold' } }, { content: t([i.company, i.product].filter(Boolean).join('   ') || '-'), styles: { halign: 'left' } }, { content: t(i.policyNo || '-'), styles: { halign: 'left' } }, (i.company || i.product || i.note ? { content: '', ov: { tick: !!i.wr, center: true } } : center('-')), right(A(i.premium)), { content: t(i.note || ''), styles: { halign: 'left' } }];
       }) });
   }
-  var PAGES = { policies: policiesPage, fna: quotesPage, group: groupPage, shortfall: shortfallPage, shortfallQuote: quotesPage, reduced: quotesPage, comparative: quotesPage, investments: investmentsPage, proposed: proposedPage, goals: goalsPage, other: otherPage };
+  var PAGES = { policies: policiesPage, fna: quotesPage, group: groupPage, shortfall: shortfallPage, shortfallQuote: quotesPage, reduced: quotesPage, comparative: quotesPage, investments: investmentsPage, proposed: proposedPage, goals: goalsPage, other: otherPage,
+    svFna: quotesPage, svShortfall: quotesPage, svReduced: quotesPage, svIncrease: quotesPage, svReduction: quotesPage };
 
   /* One page, drawn on a page of height H. Returns how far down the content reached (so the page can be made exactly that tall). */
   function drawPage(doc, state, id, H, measuring, pages) {
     if (id === 'cover') return cover(doc, state, H, measuring, pages);
     var b = schema.blocksById[id];
-    tabRow(doc, b.n, pages, measuring);
+    tabRow(doc, id, pages, measuring);
     return PAGES[id](doc, state, b);
   }
   /* The pages there are: the cover and every block whose page has something to say (ov-calc.js pageShown); no[i] is the page number of tab i, 0 for a page that is left out. */
   function pagesOf(state) {
-    var ids = ['cover'].concat(schema.BLOCKS.filter(function (b) { return calc.pageShown(state, b.id); }).map(function (b) { return b.id; })), no = [], all = ['cover'].concat(schema.BLOCKS.map(function (b) { return b.id; }));
+    var shown = schema.BLOCKS.filter(function (b) { return calc.pageShown(state, b.id); }), ids = ['cover'].concat(shown.map(function (b) { return b.id; })), no = [], all = ['cover'].concat(schema.BLOCKS.map(function (b) { return b.id; }));
     all.forEach(function (id) { no.push(ids.indexOf(id) + 1); });
-    return { ids: ids, no: no };
+    var tabs = [{ id: 'cover', name: 'Cover', group: null, page: 1 }].concat(shown.map(function (b, k) { return { id: b.id, name: (k + 1) + ' ' + (TAB_SHORT[b.id] || b.title), group: b.group, page: k + 2 }; }));
+    return { ids: ids, no: no, tabs: tabs };
   }
   function build(state) {
     var jsPDF = window.jspdf.jsPDF, pages = pagesOf(state), ids = pages.ids, orient = function (h) { return h > W ? 'portrait' : 'landscape'; };

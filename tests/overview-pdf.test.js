@@ -58,7 +58,8 @@ function filled() {
 }
 const all = () => pages.map(p => p.join(' \n ')).join(' \n ');
 const page = i => pages[i].join(' \n ');
-const FNA = 2;                                                                                           // the page of block 2 (the cover is page 0)
+const POS = {}; PDF.pagesOf(filled()).ids.forEach((id, i) => { POS[id] = i; });                         // round 2.0: the pages follow the four headings (policies, group, investments, other, shortfall, then the quotes), a page with nothing in it is not there
+const FNA = POS.fna;                                                                                     // the page of the FNA quote (the cover is page 0)
 
 test('twelve pages: a cover and one for each block, each A4 wide and at least A4 tall; single-page view', () => {
   PDF.build(filled());
@@ -70,9 +71,9 @@ test('twelve pages: a cover and one for each block, each A4 wide and at least A4
 
 test('every page has the row of twelve tabs, and each tab is a link to its page', () => {
   PDF.build(filled());
-  const labels = PDF.TABS;
-  assert.deepStrictEqual(labels, ['Cover', '1 Policies', '2 FNA', '3 Group', '4 Shortfall', '5 Shortfall quote', '6 Reduced', '7 Comparative', '8 Investments', '9 Proposed', '10 Goals', '11 Other']);
-  pages.forEach((p, i) => labels.forEach(l => assert.ok(p.includes(l), 'page ' + (i + 1) + ' has the tab ' + l)));
+  const labels = PDF.pagesOf(filled()).tabs.map(t => t.name);
+  assert.deepStrictEqual(labels, ['Cover', '1 Policies', '2 Group', '3 Investments', '4 Other', '5 Shortfall', '6 FNA', '7 Shortfall quote', '8 Reduced', '9 Comparative', '10 Proposed', '11 Goals']);
+  pages.forEach((p, i) => { labels.forEach(l => assert.ok(p.includes(l), 'page ' + (i + 1) + ' has the tab ' + l)); ['Where you are now', 'New business quotes', 'Investments & goals'].forEach(h => assert.ok(p.includes(h), 'page ' + (i + 1) + ' has the heading ' + h)); assert.ok(!p.includes('Servicing your current policies'), 'no servicing quote: no servicing heading'); });
   assert.strictEqual(links.length, 144);
   for (let from = 1; from <= 12; from++) assert.deepStrictEqual(links.filter(l => l.page === from).map(l => l.to), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], 'the tabs of page ' + from);
 });
@@ -86,7 +87,7 @@ test('the cover: the client\'s name, "Your financial overview", the date, the br
 test('the quote: its status, CP number, lines, totals, premium, and the change moment pay-out and comparison on the SAME page', () => {
   PDF.build(filled());
   const t = page(FNA);
-  ['2. FNA quote', 'Pending client decision', 'CP 100000001', 'Non-smoker rates', 'Household needs', 'Child care\nAmy Client', 'Child care\nBen Client', 'Debt\nHome loan - Test Bank', 'Death-related needs', 'Additional expense needs (dread)',
+  ['6. FNA quote', 'Pending client decision', 'CP 100000001', 'Non-smoker rates', 'Household needs', 'Child care\nAmy Client', 'Child care\nBen Client', 'Debt\nHome loan - Test Bank', 'Death-related needs', 'Additional expense needs (dread)',
     'Total lump sum', 'R3,900,000', 'R500,000', 'R3,280,000', 'Total income protected', 'R40,000 p.m.', 'N/A', 'Monthly premium', 'R2,900'].forEach(x => assert.ok(t.includes(x), 'the FNA page has: ' + x));
   ['Your change moment pay-out', 'Total for all your needs', 'Your retirement needs', 'Amy Client', 'R80,000', 'R60,000', '31/12/2046', 'Compared with what you have now', 'What you have now', 'This quote', 'Difference', '+R2,900,000', '+R800']
     .forEach(x => assert.ok(t.includes(x), 'the same page has: ' + x));
@@ -106,16 +107,16 @@ test('the other blocks: policies with their totals, group benefits with the pers
   PDF.build(filled());
   const pol = page(1);
   ['1. Current policies', 'Other Insurer', 'Our Insurer', 'Total: policies where we are the broker', 'Total: other brokers', 'Grand total (all policies)', 'R1,000,000', 'R300,000', 'R500,000', 'R10,000 p.m.', 'R2,100'].forEach(x => assert.ok(pol.includes(x), 'policies: ' + x));
-  const grp = page(3);
-  ['3. Group benefits & personal investments', 'Group risk   Test Group', 'R810,000', 'To age 70', 'Personal investments', 'R50,000', 'Total'].forEach(x => assert.ok(grp.includes(x), 'group: ' + x));
-  const sf = page(4);
-  ['4. Shortfall', 'Less group benefits', 'Less personal investments', 'R3,900,000', 'R810,000', 'R3,040,000'.replace('3,040,000', '3,040,000')].forEach(x => assert.ok(sf.includes(x), 'shortfall: ' + x));
+  const grp = page(POS.group);
+  ['2. Group benefits & personal investments', 'Group risk   Test Group', 'R810,000', 'To age 70', 'Personal investments', 'R50,000', 'Total'].forEach(x => assert.ok(grp.includes(x), 'group: ' + x));
+  const sf = page(POS.shortfall);
+  ['5. Shortfall (needs calculation)', 'Less group benefits', 'Less personal investments', 'R3,900,000', 'R810,000', 'R3,040,000'.replace('3,040,000', '3,040,000')].forEach(x => assert.ok(sf.includes(x), 'shortfall: ' + x));
   assert.ok(sf.includes(calc.fmtR(3900000 - 810000 - 50000)), 'the life cover shortfall is worked out the same as on the screen');
-  ['8. Current investments', 'Test RA Co', 'R50,000', 'Total investments'].forEach(x => assert.ok(page(8).includes(x), 'investments: ' + x));
-  ['9. Proposed investments', 'Retirement annuity (RA)', 'Old Mutual', 'R5,000'].forEach(x => assert.ok(page(9).includes(x), 'proposed: ' + x));
-  ['10. Goal analysis reports', 'Retirement Goal Analysis Report (RGAR)', 'Client did not request for at this time'].forEach(x => assert.ok(page(10).includes(x), 'goals: ' + x));
-  ['11. Medical aid, will & short-term', 'Medical aid', 'Test Medical', 'Short-term insurance'].forEach(x => assert.ok(page(11).includes(x), 'other: ' + x));
-  ['6. Reduced quotes', 'Accepted', 'Reduced quote'].forEach(x => assert.ok(page(6).includes(x), 'reduced: ' + x));
+  ['3. Current investments', 'Test RA Co', 'R50,000', 'Total investments'].forEach(x => assert.ok(page(POS.investments).includes(x), 'investments: ' + x));
+  ['10. Proposed investments', 'Retirement annuity (RA)', 'Old Mutual', 'R5,000'].forEach(x => assert.ok(page(POS.proposed).includes(x), 'proposed: ' + x));
+  ['11. Goal analysis reports', 'Retirement Goal Analysis Report (RGAR)', 'Client did not request for at this time'].forEach(x => assert.ok(page(POS.goals).includes(x), 'goals: ' + x));
+  ['4. Medical aid, will & short-term', 'Medical aid', 'Test Medical', 'Short-term insurance'].forEach(x => assert.ok(page(POS.other).includes(x), 'other: ' + x));
+  ['8. Reduced quotes', 'Accepted', 'Reduced quote'].forEach(x => assert.ok(page(POS.reduced).includes(x), 'reduced: ' + x));
 });
 
 const pageOf = (st, id) => PDF.pagesOf(st).ids.indexOf(id);
@@ -123,7 +124,7 @@ const pageOf = (st, id) => PDF.pagesOf(st).ids.indexOf(id);
 test('an empty block says so in plain words; a page with nothing to say is left out and its tab is greyed', () => {
   const s = store.blank(); s.header.fname = 'Test'; s.header.sname = 'Client'; PDF.build(s);
   const ids = PDF.pagesOf(s).ids;
-  assert.deepStrictEqual(ids, ['cover', 'policies', 'fna', 'group', 'shortfall', 'reduced', 'investments', 'other'], 'no shortfall quote, comparative quotes, proposed investments or goal reports: those pages are left out');
+  assert.deepStrictEqual(ids, ['cover', 'policies', 'group', 'investments', 'other', 'shortfall', 'fna', 'reduced'], 'no servicing quote, shortfall quote, comparative quotes, proposed investments or goal reports: those pages are left out');
   assert.strictEqual(pages.length, ids.length);
   assert.ok(/There is no FNA quote yet/.test(page(pageOf(s, 'shortfall'))) && /No current policies/.test(page(pageOf(s, 'policies'))) && /Nothing to show here for this client/.test(page(pageOf(s, 'fna'))));
   assert.ok(/There are no current investments in place\./.test(page(pageOf(s, 'investments'))), 'the Current investments page is kept and says so');
@@ -132,14 +133,16 @@ test('an empty block says so in plain words; a page with nothing to say is left 
   assert.ok(!/Total/.test(grp), 'no table when there is nothing to list');
 });
 
-test('left-out pages: the tab row keeps all twelve tabs, but only the pages that exist are linked, to their own page numbers', () => {
+test('left-out pages: the tab row has only the pages that exist (cover and the pages with something in them), each linked to its own page number', () => {
   const s = store.blank(); s.header.fname = 'Test'; s.header.sname = 'Client'; PDF.build(s);
   const n = PDF.pagesOf(s).ids.length;
   assert.strictEqual(n, 8);
   assert.strictEqual(links.length, n * n, 'each page links to every page that exists');
   for (let from = 1; from <= n; from++) assert.deepStrictEqual(links.filter(l => l.page === from).map(l => l.to), [1, 2, 3, 4, 5, 6, 7, 8], 'page ' + from);
-  pages.forEach((p, i) => PDF.TABS.forEach(l => assert.ok(p.includes(l), 'page ' + (i + 1) + ' still shows the tab ' + l)));
-  assert.deepStrictEqual(PDF.pagesOf(s).no, [1, 2, 3, 4, 5, 0, 6, 0, 7, 0, 0, 8], 'tab number of every page; 0 = left out (grey)');
+  const names = PDF.pagesOf(s).tabs.map(t => t.name);
+  assert.deepStrictEqual(names, ['Cover', '1 Policies', '2 Group', '3 Investments', '4 Other', '5 Shortfall', '6 FNA', '7 Reduced']);
+  pages.forEach((p, i) => { names.forEach(l => assert.ok(p.includes(l), 'page ' + (i + 1) + ' shows the tab ' + l)); assert.ok(!p.includes('Comparative') && !p.includes('Goals'), 'a left-out page has no tab: page ' + (i + 1)); });
+  assert.deepStrictEqual(PDF.pagesOf(s).no, [1, 2, 3, 4, 5, 6, 0, 0, 0, 0, 0, 7, 0, 8, 0, 0, 0], 'page number of every block in the order cover, the sixteen blocks; 0 = left out');
 });
 
 test('the Shortfall quote page needs group risk AND a shortfall quote asked for; the Comparative quotes page needs one asked for in the Fact Find (or one there); Proposed and Goals need something', () => {
