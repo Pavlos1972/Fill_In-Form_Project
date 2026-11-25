@@ -445,7 +445,7 @@
     if ((m = /(?:^|[^\d])((?:19|20)\d{2})(?![\d]|[-.\/]\d)/.exec(n))) return +m[1] * 10000;
     return 0;
   }
-  /* Which of the client's quote-like documents are NOT the newest of their kind (round 1.7; the rule of 1.6 and Paul's answer of 25 November, relayed 14:52).
+  /* Which of the client's quote-like documents are NOT the newest of their kind (round 1.7; since 1.8 a proposal's kind is its product and a goal report's its type, see quoteSub; the rule of 1.6 and Paul's answer of 25 November, relayed 14:52).
      entries: [{ id, kind, y (the year: its folder's, else its name's, 0 when none), fy (the year of its folder, 0 when it sits in no year folder), ex (the date in its name as yyyymmdd, yyyymm00 for a month, 0 when none), no (its CP or policy number, '' when none) }];
      kind is fna, shortfallQuote, reduced, comparative, proposed, goals or cmp (a change moment pay-out guide). Returns a Map id -> the reason it is not ticked.
      (1) A kind is ruled by YEAR when one of its documents sits in a year folder (comparative quotes always): only the newest year's are ticked; a document with no year loses to a year.
@@ -503,15 +503,15 @@
   var YEAR_DIR = /^(19|20)\d{2}(?!\d)/;
   var ENTER_DIR = /schedule|statement|summary|servic|valuation|annual/;
   var REVIEW_DIR = /review/;
-  var REVIEW_SCHEDULE = /schedule|s(a)?tatement|(^|[^a-z])ps([^a-z]|$)/;          // what makes a file in a Review folder the policy's schedule (1.8): its name says schedule, statement or PS
+  var REVIEW_SCHEDULE = /schedule|s(a)?tatement|(^|[^a-z])(ps|is)([^a-z]|$)/;          // what makes a file in a Review folder the policy's schedule (1.8): its name says schedule, statement, PS (policy schedule) or IS (investment statement)
   /* The owner's manual (and the other long documents) is never the schedule: manual or owner always; terms, conditions, policy document, wording, contract and brochure unless the name also says schedule, summary or statement. */
   function isManual(name) { var n = norm(name); return /manual|owner/.test(n) || (/terms|conditions|policy ?document|policy ?wording|contract|brochure/.test(n) && !/schedule|summary|statement/.test(n)); }
   /* One live policy folder, read for its schedules and statements: loose files whose names say so, `Policy Schedules` and every year folder (also inside it), `Servicing` (only files whose names say schedule, summary or statement), no deeper than three folders down.
      Acceptance Letter, Applications, Cancellations, Claims, Medical Reports, ROA, RAR, Questionnaires, Notes & Emails, Comparative Quotes and Quotes are not entered. st: { stop, cap, seen, partial } is shared by the whole scan. Fills g.files and sets g.done. */
   async function walkPolicy(g, st) {
     g.quotes = g.quotes || [];
-    /* A folder named Review ("2026 - Review") inside a policy folder holds the review's documents, not the policy's schedules (1.6, Paul 25 November: "the latest review documents"): every PDF in it, and in the year folders inside it, is listed in g.quotes
-       (the page puts them among the other documents, where only the newest year's are ticked); none of them can be a schedule candidate whatever its name says (a "Review Summary" is not a policy summary schedule). */
+    /* A folder named Review ("2026 - Review") inside a policy folder holds the review's documents (1.6, Paul 25 November: "the latest review documents"): every PDF in it, and in the year folders inside it, is listed in g.quotes
+       (the page puts them among the other documents, where only the newest year's are ticked) EXCEPT (1.8, Paul: "1 yes") a PDF whose name says schedule, statement, IS or PS, which is the policy's own schedule candidate (g.files): a "Review Summary" is not a policy summary schedule and stays a review document. */
     async function lookQ(dir, rel, depth) {
       for await (var e of dir.entries()) {
         if (st.partial) return;
@@ -543,7 +543,7 @@
           if ((strict || depth === 0) && !SCHEDULE_NAME.test(low) && !isManual(e[0])) { toQ(); continue; }      // a loose file of the policy folder, or one in Servicing: a schedule candidate only when its name says what it is (the owner's manual is kept, as the last resort); in Servicing the rest is listed (g.quotes)
           g.files.push({ name: e[0], rel: rel, handle: e[1], role: isManual(e[0]) ? 'manual' : 'schedule', key: dateKey(e[0], rel) });
         } else if (e[1].kind === 'directory' && depth < 3) {
-          if (REVIEW_DIR.test(low) && !/schedule|statement|valuation/.test(low)) { await lookQ(e[1], rel.concat([e[0]]), depth + 1); continue; }              // a Review folder is read by its folder: its files are review documents (g.quotes), never schedules
+          if (REVIEW_DIR.test(low) && !/schedule|statement|valuation/.test(low)) { await lookQ(e[1], rel.concat([e[0]]), depth + 1); continue; }              // a Review folder is read by its folder: its files are review documents (g.quotes), except a schedule or statement by name (lookQ: the policy's own candidate, 1.8)
           if (SKIP_DIR.test(low) && !/schedule/.test(low)) continue;                              // "Acceptance Letter & Policy Schedules" holds schedules: it is entered
           if (/servic/.test(low)) await look(e[1], rel.concat([e[0]]), depth + 1, true);
           else if (YEAR_DIR.test(low) || ENTER_DIR.test(low)) await look(e[1], rel.concat([e[0]]), depth + 1, strict);

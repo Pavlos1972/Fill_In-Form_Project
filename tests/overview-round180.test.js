@@ -79,15 +79,15 @@ const client = d => ({ rootKey: 'A', parts: ['Test, Dora'], handle: d });
 test('walkPolicy: a schedule, a statement or a PS in a Review folder is the policy\'s candidate; a Review Summary, a letter, a quote, a signed or accepted copy, the owner\'s manual and another insurer\'s file are not', async () => {
   calls.write = 0;
   const c = new Dir('Test, Dora'), pf = c.add('NinetyOne Invest - 449900'), rv = pf.add('2026 - Review');
-  rv.file('Policy Schedule 15.02.26.pdf', 'Investment Statement 30.06.26.pdf', 'UT PS 01.03.26.pdf', 'Review Summary 2026.pdf', 'Premium Increase Letter 2026.pdf', 'Quote 2026.pdf', 'Signed Policy Schedule 2026.pdf', 'Accepted Schedule.pdf', "Owner's Manual.pdf", 'Liberty Policy Schedule 2026.pdf', 'Review Notes.pdf', 'Change of details form.pdf');
+  rv.file('Policy Schedule 15.02.26.pdf', 'Invest IS 30.06.26.pdf', 'Investment Statement 30.06.26.pdf', 'UT PS 01.03.26.pdf', 'Review Summary 2026.pdf', 'Premium Increase Letter 2026.pdf', 'Quote 2026.pdf', 'Signed Policy Schedule 2026.pdf', 'Accepted Schedule.pdf', "Owner's Manual.pdf", 'Liberty Policy Schedule 2026.pdf', 'Review Notes.pdf', 'Change of details form.pdf');
   rv.add('Charts').file('Statement 31.03.26.pdf', 'Chart Summary.pdf');
   pf.add('Policy Schedules', '2025').file('Invest PS 31.12.25.pdf');
   const scan = await F.policyScan(client(c), { ms: 5000, cap: 500 }), g = scan.groups[0];
-  assert.deepStrictEqual(names(g.files).sort(), ['Invest PS 31.12.25.pdf', 'Investment Statement 30.06.26.pdf', 'Policy Schedule 15.02.26.pdf', 'Statement 31.03.26.pdf', 'UT PS 01.03.26.pdf'], 'schedule, statement and PS names are candidates, one folder down too');
+  assert.deepStrictEqual(names(g.files).sort(), ['Invest IS 30.06.26.pdf', 'Invest PS 31.12.25.pdf', 'Investment Statement 30.06.26.pdf', 'Policy Schedule 15.02.26.pdf', 'Statement 31.03.26.pdf', 'UT PS 01.03.26.pdf'], 'schedule, statement and PS names are candidates, one folder down too');
   assert.deepStrictEqual(names(g.quotes).sort(), ['Accepted Schedule.pdf', 'Change of details form.pdf', 'Chart Summary.pdf', 'Liberty Policy Schedule 2026.pdf', 'Premium Increase Letter 2026.pdf', 'Quote 2026.pdf', 'Review Notes.pdf', 'Review Summary 2026.pdf', 'Signed Policy Schedule 2026.pdf'], 'everything else is listed as a review document; the manual is neither');
   assert.ok(g.files.every(f => f.role === 'schedule') && g.files.every(f => f.handle && f.rel && f.key), 'a candidate carries what any candidate carries');
   assert.ok(!names(g.quotes).some(x => names(g.files).includes(x)), 'no document is in both lists');
-  const pick = F.newestOf(g.files); assert.strictEqual(pick.file && pick.file.name, 'Investment Statement 30.06.26.pdf', 'the newest by its date wins across the Review folder and the Policy Schedules folder'); assert.strictEqual(pick.tie, false);
+  const pick = F.newestOf(g.files); assert.strictEqual(pick.file && pick.file.name, 'Investment Statement 30.06.26.pdf', 'the newest by its date wins across the Review folder and the Policy Schedules folder; on one date the name that says statement beats "IS"'); assert.strictEqual(pick.tie, false);
   assert.strictEqual(calls.write, 0, 'nothing was written, created or removed');
 });
 test('walkPolicy: an older schedule in a Review folder does not beat a newer one in Policy Schedules (the folder\'s year ranks it)', async () => {
@@ -116,10 +116,33 @@ test('the page is 1.8, no key is added, the entries carry the product, the walk 
   assert.strictEqual(schema.pageVersion, '1.8'); assert.strictEqual(schema.version, '0.1'); assert.ok(parseFloat(schema.pageVersion) > parseFloat('1.7'), 'compared as decimals');
   const ui = app('js/ov-ui.js'), fo = app('js/folders.js'), html = app('overview.html');
   assert.ok(/sub: F\.quoteSub \? F\.quoteSub\(kd, f\.name\) : ''/.test(ui), 'tickPlan gives every entry its product or report kind');
-  assert.ok(/REVIEW_SCHEDULE\.test\(low\)/.test(fo) && /var REVIEW_SCHEDULE = \/schedule\|s\(a\)\?tatement\|\(\^\|\[\^a-z\]\)ps\(\[\^a-z\]\|\$\)\//.test(fo), 'the walk takes a schedule, a statement or a PS from a Review folder');
+  assert.ok(/REVIEW_SCHEDULE\.test\(low\)/.test(fo) && /var REVIEW_SCHEDULE = \/schedule\|s\(a\)\?tatement\|\(\^\|\[\^a-z\]\)\(ps\|is\)\(\[\^a-z\]\|\$\)\//.test(fo), 'the walk takes a schedule, a statement or a PS from a Review folder');
   assert.ok(/!\/signed\/\.test\(low\)/.test(fo) && /!NOT_SCHEDULE\.test\(low\)/.test(fo), 'never a signed copy, a letter, a quote or a form');
   assert.ok(/quoteSub: quoteSub/.test(fo), 'quoteSub is exported');
   const D2 = app('js/ov-docs.js'); assert.ok(/PAPERWORK = \/signed\|accept\|letter\|sroa/.test(D2) && /QUOTEISH = \/quote\|proposal\|illustration/.test(D2), 'Paul: "3 leave": the paperwork and quote words are as they were');
   ['ov-schema', 'ov-docs', 'ov-ui', 'folders'].forEach(f => assert.ok(new RegExp(f + '\\.js\\?v=20261124v').test(html), f));
   ['index.html', 'short-risk.html', 'capture-sheet.html'].forEach(f => assert.ok(/folders\.js\?v=20261124v/.test(app(f)), f));
+});
+
+/* ---------- the ranking of a Review folder's schedule against the policy's other schedules (pinned, whatever it is) ---------- */
+const pickOf = async build => { const c = new Dir('Test, Dora'), pf = c.add('NinetyOne Invest - 449900'); build(pf); const g = (await F.policyScan(client(c), { ms: 5000, cap: 500 })).groups[0]; return { g, p: F.newestOf(g.files) }; };
+test('ranking: a Review folder\'s schedule with a LATER date than the schedule of the same year is the pick; with an EARLIER date it is not', async () => {
+  let r = await pickOf(pf => { pf.add('2026 - Review').file('Policy Schedule 15.06.26.pdf'); pf.add('Policy Schedules', '2026').file('Invest PS 31.03.26.pdf'); });
+  assert.strictEqual(r.p.file.name, 'Policy Schedule 15.06.26.pdf');
+  r = await pickOf(pf => { pf.add('2026 - Review').file('Policy Schedule 15.02.26.pdf'); pf.add('Policy Schedules', '2026').file('Invest PS 31.03.26.pdf'); });
+  assert.strictEqual(r.p.file.name, 'Invest PS 31.03.26.pdf');
+});
+test('ranking (PINNED, to tell Paul): a Review folder\'s schedule with NO date in its name loses to a DATED schedule of the same year in Policy Schedules (an undated file ranks below a dated one of its year); two undated ones of one year tick none and say so; the same file name in both places is one document', async () => {
+  let r = await pickOf(pf => { pf.add('2026 - Review').file('Policy Schedule.pdf'); pf.add('Policy Schedules', '2026').file('Invest PS 31.03.26.pdf'); });
+  assert.strictEqual(r.g.files.length, 2); assert.strictEqual(r.p.file.name, 'Invest PS 31.03.26.pdf', 'the dated one is the pick: the undated Review schedule is not ticked');
+  r = await pickOf(pf => { pf.add('2026 - Review').file('Policy Schedule 2026.pdf'); pf.add('Policy Schedules', '2026').file('Invest PS 31.03.26.pdf'); });
+  assert.strictEqual(r.p.file.name, 'Invest PS 31.03.26.pdf', 'a bare year in the name is not a date either');
+  r = await pickOf(pf => { pf.add('2026 - Review').file('Policy Schedule.pdf'); pf.add('Policy Schedules', '2026').file('Policy Schedule Summary.pdf'); });
+  assert.strictEqual(r.p.tie, true); assert.strictEqual(r.p.file, null, 'both undated in one year: nothing is picked, the tie is said');
+  r = await pickOf(pf => { pf.add('2026 - Review').file('Policy Schedule.pdf'); pf.add('Policy Schedules', '2026').file('Policy Schedule.pdf'); });
+  assert.strictEqual(r.g.files.length, 2); assert.strictEqual(r.p.tie, false); assert.ok(r.p.file, 'the same name in both places is one document, not a tie');
+});
+test('IS (an investment statement) in a Review folder is a candidate like a statement; a word that merely contains the letters is not', async () => {
+  let r = await pickOf(pf => { pf.add('2026 - Review').file('Invest IS 30.06.26.pdf', 'This Quote.pdf', 'Analysis.pdf'); });
+  assert.deepStrictEqual(names(r.g.files), ['Invest IS 30.06.26.pdf']); assert.deepStrictEqual(names(r.g.quotes).sort(), ['Analysis.pdf', 'This Quote.pdf']);
 });

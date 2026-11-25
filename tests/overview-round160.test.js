@@ -37,7 +37,7 @@ function tree() {
 }
 
 /* ---------- 1. a Review folder inside a policy folder is read by its folder ---------- */
-test('a folder named Review inside a policy folder: its documents are listed as review documents (g.quotes) and none of them can be the policy\'s schedule, whatever its name says', async () => {
+test('a folder named Review inside a policy folder: its documents are listed as review documents (g.quotes); only one whose name says schedule, statement, IS or PS is the policy\'s schedule candidate (1.8)', async () => {
   calls.write = 0;
   const scan = await F.policyScan(client(tree()), { ms: 5000, cap: 500 });
   const st = scan.groups.find(g => /Stanlib/.test(g.name)), cr = scan.groups.find(g => /Coronation/.test(g.name));
