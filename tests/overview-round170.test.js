@@ -115,6 +115,51 @@ test('a pay-out guide follows its quote: the guide of a quote that is not ticked
   assert.ok(!F.ageQuotes([same, same2, g]).has(g.id), 'a ticked quote carries the number, so the guide is ticked');
 });
 
+/* ---------- 3b. a Review or Servicing folder inside a policy folder: a mix of new quotes and paperwork (Paul, 25 November 14:55) ---------- */
+const D = require('../app/js/ov-docs.js');
+const calls = { write: 0 };
+const names = list => list.map(x => x.name);
+class FileH { constructor(name) { this.kind = 'file'; this.name = name; } async createWritable() { calls.write++; throw new Error('read only'); } }
+class Dir {
+  constructor(name, parent) { this.kind = 'directory'; this.name = name; this.parent = parent || null; this.kids = new Map(); }
+  async *entries() { for (const [k, h] of this.kids) yield [k, h]; }
+  add(...names) { let d = this; for (const x of names) d = d.kids.get(x) || (d.kids.set(x, new Dir(x, d)), d.kids.get(x)); return d; }
+  file(...x) { x.forEach(y => this.kids.set(y, new FileH(y))); return this; }
+  async getDirectoryHandle() { calls.write++; throw new Error('read only'); }
+  async getFileHandle() { calls.write++; throw new Error('read only'); }
+  async removeEntry() { calls.write++; throw new Error('read only'); }
+}
+test('classify, a Review or Servicing folder directly inside a policy folder: a document is a quote only when its NAME says so; never a letter, a signed or accepted copy, an SROA, a schedule or the owner\'s manual', () => {
+  const cls = (n, d) => { const c = D.classify(n, d); return c ? c.block + (c.viaReview ? '*' : '') : null; };
+  const V = 'NinetyOne Invest - 449900 \\ 2026 - Review', S = 'NinetyOne Invest - 449900 \\ Servicing', Y = 'NinetyOne Invest - 449900 \\ Servicing \\ 2026';
+  ['NinetyOne RA Premium Increase 2026.pdf', 'Signed FNA Quote 2026.pdf', 'Quote - accepted.pdf', 'SROA 2026.pdf', 'ROA.pdf', 'Review Letter 2026.pdf', "Owner's Manual.pdf", 'Policy Schedule 2026.pdf', 'Change of details form.pdf', 'Signed Reduced Quote.pdf'].forEach(n => {
+    assert.strictEqual(cls(n, V), null, n + ' in a Review folder is not a quote'); assert.strictEqual(cls(n, S), null, n + ' in Servicing is not a quote'); assert.ok(D.reviewPaperwork(n, V), n + ' is paperwork');
+  });
+  [['Quote.pdf', 'comparative'], ['Quote 2026.pdf', 'comparative'], ['Coronation Proposal 2026.pdf', 'comparative'], ['Cover Proposal 400500777.pdf', 'comparative'], ['CP 400500777.pdf', 'comparative'], ['FNA Quote 2026.pdf', 'fna'], ['Reduced Quote.pdf', 'reduced'], ['Shortfall.pdf', 'shortfallQuote']].forEach(([n, b]) => {
+    assert.strictEqual(cls(n, V), b, n + ' in a Review folder'); assert.strictEqual(cls(n, S), b, n + ' in Servicing'); assert.strictEqual(cls(n, Y), b, n + ' in a year folder of Servicing'); assert.ok(!D.reviewPaperwork(n, V));
+  });
+  assert.strictEqual(cls('RA Review 2026.pdf', V), 'comparative*', 'an investment by its name and nothing says quote: listed as a comparative quote by its folder, not ticked');
+  assert.strictEqual(cls('Review Summary 2026.pdf', V), null, 'a name that says nothing stays unclassified');
+  assert.strictEqual(cls('Quote.pdf', '3. Quotes \\ 2026 - Review'), null, 'in a numbered quotes folder a bare Quote is not guessed (the kind is unknown)');
+  assert.strictEqual(cls('Signed FNA Quote.pdf', '3. Quotes \\ 2026 - Review'), null, 'but a signed copy is never a quote, wherever the Review folder is');
+  assert.strictEqual(cls('FNA Quote.pdf', '3. Quotes \\ 2026 - Review'), 'fna');
+  assert.strictEqual(cls('Statement 31.03.26.pdf', 'NinetyOne Invest - 449900 \\ Policy Schedules \\ 2026'), 'investments', 'a statement in Policy Schedules is untouched');
+  assert.ok(!D.reviewPaperwork('Signed Quote.pdf', 'NinetyOne Invest - 449900 \\ Policy Schedules'), 'outside a Review or Servicing folder the paperwork rule does not apply');
+});
+test('walkPolicy: Servicing\'s schedules are candidates, its other documents are listed (g.quotes), its manual is the last resort, and nothing is written', async () => {
+  calls.write = 0;
+  const c = new Dir('Test, Dora'), pf = c.add('NinetyOne Invest - 449900'), sv = pf.add('Servicing');
+  sv.file('Policy Schedule 31.03.26.pdf', 'NinetyOne RA Premium Increase 2026.pdf', 'Quote 2026.pdf', "Owner's Manual.pdf", 'Signed FNA Quote 2026.pdf');
+  sv.add('2026').file('Premium Letter.pdf', 'Investment Statement 30.06.26.pdf');
+  pf.file('Letter.pdf', 'Loose Statement 2025.pdf'); pf.add('Applications').file('Application.pdf');
+  const scan = await F.policyScan({ rootKey: 'A', parts: ['Test, Dora'], handle: c }, { ms: 5000, cap: 500 }), g = scan.groups[0];
+  assert.deepStrictEqual(names(g.files).filter(x => !/Manual/.test(x)).sort(), ['Investment Statement 30.06.26.pdf', 'Loose Statement 2025.pdf', 'Policy Schedule 31.03.26.pdf'], 'schedule-like names are candidates (a loose one in the policy folder as before)');
+  assert.ok(g.files.some(x => /Manual/.test(x.name) && x.role === 'manual'), 'the owner\'s manual is kept as the last resort');
+  assert.deepStrictEqual(names(g.quotes).sort(), ['NinetyOne RA Premium Increase 2026.pdf', 'Premium Letter.pdf', 'Quote 2026.pdf', 'Signed FNA Quote 2026.pdf'], 'the rest of Servicing is listed, also one folder down; the manual and a loose letter of the policy folder are not');
+  assert.ok(!names(g.quotes).includes('Letter.pdf') && !names(g.quotes).includes('Application.pdf'), 'the policy folder\'s own loose files and Applications are not listed');
+  assert.strictEqual(calls.write, 0);
+});
+
 /* ---------- 4. the wiring ---------- */
 test('the page is 1.7, no key is added, tickPlan asks the one function, and the tags are new', () => {
   assert.strictEqual(schema.pageVersion, '1.7'); assert.strictEqual(schema.version, '0.1'); assert.ok(parseFloat(schema.pageVersion) > parseFloat('1.6'), 'compared as decimals');

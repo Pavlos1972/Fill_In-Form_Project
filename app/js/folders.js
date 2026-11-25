@@ -509,10 +509,14 @@
         if (++st.seen > st.cap || Date.now() > st.stop) { st.partial = true; return; }
         var low = norm(e[0]);
         if (e[1].kind === 'file') {
-          if (!DOC_FILE.test(e[0]) || NOT_SCHEDULE.test(low)) continue;
+          if (!DOC_FILE.test(e[0])) continue;
+          /* A Servicing folder (like a Review folder) holds new review quotes AND paperwork about the change (letters, the signed or accepted quote, an SROA, a new schedule, the owner's manual): Paul, 25 November 14:55, "a mix". What is not a schedule candidate is
+             listed among the other documents (g.quotes), where it is ticked only when its NAME says it is a quote (docs.classify). */
+          var toQ = function () { if (strict && !isManual(e[0])) g.quotes.push({ name: e[0], rel: rel, handle: e[1], key: dateKey(e[0], rel) }); };
+          if (NOT_SCHEDULE.test(low)) { toQ(); continue; }
           var other = g.p.insurer ? insurerIn(String(e[0]).replace(/\([^)]*\)/g, ' '), false) : null;                      // a file whose name names ANOTHER insurer than its folder is not this policy's document (an old Liberty schedule kept in a BrightRock folder)
           if (other && other.c !== g.p.insurer) { g.foreign.push(e[0]); continue; }
-          if ((strict || depth === 0) && !SCHEDULE_NAME.test(low) && !isManual(e[0])) continue;      // a loose file of the policy folder, or one in Servicing: only when its name says what it is (the owner's manual is kept, as the last resort)
+          if ((strict || depth === 0) && !SCHEDULE_NAME.test(low) && !isManual(e[0])) { toQ(); continue; }      // a loose file of the policy folder, or one in Servicing: a schedule candidate only when its name says what it is (the owner's manual is kept, as the last resort); in Servicing the rest is listed (g.quotes)
           g.files.push({ name: e[0], rel: rel, handle: e[1], role: isManual(e[0]) ? 'manual' : 'schedule', key: dateKey(e[0], rel) });
         } else if (e[1].kind === 'directory' && depth < 3) {
           if (REVIEW_DIR.test(low) && !/schedule|statement|valuation/.test(low)) { await lookQ(e[1], rel.concat([e[0]]), depth + 1); continue; }              // a Review folder is read by its folder: its files are review documents (g.quotes), never schedules

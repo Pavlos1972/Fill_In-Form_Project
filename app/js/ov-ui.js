@@ -1289,7 +1289,7 @@
     if (groups.length && rest.length) html += '<div class="pkh"><b>Other documents</b><span class="pkt">Astute reports, quotes, the schedules of the Policy Schedules folder, notes</span></div>';
     rest.forEach(function (x) {
       var c = D.classify(x.f.name, (x.f.rel || []).join(' \\ '));
-      html += fileRow(x.f, x.i, (c ? c.label : '') + (c && c.viaReview ? '; in a Review folder: not ticked, tick it if it is a quote' : '') + (tp.older.has(x.f) ? '; ' + tp.older.get(x.f) : '') + (F && F.isManual && F.isManual(x.f.name) ? '; owner’s manual: never ticked' : ''), '', '');
+      html += fileRow(x.f, x.i, (c ? c.label : '') + (c && c.viaReview ? '; in a Review or Servicing folder: not ticked, tick it if it is a quote' : '') + (!c && D.reviewPaperwork && D.reviewPaperwork(x.f.name, (x.f.rel || []).join(' \\ ')) ? 'paperwork about a change (a letter, a signed or accepted copy, an SROA, a schedule, the owner\u2019s manual): not a quote, not ticked' : '') + (tp.older.has(x.f) ? '; ' + tp.older.get(x.f) : '') + (F && F.isManual && F.isManual(x.f.name) ? '; owner’s manual: never ticked' : ''), '', '');
     });
     var notes = [];
     if (plan && plan.ffOnly && plan.ffOnly.length) notes.push({ cls: 'warn', text: 'In the Fact Find, but no policy folder was found for: ' + plan.ffOnly.map(function (it) { return [it.who, it.product].filter(Boolean).join(' '); }).join('; ') + '.' });
