@@ -73,14 +73,15 @@ srv.listen(0, async () => {
   await p.evaluate(() => FF.lookup.saveSettings({ apiKey: 'sk-test-key', model: 'claude-test' }));
   const st = () => p.evaluate(() => OV.app.state);
   const dot = id => p.evaluate(i => document.querySelector('[data-dot="' + i + '"]').className.replace('dot ', ''), id);
-  const note = id => p.evaluate(i => { const e = document.querySelector('[data-note="' + i + '"]'); return e && !e.hidden && e.checkVisibility() ? e.textContent : ''; }, id);
+  const note = id => p.evaluate(i => { const e = document.querySelector('[data-note="' + i + '"]'), st = document.querySelector('[data-state="' + i + '"]'); return e && !e.hidden && e.checkVisibility() ? e.textContent : (st && !st.hidden && st.checkVisibility() ? st.textContent : ''); }, id);          // round 2.2: a quote line's checklist line says "Not asked for" / "Asked for · outstanding" (the comment is not drawn twice)
   const IDS = ['policies', 'fna', 'group', 'shortfall', 'shortfallQuote', 'reduced', 'comparative', 'investments', 'proposed', 'goals', 'other'];
   const quiet = () => p.evaluate(() => { document.querySelector('#toast').hidden = true; });
 
   /* ---- 1. Fill from the Fact Find alone: the document blocks say nothing about the folder ---- */
   await p.evaluate(t => OV.app.fillFactFindText(t, 'ff.json'), JSON.stringify(FFJ));
+  await p.evaluate(() => { ['fna', 'reduced'].forEach(id => OV.store.setNeeded(OV.app.state, id, true)); OV.app.setState(OV.app.state); });          // round 2.2: only a quote that is needed can be outstanding (red once the folder was searched)
   await p.evaluate(() => OV.app.checkPass());
-  ok(await dot('fna') === 'grey' && !(await note('fna')) && await dot('reduced') === 'grey' && !(await note('reduced')), '1. after Fill from Fact Find alone, the FNA and the reduced quotes do not say "none found": the folder was not searched');
+  ok(await dot('fna') === 'grey' && /outstanding/.test(await note('fna')) && !/none found|No FNA/.test(await note('fna')) && await dot('reduced') === 'grey' && /outstanding/.test(await note('reduced')), '1. after Fill from Fact Find alone, the FNA and the reduced quotes (needed) are waiting: they do not say "none found", the folder was not searched');
   ok(await dot('group') === 'red' && /No group benefits/.test(await note('group')), '1. group benefits (a statement about the Fact Find) is checked: red');
 
   /* ---- 2. Load from client folder: every block is neutral while the folder is searched ---- */

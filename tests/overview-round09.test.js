@@ -21,19 +21,21 @@ test('a Fact Find with nothing in it: every block that follows it is checked and
   const s = withFF({}), r = check.run(s);
   assert.strictEqual(r.dots.policies, 'red'); assert.strictEqual(r.notes.policies.text, 'No current policies');
   assert.strictEqual(r.dots.group, 'red'); assert.strictEqual(r.notes.group.text, 'No group benefits and no personal investments');
-  assert.strictEqual(r.dots.comparative, 'red'); assert.strictEqual(r.notes.comparative.text, 'No comparative quotes');
+  assert.strictEqual(r.dots.comparative, 'na'); assert.strictEqual(r.notes.comparative.text, 'Not asked for');                  // round 2.2: the Fact Find asks for no quote, so a quote block is not needed: dashed, never red
   assert.strictEqual(r.dots.investments, 'red'); assert.strictEqual(r.notes.investments.text, 'No current investments');
-  assert.strictEqual(r.dots.proposed, 'red'); assert.strictEqual(r.notes.proposed.text, 'No proposed investments');
+  assert.strictEqual(r.dots.proposed, 'na'); assert.strictEqual(r.notes.proposed.text, 'Not asked for');                          // round 2.2
   assert.strictEqual(r.dots.goals, 'red'); assert.strictEqual(r.notes.goals.text, 'No goal analysis requested');
   assert.strictEqual(r.dots.other, 'red'); assert.match(r.notes.other.text, /medical aid/i);
   assert.strictEqual(r.dots.shortfallQuote, 'na', 'no group risk: not needed (dashed), and it says why'); assert.match(r.notes.shortfallQuote.text, /no group risk/);
-  assert.strictEqual(r.dots.fna, 'grey', 'the FNA is a document: grey until the page has looked through a folder'); assert.ok(!r.notes.fna); assert.strictEqual(r.dots.reduced, 'grey');
+  assert.strictEqual(r.dots.fna, 'na', 'round 2.2: the Fact Find asks for no FNA quote: not needed, dashed'); assert.strictEqual(r.notes.fna.text, 'Not asked for'); assert.strictEqual(r.dots.reduced, 'na');
   assert.strictEqual(r.dots.shortfall, 'grey', 'the shortfall is worked out from the FNA: it has no "nothing there" of its own');
 });
 
 test('the document blocks (FNA, reduced quotes) are red only after the page has looked: a folder load or a check', () => {
-  const s = withFF({}), r = check.run(s, { ran: true });
+  const s = withFF({ bfred: [{ d: { req: 'Request a quote', type: 'New Business' } }] }, { bf_fna_req: { v: 'Request a quote' } }), r = check.run(s, { ran: true });          // round 2.2: only a quote the Fact Find asks for (or the adviser ticks) is red when nothing is found
+  assert.strictEqual(check.run(s).dots.fna, 'grey', 'asked for and the page has not looked yet: waiting'); assert.strictEqual(check.run(s).notes.fna.text, 'Asked for: not loaded yet');
   assert.strictEqual(r.dots.fna, 'red'); assert.strictEqual(r.notes.fna.text, 'No FNA quote found'); assert.strictEqual(r.dots.reduced, 'red'); assert.strictEqual(r.notes.reduced.text, 'No reduced quotes found');
+  assert.strictEqual(check.run(withFF({}), { ran: true }).dots.fna, 'na', 'not asked for: never red, even after the page has looked');
   const q = store.addQuote(s, 'fna'); q.number = '100000001'; assert.strictEqual(check.run(s, { ran: true }).dots.fna, 'grey', 'a quote is there: waiting for its figures, not red');
 });
 
@@ -56,17 +58,19 @@ test('group benefits and personal investments: one of the two missing has the co
 });
 
 test('the shortfall quote: group risk but none asked for in the Fact Find is red; asked for, it waits; no group risk is dashed', () => {
-  const s = withFF({ grp: FULL.grp }); let r = check.run(s);
-  assert.strictEqual(r.dots.shortfallQuote, 'red'); assert.strictEqual(r.notes.shortfallQuote.text, 'No shortfall quote requested');
-  s.factFind.facts.asked.sf = true; r = check.run(s); assert.strictEqual(r.dots.shortfallQuote, 'grey'); assert.ok(!r.notes.shortfallQuote, 'asked for: it is waiting for the document');
+  let s = withFF({ grp: FULL.grp }), r = check.run(s);
+  assert.strictEqual(r.dots.shortfallQuote, 'na'); assert.strictEqual(r.notes.shortfallQuote.text, 'Not asked for');                    // round 2.2: group risk but no shortfall quote asked for: not needed, never red
+  s = withFF({ grp: FULL.grp }, { bf_sf_req: { v: 'Request a quote' } }); r = check.run(s); assert.strictEqual(r.dots.shortfallQuote, 'grey'); assert.strictEqual(r.notes.shortfallQuote.text, 'Asked for: not loaded yet', 'asked for: it is waiting for the document');
   assert.strictEqual(check.run(s, { ran: true }).dots.shortfallQuote, 'red', 'asked for and the page has looked: none found'); assert.match(check.run(s, { ran: true }).notes.shortfallQuote.text, /No shortfall quote found/);
+  delete s.factFind.facts.asked.blocks; s.factFind.facts.asked.sf = false; assert.strictEqual(check.run(s).notes.shortfallQuote.text, 'No shortfall quote requested', 'an older file that never recorded which quotes are asked for keeps the earlier message');
 });
 
 test('comparative quotes: asked for in the Fact Find they wait; not asked they are red', () => {
   const s = withFF({ raq: [] }, { fna_req: { v: 'Request a quote' } });
   assert.strictEqual(check.run(s).dots.comparative, 'grey', 'the Fact Find asked for a comparative quote (the standard lane)');
   assert.strictEqual(check.run(s, { ran: true }).notes.comparative.text, 'No comparative quote found');
-  assert.strictEqual(check.run(withFF({})).notes.comparative.text, 'No comparative quotes');
+  assert.strictEqual(check.run(withFF({})).notes.comparative.text, 'Not asked for', 'round 2.2: not asked for is dashed, never red');
+  const old = withFF({}); delete old.factFind.facts.asked.blocks; assert.strictEqual(check.run(old).notes.comparative.text, 'No comparative quotes', 'an older file with no record of the asked-for quotes keeps the earlier message');
 });
 
 test('the red dot: the legend, the hover text, and the dot is not shown for a block that has rows', () => {

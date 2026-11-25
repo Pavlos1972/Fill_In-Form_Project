@@ -71,7 +71,7 @@ srv.listen(0, async () => {
   await p0.keyboard.press('Escape'); ok(!(await vis(p0, 'btnSettings')), '1. Escape closes the More menu');
   ok(!top.docs, '1. there is no Documents panel on the right');
   ok(top.nums.length === 17 && top.nums.every(t => !/^\d/.test(t)) && top.nums[11] === 'FNA quote' && top.nums[13] === 'Reduced quotes' && top.h2 === 'Client details', '1. the menu has no block numbers: ' + top.nums.join(' | '));
-  await p0.evaluate(t => OV.app.fillFactFindText(t, 'ff.json'), JSON.stringify(FFJ));
+  await p0.evaluate(t => OV.app.fillFactFindText(t, 'ff.json'), JSON.stringify(FFJ)); await p0.evaluate(() => { OV.schema.NEED_BLOCKS.forEach(id => OV.store.setNeeded(OV.app.state, id, true)); OV.app.setState(OV.app.state); });
   /* the pager skips a page that does not apply */
   const pager = async id => { await p0.evaluate(i => OV.app.go(i), id); await p0.waitForTimeout(80); return p0.evaluate(() => [...document.querySelectorAll('#main .pagenav button')].map(x => x.textContent.replace(/\s+/g, ' ').trim())); };
   ok(JSON.stringify(await pager('shortfall')) === JSON.stringify(['\u2039 Back: Medical aid, will & short-term', 'Next: FNA quote \u203a']), '1. Next from Shortfall is the FNA quote: the five servicing pages are passed by while they are empty (round 2.0)');
@@ -121,7 +121,7 @@ srv.listen(0, async () => {
   const p = await ctx.newPage(); const errs2 = []; p.on('pageerror', e => errs2.push(e.message)); dismiss(p);
   await p.goto(base + 'overview.html'); await p.waitForTimeout(900); await wireOn(p); await p.evaluate(() => OV.app.openAll());
   if (await p.$('#restoreDraft')) await p.click('#restoreNew');
-  await p.evaluate(t => OV.app.fillFactFindText(t, 'ff.json'), JSON.stringify(FFJ));
+  await p.evaluate(t => OV.app.fillFactFindText(t, 'ff.json'), JSON.stringify(FFJ)); await p.evaluate(() => { OV.schema.NEED_BLOCKS.forEach(id => OV.store.setNeeded(OV.app.state, id, true)); OV.app.setState(OV.app.state); });
   await p.evaluate(() => FF.lookup.saveSettings({ apiKey: 'sk-test-key', model: 'claude-test' }));
   const st = () => p.evaluate(() => OV.app.state), api = () => p.evaluate(() => window.__api);
   await p.evaluate(() => { window.__delay = 700; });

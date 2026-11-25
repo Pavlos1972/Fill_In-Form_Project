@@ -144,6 +144,11 @@
     return q;
   }
   function setUw(state, path, value) { var q = quoteAt(state, path); if (!q || q.counterOf || (value !== null && !schema.uwLabel[value])) return null; q.uw = value; return q; }
+  /* Round 2.2: the adviser ticks or unticks "needed" on a quote line of the menu: his choice is kept (blocks.<id>.needed) and wins over the Fact Find from then on. */
+  function setNeeded(state, id, on) {
+    if (!schema.blocksById[id] || !schema.blocksById[id].need || !state.blocks || !state.blocks[id]) return null;
+    state.blocks[id].needed = !!on; return state.blocks[id].needed;
+  }
   function setSecond(state, path, yes) { var q = quoteAt(state, path); if (!q) return null; q.second = !!yes; return q; }
   function termList(q, kind) { if (!q.terms || typeof q.terms !== 'object') q.terms = { loadings: [], exclusions: [] }; if (!Array.isArray(q.terms[kind])) q.terms[kind] = []; return q.terms[kind]; }
   function addTerm(state, path, kind) {
@@ -216,7 +221,8 @@
     var s = blank(), prev = { date: old.header.overviewDate || '', file: schema.fileName(old) }, src = { kind: 'previous', file: prev.file, date: prev.date };
     Object.keys(s.header).forEach(function (k) { if (old.header[k] !== undefined) s.header[k] = clone(old.header[k]); });
     s.header.overviewDate = today || schema.todayDMY(); s.header.meetingDate = null; s.header.astuteDate = null; s.header.previous = prev;
-    s.factFind = clone(old.factFind); if (old.settings) s.settings = clone(old.settings);
+    s.factFind = clone(old.factFind); if (s.factFind && s.factFind.facts && s.factFind.facts.asked) delete s.factFind.facts.asked.blocks;          // round 2.2: last year's requests are not this year's: the lines are asked for again only when this year's Fact Find is read
+    if (old.settings) s.settings = clone(old.settings);
     var n = { policies: 0, group: 0, investments: 0, other: 0, goals: 0 };
     function carry(r, kind) {
       var c = clone(r); delete c.derived; delete c.fromQuote; delete c.replaces; delete c.replacedBy; c.removed = false;
@@ -245,7 +251,18 @@
   function quotesAsked(f, rows) {
     var req = function (id) { return f(id) === 'Request a quote'; };
     var red = rows('redq').some(function (d) { return d.req === 'Request a quote'; });
-    return { sf: req('bf_sf_req') || req('sf_req'), comparative: req('fna_req') || req('sf_req') || red };
+    return { sf: req('bf_sf_req') || req('sf_req'), comparative: req('fna_req') || req('sf_req') || red, blocks: blocksAsked(f, rows) };
+  }
+  /* Round 2.2 (Paul, 25 November 18:48): which quote blocks the Fact Find asks for, so the "needed" tick boxes start ticked: the BrightRock FNA, shortfall and each reduced row by their own type (Servicing: the servicing block; New Business, N/A or empty: the new business block),
+     the standard lane (FNA, shortfall, a reduced row) as comparative quotes, a retirement annuity or investment quote request as proposed investments. Straight increase and straight reduction are never asked for in the Fact Find. */
+  function blocksAsked(f, rows) {
+    var req = function (id) { return f(id) === 'Request a quote'; }, serv = function (t) { return String(t || '').trim() === 'Servicing'; }, out = {};
+    if (req('bf_fna_req')) out[serv(f('bf_fna_type')) ? 'svFna' : 'fna'] = true;
+    if (req('bf_sf_req')) out[serv(f('bf_sf_type')) ? 'svShortfall' : 'shortfallQuote'] = true;
+    rows('bfred').forEach(function (d) { if (d.req === 'Request a quote') out[serv(d.type) ? 'svReduced' : 'reduced'] = true; });
+    if (req('fna_req') || req('sf_req') || rows('redq').some(function (d) { return d.req === 'Request a quote'; })) out.comparative = true;
+    if (rows('raq').some(function (d) { return d.req === 'Request a quote'; }) || rows('invq').some(function (d) { return d.req === 'Request a quote'; })) out.proposed = true;
+    return out;
   }
   /* Reads a saved Fact Find (parsed) and gathers what the overview uses (section 11 of the contract). */
   function factsFrom(j) {
@@ -297,12 +314,15 @@
       var oldHad = a && a[k] !== undefined, newHad = b && b[k] !== undefined;
       if (oldHad !== newHad) { a = Object.assign({}, a); b = Object.assign({}, b); delete a[k]; delete b[k]; }
     });
+    if (a && b && a.asked && b.asked && (a.asked.blocks === undefined) !== (b.asked.blocks === undefined)) {      // round 2.2: an overview read before the asked-for blocks were kept does not say the Fact Find changed
+      a = Object.assign({}, a, { asked: Object.assign({}, a.asked) }); b = Object.assign({}, b, { asked: Object.assign({}, b.asked) }); delete a.asked.blocks; delete b.asked.blocks;
+    }
     var x = flat(a), y = flat(b), seen = {}, items = {};
     Object.keys(x).concat(Object.keys(y)).forEach(function (k) {
       if (seen[k]) return; seen[k] = 1;
       if (JSON.stringify(x[k] === undefined ? null : x[k]) === JSON.stringify(y[k] === undefined ? null : y[k])) return;
       var p = k.replace(/^\./, '').split('.');                                                           // one item is a header box, a child, a debt, a policy row, a list row or one of the other answers
-      items[p[0] === 'rgar' || p[0] === 'egar' ? p[0] : p[0] + '.' + p[1]] = 1;
+      items[p[0] === 'rgar' || p[0] === 'egar' || p[0] === 'asked' ? p[0] : p[0] + '.' + p[1]] = 1;          // the quotes asked for are ONE answer of the Fact Find (round 2.2: they have the blocks beside sf and comparative)
     });
     return Object.keys(items).length;
   }
@@ -472,6 +492,7 @@
       if (s.blocks[b].quotes) s.blocks[b].quotes = (src.quotes || []).map(function (q) { q = normRow(q); q.kind = q.kind || schema.QUOTE_KINDS.filter(function (k) { return schema.blockOfQuote[k] === b; })[0]; calc.settleQuote(q); q.lines = q.lines || []; return q; });
       else if (b === 'other') { (src.items || []).forEach(function (it) { it = normRow(it); var k = it.key; s.blocks.other.items = s.blocks.other.items.filter(function (x) { return x.key !== k; }); s.blocks.other.items.push(it); }); }
       else s.blocks[b].items = (src.items || []).map(normRow);
+      if (schema.blocksById[b] && schema.blocksById[b].need && (src.needed === true || src.needed === false)) s.blocks[b].needed = src.needed;          // round 2.2: the adviser's own "needed" tick is kept when a file opens
     });
     var order = schema.OTHER_KEYS.map(function (k) { return k.key; }); s.blocks.other.items.sort(function (a, b) { return order.indexOf(a.key) - order.indexOf(b.key); });
     s.dups = dedupeQuotes(s);                                                                                  // not saved: how many extra copies of a quote were dropped on opening (the screen says so)
@@ -556,7 +577,7 @@
     return out;
   }
 
-  return { blank: blank, uid: uid, parseCell: parseCell, setPath: setPath, setStatus: setStatus, setUw: setUw, setSecond: setSecond, addTerm: addTerm, removeTerm: removeTerm, setUwReason: setUwReason, addCounterOffer: addCounterOffer, confirmTerms: confirmTerms, setRepl: setRepl, toggleReplaced: toggleReplaced, setBrokerRecord: setBrokerRecord, pathGet: pathGet, accept: accept, acceptAll: acceptAll, walkRows: walkRows, newLine: newLine, newQuote: newQuote, addQuote: addQuote, findQuote: findQuote,
+  return { setNeeded: setNeeded, blank: blank, uid: uid, parseCell: parseCell, setPath: setPath, setStatus: setStatus, setUw: setUw, setSecond: setSecond, addTerm: addTerm, removeTerm: removeTerm, setUwReason: setUwReason, addCounterOffer: addCounterOffer, confirmTerms: confirmTerms, setRepl: setRepl, toggleReplaced: toggleReplaced, setBrokerRecord: setBrokerRecord, pathGet: pathGet, accept: accept, acceptAll: acceptAll, walkRows: walkRows, newLine: newLine, newQuote: newQuote, addQuote: addQuote, findQuote: findQuote,
     setRemoved: setRemoved, newCmp: newCmp, addCmp: addCmp, removeCmp: removeCmp, startReview: startReview, setOnPolicy: setOnPolicy, setServicingType: setServicingType, addLine: addLine, addItem: addItem, newProposed: newProposed, factsFrom: factsFrom, diffFacts: diffFacts, syncBlocks: syncBlocks, fillFromFactFind: fillFromFactFind, fileName: fileName,
     clientName: clientName, computed: computed, dedupeQuotes: dedupeQuotes, flattenPolicyLines: flattenPolicyLines, isBright: isBright, toJSON: toJSON, fromJSON: fromJSON, rows: rows, counts: counts, pendingRows: pendingRows, ffKeyFor: ffKeyFor, APP_ID: APP_ID };
 });

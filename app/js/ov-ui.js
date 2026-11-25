@@ -684,11 +684,34 @@
     return draw ? draw() : quotesBlock(b);
   }
 
+  /* ---------- the "needed" checklist (round 2.2, Paul 25 November 18:48) ---------- */
+  /* A small tick box on every quote line of the menu (also a real check box at the top of the block's own page): pre-ticked from what the Fact Find asks for, the adviser's own tick wins. The line then reads asked for / loaded / outstanding. */
+  function needSpanHTML(b) {
+    if (!b.need) return '';
+    var nd = calc.needed(state, b.id), tip = nd.on === true ? 'Needed: ticked' + (nd.by === 'person' ? ' by you' : ' because the Fact Find asks for it') + '. Click to untick.' : nd.on === false ? 'Not needed' + (nd.by === 'person' ? ': unticked by you' : ': the Fact Find does not ask for it') + '. Click to tick: Load from client folder will look for it.' : 'No Fact Find has been read yet, so every quote is looked for. Click to tick.';
+    return '<i class="need ' + (nd.on === true ? 'on' : nd.on === false ? 'off' : 'unk') + '" role="checkbox" aria-checked="' + (nd.on === true) + '" data-need="' + b.id + '" title="' + esc(tip) + '"></i>';
+  }
+  function stateHTML(id) { var bd = schema.blocksById[id]; if (!bd || !bd.need) return ''; var r = calc.checklist(state).rows[id]; return '<small class="navstate ' + r.state + '" data-state="' + id + '"' + (r.text ? '' : ' hidden') + '>' + esc(r.text) + '</small>'; }
+  function sumText() { var c = calc.checklist(state); return c.known ? 'Quotes: asked for ' + c.asked + ' \u00b7 loaded ' + c.loaded + ' \u00b7 outstanding ' + c.outstanding : ''; }
+  function sumHTML() { var t = sumText(); return '<div class="navsum' + (t ? '' : ' none') + '" data-navsum' + (t ? '' : ' hidden') + '>' + esc(t) + '</div>'; }
+  function needBoxHTML(id) {
+    var bd = schema.blocksById[id]; if (!bd || !bd.need) return '';
+    var nd = calc.needed(state, id), r = calc.checklist(state).rows[id], why = nd.by === 'person' ? 'your choice' : nd.by === 'factfind' ? (nd.on ? 'the Fact Find asks for it' : 'the Fact Find does not ask for it') : 'no Fact Find has been read yet, so every quote is looked for';
+    return '<div class="needbox"><label><input type="checkbox" data-needblock="' + id + '"' + (nd.on === true ? ' checked' : '') + '> Needed</label> <small>' + esc(why) + (r.text ? ' \u00b7 ' + esc(r.text) : '') + '</small></div>';
+  }
+  /* The adviser ticks or unticks a line: his choice is kept in the file and wins over the Fact Find from then on. */
+  function toggleNeed(id, on) {
+    if (state.newer) return;
+    var now = calc.needed(state, id).on; if (on === undefined) on = now !== true;
+    if (store.setNeeded(state, id, on) === null) return;
+    dirty = true; onDisk = false; last = check.run(state, runOpts()); paintDots(); touch(); if (cur === id) drawMain(false);
+  }
+
   /* ---------- the screen ---------- */
   function drawNav() {
     var h = '<button type="button" data-block="' + CLIENT + '"' + (cur === CLIENT ? ' aria-current="true"' : '') + '><span>Client details</span></button>';
     h += schema.GROUPS.map(function (g) {                                                                  // round 2.0 (Paul, 25 November): the menu is under four headings
-      return '<div class="sep grp" data-group="' + g.id + '">' + esc(g.title) + '</div>' + schema.BLOCKS.filter(function (b) { return b.group === g.id; }).map(function (b) { return '<button type="button" data-block="' + b.id + '"' + (b.id === cur ? ' aria-current="true"' : '') + ' title="' + esc(check.dotText(state, b.id, last.dots[b.id] || 'grey', last.problems, (last.notes || {})[b.id])) + '"><span><i class="dot ' + (last.dots[b.id] || 'grey') + '" data-dot="' + b.id + '"></i>' + esc(b.title) + (b.kind === 'quotes' && calc.quotes(state, b.id).length ? '<small class="cnt" title="Quotes in this block">' + calc.quotes(state, b.id).length + '</small>' : '') + '</span>' + progHTML(b.id) + noteHTML(b.id) + '</button>'; }).join('');
+      return '<div class="sep grp" data-group="' + g.id + '">' + esc(g.title) + '</div>' + (g.id === 'servicing' ? sumHTML() : '') + schema.BLOCKS.filter(function (b) { return b.group === g.id; }).map(function (b) { return '<button type="button" data-block="' + b.id + '"' + (b.id === cur ? ' aria-current="true"' : '') + ' title="' + esc(check.dotText(state, b.id, last.dots[b.id] || 'grey', last.problems, (last.notes || {})[b.id])) + '"><span><i class="dot ' + (last.dots[b.id] || 'grey') + '" data-dot="' + b.id + '"></i>' + esc(b.title) + (b.kind === 'quotes' && calc.quotes(state, b.id).length ? '<small class="cnt" title="Quotes in this block">' + calc.quotes(state, b.id).length + '</small>' : '') + needSpanHTML(b) + '</span>' + progHTML(b.id) + stateHTML(b.id) + noteHTML(b.id) + '</button>'; }).join('');
     }).join('');
     var nc = counterRows().length; if (nc) h += '<button type="button" data-block="' + COUNTERS + '"' + (cur === COUNTERS ? ' aria-current="true"' : '') + ' title="Every counter offer of this client"><span><i class="dot ' + (counterRows().some(function (r) { return calc.termsToCheck(r.c) > 0 || !calc.activeLines(r.c).length || r.c.st !== 'confirmed'; }) ? 'amber' : 'green') + '"></i>Counter offers <small>&nbsp;(' + nc + ')</small></span></button>';
     h += '<div class="legend" id="legend"><div class="sep">The dots</div>' + check.LEGEND.map(function (l) { return '<div><i class="dot ' + l[0] + '"></i>' + (l[0] === 'na' ? 'Dashed: not needed (for example, no shortfall quote without group risk)' : { grey: 'Grey: nothing yet', amber: 'Amber: to check', green: 'Green: checked', red: 'Red: checked, nothing there' }[l[0]]) + '</div>'; }).join('') + '</div>';
@@ -705,7 +728,7 @@
   function drawMain(toTop) {
     var keepTop = $('#main').scrollTop, keepY = window.scrollY, title = pageName(cur);
     $('#main').innerHTML = (state.newer ? '<p class="bad-note">This file was made by a newer version of the Overview, so it is open read-only: nothing can be changed or saved here.</p>' : '') +
-      '<header><h2>' + esc(title) + '</h2></header>' + blockHTML(cur) + pagerHTML();
+      '<header><h2>' + esc(title) + '</h2></header>' + needBoxHTML(cur) + blockHTML(cur) + pagerHTML();
     paintStatuses(); fitTables(); paintView();
     if (toTop) $('#main').scrollTop = 0; else { $('#main').scrollTop = keepTop; window.scrollTo(0, keepY); }
   }
@@ -879,15 +902,23 @@
   function clearBars(ids) { ids.forEach(function (id) { var p = prog[id]; if (p && (p.st === 'waiting' || p.st === 'searching')) { delete prog[id]; var el = document.querySelector('[data-prog="' + id + '"]'); if (el) el.hidden = true; } }); }
   function abandonSearch() { loading = Math.max(0, loading - 1); if (!loading) { clearBars(allIds()); deferred = false; searchedAll = false; last = check.run(state, runOpts()); paintDots(); } }
   function endSearch() { loading = Math.max(0, loading - 1); if (loading) return Promise.resolve(); deferred = false; var all = searchedAll; searchedAll = false; return checkPass({ search: all }); }
-  function noteHTML(id) { var n = busy(id) ? null : noteOf(id); return '<small class="navnote' + (n ? ' ' + n.kind : '') + '" data-note="' + id + '"' + (n ? '' : ' hidden') + '>' + esc(n ? n.text : '') + '</small>'; }
+  /* Round 2.2: under a quote line the checklist line already says "Not asked for" and "Asked for · outstanding", so the comment that says the same is not drawn twice. */
+  function shownNote(id) { var n = busy(id) ? null : noteOf(id), bd = schema.blocksById[id]; if (n && bd && bd.need && (n.text === 'Not asked for' || n.text === 'Asked for: not loaded yet')) return null; return n; }
+  function noteHTML(id) { var n = shownNote(id); return '<small class="navnote' + (n ? ' ' + n.kind : '') + '" data-note="' + id + '"' + (n ? '' : ' hidden') + '>' + esc(n ? n.text : '') + '</small>'; }
   /* The dot, its hover text and the comment under the name of every block, brought up to date without drawing the menu again. */
   function paintDots() {
     schema.BLOCKS.forEach(function (b) {
-      var d = document.querySelector('[data-dot="' + b.id + '"]'), n = busy(b.id) ? null : noteOf(b.id), el = document.querySelector('[data-note="' + b.id + '"]'), btn = d && d.closest('button');
+      var d = document.querySelector('[data-dot="' + b.id + '"]'), n = shownNote(b.id), el = document.querySelector('[data-note="' + b.id + '"]'), btn = d && d.closest('button');
       if (d) d.className = 'dot ' + (last.dots[b.id] || 'grey');
       if (btn) btn.title = check.dotText(state, b.id, last.dots[b.id] || 'grey', last.problems, noteOf(b.id));
       if (el) { el.hidden = !n; el.className = 'navnote' + (n ? ' ' + n.kind : ''); el.textContent = n ? n.text : ''; }
+      if (b.need) {                                                                                       // round 2.2: the tick box and the checklist line follow what the adviser or the Fact Find says
+        var nd = calc.needed(state, b.id), ck = document.querySelector('[data-need="' + b.id + '"]'), st = document.querySelector('[data-state="' + b.id + '"]'), r = calc.checklist(state).rows[b.id];
+        if (ck) { ck.className = 'need ' + (nd.on === true ? 'on' : nd.on === false ? 'off' : 'unk'); ck.setAttribute('aria-checked', String(nd.on === true)); }
+        if (st) { st.hidden = !r.text; st.className = 'navstate ' + r.state; st.textContent = r.text; }
+      }
     });
+    var sm = document.querySelector('[data-navsum]'); if (sm) { var t = sumText(); sm.hidden = !t; sm.textContent = t; }
   }
   /* Every block runs its check, one after the other, with a bar under its name while it looks (not only the blocks a document was read for); then the bar goes and the block says what it found: its dot, and, where nothing is there,
      the comment under its name. A block that shows a document read keeps that bar. Resolves when the last block has finished. */
@@ -912,7 +943,7 @@
         at(t0 + 150, function () { step(45); }); at(t0 + 300, function () { step(80); });
         at(t0 + 450, function () {
           finished[id] = true; last = check.run(state, runOpts()); var n = noteOf(id), d = last.dots[id];
-          if (n && n.all) delete prog[id];
+          if (n && (n.all || (n.kind === 'na' && schema.blocksById[id].need))) delete prog[id];          // round 2.2: a quote block nobody asked for has its note (Not asked for) and no bar
           else prog[id] = { pct: 100, busy: 0, errs: 0, recorded: 0, st: 'checked', text: d === 'green' ? 'Checked' : d === 'amber' ? 'Checked: to look at' : d === 'na' ? 'Not needed' : n ? n.text : 'Checked: waiting for a document' };
           paintProg(id); var el = document.querySelector('[data-prog="' + id + '"]'); if (el && !prog[id]) el.hidden = true;
           paintDots(); if (--left === 0) resolve();
@@ -963,6 +994,7 @@
       if (data && !cr.loadings && !cr.exclusions) { res.msg += ' The letter shows no loading or exclusion.'; res.warn = true; }
     } else if (D.QUOTE_OF[block]) {
       var r = D.applyQuote(state, block, data || { number: cls.number, date: cls.date }, name, { replaces: o.replaces, nameOnly: !data, counterOf: o.counterOf, onPolicy: schema.blocksById[block] && schema.blocksById[block].servicing ? policyOfFile(file, o) : null, bare: !o.block && !!cls.bare && block === cls.block });
+      if (r.quote && schema.blockOfQuote[r.quote.kind] && calc.needed(state, schema.blockOfQuote[r.quote.kind]).on === false) store.setNeeded(state, schema.blockOfQuote[r.quote.kind], true);          // round 2.2: loading a quote into a block ticks its "needed" box (the adviser ticked the file); a bare servicing quote ticks the block its premium put it in
       if (r.quote && schema.blocksById[block] && schema.blocksById[block].servicing) lower = (D.BLOCK_LABEL[schema.blockOfQuote[r.quote.kind]] || lower).toLowerCase();
       if (o.replaces) { var oq = store.findQuote(state, o.replaces), ol = state.blocks[block].quotes; if (oq && ol.indexOf(oq) >= 0) markRemoved('blocks.' + block + '.quotes.' + ol.indexOf(oq)); }          // the quote that was replaced can be brought back for a few seconds
       res.msg = name + ': ' + (data ? 'read into a new ' + lower + '.' : 'a new ' + lower + ' was started from the number and date in the file name; type the figures from the document.');
@@ -987,7 +1019,7 @@
       } else res.msg = name + ': recorded. Its table is filled in when reading is on.';
     } else if (block === 'proposed') {
       if (!data) res.msg = name + ': recorded. Use “type in by hand” and type it from the document (or switch reading on in Settings).';
-      else { var pr = D.applyProposed(state, data, name); openSet[pr.item.id] = true; res.msg = name + ': ' + (pr.matched ? 'filled into the ' + pr.item.type.toLowerCase() + ' of ' + (pr.item.provider || 'the Fact Find') + ' that the Fact Find asked for' : 'added as a new proposed investment') + '; amber until it is checked.'; if (!pr.matched) res.warn = true; }
+      else { var pr = D.applyProposed(state, data, name); openSet[pr.item.id] = true; if (calc.needed(state, 'proposed').on === false) store.setNeeded(state, 'proposed', true); res.msg = name + ': ' + (pr.matched ? 'filled into the ' + pr.item.type.toLowerCase() + ' of ' + (pr.item.provider || 'the Fact Find') + ' that the Fact Find asked for' : 'added as a new proposed investment') + '; amber until it is checked.'; if (!pr.matched) res.warn = true; }
     } else if (block === 'goals') {
       if (!data) res.msg = name + ': recorded. Type the figures from the report (or switch reading on in Settings).';
       else { var gl = D.applyGoal(state, data, name); openSet[gl.item.id] = true; res.msg = name + ': the ' + (gl.item.kind === 'rgar' ? 'RGAR' : 'EGAR') + ' is filled in; amber until it is checked.' + (gl.wasRequested ? '' : ' The Fact Find said it was not requested: it is now marked requested.'); if (!gl.wasRequested) res.warn = true; }
@@ -1303,6 +1335,16 @@
        "signed") is in the list, the signed one is left unticked and says so. A signed copy never decides the client's decision (the adviser sets it). */
     var clsOf = new Map(); others.forEach(function (f) { clsOf.set(f, D.classify(f.name, (f.rel || []).join(' \\ '))); });
     var signedTwin = F && F.signedTwins ? F.signedTwins(others.filter(function (f) { var c = clsOf.get(f); return c && QKIND[c.block]; }).map(function (f) { var c = clsOf.get(f); return { id: f, kind: c.block, signed: !!c.signed, no: nkOf(f), base: baseOf(f.name) }; })) : new Map();          // folders.js: the rule is one pure function
+    /* Round 2.2 (Paul, 25 November 18:48): Load looks only for the quotes that are NEEDED (calc.needed: the adviser's tick, else what the Fact Find asked for; nothing is known before a Fact Find is read, and then everything is looked for, as before). Any other quote it comes across is
+       listed once, collapsed, as "found but not asked for", unticked: nothing is silently missed. A pay-out guide goes with its quote (the same number). */
+    var quoteBlock = {}, notAsked = new Map();
+    others.forEach(function (f) { var c = clsOf.get(f), nk = nkOf(f); if (c && c.block !== 'cmp' && schema.blocksById[c.block] && schema.blocksById[c.block].need && nk) quoteBlock[nk] = c.block; });
+    others.forEach(function (f) {
+      var c = clsOf.get(f); if (!c || c.viaReview) return;
+      var blk = c.block === 'cmp' ? (quoteBlock[nkOf(f)] || null) : (schema.blocksById[c.block] && schema.blocksById[c.block].need ? c.block : null);
+      if (blk && c.bare && blk === 'svIncrease') { if (calc.needed(state, 'svIncrease').on === false && calc.needed(state, 'svReduction').on === false) notAsked.set(f, blk); return; }          // a bare Serv quote lands in increase or reduction by its premium: it is asked for when either line is
+      if (blk && calc.needed(state, blk).on === false) notAsked.set(f, blk);
+    });
     var tick = res.files.map(function (f) {
       if (f.group != null) { var g = groups[f.group], pr = plan && plan.live ? plan.live[f.group] : null; return !!(g && g.block && f.role !== 'manual' && g.pick && g.pick.file === f && !(pr && pr.ff === 'none')); }          // a policy the Fact Find does not list would be read and then refused (this page follows the Fact Find), so it is not ticked: the chip says why
       var c = D.classify(f.name, (f.rel || []).join(' \\ '));
@@ -1310,10 +1352,11 @@
       if (base && F && F.isManual && F.isManual(f.name)) return false;                                         // the owner's manual is never ticked, wherever it is found
       if (base && older.has(f)) return false;                                                                  // an older year's quote (round 1.6: every kind, the latest year folder first)
       if (base && signedTwin.get(f) === true) return false;                                                    // round 2.1: a signed copy beside its unsigned quote
+      if (base && notAsked.has(f)) return false;                                                               // round 2.2: a quote nobody asked for is listed, not ticked
       return base && (!kn.tick.has(f) || kn.tick.get(f));
     });
     var tied = kn.tied.slice(); groups.forEach(function (g) { if (g.pick && g.pick.tie) tied.push(g.pick.tied); });
-    return { tick: tick, tied: tied, older: older, signed: signedTwin };
+    return { tick: tick, tied: tied, older: older, signed: signedTwin, notAsked: notAsked };
   }
   /* The sentences of the comparison: what the three sources say about each policy folder, and what no folder explains. */
   function ffChip(row, g) {
@@ -1355,10 +1398,14 @@
     });
     var rest = res.files.map(function (f, i) { return { f: f, i: i }; }).filter(function (x) { return x.f.group == null; });
     if (groups.length && rest.length) html += '<div class="pkh"><b>Other documents</b><span class="pkt">Astute reports, quotes, the schedules of the Policy Schedules folder, notes</span></div>';
-    rest.forEach(function (x) {
+    var restNot = rest.filter(function (x) { return tp.notAsked && tp.notAsked.has(x.f); }), restAsked = rest.filter(function (x) { return !(tp.notAsked && tp.notAsked.has(x.f)); });          // round 2.2
+    var rowOf2 = function (x) {
       var c = D.classify(x.f.name, (x.f.rel || []).join(' \\ '));
-      html += fileRow(x.f, x.i, (c ? c.label + (c.bare ? ' (a straight quote: its premium tells increase from reduction when it is read)' : '') : '') + (c && c.viaReview ? '; in a Review or Servicing folder: not ticked, tick it if it is a quote' : '') + (!c && D.reviewPaperwork && D.reviewPaperwork(x.f.name, (x.f.rel || []).join(' \\ ')) ? 'paperwork about a change (a letter, a signed or accepted copy, an SROA, a schedule, the owner\u2019s manual): not a quote, not ticked' : '') + (tp.signed && tp.signed.has(x.f) ? (tp.signed.get(x.f) ? '; signed copy: the quote itself is in the list and is the one read, so this is not ticked' : '; signed copy, and the only copy of this quote: read as the quote (the client\u2019s decision is yours to set)') : '') + (tp.older.has(x.f) ? '; ' + tp.older.get(x.f) : '') + (F && F.isManual && F.isManual(x.f.name) ? '; owner’s manual: never ticked' : ''), '', '');
-    });
+      html += fileRow(x.f, x.i, (c ? c.label + (c.bare ? ' (a straight quote: its premium tells increase from reduction when it is read)' : '') : '') + (c && c.viaReview ? '; in a Review or Servicing folder: not ticked, tick it if it is a quote' : '') + (!c && D.reviewPaperwork && D.reviewPaperwork(x.f.name, (x.f.rel || []).join(' \\ ')) ? 'paperwork about a change (a letter, a signed or accepted copy, an SROA, a schedule, the owner\u2019s manual): not a quote, not ticked' : '') + (tp.signed && tp.signed.has(x.f) ? (tp.signed.get(x.f) ? '; signed copy: the quote itself is in the list and is the one read, so this is not ticked' : '; signed copy, and the only copy of this quote: read as the quote (the client\u2019s decision is yours to set)') : '') + (tp.older.has(x.f) ? '; ' + tp.older.get(x.f) : '') + (F && F.isManual && F.isManual(x.f.name) ? '; owner’s manual: never ticked' : '') + (tp.notAsked && tp.notAsked.has(x.f) ? '; not asked for (' + schema.blocksById[tp.notAsked.get(x.f)].title + ' is not ticked as needed): tick this one to load it and the block becomes needed' : ''), '', '');
+    };
+    restAsked.forEach(rowOf2);
+    var anyAsked = restAsked.some(function (x) { var c = D.classify(x.f.name, (x.f.rel || []).join(' \\ ')); return c && schema.blocksById[c.block] && schema.blocksById[c.block].need; });
+    if (restNot.length) { html += '<details class="pknot"' + (anyAsked ? '' : ' open') + '><summary>Found but not asked for (' + restNot.length + ')</summary>' + (anyAsked ? '' : '<p class="sub">No quote line is ticked as needed (the Fact Find asks for none), so every quote found is listed here, unticked: tick the ones you want to load.</p>'); restNot.forEach(rowOf2); html += '</details>'; }          // round 2.2: listed once, collapsed, unticked: nothing is silently missed
     var notes = [];
     if (plan && plan.ffOnly && plan.ffOnly.length) notes.push({ cls: 'warn', text: 'In the Fact Find, but no policy folder was found for: ' + plan.ffOnly.map(function (it) { return [it.who, it.product].filter(Boolean).join(' '); }).join('; ') + '.' });
     if (plan && plan.ffNotLive && plan.ffNotLive.length) notes.push({ cls: 'warn', text: 'The Fact Find lists ' + plan.ffNotLive.map(function (x) { return [x.item.who, x.item.product].filter(Boolean).join(' ') + ' (its folder “' + x.folder.name + '” is not live)'; }).join('; ') + '.' });
@@ -1687,6 +1734,7 @@
   function refreshChromeSoft() { clearTimeout(softT); softT = setTimeout(refreshChrome, 250); }
   $('#main').addEventListener('change', function (e) {
     var el = e.target;
+    var nbk = el.getAttribute && el.getAttribute('data-needblock'); if (nbk) { toggleNeed(nbk, el.checked); return; }          // round 2.2: the check box at the top of a quote block
     var svt = el.getAttribute && el.getAttribute('data-svtype');
     if (svt) { if (state.newer) return; var mq = store.setServicingType(state, svt, el.value); if (mq) { cur = schema.blockOfQuote[mq.kind]; openSet[mq.id] = true; check.settleAll(state); dirty = true; onDisk = false; touch(); redraw(); toast('Moved to ' + schema.blocksById[cur].title + '.', 3000); } return; }          // round 2.0: the type of servicing decides the block (a bare Serv quote's direction is the adviser's to correct)
     var svp = el.getAttribute && el.getAttribute('data-svpol');
@@ -1741,7 +1789,7 @@
     }
     if (t.hasAttribute('data-undo')) { var up = t.getAttribute('data-undo'); store.setRemoved(state, up, false); delete recent[up]; touch(); drawMain(); }
   });
-  $('#nav').addEventListener('click', function (e) { var b = e.target.closest('[data-block]'); if (b) { cur = b.getAttribute('data-block'); drawNav(); drawMain(true); refreshChrome(); } });
+  $('#nav').addEventListener('click', function (e) { var nk = e.target.closest('[data-need]'); if (nk) { e.stopPropagation(); e.preventDefault(); toggleNeed(nk.getAttribute('data-need')); return; } var b = e.target.closest('[data-block]'); if (b) { cur = b.getAttribute('data-block'); drawNav(); drawMain(true); refreshChrome(); } });
   $('#checks').addEventListener('click', function (e) { var b = e.target.closest('[data-jump]'); if (b) { cur = b.getAttribute('data-jump'); drawNav(); drawMain(true); refreshChrome(); } });
   $('#checks').addEventListener('toggle', function (e) { if (e.target && e.target.matches && e.target.matches('details')) { if (e.target.matches('.chkall')) checksOpen = e.target.open; else if (e.target.matches('details.allchecks')) checksInner = e.target.open; } }, true);
   $('#btnAgree').addEventListener('click', function () { var n = store.acceptAll(state); touch(); redraw(); toast(n + (n === 1 ? ' row' : ' rows') + ' marked as checked.'); });

@@ -18,7 +18,7 @@ const ff = (f, l) => JSON.stringify({ app: 'wr-fact-find', schema: '5.4', f: Obj
 const val = o => Object.keys(o).reduce((a, k) => { a[k] = { v: o[k] }; return a; }, {});
 
 test('the Fact Find says which quotes are asked for: a shortfall quote (BrightRock or standard) and a comparative quote (the standard lane)', () => {
-  const asked = (f, l) => store.factsFrom(JSON.parse(ff(val(f || {}), l))).asked;
+  const asked = (f, l) => { const a = store.factsFrom(JSON.parse(ff(val(f || {}), l))).asked; return { sf: a.sf, comparative: a.comparative }; };          // round 2.2: the asked-for blocks are looked at in tests/overview-round220.test.js
   assert.deepStrictEqual(asked({}), { sf: false, comparative: false });
   assert.deepStrictEqual(asked({ bf_sf_req: 'Request a quote' }), { sf: true, comparative: false });
   assert.deepStrictEqual(asked({ sf_req: 'Request a quote' }), { sf: true, comparative: true });
@@ -144,7 +144,7 @@ test('the monthly figure under a BrightRock lump sum says what it is: "Income po
 });
 
 test('the page version is 0.9 and the saved file\'s layout is still 0.1 (revisions f and g add keys, remove none)', () => {
-  assert.ok(/^(1\.[0123456789]|2\.[01])$/.test(schema.pageVersion), 'the page version is 1.0 to 1.6'); assert.strictEqual(schema.version, '0.1');
+  assert.ok(/^(1\.[0123456789]|2\.[012])$/.test(schema.pageVersion), 'the page version is 1.0 to 1.6'); assert.strictEqual(schema.version, '0.1');
   const s = store.blank(); store.fillFromFactFind(s, ff(), 'ff.json'); const j = JSON.parse(store.toJSON(s));
   assert.ok('asked' in j.factFind.facts, 'factFind.facts.asked'); assert.ok('aciText' in j.blocks.fna.quotes.concat([store.newQuote(s, 'fna')])[0] || true);
   const q = store.newQuote(s, 'fna'); assert.ok('aciText' in q);

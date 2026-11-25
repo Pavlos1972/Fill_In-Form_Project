@@ -77,7 +77,7 @@ srv.listen(0, async () => {
     await p.goto(addr + 'overview.html'); await p.waitForTimeout(900); await wireOn(p); if (await p.$('#restoreDraft')) await p.click('#restoreNew');
     await p.evaluate(({ ff, perm, limits }) => {
       Object.assign(FF.foldersUI.timeouts, limits || {}); window.__perm = perm || {};
-      const s = OV.store.blank(); OV.store.fillFromFactFind(s, JSON.stringify(ff), 'ff.json');
+      const s = OV.store.blank(); OV.store.fillFromFactFind(s, JSON.stringify(ff), 'ff.json'); OV.schema.NEED_BLOCKS.forEach(id => OV.store.setNeeded(s, id, true));
       OV.app.setState(s); OV.app.openAll(); OV.app.go('policies');
     }, { ff: ffx || FFJ, perm, limits });
     await p.waitForTimeout(500);
@@ -105,7 +105,7 @@ srv.listen(0, async () => {
 
   /* ---- 0. the version ---- */
   let p = await fresh({});
-  ok(/Version (1\.[0123456789]|2\.[01])/.test(await p.evaluate(() => document.body.innerText)), '0. the header says Version 1.0');
+  ok(/Version (1\.[0123456789]|2\.[012])/.test(await p.evaluate(() => document.body.innerText)), '0. the header says Version 1.0');
   await p.close();
 
   /* ---- 1. both saved links are stale (Chrome never answers about them): the window says so and offers Reconnect my folders ---- */
