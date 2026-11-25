@@ -75,7 +75,7 @@ srv.listen(0, async () => {
 
   /* ---- 0. the version ---- */
   let p = await fresh({});
-  ok(/Version (0\.9[6-9]|1\.[012345])/.test(await p.evaluate(() => document.body.innerText)), '0. the header says Version 0.96 or later');
+  ok(/Version (0\.9[6-9]|1\.[0123456])/.test(await p.evaluate(() => document.body.innerText)), '0. the header says Version 0.96 or later');
 
   /* ---- 1. nothing walks the folders by itself (0.95 did, as soon as a View button was on the screen) ---- */
   await p.evaluate(() => { window.__count = 0; OV.app.go('fna'); OV.app.go('policies'); OV.app.go('investments'); });

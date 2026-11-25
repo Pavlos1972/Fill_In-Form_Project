@@ -4,6 +4,14 @@ A dated list of what changed in the form's boxes, newest first. **One line for e
 
 The version is `version` in `app/js/schema.js` (the Fact Find), `app/js/sr-schema.js` (the Short Risk Application) and `app/js/cs-schema.js` (the Investment Capture Sheet); a saved file carries it as `schema`. Earlier changes are in the README and in the git history; this list starts with 3.1.
 
+## Client Overview Studio 1.6: 25 November 2026 (Client Overview Studio 1.5 to 1.6; Fact Find 5.5, Risk Application 1.6 and Investment Application 1.5 keep their numbers; display and folder search only)
+
+**No id, list, box, choice, sum or saved-file key changed** (contract revision o unchanged; layout `0.1`). What changed for a skill: **nothing in the saved file**; the folder rules `client-overview-skill` follows gain two (the newest year folder first for every kind of quote, a Review folder read by its folder).
+- Paul's answers of 25 November (relayed 13:02): *the latest year folder as the first port of call, else the latest review documents by their dates*, and *only the latest for the same policy number / schedule*.
+- For every kind of quote (FNA, shortfall, reduced, comparative, proposal, pay-out guide, goal report) over the whole client only the newest year's documents are ticked when a document of that kind sits in a year folder (comparative quotes always); the others are listed unticked with the reason; a pay-out guide follows its quote.
+- A folder named Review inside a policy folder is read by its folder (its documents are review documents in *Other documents*, never schedule candidates); a document in a Review folder is never a current investment or policy by its name; `g.quotes` on a policy group.
+- Every file is told apart by its folder (`uniqueFiles`): the same name in two year folders is two files. One schedule is ticked per policy folder (the newest; the same date ticks none).
+
 ## Client Overview Studio 1.5: 25 November 2026 (Client Overview Studio 1.4 to 1.5; Fact Find 5.5, Risk Application 1.6 and Investment Application 1.5 keep their numbers; display and folder search only)
 
 **No id, list, box, choice, sum or saved-file key changed** (contract revision o unchanged; layout `0.1`). What changed for a skill: **nothing in the saved file**; the folder rules `client-overview-skill` follows are the same ones (policy folders from their names, Transferred / Transfered / Cancelled / Lapsed not live, Linked to PK live, the newest schedule or statement of each live policy folder, never the owner's manual).

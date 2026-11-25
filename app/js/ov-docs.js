@@ -40,6 +40,7 @@
       var segs = String(dirPath).split(/\s*\\\s*/);
       if (segs.some(function (g) { return /^(\d+\.\s*)?comparative quotes?(\s*\(.*\))?$/i.test(g.trim()); })) block = 'comparative';
       else if (segs.some(function (g) { return /^(\d+\.\s*)?(accepted )?quotes?(\s*\(.*\))?$/i.test(g.trim()); })) block = block === 'investments' ? 'proposed' : 'comparative';
+      else if (segs.some(function (g) { return /review/i.test(g) && !/schedule/i.test(g); })) block = 'comparative';                  // 1.6: a document in a folder named Review ("2026 - Review", inside a policy folder or a quotes folder) is a review document, never a current investment or policy because its name has "RA" or "policy" in it
     }
     return block ? { block: block, number: number, date: date, label: BLOCK_LABEL[block] } : null;
   }

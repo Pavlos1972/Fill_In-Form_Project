@@ -257,6 +257,7 @@
     F.joinSchedules(fs, scan.groups);
     var flat = fs.slice();
     /* a provident or pension fund goes to Group benefits, a legacy plan to the legacy plan of Medical aid, will & short-term (Paul, 25 November), the rest by their product */
+    scan.groups.forEach(function (g) { (g.quotes || []).forEach(function (f) { flat.push(f); }); });                                                  // the review documents found inside a policy folder (1.6): among the other documents, in no group (a review file is never a schedule)
     scan.groups.forEach(function (g, i) { g.files.forEach(function (f) { if (f.group == null) { f.group = i; flat.push(f); } }); g.special = g.p.special || ''; g.block = g.special === 'group' ? 'group' : g.special === 'legacy' ? 'other' : g.p.kind === 'investments' ? 'investments' : g.p.kind === 'policies' ? 'policies' : ''; g.pick = F.newestOf(g.files); });
     var ov = both[2] === SLOW ? null : both[2];
     return { files: flat, groups: scan.groups, notLive: scan.notLive, other: scan.other, partial: !!scan.partial, docsPartial: docsPartial, unfinished: scan.unfinished || [], overview: ov };

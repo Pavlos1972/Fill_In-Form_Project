@@ -441,11 +441,23 @@
   var SKIP_DIR = /accept|applic|cancel|claim|medical|(^|[^a-z])roa([^a-z]|$)|(^|[^a-z])rar([^a-z]|$)|questionnaire|notes|e-?mail|correspond|comparative|quotes?|counter|consent/;
   var YEAR_DIR = /^(19|20)\d{2}(?!\d)/;
   var ENTER_DIR = /schedule|statement|summary|servic|valuation|annual/;
+  var REVIEW_DIR = /review/;
   /* The owner's manual (and the other long documents) is never the schedule: manual or owner always; terms, conditions, policy document, wording, contract and brochure unless the name also says schedule, summary or statement. */
   function isManual(name) { var n = norm(name); return /manual|owner/.test(n) || (/terms|conditions|policy ?document|policy ?wording|contract|brochure/.test(n) && !/schedule|summary|statement/.test(n)); }
   /* One live policy folder, read for its schedules and statements: loose files whose names say so, `Policy Schedules` and every year folder (also inside it), `Servicing` (only files whose names say schedule, summary or statement), no deeper than three folders down.
      Acceptance Letter, Applications, Cancellations, Claims, Medical Reports, ROA, RAR, Questionnaires, Notes & Emails, Comparative Quotes and Quotes are not entered. st: { stop, cap, seen, partial } is shared by the whole scan. Fills g.files and sets g.done. */
   async function walkPolicy(g, st) {
+    g.quotes = g.quotes || [];
+    /* A folder named Review ("2026 - Review") inside a policy folder holds the review's documents, not the policy's schedules (1.6, Paul 25 November: "the latest review documents"): every PDF in it, and in the year folders inside it, is listed in g.quotes
+       (the page puts them among the other documents, where only the newest year's are ticked); none of them can be a schedule candidate whatever its name says (a "Review Summary" is not a policy summary schedule). */
+    async function lookQ(dir, rel, depth) {
+      for await (var e of dir.entries()) {
+        if (st.partial) return;
+        if (++st.seen > st.cap || Date.now() > st.stop) { st.partial = true; return; }
+        if (e[1].kind === 'file') { if (DOC_FILE.test(e[0]) && !isManual(e[0])) g.quotes.push({ name: e[0], rel: rel, handle: e[1], key: dateKey(e[0], rel) }); }
+        else if (e[1].kind === 'directory' && depth < 3) await lookQ(e[1], rel.concat([e[0]]), depth + 1);
+      }
+    }
     async function look(dir, rel, depth, strict) {
       for await (var e of dir.entries()) {
         if (st.partial) return;
@@ -458,6 +470,7 @@
           if ((strict || depth === 0) && !SCHEDULE_NAME.test(low) && !isManual(e[0])) continue;      // a loose file of the policy folder, or one in Servicing: only when its name says what it is (the owner's manual is kept, as the last resort)
           g.files.push({ name: e[0], rel: rel, handle: e[1], role: isManual(e[0]) ? 'manual' : 'schedule', key: dateKey(e[0], rel) });
         } else if (e[1].kind === 'directory' && depth < 3) {
+          if (REVIEW_DIR.test(low) && !/schedule/.test(low)) { await lookQ(e[1], rel.concat([e[0]]), depth + 1); continue; }              // a Review folder is read by its folder: its files are review documents (g.quotes), never schedules
           if (SKIP_DIR.test(low) && !/schedule/.test(low)) continue;                              // "Acceptance Letter & Policy Schedules" holds schedules: it is entered
           if (/servic/.test(low)) await look(e[1], rel.concat([e[0]]), depth + 1, true);
           else if (YEAR_DIR.test(low) || ENTER_DIR.test(low)) await look(e[1], rel.concat([e[0]]), depth + 1, strict);
@@ -474,7 +487,7 @@
     out.groups = []; out.notLive = []; out.other = []; out.partial = false; out.unfinished = [];
     var pf = await policyFolders(client);
     out.notLive = pf.notLive.map(function (x) { return { name: x.name, p: x.p }; }); out.other = pf.other.map(function (x) { return x.name; });
-    pf.live.forEach(function (x) { out.groups.push({ name: x.name, rel: [x.name], handle: x.handle, p: x.p, files: [], foreign: [], done: false }); });          // every live folder is named first, so one that is never reached (the limit, a folder that does not answer) is still named
+    pf.live.forEach(function (x) { out.groups.push({ name: x.name, rel: [x.name], handle: x.handle, p: x.p, files: [], foreign: [], quotes: [], done: false }); });          // every live folder is named first, so one that is never reached (the limit, a folder that does not answer) is still named
     for (var i = 0; i < out.groups.length; i++) {
       if (st.partial) break;                                                                     // the limit was reached: the folders not reached are named, not guessed
       var ok = await within(walkPolicy(out.groups[i], st), Math.min(lim.perFolder || 5000, st.stop - Date.now()));          // a folder that never answers costs its own slice of the time, not the folders after it
@@ -663,7 +676,7 @@
   return {
     MAX_PATH: MAX_PATH, SWAP: SWAP, RULES: RULES, ALIASES: ALIASES, norm: norm, tokens: tokens, clientFolderName: clientFolderName, parseClient: parseClient, clientMatches: clientMatches, letterOf: letterOf, letterFolder: letterFolder,
     isLetterFolder: isLetterFolder, isStandard: isStandard, nameIs: nameIs, insurerWords: insurerWords, productWords: productWords, numbersIn: numbersIn, hasWord: hasWord, scoreDeal: scoreDeal, chooseDeal: chooseDeal, pathCheck: pathCheck, tooLongText: tooLongText,
-    comparePolicies: comparePolicies, mergeClientLists: mergeClientLists, keyedNewest: keyedNewest, parsePolicyFolder: parsePolicyFolder, policyFolders: policyFolders, policyScan: policyScan, joinSchedules: joinSchedules, latestOverview: latestOverview, dateKey: dateKey, newestOf: newestOf, isManual: isManual, canonInsurer: canonInsurer, numKey: numKey, FOLDER_INSURERS: FOLDER_INSURERS,
+    comparePolicies: comparePolicies, mergeClientLists: mergeClientLists, keyedNewest: keyedNewest, parsePolicyFolder: parsePolicyFolder, policyFolders: policyFolders, policyScan: policyScan, joinSchedules: joinSchedules, latestOverview: latestOverview, dateKey: dateKey, newestOf: newestOf, isManual: isManual, isReviewDir: function (n) { return REVIEW_DIR.test(norm(n)); }, canonInsurer: canonInsurer, numKey: numKey, FOLDER_INSURERS: FOLDER_INSURERS,
     listDirs: listDirs, clientSubfolder: clientSubfolder, findFiles: findFiles, viewableFiles: viewableFiles, findClients: findClients, clientFromFile: clientFromFile, dirOfFile: dirOfFile, dealCandidates: dealCandidates, resolveTarget: resolveTarget, factFindCandidates: factFindCandidates, resolveFactFind: resolveFactFind, overviewCandidate: overviewCandidate, clientDocuments: clientDocuments, counterOfferDocuments: counterOfferDocuments, resolveOverview: resolveOverview, ensureOverview: ensureOverview, relOf: relOf, labelOf: labelOf, probeFile: probeFile, makeFile: makeFile, discardEmpty: discardEmpty,
     saveHandle: saveHandle, loadHandle: loadHandle, getPaths: getPaths, setPath: setPath, permission: permission, enabled: enabled
   };
