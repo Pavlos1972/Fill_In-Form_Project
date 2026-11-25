@@ -15,6 +15,9 @@
     { id: 'ip', l: 'Income protector / sickness benefit', keys: ['monthly'] }
   ];
 
+  /* The pillars' short names, as the summary of a counter offer's terms and the totals row name them. */
+  var PILLAR_SHORT = { life: 'Life cover', sev: 'Severe illness', lsd: 'Lump sum disability', ip: 'Income protector' };
+
   /* The eleven blocks, fixed order, the same on the screen, in the PDF and in the Presentation. kind says how the block is drawn; qkind is the kind of quote a quote block holds;
      ff: the block follows the Fact Find (items are added and removed only there). */
   var BLOCKS = [
@@ -143,7 +146,7 @@
   /* The year folder the overview goes in (the year of its date). */
   function yearOf(state) { var d = parseDMY(state && state.header && state.header.overviewDate) || parseDMY(todayDMY()); return String(d.y); }
 
-  return { version: VERSION, pageVersion: PAGE_VERSION, released: 'November 2026', APP_ID: APP_ID, PILLARS: PILLARS, BLOCKS: BLOCKS, blocksById: blocksById, blockOfQuote: blockOfQuote, QUOTE_KINDS: QUOTE_KINDS, INSURERS: INSURERS,
+  return { version: VERSION, pageVersion: PAGE_VERSION, released: 'November 2026', APP_ID: APP_ID, PILLARS: PILLARS, PILLAR_SHORT: PILLAR_SHORT, BLOCKS: BLOCKS, blocksById: blocksById, blockOfQuote: blockOfQuote, QUOTE_KINDS: QUOTE_KINDS, INSURERS: INSURERS,
     STATUS: STATUS, statusLabel: statusLabel, UW: UW, uwLabel: uwLabel, UW_ISSUED: UW_ISSUED, UW_DECLINED: UW_DECLINED, LEGACY_STATUS: LEGACY_STATUS, TERM_BENEFITS: TERM_BENEFITS, LOADING_KINDS: LOADING_KINDS, loadingKindLabel: loadingKindLabel, BROKER_RECORD: BROKER_RECORD, NEED_GROUPS: NEED_GROUPS, COLUMN_GROUPS: COLUMN_GROUPS, needGroupById: needGroupById, columnGroupById: columnGroupById, cellOf: cellOf, cellsBenefit: cellsBenefit,BENEFIT_PILLARS: BENEFIT_PILLARS, LINE_TYPES: LINE_TYPES, lineTypesById: lineTypesById, STANDARDS: STANDARDS, PROPOSED_TYPES: PROPOSED_TYPES, CONTRIBUTIONS: CONTRIBUTIONS,
     contributionLabel: contributionLabel, OTHER_KEYS: OTHER_KEYS, FIGURES: FIGURES, GROUP_KINDS: GROUP_KINDS, PAID_BY: PAID_BY, ST_LABEL: ST_LABEL, fileName: fileName, yearOf: yearOf, clientName: clientName,
     clientFull: clientFull, parseDMY: parseDMY, todayDMY: todayDMY, safeName: safeName };

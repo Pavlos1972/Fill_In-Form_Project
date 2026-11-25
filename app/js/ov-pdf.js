@@ -147,8 +147,23 @@
     return table(doc, y, { head: [['', 'Life cover', 'Severe illness', 'Lump sum disability', 'Income protector p.m.', 'Monthly premium']], colw: [63, 42, 42, 42, 42, 42], align: ['left', 'right', 'right', 'right', 'right', 'right'],
       body: [row('What you have now', c.now), row('This quote', c.quote), row('Difference', c.diff, true)] });
   }
+  /* The underwriting decision of a counter offer (round 1.3, Paul 25 November): the decision and ONE plain summary, "Underwriting terms of the counter offer letter": the loadings of the pillars that carry one, the ONE reason for them, and every exclusion
+     once with the pillars it covers and the insurer's own wording. The same words as the screen and the Presentation (calc.termsSummary). A reason read from the e-mail and not yet checked prints too, as an amber term does. */
+  function uwSummaryPDF(doc, y, q) {
+    var sm = calc.termsSummary(q); if (!sm.loadings.length && !sm.exclusions.length) return y;
+    setText(doc, DEEP, FS.sub, true); doc.text('Underwriting decision', M, y + 5); y += 8;
+    if (sm.decision) y = note(doc, y, 'Decision: ' + sm.decision + '.', GREEN);
+    y = note(doc, y + 1, 'Underwriting terms of the counter offer letter: ' + sm.heading + '.', DEEP);
+    if (sm.loadings.length) y = table(doc, y + 1, { head: [['Loading on', 'Loading']], colw: [60, 213], align: ['left', 'left'],
+      body: sm.loadings.map(function (l) { return [{ content: t(l.label), styles: { halign: 'left', fontStyle: 'bold' } }, { content: t(l.texts.join(', ')), styles: { halign: 'left', fontStyle: 'bold', textColor: RED } }]; }) }) + 2;
+    var rs = sm.reason; if (rs) y = note(doc, y, 'Reason: ' + rs.text + (rs.src && rs.src.kind === 'uwemail' ? ' (underwriter\'s e-mail' + (rs.src.date ? ', ' + rs.src.date : '') + ')' : ''), INK) + 1;
+    if (sm.exclusions.length) y = table(doc, y + 1, { head: [['No.', 'Benefits it covers', 'What it means']], colw: [16, 52, 205], align: ['left', 'left', 'left'],
+      body: sm.exclusions.map(function (e) { return [{ content: t(e.no), styles: { halign: 'left', fontStyle: 'bold', textColor: RED } }, { content: t(e.benefit), styles: { halign: 'left', fontStyle: 'bold' } }, { content: t(e.what), styles: { halign: 'left' } }]; }) }) + 2;
+    return y;
+  }
   /* The insurer's terms once the client has accepted and the insurer has answered (round 1.1): standard rates say just that; loadings and exclusions are listed with their reasons. Nothing for a quote still pending or declined. */
   function uwBlock(doc, y, q) {
+    if (q.counterOf) return uwSummaryPDF(doc, y, q);
     var counter = !!q.counterOf, tm0 = q.terms || {}, u = counter ? ((tm0.loadings || []).length || (tm0.exclusions || []).length ? 'both' : null) : calc.uwOf(q); if (!u || u === 'pending' || schema.UW_DECLINED.indexOf(u) >= 0) return y;
     setText(doc, DEEP, FS.sub, true); doc.text(counter ? 'Underwriting terms of the counter offer' : 'Underwriting outcome', M, y + 5); y += 8;
     if (u === 'standard') return note(doc, y, 'Accepted at standard rates.', GREEN);

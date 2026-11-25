@@ -81,8 +81,8 @@ srv.listen(0, async () => {
   let qp = 0; for (let i = 1; i <= pages; i++) { if (!qp && /Counter offer to BrightRock quote CP 400500600/.test(raw(i))) qp = i; }
   const qt = qp ? raw(qp) : '', after = qt.indexOf('Counter offer'), cq = after >= 0 ? qt.slice(qt.indexOf('CP 400500777')) : '';
   ok(qp > 0 && ['+6% loading', '+14% loading', '+9% loading', '+11% loading', 'Exclusion 4*', 'Exclusion 5*'].every(t => cq.indexOf(t) >= 0), '6. the PDF carries every reference of the four pillars (page ' + qp + ')');
-  ok(/Loadings and exclusions/.test(cq) && /Income protector\s+Household/.test(qt) && /Life cover\s+Household/.test(qt) && /Severe illness\s+Additional expense needs/.test(qt) && /Lump sum disability\s+Household/.test(qt), '6. the PDF’s terms table has one pillar for each loading');
-  ok(/4\* Severe illness, income protector No cover for conditions of the lower back Medical/.test(qt) && /5\* Lump sum disability No cover for a hazardous pursuit Occupational/.test(qt), '6. and its exclusions: the two pillars of one, the one pillar of the other');
+  ok(/Loadings and exclusions/.test(cq) && /Life cover \+6% loading/.test(qt) && /Severe illness \+11% loading/.test(qt) && /Lump sum disability \+14% loading/.test(qt) && /Income protector \+9% loading/.test(qt), '6. the PDF’s underwriting summary has a line for each pillar with its loading');
+  ok(/4\* Severe illness, income protector No cover for conditions of the lower back/.test(qt) && /5\* Lump sum disability No cover for a hazardous pursuit/.test(qt), '6. and its exclusions: the two pillars of one, the one pillar of the other');
   ok(!/severe illness and income protector/i.test(qt), '6. the combined label is not in the PDF');
   if (qp) cp.execFileSync('pdftoppm', ['-f', String(qp), '-l', String(qp), '-r', '80', '-png', '-singlefile', pdfFile, out + '/r16-pillars-pdf']);
 

@@ -69,7 +69,7 @@ test('(e) a file saved by 1.2 (the old labels stored on the rows) opens with the
   assert.strictEqual(calc.termBenefit({ benefit: 'Life cover' }), 'Life cover', 'a typed row'); assert.strictEqual(calc.termBenefit({ applies: [{ need: 'needs', column: 'death' }] }), 'Life cover');
 });
 
-test('(d) the letter is the source of the before and after premium; a cent apart is rounding and is aligned in BOTH orders of reading, so one figure is on the card, in the issued policy and in the premium before and after', () => {
+test('(d) the letter is the source of the before and after premium: the counter offer quote takes the letter\u2019s figure in BOTH orders of reading, so one figure is on the card, in the issued policy and in the premium before and after; what the proposal printed is kept and a difference, even a cent, is warned (round 1.3, Paul 25 November)', () => {
   const read = (letterFirst, quotePremium) => {
     const s = fresh(), q = accepted(s, quote(s, '400500600')); let c;
     const letter = () => docs.applyCounterLetter(s, q, mkLetter(), 'letter.pdf').quote, cq = () => docs.applyQuote(s, 'fna', { insurer: 'BrightRock', number: '400500777', premium: quotePremium, lines: [LINE, DREAD] }, 'Cover Proposal 400500777.pdf', { counterOf: q.id }).quote;
@@ -80,26 +80,31 @@ test('(d) the letter is the source of the before and after premium; a cent apart
     const { s, q, c } = read(first, 5420.01), p = calc.counterPremium(s, c);
     assert.strictEqual(calc.counterOffers(s, q).length, 1, 'one counter offer'); assert.strictEqual(c.premium, 5420, 'the quote’s figure is the letter’s: ' + (first ? 'letter first' : 'quote first'));
     assert.deepStrictEqual([p.before, p.after, p.diff], [5000, 5420, 420]); assert.strictEqual(p.after, c.premium, 'the same figure');
-    assert.ok(!problems(s).some(x => x.id === 'counter.premium'), 'a cent is not a problem');
+    assert.strictEqual(c.offer.quotePremium, 5420.01, 'the figure the revised Cover Proposal printed is kept');
+    const w1 = problems(s).filter(x => x.id === 'counter.premium'); assert.strictEqual(w1.length, 1, 'a cent is a warning now'); assert.ok(/5[ , ]?420\.01/.test(w1[0].message) && /5[ , ]?420\.00/.test(w1[0].message), 'it names both figures: ' + w1[0].message);
+    assert.ok(calc.premiumWarning(s, c).length > 0, 'and so does the card\u2019s own warning');
     store.setPath(s, qpath(s, c) + '.policyNo', '900800700', 'text'); store.setPath(s, qpath(s, c) + '.startDate', '01/12/2026', 'date'); store.setStatus(s, qpath(s, c), 'accepted');
     const pol = calc.policies(s).filter(x => x.derived)[0]; assert.ok(pol, 'the accepted counter offer is the policy'); assert.strictEqual(pol.item.premium, 5420, 'the issued policy shows the same figure');
   });
-  // a real difference is left alone and said, never hidden: the letter's figure is the new premium
-  const { s, c } = read(true, 5500); assert.strictEqual(c.premium, 5500); assert.strictEqual(calc.counterPremium(s, c).after, 5420);
+  // a real difference is never hidden either: the letter's figure is the premium everywhere, the proposal's own is kept and named
+  const { s, c } = read(true, 5500); assert.strictEqual(c.premium, 5420, 'the letter\u2019s figure'); assert.strictEqual(c.offer.quotePremium, 5500); assert.strictEqual(calc.counterPremium(s, c).after, 5420);
   const pr = problems(s).filter(x => x.id === 'counter.premium'); assert.strictEqual(pr.length, 1); assert.ok(/R\s?5[ , ]?420/.test(pr[0].message) && /R\s?5[ , ]?500/.test(pr[0].message), pr[0].message);
+  // the same figures: no warning
+  const same = read(true, 5420); assert.strictEqual(problems(same.s).filter(x => x.id === 'counter.premium').length, 0); assert.strictEqual(calc.premiumWarning(same.s, same.c), '');
   // the letter prints no premium: the quotes fill in
   const s2 = fresh(), q2 = accepted(s2, quote(s2, '400500600')), c2 = docs.applyCounterLetter(s2, q2, mkLetter({ origPremium: undefined, revPremium: undefined }), 'letter.pdf').quote; c2.premium = 5300;
   assert.deepStrictEqual([calc.counterPremium(s2, c2).before, calc.counterPremium(s2, c2).after], [5000, 5300]);
 });
 
-test('(d) a file the skill built or one saved by 1.2 opens with ONE premium too (settleAll): the quote before the letter and the counter offer quote both take the letter\u2019s figure when a cent apart; a real difference is left and said, on either side', () => {
+test('(d) a file the skill built or one saved by 1.2 opens with ONE premium too (settleAll): the quote before the letter takes the letter\u2019s figure when a cent apart, the counter offer quote always does and the proposal\u2019s own figure is warned about; a real difference on the BEFORE side is left and said', () => {
   const s = fresh(), q = accepted(s, quote(s, '400500600')), c = docs.applyCounterLetter(s, q, mkLetter(), 'letter.pdf').quote;
   q.premium = 4999.99; c.premium = 5420.01;                                                                  // what a 1.2 file or the skill\u2019s file can hold: each quote\u2019s own figure, a cent off the letter
   const o = store.fromJSON(store.toJSON(s)); assert.ok(check.settleAll(o) >= 2, 'settleAll puts both right');
   const oq = o.blocks.fna.quotes[0], oc = o.blocks.fna.quotes[1];
   assert.deepStrictEqual([oq.premium, oc.premium], [5000, 5420], 'the original\u2019s bar and the counter offer\u2019s bar show the letter\u2019s figures');
   const p = calc.counterPremium(o, oc); assert.deepStrictEqual([p.before, p.after, p.diff], [5000, 5420, 420]);
-  assert.ok(!problems(o).some(x => x.id === 'counter.premium'), 'a cent is not a problem'); assert.strictEqual(check.settleAll(o) >= 0 && calc.alignPremiums(o), 0, 'and it is done once');
+  const wo = problems(o).filter(x => x.id === 'counter.premium'); assert.strictEqual(wo.length, 1, 'only the revised proposal is warned about (a cent on the before side is rounding)'); assert.ok(/5[ , ]?420\.01/.test(wo[0].message), wo[0].message); assert.strictEqual(oc.offer.quotePremium, 5420.01);
+  assert.strictEqual(check.settleAll(o) >= 0 && calc.alignPremiums(o), 0, 'and it is done once'); assert.strictEqual(oc.offer.quotePremium, 5420.01, 'settling again keeps the figure the proposal printed');
   // a real difference on the BEFORE side: left alone, said, the letter\u2019s figure is the one shown as the premium before
   const s2 = fresh(), q2 = accepted(s2, quote(s2, '400500600')), c2 = docs.applyCounterLetter(s2, q2, mkLetter(), 'letter.pdf').quote; q2.premium = 5100; check.settleAll(s2);
   assert.strictEqual(q2.premium, 5100); assert.strictEqual(calc.counterPremium(s2, c2).before, 5000);

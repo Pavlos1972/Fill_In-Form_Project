@@ -128,20 +128,32 @@
     var diff = isNum(before) && isNum(after) ? r2(after - before) : null;
     return { before: before, after: after, diff: diff, pct: isNum(diff) && before > 0 ? Math.round(diff / before * 10000) / 100 : null, prev: prev };
   }
-  /* The letter's premiums and the premiums of the quotes on either side of it are the same figures a cent apart (rounding): the LETTER's figures win, so a card never prints two premiums. For every counter offer: the quote before it
-     takes the letter's original premium and the counter offer quote takes the letter's revised premium, when each differs by 5 cents or less. A larger difference is left as it is and the check counter.premium says so. Runs when a
-     document is read and when a file opens (settleAll), so a file the skill built or one saved by 1.2 opens with one figure too. Returns how many premiums it changed. */
+  /* The letter's premiums are the source (Paul, 25 November: "the revised COL quote should match the letter exactly"). The counter offer quote takes the letter's REVISED premium whatever it printed, so a card never prints two premiums; the
+     figure the revised Cover Proposal itself printed is kept in offer.quotePremium and premiumWarning says so when it differs, even by a cent. The quote BEFORE the counter offer takes the letter's original premium only when it differs by
+     5 cents or less (a larger difference stays and the check counter.premium says so: that quote is another document). Runs when a document is read and when a file opens (settleAll), so a file the skill built, or one saved by 1.2, opens with
+     one figure too. Returns how many premiums it changed. */
+  function cents(v) { return Math.round(v * 100); }
   function alignPremiums(state) {
     var n = 0, near = function (a, b) { return isNum(a) && isNum(b) && a !== b && Math.abs(a - b) <= 0.05; };
     mainQuotes(state).forEach(function (root) {
       var chain = [root].concat(counterOffers(state, root));
       for (var i = 1; i < chain.length; i++) {
-        var c = chain[i], p = chain[i - 1], off = c.offer || {};
+        var c = chain[i], p = chain[i - 1], off = c.offer && typeof c.offer === 'object' ? c.offer : {};
         if (near(p.premium, off.origPremium)) { p.premium = off.origPremium; n++; }
-        if (near(c.premium, off.revPremium)) { c.premium = off.revPremium; n++; }
+        if (isNum(off.revPremium) && isNum(c.premium)) {
+          if (off.quotePremium == null || !isNum(off.quotePremium)) off.quotePremium = c.premium;                      // a file nobody has read the quote into (the skill's, or 1.2's): the quote's premium is what the proposal printed
+          if (cents(c.premium) !== cents(off.revPremium)) { c.premium = off.revPremium; n++; }
+        }
       }
     });
     return n;
+  }
+  /* The amber warning of a counter offer whose revised Cover Proposal prints another premium than the letter (even a cent): both figures named. '' when they agree or one of them is not known. Used by the card and by the check. */
+  function premiumWarning(state, q) {
+    var off = q && q.counterOf && q.offer && typeof q.offer === 'object' ? q.offer : null;
+    if (!off || !isNum(off.revPremium) || !isNum(off.quotePremium) || cents(off.quotePremium) === cents(off.revPremium)) return '';
+    var m2 = function (v) { return 'R' + v.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ','); };          // both figures with their cents: they can differ by one
+    return 'The revised Cover Proposal prints ' + m2(off.quotePremium) + ' a month; the counter offer letter says ' + m2(off.revPremium) + '. The letter\u2019s figure is the one used everywhere: check which of the two is right.';
   }
   /* The red references a quote's terms put on the pillar columns: [{ kind, text, pillars }]. A loading or an exclusion belongs to PILLARS (Paul, 25 November: "a loading would apply NOT to individual line items BUT to pillars: life, disability,
      severe and ICB"), so it is shown once per pillar, in the Loadings and exclusions row under the totals, never on a line. A loading is a cell of BrightRock's letter (a need group and a column group) or a benefit a person typed; an exclusion
@@ -181,7 +193,30 @@
     return w.replace(/[ \t]{2,}/g, ' ').replace(/[ \t]+\n/g, '\n').replace(/\n{2,}/g, '\n').trim();          // the wording is one paragraph: a number taken out of the middle never leaves a blank line
   }
   /* The terms a counter offer read from the letter that nobody has checked yet. */
-  function termsToCheck(q) { var t = q && q.terms || {}, n = 0; ['loadings', 'exclusions'].forEach(function (k) { (t[k] || []).forEach(function (r) { if (r && r.st === 'verify') n++; }); }); return n; }
+  function termsToCheck(q) { var t = q && q.terms || {}, n = 0; ['loadings', 'exclusions'].forEach(function (k) { (t[k] || []).forEach(function (r) { if (r && r.st === 'verify') n++; }); }); if (t.reason && typeof t.reason === 'object' && t.reason.st === 'verify' && String(t.reason.text || '').trim()) n++; return n; }
+  /* The ONE reason for the loadings (Paul, 25 November: "one reason for all the loadings", from the underwriter's e-mail): terms.reason { text, kind, src, st, by }. A file built before it has the reason typed in each loading row: the distinct ones are shown
+     once, so nothing typed is lost. null when there is none. */
+  function termsReason(q) {
+    var t = q && q.terms || {}, r = t.reason;
+    if (r && typeof r === 'object' && String(r.text || '').trim()) return { text: String(r.text).trim(), kind: r.kind || null, src: r.src && typeof r.src === 'object' ? r.src : null, st: r.st || 'verify', by: r.by || null, own: true };
+    var seen = {}, parts = []; (Array.isArray(t.loadings) ? t.loadings : []).forEach(function (l) { var x = l && typeof l.reason === 'string' ? l.reason.trim() : ''; if (x && !seen[x.toLowerCase()]) { seen[x.toLowerCase()] = 1; parts.push(x); } });
+    return parts.length ? { text: parts.join('; '), kind: null, src: null, st: 'confirmed', by: 'person', own: false } : null;
+  }
+  /* What a counter offer's underwriting terms say, in the plain form the screen, the PDF and the Presentation all draw (Paul, 25 November): a heading (loadings and exclusions, loadings, exclusions), the loadings of the pillars that carry one (from
+     refsTotal, so this can never disagree with the Loadings and exclusions row under the totals; a pillar can carry two percentages), the reason once, and every exclusion once with its number, the pillars it covers and the insurer's own wording. */
+  function termsSummary(q) {
+    var t = q && q.terms || {}, loadings = [], exclusions = [];
+    schema.PILLARS.forEach(function (p) { var l = refsTotal(q, p.id).filter(function (r) { return r.kind === 'loading'; }); if (l.length) loadings.push({ pillar: p.id, label: schema.PILLAR_SHORT[p.id] || p.l, texts: l.map(function (r) { return r.text; }) }); });
+    (Array.isArray(t.exclusions) ? t.exclusions : []).forEach(function (e, i) {
+      if (!e || typeof e !== 'object') return;
+      var what = typeof e.what === 'string' ? e.what.trim() : '', no = String(e.no == null ? '' : e.no).trim();
+      if (!what && !no) return;
+      exclusions.push({ no: no || String(i + 1), label: 'Exclusion ' + (no || (i + 1)), benefit: termBenefit(e), what: what, page: isNum(e.page) ? e.page : null, type: typeof e.why === 'string' ? e.why.trim() : '', st: e.st || null, index: i });
+    });
+    var heading = loadings.length && exclusions.length ? 'loadings and exclusions' : loadings.length ? 'loadings' : exclusions.length ? 'exclusions' : '',
+      kind = loadings.length && exclusions.length ? 'both' : loadings.length ? 'loadings' : exclusions.length ? 'exclusions' : null;
+    return { heading: heading, kind: kind, decision: kind ? schema.uwLabel[kind] : '', loadings: loadings, reason: loadings.length || termsReason(q) ? termsReason(q) : null, exclusions: exclusions };
+  }
 
   /* Block 1: the policies that are not removed, and every accepted quote that has been issued (policy number and start date): it is shown here as a WR policy and no longer as a quote.
      A schedule with the same policy number wins over the quote. Each entry is { item, derived }. */
@@ -212,6 +247,7 @@
     if (q.counterOf) { if (q.uw) { q.uw = null; n++; } if (!q.offer || typeof q.offer !== 'object') { q.offer = {}; n++; } } else if (q.offer === undefined) q.offer = null;
     var t = q.terms && typeof q.terms === 'object' ? q.terms : (q.terms = { loadings: [], exclusions: [] }, n++);
     if (!Array.isArray(t.loadings)) { t.loadings = []; n++; } if (!Array.isArray(t.exclusions)) { t.exclusions = []; n++; }
+    if (t.reason !== undefined) { if (t.reason === null || typeof t.reason !== 'object' || Array.isArray(t.reason)) { delete t.reason; n++; } else if (typeof t.reason.text !== 'string') { t.reason.text = ''; n++; } }          // round 1.3 (contract revision o): the one reason for the loadings; a hand-edited file never breaks the page
     if (q.counterOf) t.exclusions.forEach(function (e) { if (e && e.no && typeof e.what === 'string' && e.st === 'verify' && e.by !== 'person') { var w = ownNumberOut(e.what, e.no); if (w !== e.what) { e.what = w; n++; } } });          // round 1.3: a row read by 1.2 may carry its own number in the wording; nothing a person typed or checked is touched
     var r = q.repl && typeof q.repl === 'object' ? q.repl : (q.repl = { answer: null, policies: [] }, n++);
     if (r.answer !== 'yes' && r.answer !== 'no' && r.answer !== null) { r.answer = null; n++; } if (r.answer === undefined) r.answer = null;
@@ -376,7 +412,7 @@
   var PAGE_WHY = { shortfallQuote: 'Left out: there is no group risk, or no shortfall quote was asked for.', comparative: 'Left out: no comparative quote was asked for in the Fact Find.', proposed: 'Left out: there are no proposed investments.', goals: 'Left out: no goal analysis report was asked for.' };
   function pageWhy(id) { return PAGE_WHY[id] || ''; }
 
-  return { alignPremiums: alignPremiums, ownNumberOut: ownNumberOut, settleQuote: settleQuote, parentOf: parentOf, isCounter: isCounter, mainQuotes: mainQuotes, counterOffers: counterOffers, liveCounter: liveCounter, effectiveQuote: effectiveQuote, counterDead: counterDead, chainIds: chainIds, chainIssued: chainIssued, canCounter: canCounter, counterPremium: counterPremium, termRefs: termRefs, termBenefit: termBenefit, refsTotal: refsTotal, termsToCheck: termsToCheck, uwOf: uwOf, declined: declined, accepted: accepted, dead: dead, issued: issued, statusText: statusText, statusClass: statusClass, acceptedQuotes: acceptedQuotes, acceptanceConflicts: acceptanceConflicts, replOf: replOf, quoteRef: quoteRef, policyRef: policyRef, replaceable: replaceable, replacementInfo: replacementInfo, policyNote: policyNote, settleLine: settleLine, aciPoints: aciPoints, sameDebtName: sameDebtName, isNum: isNum, r2: r2, norm: norm, fmtR: fmtR, fmtPct: fmtPct, fmtAci: fmtAci, matchChildren: matchChildren, matchDebts: matchDebts, pageShown: pageShown, pageWhy: pageWhy, fmtDiff: fmtDiff, show: show, lineVal: lineVal, active: active, activeLines: activeLines, totals: totals, sumLines: sumLines,
+  return { alignPremiums: alignPremiums, ownNumberOut: ownNumberOut, settleQuote: settleQuote, parentOf: parentOf, isCounter: isCounter, mainQuotes: mainQuotes, counterOffers: counterOffers, liveCounter: liveCounter, effectiveQuote: effectiveQuote, counterDead: counterDead, chainIds: chainIds, chainIssued: chainIssued, canCounter: canCounter, counterPremium: counterPremium, premiumWarning: premiumWarning, termsSummary: termsSummary, termsReason: termsReason, cents: cents, termRefs: termRefs, termBenefit: termBenefit, refsTotal: refsTotal, termsToCheck: termsToCheck, uwOf: uwOf, declined: declined, accepted: accepted, dead: dead, issued: issued, statusText: statusText, statusClass: statusClass, acceptedQuotes: acceptedQuotes, acceptanceConflicts: acceptanceConflicts, replOf: replOf, quoteRef: quoteRef, policyRef: policyRef, replaceable: replaceable, replacementInfo: replacementInfo, policyNote: policyNote, settleLine: settleLine, aciPoints: aciPoints, sameDebtName: sameDebtName, isNum: isNum, r2: r2, norm: norm, fmtR: fmtR, fmtPct: fmtPct, fmtAci: fmtAci, matchChildren: matchChildren, matchDebts: matchDebts, pageShown: pageShown, pageWhy: pageWhy, fmtDiff: fmtDiff, show: show, lineVal: lineVal, active: active, activeLines: activeLines, totals: totals, sumLines: sumLines,
     quotes: quotes, allQuotes: allQuotes, policies: policies, policyTotals: policyTotals, groupItems: groupItems, hasGroupRisk: hasGroupRisk, groupTotals: groupTotals, investments: investments,
     personalInvestments: personalInvestments, shortfall: shortfall, compare: compare, pillars: pillarOfBlock };
 });
