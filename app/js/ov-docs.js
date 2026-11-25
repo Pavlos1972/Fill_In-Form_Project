@@ -26,12 +26,12 @@
     else if (/shortfall/.test(low)) block = 'shortfallQuote';
     else if (/reduced/.test(low)) block = 'reduced';
     else if (/astute/.test(low)) block = 'astute';
-    else if (/group|funds ?at ?work|benefit statement|membership certificate|certificate/.test(low)) block = 'group';
+    else if (/group|funds ?at ?work|benefit statement|membership certificate|certificate|provident|pension|preservation/.test(low)) block = 'group';          // a provident, pension or preservation fund statement is a group-block document (Paul, 25 November)
     else if (/(optimal|tax[ _-]?free|retirement annuity|endowment|unit trust|living annuity|investment).*(quote|proposal|illustration)|(quote|proposal|illustration).*(optimal|tax[ _-]?free|retirement annuity|endowment|living annuity)/.test(low)) block = 'proposed';
     else if (/(momentum|sanlam|discovery|liberty|old mutual|hollard|assupol|metropolitan|absa|bidvest|clientele).*(quote|proposal|illustration)|comparative/.test(low)) block = 'comparative';
     else if (/schedule|policy|(^|[^a-z])ps([^a-z]|$)/.test(low)) block = 'policies';
     else if (/(liberty|momentum|sanlam|discovery|old mutual|hollard|assupol|metropolitan|clientele|bidvest|generali|santam).*(protector|lifestyle|life plan|life cover|plan|cover|benefit)/.test(low)) block = 'policies';          // an insurer's product name
-    else if (/investment|statement|(^|[^a-z])ra([^a-z]|$)|retirement annuity|tax.?free|endowment|unit trust|fund value/.test(low)) block = 'investments';
+    else if (/investment|s(a)?tatement|(^|[^a-z])(ra|irr|is)([^a-z]|$)|retirement annuity|tax.?free|endowment|unit trust|fund value/.test(low)) block = 'investments';          // "satatement" is how one real file spells it; IRR is an investment report, IS an investment statement
     if (!block && dirPath) {                                                                                 // the name does not say: the folder it sits in does (6. Policy Schedules, the Astute folder)
       var dl = String(dirPath).toLowerCase();
       if (/polic(y|ies)[ _-]*schedule|(^|[^a-z])schedules?([^a-z]|$)/.test(dl)) block = 'policies'; else if (/astute/.test(dl)) block = 'astute';
@@ -43,12 +43,14 @@
     }
     return block ? { block: block, number: number, date: date, label: BLOCK_LABEL[block] } : null;
   }
-  /* The items of an overview (this one, or a saved one read from its .json) the policy folders are compared with: current policies (block 1) and current investments (block 6). The provident and pension funds of the group block and the legacy protection plan of block 11
-     are not here: a statement for them has no row in these blocks to fill, so their folders are listed and not compared (round 1.5). Returns [{ kind: 'policies' | 'investments', who, product, no, ref }]. */
+  /* The items of an overview (this one, or a saved one read from its .json) the policy folders are compared with: current policies (block 1), current investments (block 6), the provident and pension funds of the group block (kind 'group') and the legacy protection plan of
+     block 11 (kind 'legacy', only once the Fact Find says the client has one). A folder's statement goes to the block of the item it is compared with (Paul, 25 November). Returns [{ kind: 'policies' | 'investments' | 'group' | 'legacy', who, product, no, ref }]. */
   function comparableItems(st) {
     var B = (st && st.blocks) || {}, out = [], list = function (b) { return (B[b] && B[b].items) || []; };
     list('policies').forEach(function (i) { if (i && !i.removed) out.push({ kind: 'policies', who: String(i.insurer || ''), product: String(i.product || ''), no: String(i.policyNo || ''), ref: i }); });
     list('investments').forEach(function (i) { if (i && !i.removed) out.push({ kind: 'investments', who: String(i.provider || ''), product: String(i.product || ''), no: String(i.policyNo || ''), ref: i }); });
+    list('group').forEach(function (i) { if (i && !i.removed && /provident|pension/.test(String(i.kind || ''))) out.push({ kind: 'group', who: String(i.provider || ''), product: String(i.kind || ''), no: '', ref: i }); });                       // a provident or pension fund: a statement goes to the group block
+    list('other').forEach(function (i) { if (i && i.key === 'legacy' && (String(i.company || '').trim() || i.wr)) out.push({ kind: 'legacy', who: String(i.company || ''), product: 'legacy', no: String(i.policyNo || ''), ref: i }); });          // the legacy protection plan of block 11, once the Fact Find says the client has one
     return out;
   }
 

@@ -188,20 +188,71 @@ test('the comparison: matched by number, matched by insurer, the page does not g
   assert.deepStrictEqual(r.ffNotLive.map(x => [x.item.who, x.folder.name]), [['Sanlam', 'San Invest - 0556677 - (Transfered)']], 'the Fact Find lists a policy whose only folder says Transferred: shown, not hidden');
   assert.deepStrictEqual(r.priorOnly.map(x => x.who), ['Sygnia'], 'in the last overview only');
   const unread = F.comparePolicies(live, dead, { read: false, items: [] }, null); assert.ok(unread.live.every(x => x.ff === 'unknown') && unread.ffOnly.length === 0, 'with no Fact Find read into this overview nothing is claimed about it');
-  const leg = F.comparePolicies([G('Capital Legacy Plan - 44444444'), G('Sanlam Provident - 5566778')], [], { read: true, items: [it('policies', 'Sanlam', 'Life'), it('investments', 'Sanlam', 'RA')] }, null);
-  assert.deepStrictEqual(leg.live.map(x => x.ff), ['elsewhere', 'elsewhere'], 'a legacy plan and a provident fund are kept in other blocks: no claim is made about them, and the Fact Find\'s Sanlam items are not called unmatched because of them'); assert.deepStrictEqual(leg.ffOnly.map(x => x.who), ['Sanlam', 'Sanlam'], 'the Sanlam items have no (comparable) folder, which is true');
+  const withBoth = { read: true, items: [it('policies', 'Sanlam', 'Life'), it('investments', 'Sanlam', 'RA'), it('group', 'Sanlam', 'provident'), it('legacy', 'Capital Legacy', 'legacy')] };
+  const leg = F.comparePolicies([G('Capital Legacy Plan - 44444444'), G('Sanlam Provident - 5566778')], [], withBoth, null);
+  assert.deepStrictEqual(leg.live.map(x => x.ff), ['name', 'name'], 'a legacy plan is compared with the legacy plan of block 11, a provident fund with the group block\'s funds (not with Sanlam\'s policy or RA)'); assert.deepStrictEqual(leg.ffOnly.map(x => x.kind).sort(), ['investments', 'policies'], 'the Sanlam policy and RA have no folder, which is true');
+  const noLeg = F.comparePolicies([G('Capital Legacy Plan - 44444444')], [], { read: true, items: [it('policies', 'Sanlam', 'Life')] }, null); assert.deepStrictEqual([noLeg.live[0].ff], ['none'], 'no legacy plan in the Fact Find: the folder says so');
+  const noGrp = F.comparePolicies([G('Alex Forbes Provident - 7788991')], [], { read: true, items: [it('group', 'Alex Forbes', 'provident')] }, null); assert.deepStrictEqual([noGrp.live[0].ff], ['name'], 'Alex Forbes is an insurer the page knows');
   const nums = F.comparePolicies([G('Mom Endowment - 03112233445')], [], { read: true, items: [it('investments', 'Momentum', 'RA', '3112233445'), it('investments', 'Momentum', 'Tax Free', '')] }, null); assert.deepStrictEqual([nums.live[0].ff], ['number'], 'a number matches whatever the leading zeros and spaces');
 });
 
-test('the items an overview offers the comparison: block 1 and block 6 only (not the provident funds of the group block, not the legacy plan of block 11); a removed one never', () => {
+test('the items an overview offers the comparison: blocks 1 and 6, the provident funds of the group block and the legacy plan of block 11 (once there is one); a removed one never', () => {
   const s = store.blank(); const B = s.blocks;
   B.policies.items.push({ id: 'p1', insurer: 'BrightRock', product: 'Lifestyle', policyNo: '811234567', removed: false }, { id: 'p2', insurer: 'Gone', removed: true });
   B.investments.items.push({ id: 'i1', provider: 'Momentum', product: 'RA', policyNo: '', removed: false });
   B.group.items.push({ id: 'g1', kind: 'risk', provider: 'Risk Co', removed: false }, { id: 'g2', kind: 'provident', provider: 'Test Provident', removed: false });
   const leg = B.other.items.filter(x => x.key === 'legacy')[0]; if (leg) { leg.company = 'Capital Legacy'; leg.wr = true; }
   const items = docs.comparableItems(s);
-  assert.deepStrictEqual(items.map(x => [x.kind, x.who]), [['policies', 'BrightRock'], ['investments', 'Momentum']], 'only blocks 1 and 6: the provident fund (Group benefits) and the legacy plan (block 11) have no row a statement of a policy folder could fill');
+  assert.deepStrictEqual(items.map(x => [x.kind, x.who]), [['policies', 'BrightRock'], ['investments', 'Momentum'], ['group', 'Test Provident'], ...(leg ? [['legacy', 'Capital Legacy']] : [])], 'block 1, block 6, the provident and pension funds of the group block, and the legacy plan of block 11 once the Fact Find says there is one; never a risk group item');
   assert.deepStrictEqual(docs.comparableItems(null), []);
+});
+
+test('the review folders ("2026 - Review") inside Comparative Quotes and inside a numbered Quotes folder are listed', async () => {
+  const c = new Dir('Doe, Dora'); c.add('3. Quotes').file('Loose Quote 01.01.24.pdf'); c.add('3. Quotes', '2026 - Review').file('BR FNA 100000001 - 19.11.26.pdf'); c.add('3. Quotes', '2024 - Review').file('BR FNA 100000000 - 19.11.24.pdf');
+  c.add('Coronation RA - 458899', 'Comparative Quotes', '2026 - Review').file('Discovery Quote 08.03.26.pdf'); c.add('Coronation RA - 458899', 'Comparative Quotes', '2024 - Review').file('Old Mutual Quote 12.03.24.pdf'); c.add('Coronation RA - 458899', 'Comparative Quotes').file('Loose Comparative 2025.pdf');
+  const d = (await F.clientDocuments(client(c))).map(f => f.rel.concat([f.name]).join('/')).sort();
+  assert.deepStrictEqual(d, ['3. Quotes/2024 - Review/BR FNA 100000000 - 19.11.24.pdf', '3. Quotes/2026 - Review/BR FNA 100000001 - 19.11.26.pdf', '3. Quotes/Loose Quote 01.01.24.pdf', 'Coronation RA - 458899/Comparative Quotes/2024 - Review/Old Mutual Quote 12.03.24.pdf', 'Coronation RA - 458899/Comparative Quotes/2026 - Review/Discovery Quote 08.03.26.pdf', 'Coronation RA - 458899/Comparative Quotes/Loose Comparative 2025.pdf']);
+});
+
+/* ---------- 6b. the shapes Paul's real folders have (relayed 25 November, structure only; invented numbers and names here) ---------- */
+test('a file that names ANOTHER insurer is not this policy\'s document; forms, letters and change-of-details are never the schedule; PS, IS and IRR are schedules; Acceptance Letter & Policy Schedules is entered', async () => {
+  const c = new Dir('Doe, Dora');
+  const br = c.add('BR Personal Covers - 811234567');
+  br.add('Policy Schedules', '2024').file('Lib PS - 0556677 - 01.02.24 - (D Doe).pdf', 'Doe, Dora - Liberty - 48876543210.pdf', 'Momentum Group Life Statement - 03.04.24 (Doe, Dora).pdf', 'Dora Doe, Alex Forbes Pension Statement.pdf');
+  br.add('Acceptance Letter', '2026').file('Dora Doe\u2019s Owner\u2019s Manual \u2013 Policy number 811234567.pdf');
+  br.add('Servicing', '2025', 'Acceptance Letter & Policy Schedules').file('Dora Doe\u2019s Owner\u2019s Manual \u2013 Policy number 811234567 -PDF.pdf');
+  const g1 = (await F.policyScan(client(c))).groups[0], names = g1.files.map(f => f.name);
+  assert.deepStrictEqual(g1.foreign.sort(), ['Doe, Dora - Liberty - 48876543210.pdf', 'Dora Doe, Alex Forbes Pension Statement.pdf', 'Lib PS - 0556677 - 01.02.24 - (D Doe).pdf', 'Momentum Group Life Statement - 03.04.24 (Doe, Dora).pdf'], 'four other insurers\' files left out of the BrightRock folder and named');
+  assert.deepStrictEqual(names, ['Dora Doe\u2019s Owner\u2019s Manual \u2013 Policy number 811234567 -PDF.pdf'], 'only the owner\'s manual of Servicing / 2025 / Acceptance Letter & Policy Schedules (a folder with "schedules" in its name is entered); Acceptance Letter / 2026 is not');
+  assert.ok(g1.files.every(f => f.role === 'manual') && F.newestOf(g1.files).file === null, 'BrightRock has only the owner\'s manual: no schedule, and it is a last resort');
+  const st = c.add('Stanlib Invest - 2755001'); st.add('2024').file('Stanlib Invest PS - 2755001 - 05.03.24 - (D Doe).pdf', 'Stanlib UT PS - 2755001 - 06.03.24 - (D Doe).pdf'); st.add('2026').file('ChangeofdetailsUT (4) - Dora Doe - 2755001 - completed.pdf', 'ChangeofdetailsUT (4) - Dora Doe - 2755001 - signed.pdf');
+  const g2 = (await F.policyScan(client(c))).groups.filter(g => g.name.indexOf('Stanlib') === 0)[0];
+  assert.deepStrictEqual(g2.files.map(f => f.name).sort(), ['Stanlib Invest PS - 2755001 - 05.03.24 - (D Doe).pdf', 'Stanlib UT PS - 2755001 - 06.03.24 - (D Doe).pdf'], 'a change of details form, completed or signed, is never a schedule');
+  assert.strictEqual(F.newestOf(g2.files).file.name, 'Stanlib UT PS - 2755001 - 06.03.24 - (D Doe).pdf', 'the newest PS is told by the date in its name');
+  const weak = F.newestOf([{ name: 'Notice.pdf', rel: ['P', '2026'] }, { name: 'Stanlib Invest PS - 2755001.pdf', rel: ['P', '2024'] }]); assert.strictEqual(weak.file.name, 'Stanlib Invest PS - 2755001.pdf', 'a PS of 2024 is chosen before a file of 2026 whose name says nothing');
+  const lg = c.add('Capital Legacy - PN4455667'); lg.file('Capital Legacy - Plan Details Change Form 01.02.26 - signed.pdf');
+  const g3 = (await F.policyScan(client(c))).groups.filter(g => g.name.indexOf('Capital Legacy') === 0)[0]; assert.deepStrictEqual([g3.files.length, g3.p.special], [0, 'legacy'], 'a legacy plan folder with only a change form: no schedule, and it says so');
+  const nn = c.add('NinetyOne Invest - 449900'); nn.add('Policy Schedules', '2026').file('NinteyOne IS - 861234_INVRA - 12.03.26 - (D Doe).pdf'); nn.add('Servicing - 2025', '2025').file('NinetyOne RA Premium Increase - INVRA861234 - 20.02.25 - (D Doe).pdf');
+  const g4 = (await F.policyScan(client(c))).groups.filter(g => g.name.indexOf('NinetyOne') === 0)[0];
+  assert.deepStrictEqual(g4.files.map(f => f.name), ['NinteyOne IS - 861234_INVRA - 12.03.26 - (D Doe).pdf'], 'the investment statement (IS), though the provider is misspelt and its number is the investor\'s, not the folder\'s; a premium increase notice in Servicing is not a schedule');
+  const tf = c.add('NinetyOne TF - 449911'); tf.add('Policy Schedules').file('NinteyOne IS - 861235_INVTF - 12.03.26 - (D Doe).pdf'); assert.strictEqual((await F.policyScan(client(c))).groups.filter(g => g.name.indexOf('NinetyOne TF') === 0)[0].files.length, 1, 'a statement loose in Policy Schedules (no year folder)');
+});
+test('the dates real file names carry: dd.mm.yy, dd.mm.yyyy, a month and year with an apostrophe, yyyy-mm-ddThhmmss; none is the year folder', () => {
+  const D = F.dateKey;
+  assert.strictEqual(D('Alex Forbes Provident satatement - Mar \'25 - (D Doe).pdf', []).exact, 20250300, 'Mar \'25');
+  assert.strictEqual(D('D DOE_statement - 2025-12-15T155359.881.pdf', []).exact, 20251215, 'an ISO date and time');
+  assert.strictEqual(D('Mom RA PS - 0311223 - 04.07.24 - (D Doe).pdf', []).exact, 20240704); assert.strictEqual(D('Stanlib UT PS - 2755001 - 06.03.2024.pdf', []).exact, 20240306);
+  assert.strictEqual(D('IRR - 2755001 - DORA DOE.pdf', ['6. Policy Schedules', '2025']).sort, 20250000, 'none: the year folder');
+  assert.ok(D('Statement Mar \'25.pdf', []).exact < D('Statement Apr \'25.pdf', []).exact && D('Statement Dec \'24.pdf', []).exact < D('Statement Jan \'25.pdf', []).exact, 'months sort');
+  ['Mom RA PS - 0311223 - 04.07.24', 'NinteyOne IS - 861234_INVRA - 12.03.26', 'IRR - 2755001 - DORA DOE', 'Alex Forbes Provident satatement - Mar \'25', 'D DOE_statement - 2025-12-15T155359.881', 'Policy Schedule', 'Cover Summary'].forEach(n => assert.strictEqual(F.newestOf([{ name: n + '.pdf', rel: ['P'] }, { name: 'Notice.pdf', rel: ['P'] }]).file.name, n + '.pdf', n + ' is a schedule-like name'));
+});
+
+test('the real names of 6. Policy schedules: a provident statement (spelt satatement) is a group document, IRR and IS are investments, a PS is a policy schedule, the owner\'s manual is never a schedule', () => {
+  const c = (n, d) => (docs.classify(n, d) || {}).block, ps = '6. Policy Schedules \\ 2025';
+  assert.strictEqual(c('Alex Forbes Provident satatement - Mar \'25 - (D Doe).pdf', ps), 'group'); assert.strictEqual(c('Sanlam Provident Statement 31.03.26.pdf', ps), 'group'); assert.strictEqual(c('OM Preservation Fund Statement.pdf', ps), 'group');
+  assert.strictEqual(c('IRR - 2755001 - DORA DOE.pdf', ps), 'investments'); assert.strictEqual(c('D DOE_statement - 2025-12-15T155359.881.pdf', ps), 'investments'); assert.strictEqual(c('NinteyOne IS - 861234_INVRA - 12.03.26 - (D Doe).pdf', ps), 'investments');
+  assert.strictEqual(c('Mom RA PS - 0311223 - 04.07.24 - (D Doe).pdf', ps), 'policies', 'a PS is a policy schedule by its name; in a policy folder the FOLDER decides the block');
+  assert.ok(F.isManual('Dora Doe\u2019s Owner\u2019s Manual \u2013 Policy number 811234567 -PDF.pdf') && F.isManual('Dora Doe\u2019s Owner\u2019s Manual.pdf'), 'the owner\'s manual, with the en dash, with or without the number');
 });
 
 /* ---------- 7. the latest overview ---------- */

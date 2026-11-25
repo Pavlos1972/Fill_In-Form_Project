@@ -976,7 +976,7 @@
   /* One document into the overview. o: { block (forced), target (an item), replaces (a quote id), dir (the folder it was picked in), pool (the files of the client's folder: where a guide may be), guides }.
      Resolves { msg, warn } or { unknown: true, file }. A BrightRock quote that was read gets its change moment pay-out by itself (the guide "BR CMPO - <CP number>" is looked for and read). */
   function intakeOne(file, o) {
-    o = o || {};
+    o = o || {}; if (file.wrTarget && !o.target) o = Object.assign({}, o, { target: file.wrTarget });                 // the legacy plan's own item is the target of a statement found in its policy folder
     var cls = D.classify(file.name, dirOf(file, o)), block = o.block || file.wrBlock || (cls && cls.block);          // round 1.5: a file picked from a policy folder is in the block its FOLDER says (investments or policies), whatever its name
     if (!block) return Promise.resolve({ unknown: true, file: file });
     cls = cls || { number: '', date: '' };
@@ -1223,14 +1223,19 @@
     var others = res.files.filter(function (f) { return f.group == null; });
     var keyOf = function (f) { var c = D.classify(f.name, (f.rel || []).join(' \\ ')); if (!c || (c.block !== 'policies' && c.block !== 'investments' && c.block !== 'group')) return null; var nk = F && F.numKey ? F.numKey(c.number) : c.number; return c.block + ':' + (nk && nk.length >= 5 ? nk : String(f.name).toLowerCase().replace(/\.[a-z0-9]{2,5}$/, '').replace(/[^a-z]+/g, ' ').trim()); };
     var kn = F && F.keyedNewest ? F.keyedNewest(others, keyOf) : { tick: new Map(), tied: [] };
+    var cyear = new Map(), maxY = 0, older = new Set();                                                       // comparative quotes: only the newest year's (the latest review folder, "2026 - Review") are ticked, older years are listed (Paul, 25 November); a quote with no year anywhere stays as it was
+    var inCq = function (f) { return (f.rel || []).some(function (r) { return /comparative quotes?/.test(F.norm(r)); }); };                  // the rule is about the FOLDER too: a file under Comparative Quotes whose name says "RA quote" is a proposal by its name and a comparative quote by its place
+    others.forEach(function (f) { var c = D.classify(f.name, (f.rel || []).join(' \\ ')); if (!(c && c.block === 'comparative') && !(c && inCq(f)) || !F || !F.dateKey) return; var k = F.dateKey(f.name, f.rel), y = k.year || (k.exact ? Math.floor(k.exact / 10000) : 0); cyear.set(f, y); if (y > maxY) maxY = y; });
     var tick = res.files.map(function (f) {
       if (f.group != null) { var g = groups[f.group], pr = plan && plan.live ? plan.live[f.group] : null; return !!(g && g.block && f.role !== 'manual' && g.pick && g.pick.file === f && !(pr && pr.ff === 'none')); }          // a policy the Fact Find does not list would be read and then refused (this page follows the Fact Find), so it is not ticked: the chip says why
       var c = D.classify(f.name, (f.rel || []).join(' \\ '));
       var base = !!(c && (c.block !== 'followup' || f === tickFu) && (c.block !== 'astute' || !tickAs.best || f === tickAs.best));
+      if (base && F && F.isManual && F.isManual(f.name)) return false;                                         // the owner's manual is never ticked, wherever it is found
+      if (base && cyear.has(f) && maxY && cyear.get(f) && cyear.get(f) < maxY) { older.add(f); return false; }
       return base && (!kn.tick.has(f) || kn.tick.get(f));
     });
     var tied = kn.tied.slice(); groups.forEach(function (g) { if (g.pick && g.pick.tie) tied.push(g.pick.tied); });
-    return { tick: tick, tied: tied };
+    return { tick: tick, tied: tied, older: older };
   }
   /* The sentences of the comparison: what the three sources say about each policy folder, and what no folder explains. */
   function ffChip(row, g) {
@@ -1240,7 +1245,6 @@
     if (row.ff === 'maybe') return { cls: '', text: 'The Fact Find lists ' + row.n + ' of this insurer: the page cannot tell which this is' };
     if (row.ff === 'none') return { cls: 'warn', text: 'In a folder, but not in the Fact Find' };
     if (row.ff === 'unclear') return { cls: '', text: 'The page cannot tell which insurer this folder is' };
-    if (row.ff === 'elsewhere') return { cls: '', text: 'Kept in another block (provident and pension funds: Group benefits; the legacy plan: Medical aid, will & short-term): listed here, not ticked and not compared' };
     return { cls: '', text: 'The Fact Find has not been read into this overview yet, so nothing is compared with it' };
   }
   function pickList(res, plan) {
@@ -1265,7 +1269,7 @@
       var top = g.pick && g.pick.file;
       sched.slice().sort(function (a, b) { return (b.key ? b.key.sort : 0) - (a.key ? a.key.sort : 0) || (b.name < a.name ? -1 : 1); }).forEach(function (f) {
         var tied = g.pick && g.pick.tie && g.pick.tied.indexOf(f) >= 0;
-        var why = f === top && row && row.ff === 'none' ? 'not ticked: the Fact Find does not list this policy, so the page would not fill it in' : f === top && g.special ? 'not ticked: ' + (g.special === 'legacy' ? 'the legacy plan is filled from its own button in Medical aid, will & short-term' : 'a provident or pension fund is filled from the Group benefits block') : f === top && !g.block ? 'not ticked: tick it and the page will ask what it is' : '';
+        var why = f === top && row && row.ff === 'none' ? 'not ticked: the Fact Find does not list this policy, so the page would not fill it in' : f === top && !g.block ? 'not ticked: tick it and the page will ask what it is' : '';
         html += fileRow(f, idx(f), f === top ? 'newest' + (label ? ': ' + label : '') + (why ? '; ' + why : '') : tied ? 'as recent as another file here: tick the one you want' : 'older', '', f.from ? 'found in ' + f.from : '');
       });
       if (!sched.length && g.done) manual.forEach(function (f) { html += fileRow(f, idx(f), 'owner’s manual: last resort', 'pkm', 'This is the owner’s manual, not the policy schedule. Load it only if there is nothing else.'); });
@@ -1274,7 +1278,7 @@
     if (groups.length && rest.length) html += '<div class="pkh"><b>Other documents</b><span class="pkt">Astute reports, quotes, the schedules of the Policy Schedules folder, notes</span></div>';
     rest.forEach(function (x) {
       var c = D.classify(x.f.name, (x.f.rel || []).join(' \\ '));
-      html += fileRow(x.f, x.i, c ? c.label : '', '', '');
+      html += fileRow(x.f, x.i, (c ? c.label : '') + (tp.older.has(x.f) ? '; older year: not ticked' : '') + (F && F.isManual && F.isManual(x.f.name) ? '; owner’s manual: never ticked' : ''), '', '');
     });
     var notes = [];
     if (plan && plan.ffOnly && plan.ffOnly.length) notes.push({ cls: 'warn', text: 'In the Fact Find, but no policy folder was found for: ' + plan.ffOnly.map(function (it) { return [it.who, it.product].filter(Boolean).join(' '); }).join('; ') + '.' });
@@ -1283,6 +1287,7 @@
     if (res.notLive && res.notLive.length) notes.push({ cls: '', text: 'Not live, so not looked into: ' + res.notLive.map(function (x) { return x.name; }).join('; ') + '.' });
     if (res.other && res.other.length) notes.push({ cls: '', text: 'Folders that are not policy folders, not looked into: ' + res.other.join('; ') + '.' });
     if (res.overview && !res.overview.json && res.overview.pdf) notes.push({ cls: '', text: 'The last overview (' + res.overview.pdf.name + ') was found as a PDF only, so it was not compared.' });
+    groups.forEach(function (g) { if (g.foreign && g.foreign.length) notes.push({ cls: '', text: 'Left out of ' + g.name + ' because their names are another insurer’s, not this policy’s: ' + g.foreign.join('; ') + '.' }); });
     if (res.docsPartial) notes.push({ cls: 'warn', text: 'The search of the client’s other folders stopped at its time limit, so some documents may be missing from this list.' });
     if (res.partial) notes.push({ cls: 'warn', text: 'The search of the policy folders did not finish' + (res.unfinished && res.unfinished.length ? ': not (fully) read: ' + res.unfinished.join('; ') : '') + '. Load what is here and use the buttons on each block for the rest.' });
     if (tp.tied.length) notes.push({ cls: 'warn', text: 'Some files are as recent as each other, so none of them is ticked: ' + tp.tied.map(function (l) { return l.map(function (f) { return f.name; }).join(' and '); }).join('; ') + '.' });
@@ -1405,7 +1410,7 @@
         if (!picked.length) { abandonSearch(); return; }
         Promise.all(picked.map(function (f) {
           return f.handle.getFile().then(function (file) {                                                  // the file carries where it was found and the block its policy folder says, so two files with one name are never mixed up
-            file.wrDir = (f.rel || []).join(' \\ '); if (f.group != null) { file.wrGroup = f.group; var g = (res.groups || [])[f.group]; if (g && g.block && f.role !== 'manual') file.wrBlock = g.block; }
+            file.wrDir = (f.rel || []).join(' \\ '); if (f.group != null) { file.wrGroup = f.group; var g = (res.groups || [])[f.group]; if (g && g.block && f.role !== 'manual') { file.wrBlock = g.block; if (g.special === 'legacy') file.wrTarget = state.blocks.other.items.filter(function (i) { return i.key === 'legacy'; })[0] || null; } }
             return file;
           });
         })).then(function (fs) {
@@ -1416,6 +1421,7 @@
             plan.ffNotLive.forEach(function (x) { notes.push({ msg: 'The Fact Find lists ' + [x.item.who, x.item.product].filter(Boolean).join(' ') + ', but its policy folder (' + x.folder.name + ') is not live.', warn: true }); });
             (res.groups || []).forEach(function (g, i) { var r = plan.live[i]; if (r && r.ff === 'none') notes.push({ msg: 'In a folder but not in the Fact Find: ' + g.name + '.', warn: true }); });
           }
+          (res.groups || []).forEach(function (g) { if (g.foreign && g.foreign.length) notes.push({ msg: g.name + ': left out because the names are another insurer\u2019s, not this policy\u2019s: ' + g.foreign.join('; ') + '.', warn: false }); });
           (res.groups || []).forEach(function (g) { if (g.done && !g.files.some(function (f) { return f.role !== 'manual'; })) notes.push({ msg: g.name + ': ' + (g.files.length ? 'only the owner’s manual was found, no schedule.' : 'no schedule or statement was found in the folder.'), warn: true }); });
           if (res.docsPartial) notes.push({ msg: 'The search of the client’s other folders stopped at its time limit, so some documents may be missing.', warn: true });
           if (res.partial) notes.push({ msg: 'The search of the policy folders did not finish' + (res.unfinished && res.unfinished.length ? ' (not fully read: ' + res.unfinished.join('; ') + ')' : '') + '.', warn: true });
