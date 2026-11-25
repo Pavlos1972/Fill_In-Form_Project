@@ -4,6 +4,14 @@ A dated list of what changed in the form's boxes, newest first. **One line for e
 
 The version is `version` in `app/js/schema.js` (the Fact Find), `app/js/sr-schema.js` (the Short Risk Application) and `app/js/cs-schema.js` (the Investment Capture Sheet); a saved file carries it as `schema`. Earlier changes are in the README and in the git history; this list starts with 3.1.
 
+## Client Overview Studio 1.5: 25 November 2026 (Client Overview Studio 1.4 to 1.5; Fact Find 5.5, Risk Application 1.6 and Investment Application 1.5 keep their numbers; display and folder search only)
+
+**No id, list, box, choice, sum or saved-file key changed** (contract revision o unchanged; layout `0.1`). What changed for a skill: **nothing in the saved file**; the folder rules `client-overview-skill` follows are the same ones (policy folders from their names, Transferred / Transfered / Cancelled / Lapsed not live, Linked to PK live, the newest schedule or statement of each live policy folder, never the owner's manual).
+- *Load from client folder…* finds every live policy folder of the client, reads insurer, product, number and status from its name, walks it read-only for its schedules and statements (within the walk limit, one folder at most 5 seconds), ticks the newest per policy, compares the folders with the Fact Find and the latest overview, and lists one group per policy folder.
+- A file in a `Comparative Quotes` or `Quotes` folder is never a current investment or policy; a file of a policy folder is read as the block its folder says; two files with one name in two folders are both kept; the View button picks the file in the item's own folder.
+- `6. Policy Schedules` is read with its year folders; `FF.foldersUI.timeouts` gains `policyFolder` (5000).
+- Paul's decisions of 25 November 12:00: a provident or pension fund's statement goes to Group benefits, a Capital Legacy plan's schedule to the legacy plan of block 11; only the newest year's comparative quotes are ticked (the review folders inside `Comparative Quotes` are read). The real file-name shapes: a file naming another insurer than its folder is left out, a form, letter or change-of-details form is never a schedule, `PS` / `IS` / `IRR` / *satatement* names come first, `Acceptance Letter & Policy Schedules` is entered, dates `Mon 'yy` and `yyyy-mm-ddThhmmss` are read; a provident / pension / preservation statement in `6. Policy Schedules` is classified as Group benefits (also *satatement*), `IRR` / `IS` as investments; the owner's manual is never ticked; the review folders of the numbered quotes folder are read too.
+
 ## 5.5: 24 November 2026 (Fact Find 5.4 to 5.5; Risk Application 1.6, Investment Application 1.5 and the Client Overview keep their own numbers; display only)
 
 **No id, list, box, choice, sum or saved-file key changed; a saved file differs only in `schema`.** What changed for a skill that reads or writes the Fact Find file: **nothing** (display only). Screen only:

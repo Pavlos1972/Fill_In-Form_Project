@@ -26,17 +26,32 @@
     else if (/shortfall/.test(low)) block = 'shortfallQuote';
     else if (/reduced/.test(low)) block = 'reduced';
     else if (/astute/.test(low)) block = 'astute';
-    else if (/group|funds ?at ?work|benefit statement|membership certificate|certificate/.test(low)) block = 'group';
+    else if (/group|funds ?at ?work|benefit statement|membership certificate|certificate|provident|pension|preservation/.test(low)) block = 'group';          // a provident, pension or preservation fund statement is a group-block document (Paul, 25 November)
     else if (/(optimal|tax[ _-]?free|retirement annuity|endowment|unit trust|living annuity|investment).*(quote|proposal|illustration)|(quote|proposal|illustration).*(optimal|tax[ _-]?free|retirement annuity|endowment|living annuity)/.test(low)) block = 'proposed';
     else if (/(momentum|sanlam|discovery|liberty|old mutual|hollard|assupol|metropolitan|absa|bidvest|clientele).*(quote|proposal|illustration)|comparative/.test(low)) block = 'comparative';
     else if (/schedule|policy|(^|[^a-z])ps([^a-z]|$)/.test(low)) block = 'policies';
     else if (/(liberty|momentum|sanlam|discovery|old mutual|hollard|assupol|metropolitan|clientele|bidvest|generali|santam).*(protector|lifestyle|life plan|life cover|plan|cover|benefit)/.test(low)) block = 'policies';          // an insurer's product name
-    else if (/investment|statement|(^|[^a-z])ra([^a-z]|$)|retirement annuity|tax.?free|endowment|unit trust|fund value/.test(low)) block = 'investments';
+    else if (/investment|s(a)?tatement|(^|[^a-z])(ra|irr|is)([^a-z]|$)|retirement annuity|tax.?free|endowment|unit trust|fund value/.test(low)) block = 'investments';          // "satatement" is how one real file spells it; IRR is an investment report, IS an investment statement
     if (!block && dirPath) {                                                                                 // the name does not say: the folder it sits in does (6. Policy Schedules, the Astute folder)
       var dl = String(dirPath).toLowerCase();
       if (/polic(y|ies)[ _-]*schedule|(^|[^a-z])schedules?([^a-z]|$)/.test(dl)) block = 'policies'; else if (/astute/.test(dl)) block = 'astute';
     }
+    if (dirPath && (block === 'investments' || block === 'policies')) {                                       // round 1.5: a quote is never a CURRENT investment or policy because its name has no "quote" in it: a file inside a folder called Comparative Quotes, Quotes or Quotes (Accepted) stays a quote
+      var segs = String(dirPath).split(/\s*\\\s*/);
+      if (segs.some(function (g) { return /^(\d+\.\s*)?comparative quotes?(\s*\(.*\))?$/i.test(g.trim()); })) block = 'comparative';
+      else if (segs.some(function (g) { return /^(\d+\.\s*)?(accepted )?quotes?(\s*\(.*\))?$/i.test(g.trim()); })) block = block === 'investments' ? 'proposed' : 'comparative';
+    }
     return block ? { block: block, number: number, date: date, label: BLOCK_LABEL[block] } : null;
+  }
+  /* The items of an overview (this one, or a saved one read from its .json) the policy folders are compared with: current policies (block 1), current investments (block 6), the provident and pension funds of the group block (kind 'group') and the legacy protection plan of
+     block 11 (kind 'legacy', only once the Fact Find says the client has one). A folder's statement goes to the block of the item it is compared with (Paul, 25 November). Returns [{ kind: 'policies' | 'investments' | 'group' | 'legacy', who, product, no, ref }]. */
+  function comparableItems(st) {
+    var B = (st && st.blocks) || {}, out = [], list = function (b) { return (B[b] && B[b].items) || []; };
+    list('policies').forEach(function (i) { if (i && !i.removed) out.push({ kind: 'policies', who: String(i.insurer || ''), product: String(i.product || ''), no: String(i.policyNo || ''), ref: i }); });
+    list('investments').forEach(function (i) { if (i && !i.removed) out.push({ kind: 'investments', who: String(i.provider || ''), product: String(i.product || ''), no: String(i.policyNo || ''), ref: i }); });
+    list('group').forEach(function (i) { if (i && !i.removed && /provident|pension/.test(String(i.kind || ''))) out.push({ kind: 'group', who: String(i.provider || ''), product: String(i.kind || ''), no: '', ref: i }); });                       // a provident or pension fund: a statement goes to the group block
+    list('other').forEach(function (i) { if (i && i.key === 'legacy' && (String(i.company || '').trim() || i.wr)) out.push({ kind: 'legacy', who: String(i.company || ''), product: 'legacy', no: String(i.policyNo || ''), ref: i }); });          // the legacy protection plan of block 11, once the Fact Find says the client has one
+    return out;
   }
 
   /* ---------- reading with Claude (only when switched on) ---------- */
@@ -635,6 +650,6 @@
     return !Object.keys(data).some(function (k) { return has(data[k]) && typeof data[k] !== 'object'; }) && !Object.keys(data).some(function (k) { var v = data[k]; return v && typeof v === 'object' && Object.keys(v).some(function (j) { return has(v[j]); }); });
   }
 
-  return { glyphs: glyphs, applyUwEmail: applyUwEmail, uwReasonLocal: uwReasonLocal, classify: classify, promptFor: promptFor, parseReply: parseReply, readWithClaude: readWithClaude, applyQuote: applyQuote, counterRole: counterRole, applyCounterLetter: applyCounterLetter, enrich: enrich, factNote: factNote, applyPolicy: applyPolicy, applyOther: applyOther, applyFollowUp: applyFollowUp, dm: dm, factNotesText: factNotesText, applyNotesRead: applyNotesRead, emailText: emailText, msgText: msgText, applyBrEmail: applyBrEmail, setAstuteDate: setAstuteDate, brightQuotes: brightQuotes, applyGroup: applyGroup, applyInvestment: applyInvestment, applyAstute: applyAstute, applyAstutePolicies: applyAstutePolicies, applyAstuteGroup: applyAstuteGroup, astuteSrc: astuteSrc, applyProposed: applyProposed, applyGoal: applyGoal, isEmptyRead: isEmptyRead,
+  return { comparableItems: comparableItems, glyphs: glyphs, applyUwEmail: applyUwEmail, uwReasonLocal: uwReasonLocal, classify: classify, promptFor: promptFor, parseReply: parseReply, readWithClaude: readWithClaude, applyQuote: applyQuote, counterRole: counterRole, applyCounterLetter: applyCounterLetter, enrich: enrich, factNote: factNote, applyPolicy: applyPolicy, applyOther: applyOther, applyFollowUp: applyFollowUp, dm: dm, factNotesText: factNotesText, applyNotesRead: applyNotesRead, emailText: emailText, msgText: msgText, applyBrEmail: applyBrEmail, setAstuteDate: setAstuteDate, brightQuotes: brightQuotes, applyGroup: applyGroup, applyInvestment: applyInvestment, applyAstute: applyAstute, applyAstutePolicies: applyAstutePolicies, applyAstuteGroup: applyAstuteGroup, astuteSrc: astuteSrc, applyProposed: applyProposed, applyGoal: applyGoal, isEmptyRead: isEmptyRead,
     applyCmp: applyCmp, matchItem: matchItem, logDoc: logDoc, findQuoteByNumber: findQuoteByNumber, quoteIn: quoteIn, quoteRead: quoteRead, SPEC_OF: SPEC_OF, BLOCK_LABEL: BLOCK_LABEL, QUOTE_OF: QUOTE_OF, ENDPOINT: ENDPOINT };
 });

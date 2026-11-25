@@ -278,14 +278,18 @@
 
   /* The documents the Client Overview can use, found in a client's folder (stage 4): the files of `6. Policy Schedules`, of `5. Astute` (and of its latest year folder) and of any `Comparative Quotes` folder one level down
      (the quote folders). Only reads. Returns [{ name, rel: [folder names], handle }]. */
-  async function clientDocuments(client) {
-    var out = [], isMail = function (n) { return /\.(eml|msg)$/i.test(n) || (/\.txt$/i.test(n) && /e-?mail|brightrock|\d{6,}/i.test(n)); }, isDoc = function (n) { return /\.(pdf|png|jpe?g)$/i.test(n) || isMail(n); };                      // e-mails (BrightRock's, with the figures a quote does not print) are listed too
+  async function clientDocuments(client, lim) {
+    var out = (lim && lim.sink) || [], isMail = function (n) { return /\.(eml|msg)$/i.test(n) || (/\.txt$/i.test(n) && /e-?mail|brightrock|\d{6,}/i.test(n)); }, isDoc = function (n) { return /\.(pdf|png|jpe?g)$/i.test(n) || isMail(n); };                      // e-mails (BrightRock's, with the figures a quote does not print) are listed too
     for await (var re of client.handle.entries()) if (re[1].kind === 'file' && isMail(re[0])) out.push({ name: re[0], rel: [], handle: re[1] });          // an e-mail saved in the client's own folder
     async function files(dir, rel) { for await (var e of dir.entries()) if (e[1].kind === 'file' && isDoc(e[0])) out.push({ name: e[0], rel: rel, handle: e[1] }); }
     var kids = await listDirs(client.handle);
     for (var i = 0; i < kids.length; i++) {
       var k = kids[i], nk = norm(k.name);
-      if (/^\d+\.\s*policy schedules/.test(nk)) await files(k.handle, [k.name]);
+      if (/^\d+\.\s*policy schedules/.test(nk)) {                                                    // the loose files and the files of its year folders (Paul keeps them in 2025, 2026, ...)
+        await files(k.handle, [k.name]);
+        var pys = (await listDirs(k.handle)).filter(function (y) { return RULES.year.test(norm(y.name)); }).sort(function (a, b) { return b.name < a.name ? -1 : 1; });
+        for (var py = 0; py < pys.length; py++) await files(pys[py].handle, [k.name, pys[py].name]);
+      }
       else if (/^\d+\.\s*astute/.test(nk)) {
         await files(k.handle, [k.name]);
         var years = (await listDirs(k.handle)).filter(function (y) { return RULES.year.test(norm(y.name)); }).sort(function (a, b) { return b.name < a.name ? -1 : 1; });
@@ -295,10 +299,23 @@
         await fu(k.handle, [k.name]);
         var fyears = (await listDirs(k.handle)).filter(function (y) { return RULES.year.test(norm(y.name)); });
         for (var fy = 0; fy < fyears.length; fy++) await fu(fyears[fy].handle, [k.name, fyears[fy].name]);
-      } else if (isStandard(k.name) && /quote|goal|rgar|egar|proposal|analysis|e-?mail|correspondence/.test(nk)) await files(k.handle, [k.name]);          // the quotes (and their change moment pay-out guides), the goal analysis reports and the proposals
-      else if (!isStandard(k.name)) {
-        var inner = await listDirs(k.handle);
-        for (var j = 0; j < inner.length; j++) if (/comparative quotes/.test(norm(inner[j].name))) await files(inner[j].handle, [k.name, inner[j].name]);
+      } else if (isStandard(k.name) && /quote|goal|rgar|egar|proposal|analysis|e-?mail|correspondence/.test(nk)) {
+        await files(k.handle, [k.name]);
+        if (/quote/.test(nk)) {                                                                                // a quotes folder may keep one folder for each review year ("2026 - Review"): its files are listed too
+          var qrevs = (await listDirs(k.handle)).filter(function (y) { return RULES.year.test(norm(y.name).slice(0, 4)) || /review/.test(norm(y.name)); });
+          for (var qr = 0; qr < qrevs.length; qr++) await files(qrevs[qr].handle, [k.name, qrevs[qr].name]);
+        }
+      }          // the quotes (and their change moment pay-out guides), the goal analysis reports and the proposals
+      else if (!isStandard(k.name)) {                                                                  // a policy folder's Comparative Quotes: a folder that never answers costs its own slice of the time (1.5), not the listing
+        var cq = (function (kk) { return (async function () {
+          var inner = await listDirs(kk.handle);
+          for (var j = 0; j < inner.length; j++) if (/comparative quotes/.test(norm(inner[j].name))) {
+            await files(inner[j].handle, [kk.name, inner[j].name]);
+            var revs = (await listDirs(inner[j].handle)).filter(function (y) { return RULES.year.test(norm(y.name).slice(0, 4)) || /review/.test(norm(y.name)); });                 // one folder for each review year ("2026 - Review"): its quotes are listed too
+            for (var rv = 0; rv < revs.length; rv++) await files(revs[rv].handle, [kk.name, inner[j].name, revs[rv].name]);
+          }
+        })(); })(k);
+        if (!(await within(cq, (lim && lim.perFolder) || 5000))) (out.slow = out.slow || []).push(k.name);
       }
     }
     return out;
@@ -319,6 +336,251 @@
       for (var j = 0; j < inner.length; j++) if (COUNTER_FOLDER.test(norm(inner[j].name))) await files(inner[j].handle, [k.name, inner[j].name]);
     }
     return out;
+  }
+
+  /* Waits for p at most ms milliseconds: true when it finished (or failed) in time, false when the time ran out (p is left to finish by itself and is never waited for again). */
+  function within(p, ms) { return new Promise(function (resolve) { var t = setTimeout(function () { resolve(false); }, Math.max(1, ms)); Promise.resolve(p).then(function () { clearTimeout(t); resolve(true); }, function () { clearTimeout(t); resolve(true); }); }); }
+  /* ---------- the client's POLICY FOLDERS (Client Overview Studio 1.5) ----------
+     Every non-standard folder of a client's folder is a policy (deal) folder, named "<Insurer Product> - <policy number> - (<status>)" (older ones "<Surname, First> - (<Insurer> - <Product> - R <amount> p.m.)").
+     The name says the insurer, the product, the policy number and whether the policy is live: "(Transferred)", "(Transfered)", "(Cancelled)" and "(Lapsed)" are NOT live; "(Linked to PK)" is live (Paul is the broker on record);
+     no status is live; any other word in brackets is shown and the policy is treated as live. The product decides the block: retirement annuities, investments, tax-free, endowments, living annuities and provident funds are
+     CURRENT INVESTMENTS, personal covers, life and legacy plans are CURRENT POLICIES; a product the page cannot tell is left to the adviser. Only reads. */
+  var FOLDER_INSURERS = (function () {
+    var t = {}; Object.keys(ALIASES).forEach(function (k) { t[k] = ALIASES[k].slice(); });
+    t['Ninety One'] = ['NinetyOne', 'Ninety One', '90One']; t['Alex Forbes'] = ['Alex Forbes']; t['Coronation'] = ['Coronation']; t['Glacier'] = ['Glacier']; t['Prudential'] = ['Prudential']; t['Investec'] = ['Investec']; t['Sygnia'] = ['Sygnia'];
+    return t;
+  })();
+  var INS_KIND = { 'brightrock': 'policies', 'ninety one': 'investments', 'allan gray': 'investments', 'coronation': 'investments', 'glacier': 'investments', 'prudential': 'investments', 'investec': 'investments', 'sygnia': 'investments', 'stanlib': 'investments' };
+  var INS_WORDS = (function () {                                                                  // every spelling of an insurer, longest first, with the insurer it means (the name, normalised)
+    var out = []; Object.keys(FOLDER_INSURERS).forEach(function (k) { FOLDER_INSURERS[k].concat([k]).forEach(function (w) { out.push({ w: norm(w), c: norm(k) }); }); });
+    return out.sort(function (a, b) { return b.w.length - a.w.length; });
+  })();
+  /* The insurer a text means (its normalised name), or ''. at: the text STARTS with it (a folder name); otherwise the earliest one anywhere in it. Returns { c, len } or null. */
+  function insurerIn(text, at) {
+    var n = norm(text), best = null;
+    INS_WORDS.forEach(function (x) {
+      var i = at ? (n.indexOf(x.w) === 0 ? 0 : -1) : n.search(new RegExp('(^|[^a-z0-9])' + esc(x.w) + '(?![a-z0-9])'));
+      if (i < 0) return;
+      if (!at) { var m = n.slice(i).indexOf(x.w); i += m; }
+      if (at && /[a-z0-9]/.test(n.charAt(x.w.length))) return;
+      if (!best || i < best.i || (i === best.i && x.w.length > best.len)) best = { c: x.c, len: x.w.length, i: i };
+    });
+    return best;
+  }
+  function canonInsurer(text) { var b = insurerIn(text, false); return b ? b.c : ''; }
+  var STATUS_RE = [['transferred', /(^|[^a-z])transfer+ed([^a-z]|$)/], ['cancelled', /(^|[^a-z])cancel+ed([^a-z]|$)/], ['lapsed', /(^|[^a-z])lapsed([^a-z]|$)/]];
+  function statusOf(text) { var n = norm(text); for (var i = 0; i < STATUS_RE.length; i++) if (STATUS_RE[i][1].test(n)) return STATUS_RE[i][0]; return ''; }
+  var INV_RE = /(^|[^a-z0-9])(ra|retirement annuity|invest(ment)?s?|tfsa|tf|tax[ -]?free|endowment|living annuity|la|annuity|provident|pension|preservation|unit trusts?|ut|flexi|savings|discretionary|offshore|etf)(?![a-z0-9])/;
+  var POL_RE = /(^|[^a-z0-9])(personal covers?|personal|life|legacy|covers?|protector|protection|risk|funeral|disability|income|severe|critical|dread|term|whole of life)(?![a-z0-9])/;
+  /* A folder name read: { name, insurer (normalised), insurerName (as written), product, number, status ('live' | 'transferred' | 'cancelled' | 'lapsed'), linked, unknownStatus, dealStyle, kind ('policies' | 'investments' | ''), policy (does it look like a policy folder) }. */
+  function parsePolicyFolder(name) {
+    var raw = String(name == null ? '' : name), groups = [], rest = raw.replace(/[(\[]([^)\]]*)[)\]]/g, function (m, g) { groups.push(g); return ' '; });
+    var out = { name: raw, insurer: '', insurerName: '', product: '', number: '', status: 'live', linked: false, unknownStatus: '', dealStyle: false, kind: '', policy: false }, other = [];
+    groups.forEach(function (g) { var gn = norm(g); if (/linked to pk/.test(gn)) out.linked = true; else if (statusOf(gn)) out.status = statusOf(gn); else if (gn) other.push(g); });
+    if (out.status === 'live' && statusOf(rest)) out.status = statusOf(rest);
+    var body = rest;
+    if (/linked to pk/.test(norm(rest))) out.linked = true;
+    if (other.length && /^[^,]+,\s*[^()]*$/.test(rest.trim()) && !insurerIn(rest.trim(), true) && !/\d{5,}/.test(rest)) { out.dealStyle = true; body = other.shift(); }          // "<Surname, First> - (<Insurer> - <Product> - R <amount> p.m.)": the bracket holds the policy
+    other = other.filter(function (g) { return !/^\s*[\d\s,.\/-]*$/.test(g); });                                         // a year or a number in brackets is not a status
+    if (other.length) out.unknownStatus = other.join(', ');
+    body = body.replace(/\br\s*[\d\s,]*\d(\.\d+)?\s*(p\.?\s?m\.?)?/gi, ' ');                                              // an amount is not a policy number
+    var m = /(\d{5,})/.exec(body); if (m) out.number = m[1];
+    var segs = (m ? body.replace(m[1], ' ') : body).split(/\s+[-–]\s+/).map(function (x) { return x.replace(/[-–]/g, ' ').replace(/\s+/g, ' ').trim(); }).filter(Boolean);
+    var first = segs[0] || '', hit = insurerIn(first, true);
+    if (hit) {
+      out.insurer = hit.c; out.insurerName = first.slice(0, hit.len).trim();
+      out.product = (first.slice(hit.len).trim() + ' ' + segs.slice(1).join(' ')).trim();
+    } else {
+      var any = insurerIn(body, false); if (any) out.insurer = any.c;
+      out.product = segs.join(' ');
+    }
+    out.product = out.product.replace(/(^|[^A-Za-z])(transfer+ed|cancel+ed|lapsed|linked to pk)(?![A-Za-z])/gi, ' ').replace(/\s+/g, ' ').trim();
+    var pn = norm(out.product);
+    out.kind = INV_RE.test(pn) ? 'investments' : POL_RE.test(pn) ? 'policies' : (INS_KIND[out.insurer] || '');
+    out.special = /legacy/.test(pn) ? 'legacy' : /provident|pension|preservation/.test(pn) ? 'group' : '';          // these two live in another block of the overview (block 11; Group benefits), where the page has no row for a statement to fill: they are listed, not ticked, not compared
+    out.policy = !!(out.insurer || out.kind || out.number);
+    return out;
+  }
+  /* The non-standard folders of a client's folder, sorted: live policy folders, not-live ones (named, never looked into) and others (not policy folders: listed so the adviser knows). Only reads. */
+  async function policyFolders(client) {
+    var kids = await listDirs(client.handle), own = norm(client.parts[client.parts.length - 1]), out = { live: [], notLive: [], other: [] };
+    kids.forEach(function (k) {
+      if (isStandard(k.name) || norm(k.name) === own) return;
+      var p = parsePolicyFolder(k.name), x = { name: k.name, handle: k.handle, p: p };
+      if (!p.policy) out.other.push(x); else if (p.status !== 'live') out.notLive.push(x); else out.live.push(x);
+    });
+    return out;
+  }
+  /* The date a file name or its year folder gives: { exact: yyyymmdd or 0, year: the newest year folder on its path or 0 }; sortKey: what "newest" is compared by (the date in the name, else the year folder's year). */
+  var MONTHS = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 };
+  function dateKey(name, rel) {
+    var n = String(name == null ? '' : name).replace(/\.[A-Za-z0-9]{2,5}$/, ''), m, d = 0, y, mo, da, ok = function (yy, mm, dd) { return yy >= 1990 && yy <= 2100 && mm >= 1 && mm <= 12 && dd >= 1 && dd <= 31; };
+    if ((m = /(?:^|\D)((?:19|20)\d{2})[-._](\d{1,2})[-._](\d{1,2})(?!\d)/.exec(n)) && ok(+m[1], +m[2], +m[3])) d = +m[1] * 10000 + +m[2] * 100 + +m[3];
+    else if ((m = /(?:^|\D)(\d{1,2})[-._ ](\d{1,2})[-._ ](\d{4}|\d{2})(?!\d)/.exec(n))) { y = +m[3]; if (y < 100) y += 2000; if (ok(y, +m[2], +m[1])) d = y * 10000 + +m[2] * 100 + +m[1]; }
+    if (!d && (m = /(?:^|\D)((?:19|20)\d{2})(\d{2})(\d{2})(?!\d)/.exec(n)) && ok(+m[1], +m[2], +m[3])) d = +m[1] * 10000 + +m[2] * 100 + +m[3];
+    if (!d && (m = /(?:^|\D)(\d{1,2})\s*(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?,?\s*((?:19|20)\d{2})(?!\d)/i.exec(n))) { mo = MONTHS[m[2].toLowerCase()]; da = +m[1]; if (ok(+m[3], mo, da)) d = +m[3] * 10000 + mo * 100 + da; }
+    if (!d && (m = /(?:^|[^a-z])(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s*['\u2019](\d{2})(?!\d)/i.exec(n))) { y = 2000 + +m[2]; if (ok(y, MONTHS[m[1].toLowerCase()], 1)) d = y * 10000 + MONTHS[m[1].toLowerCase()] * 100; }          // "Mar '25": the month, no day
+    var yf = 0; (rel || []).forEach(function (r) { var mm = /^((?:19|20)\d{2})(?!\d)/.exec(norm(r)); if (mm) yf = Math.max(yf, +mm[1]); });
+    return { exact: d, year: yf, sort: d || yf * 10000 };
+  }
+  /* Of some files, the NEWEST (by dateKey; a tie on the date goes to the one whose name says summary, schedule or statement; a tie that is still a tie is SAID and nothing is picked: tied lists them). Returns { file, tie, tied }. */
+  function newestOf(files) {
+    var c = (files || []).filter(function (f) { return f && f.role !== 'manual'; }).map(function (f) { var k = f.key || dateKey(f.name, f.rel); return { f: f, s: k.sort, w: /summary|schedule|statement/.test(norm(f.name)) ? 2 : 1, strong: SCHEDULE_NAME.test(norm(f.name)) }; });
+    if (c.some(function (x) { return x.strong; })) c = c.filter(function (x) { return x.strong; });                  // a file whose name says schedule, summary, statement, policy ... is chosen before one that says nothing (a letter of 2026 is not a newer schedule than the schedule of 2025)
+    if (!c.length) return { file: null, tie: false, tied: [] };
+    c.sort(function (a, b) { return b.s - a.s || b.w - a.w; });
+    var top = c[0], tied = c.filter(function (x) { return x.s === top.s && x.w === top.w; });
+    var same = tied.filter(function (x, i) { return tied.findIndex(function (y) { return norm(y.f.name) === norm(x.f.name); }) === i; });                // the same file name twice (one document kept in two places) is ONE document, not a tie: the copy in the policy folder is taken
+    if (tied.length > 1 && same.length === 1) { var own = tied.filter(function (x) { return !x.f.from; })[0] || tied[0]; return { file: own.f, tie: false, tied: [own.f] }; }
+    return { file: tied.length > 1 ? null : top.f, tie: tied.length > 1, tied: tied.map(function (x) { return x.f; }) };
+  }
+  var DOC_FILE = /\.(pdf|png|jpe?g)$/i;
+  /* A file in a policy folder that is NOT a schedule or a statement: acceptance letters, applications, cancellations, claims, medical reports, ROA, RAR, questionnaires, e-mails, quotes and so on, the Astute report (read from its own folder). */
+  var NOT_SCHEDULE = /accept|applic|cancel|claim|medical|(^|[^a-z])forms?([^a-z]|$)|change ?of ?details|plan details change|letter|premium increase|(^|[^a-z])roa([^a-z]|$)|(^|[^a-z])rar([^a-z]|$)|questionnaire|e-?mail|correspond|quote|proposal|comparative|counter|consent|invoice|receipt|(^|[^a-z])fna([^a-z]|$)|cmpo|change[ _-]?moment|follow[ _-]?up|astute|transfer|section ?14|tax ?cert|irp5|it3/;
+  var SCHEDULE_NAME = /schedule|summary|s(a)?tatement|valuation|certificate|benefit|policy|annual|portfolio|(^|[^a-z])(ps|is|irr)([^a-z]|$)/;          // PS = policy schedule, IS = investment statement, IRR = investment report; "satatement" is how one real file spells it
+  var SKIP_DIR = /accept|applic|cancel|claim|medical|(^|[^a-z])roa([^a-z]|$)|(^|[^a-z])rar([^a-z]|$)|questionnaire|notes|e-?mail|correspond|comparative|quotes?|counter|consent/;
+  var YEAR_DIR = /^(19|20)\d{2}(?!\d)/;
+  var ENTER_DIR = /schedule|statement|summary|servic|valuation|annual/;
+  /* The owner's manual (and the other long documents) is never the schedule: manual or owner always; terms, conditions, policy document, wording, contract and brochure unless the name also says schedule, summary or statement. */
+  function isManual(name) { var n = norm(name); return /manual|owner/.test(n) || (/terms|conditions|policy ?document|policy ?wording|contract|brochure/.test(n) && !/schedule|summary|statement/.test(n)); }
+  /* One live policy folder, read for its schedules and statements: loose files whose names say so, `Policy Schedules` and every year folder (also inside it), `Servicing` (only files whose names say schedule, summary or statement), no deeper than three folders down.
+     Acceptance Letter, Applications, Cancellations, Claims, Medical Reports, ROA, RAR, Questionnaires, Notes & Emails, Comparative Quotes and Quotes are not entered. st: { stop, cap, seen, partial } is shared by the whole scan. Fills g.files and sets g.done. */
+  async function walkPolicy(g, st) {
+    async function look(dir, rel, depth, strict) {
+      for await (var e of dir.entries()) {
+        if (st.partial) return;
+        if (++st.seen > st.cap || Date.now() > st.stop) { st.partial = true; return; }
+        var low = norm(e[0]);
+        if (e[1].kind === 'file') {
+          if (!DOC_FILE.test(e[0]) || NOT_SCHEDULE.test(low)) continue;
+          var other = g.p.insurer ? insurerIn(String(e[0]).replace(/\([^)]*\)/g, ' '), false) : null;                      // a file whose name names ANOTHER insurer than its folder is not this policy's document (an old Liberty schedule kept in a BrightRock folder)
+          if (other && other.c !== g.p.insurer) { g.foreign.push(e[0]); continue; }
+          if ((strict || depth === 0) && !SCHEDULE_NAME.test(low) && !isManual(e[0])) continue;      // a loose file of the policy folder, or one in Servicing: only when its name says what it is (the owner's manual is kept, as the last resort)
+          g.files.push({ name: e[0], rel: rel, handle: e[1], role: isManual(e[0]) ? 'manual' : 'schedule', key: dateKey(e[0], rel) });
+        } else if (e[1].kind === 'directory' && depth < 3) {
+          if (SKIP_DIR.test(low) && !/schedule/.test(low)) continue;                              // "Acceptance Letter & Policy Schedules" holds schedules: it is entered
+          if (/servic/.test(low)) await look(e[1], rel.concat([e[0]]), depth + 1, true);
+          else if (YEAR_DIR.test(low) || ENTER_DIR.test(low)) await look(e[1], rel.concat([e[0]]), depth + 1, strict);
+        }
+      }
+    }
+    await look(g.handle, [g.name], 0, false);
+    g.done = !st.partial;
+  }
+  /* The whole policy-folder reading of a client: policyFolders, then each live one walked (one after the other, within the shared limit). lim: { ms (default 15000), cap (default 2500), sink (an object the result is built in as it goes, so a caller that gives up still has what was found) }.
+     Result: { groups: [{ name, rel, handle, p, files, done }], notLive: [{ name, p }], other: [name], partial, unfinished: [names not (fully) read] }. Never writes. */
+  async function policyScan(client, lim) {
+    lim = lim || {}; var out = lim.sink || {}, st = { stop: Date.now() + (lim.ms || 15000), cap: lim.cap || 2500, seen: 0, partial: false };
+    out.groups = []; out.notLive = []; out.other = []; out.partial = false; out.unfinished = [];
+    var pf = await policyFolders(client);
+    out.notLive = pf.notLive.map(function (x) { return { name: x.name, p: x.p }; }); out.other = pf.other.map(function (x) { return x.name; });
+    pf.live.forEach(function (x) { out.groups.push({ name: x.name, rel: [x.name], handle: x.handle, p: x.p, files: [], foreign: [], done: false }); });          // every live folder is named first, so one that is never reached (the limit, a folder that does not answer) is still named
+    for (var i = 0; i < out.groups.length; i++) {
+      if (st.partial) break;                                                                     // the limit was reached: the folders not reached are named, not guessed
+      var ok = await within(walkPolicy(out.groups[i], st), Math.min(lim.perFolder || 5000, st.stop - Date.now()));          // a folder that never answers costs its own slice of the time, not the folders after it
+      if (!ok) out.groups[i].done = false;
+    }
+    out.partial = st.partial || out.groups.some(function (g) { return !g.done; }); out.unfinished = out.groups.filter(function (g) { return !g.done; }).map(function (g) { return g.name; });
+    return out;
+  }
+  /* The numbers compared without spaces and leading zeros. */
+  function numKey(s) { return String(s == null ? '' : s).replace(/[^0-9a-z]/gi, '').toLowerCase().replace(/^0+/, ''); }
+  /* The files of `6. Policy Schedules` (and its year folders) whose name or folder holds a policy's number join that policy's group (the newest of both places is the one); others stay where they are.
+     files: the flat list (entries with rel); groups: policyScan's. Marks f.group (index) on every file that joined and pushes it into the group's files with from: 'Policy Schedules'. */
+  function joinSchedules(files, groups) {
+    (files || []).forEach(function (f) {
+      var r0 = norm((f.rel || [])[0] || ''); if (!/^\d+\.\s*policy schedules/.test(r0) || f.group != null) return;
+      var hay = numKey(f.name + ' ' + (f.rel || []).join(' ')), hits = [];
+      groups.forEach(function (g, i) { var k = numKey(g.p && g.p.number); if (k.length >= 5 && hay.indexOf(k) >= 0) hits.push(i); });
+      if (hits.length !== 1) return;                                                              // none, or two policies (a number in two places): it stays among the other documents
+      f.group = hits[0]; f.role = isManual(f.name) ? 'manual' : 'schedule'; f.key = dateKey(f.name, f.rel); f.from = 'Policy Schedules';
+      groups[hits[0]].files.push(f);
+    });
+  }
+  /* Of files that are NOT in a policy folder, the newest of those that belong to ONE policy: keyOf(file) names the policy (null: not a schedule or statement, left alone). Returns { tick: Map(file -> true | false) for every keyed file, tied: [[files]] }
+     (a tie on the newest, said and not guessed: none of them is ticked). */
+  function keyedNewest(files, keyOf) {
+    var by = {}, order = [], tick = new Map(), tied = [];
+    (files || []).forEach(function (f) { var k = keyOf(f); if (k == null) return; if (!by[k]) { by[k] = []; order.push(k); } by[k].push(f); });
+    order.forEach(function (k) {
+      var list = by[k]; if (list.length < 2) { tick.set(list[0], true); return; }
+      var r = newestOf(list); list.forEach(function (f) { tick.set(f, r.file === f); }); if (r.tie) tied.push(r.tied);
+    });
+    return { tick: tick, tied: tied };
+  }
+  /* The three sources side by side (Studio 1.5): the policy folders (live: groups, not live: notLive), the Fact Find's current policies and investments (ff) and the latest overview (prior). ff and prior: { read, items: [{ kind: 'policies' | 'investments',
+     who (the insurer or provider as written), product, no, legacy, ref }] } or null. A folder is matched to an item by the policy number, else by the insurer and the kind (the Fact Find has no numbers): one folder and one item of an insurer are a match, several are
+     'maybe' (the page does not guess which is which). Each live row: { ff: 'number' | 'name' | 'maybe' | 'none' | 'unclear' | 'unknown', item, n, prior: 'number' | 'name' | 'maybe' | '' }; notLive rows say the same about their folder.
+     Also ffOnly (a Fact Find item with no folder at all), ffNotLive (a Fact Find item whose only folder is not live) and priorOnly (in the last overview, in no folder and not in the Fact Find). Only compares. */
+  function comparePolicies(groups, notLive, ff, prior) {
+    groups = groups || []; notLive = notLive || [];
+    var fitems = (ff && ff.items) || [], pitems = (prior && prior.items) || [];
+    function ck(p) { return p.special === 'group' ? 'group' : p.special === 'legacy' ? 'legacy' : p.kind; }                     // the kind of item a folder is compared with: a provident or pension fund with the group block's funds, a legacy plan with block 11's
+    function kindOk(it, fk) { return !fk || it.kind === fk; }
+    function sameIns(it, p) { var c = canonInsurer(it.who); return !!c && c === p.insurer; }
+    function claimIn(items, list, rows, byNoToo) {                                       // returns nothing; fills rows[i].{ff|prior} and the claimed set
+      var claimed = new Set(), res = rows;
+      list.forEach(function (f, i) {                                                     // 1. the policy number
+        var k = numKey(f.p.number); if (k.length < 5) return;
+        var hit = items.filter(function (it) { return !claimed.has(it) && numKey(it.no) === k && kindOk(it, ck(f.p)); });
+        if (hit.length === 1) { claimed.add(hit[0]); res[i] = { how: 'number', item: hit[0], n: 1 }; }
+      });
+      [true, false].forEach(function (liveFirst) {                                       // 2. the insurer and the kind: live folders first, a not-live one only for an item no live folder wants
+        list.forEach(function (f, i) {
+          if (res[i] || f.live !== liveFirst) return;
+          if (ck(f.p) === 'legacy') { var lg = items.filter(function (it) { return it.kind === 'legacy' && !claimed.has(it); }); if (lg.length) { claimed.add(lg[0]); res[i] = { how: 'name', item: lg[0], n: 1 }; } else res[i] = { how: 'none', item: null, n: 0 }; return; }
+          if (!f.p.insurer) { res[i] = { how: 'unclear', item: null, n: 0 }; return; }
+          var cands = items.filter(function (it) { return !claimed.has(it) && it.kind !== 'legacy' && kindOk(it, ck(f.p)) && sameIns(it, f.p); });
+          var peers = list.filter(function (g, j) { return !res[j] && g.live === f.live && g.p.insurer === f.p.insurer && (!ck(g.p) || !ck(f.p) || ck(g.p) === ck(f.p)); }).length;
+          if (!liveFirst && list.some(function (g, j) { return g.live && g.p.insurer === f.p.insurer && (!ck(g.p) || !ck(f.p) || ck(g.p) === ck(f.p)) && res[j] && res[j].how === 'maybe'; })) cands = [];      // a live folder of the same insurer is already unsure about it
+          if (cands.length === 1 && peers === 1) { claimed.add(cands[0]); res[i] = { how: 'name', item: cands[0], n: 1 }; }
+          else res[i] = { how: cands.length ? 'maybe' : 'none', item: null, n: cands.length };
+        });
+      });
+      return claimed;
+    }
+    var list = groups.map(function (g) { return { p: g.p, live: true }; }).concat(notLive.map(function (x) { return { p: x.p, live: false }; }));
+    var fr = [], pr = [], fclaim = claimIn(fitems, list, fr), pclaim = claimIn(pitems, list, pr);
+    var rows = list.map(function (f, i) {
+      var a = fr[i] || { how: 'none', item: null, n: 0 }, b = pr[i];
+      return { ff: ff && ff.read ? a.how : 'unknown', item: a.item, n: a.n, prior: prior ? (b && (b.how === 'number' || b.how === 'name') ? b.how : b && b.how === 'maybe' ? 'maybe' : '') : '' };
+    });
+    function hasFolder(it) { return list.some(function (f) { return (numKey(f.p.number).length >= 5 && numKey(f.p.number) === numKey(it.no) && kindOk(it, ck(f.p))) || (ck(f.p) === 'legacy' ? it.kind === 'legacy' : (f.p.insurer && it.kind !== 'legacy' && sameIns(it, f.p) && kindOk(it, ck(f.p)))); }); }
+    var ffOnly = ff && ff.read ? fitems.filter(function (it) { return !fclaim.has(it) && !hasFolder(it); }) : [];
+    var ffNotLive = [];
+    list.forEach(function (f, i) { if (!f.live && fr[i] && fr[i].item && ff && ff.read) ffNotLive.push({ item: fr[i].item, folder: notLive[i - groups.length] }); });
+    var priorOnly = pitems.filter(function (it) { return !pclaim.has(it) && !hasFolder(it) && !fitems.some(function (x) { return x.kind === it.kind && (x.kind === 'legacy' || (canonInsurer(x.who) && canonInsurer(x.who) === canonInsurer(it.who))); }); });
+    return { live: rows.slice(0, groups.length), notLive: rows.slice(groups.length), ffOnly: ffOnly, ffNotLive: ffNotLive, priorOnly: priorOnly };
+  }
+
+  /* The lists of several client folders (the same client in New Business and in Client Files) as ONE: a policy folder of the same name is kept once (the first: New Business is searched first), its files with it; not-live and other folders likewise.
+     parts: [{ files, groups, notLive, other, partial, docsPartial, unfinished, overview }]. Every file that belongs to a group has its group index moved to the merged list. */
+  function mergeClientLists(parts) {
+    var out = { files: [], groups: [], notLive: [], other: [], partial: false, docsPartial: false, unfinished: [], overview: null }, seen = {}, nl = {}, ot = {}, un = {};
+    (parts || []).forEach(function (one) {
+      var map = {};
+      (one.groups || []).forEach(function (g, i) { var k = norm(g.name); if (seen[k]) map[i] = -1; else { seen[k] = 1; map[i] = out.groups.length; out.groups.push(g); } });
+      (one.files || []).forEach(function (f) { if (f.group != null) { if (map[f.group] == null || map[f.group] < 0) return; f.group = map[f.group]; } out.files.push(f); });
+      (one.notLive || []).forEach(function (x) { var k = norm(x.name); if (!nl[k]) { nl[k] = 1; out.notLive.push(x); } });
+      (one.other || []).forEach(function (n) { var k = norm(n); if (!ot[k]) { ot[k] = 1; out.other.push(n); } });
+      (one.unfinished || []).forEach(function (n) { var k = norm(n); if (!un[k]) { un[k] = 1; out.unfinished.push(n); } });
+      out.partial = out.partial || !!one.partial; out.docsPartial = out.docsPartial || !!one.docsPartial; out.overview = out.overview || one.overview || null;
+    });
+    return out;
+  }
+  /* The client's latest overview, for the comparison: the files of `1. Overview` and its newest three year folders; the newest .json is the one that is read, a PDF alone is only noticed. Only reads. Returns null (no overview folder) or { json, pdf, count } (each { name, rel, handle } or null). */
+  async function latestOverview(client) {
+    var kids = await listDirs(client.handle), ov = kids.filter(function (k) { return RULES.overview.test(norm(k.name)); })[0]; if (!ov) return null;
+    var out = [];
+    async function files(dir, rel) { for await (var e of dir.entries()) if (e[1].kind === 'file' && /\.(json|pdf)$/i.test(e[0])) out.push({ name: e[0], rel: rel, handle: e[1] }); }
+    await files(ov.handle, [ov.name]);
+    var years = (await listDirs(ov.handle)).filter(function (y) { return RULES.year.test(norm(y.name)); }).sort(function (a, b) { return b.name < a.name ? -1 : 1; }).slice(0, 3);
+    for (var i = 0; i < years.length; i++) await files(years[i].handle, [ov.name, years[i].name]);
+    function best(re) {
+      var c = out.filter(function (f) { return re.test(f.name); }).map(function (f) { return { f: f, k: dateKey(f.name, f.rel).sort }; });
+      c.sort(function (a, b) { return b.k - a.k || (b.f.name < a.f.name ? -1 : 1); }); return c.length ? c[0].f : null;
+    }
+    return { json: best(/\.json$/i), pdf: best(/\.pdf$/i), count: out.length };
   }
 
   /* The folder of a client's own folder where a kind of document is kept, for "Upload from client folder" in the Client Overview Studio (0.6): the numbered standard folder whose name says so (quotes, goal analysis,
@@ -401,6 +663,7 @@
   return {
     MAX_PATH: MAX_PATH, SWAP: SWAP, RULES: RULES, ALIASES: ALIASES, norm: norm, tokens: tokens, clientFolderName: clientFolderName, parseClient: parseClient, clientMatches: clientMatches, letterOf: letterOf, letterFolder: letterFolder,
     isLetterFolder: isLetterFolder, isStandard: isStandard, nameIs: nameIs, insurerWords: insurerWords, productWords: productWords, numbersIn: numbersIn, hasWord: hasWord, scoreDeal: scoreDeal, chooseDeal: chooseDeal, pathCheck: pathCheck, tooLongText: tooLongText,
+    comparePolicies: comparePolicies, mergeClientLists: mergeClientLists, keyedNewest: keyedNewest, parsePolicyFolder: parsePolicyFolder, policyFolders: policyFolders, policyScan: policyScan, joinSchedules: joinSchedules, latestOverview: latestOverview, dateKey: dateKey, newestOf: newestOf, isManual: isManual, canonInsurer: canonInsurer, numKey: numKey, FOLDER_INSURERS: FOLDER_INSURERS,
     listDirs: listDirs, clientSubfolder: clientSubfolder, findFiles: findFiles, viewableFiles: viewableFiles, findClients: findClients, clientFromFile: clientFromFile, dirOfFile: dirOfFile, dealCandidates: dealCandidates, resolveTarget: resolveTarget, factFindCandidates: factFindCandidates, resolveFactFind: resolveFactFind, overviewCandidate: overviewCandidate, clientDocuments: clientDocuments, counterOfferDocuments: counterOfferDocuments, resolveOverview: resolveOverview, ensureOverview: ensureOverview, relOf: relOf, labelOf: labelOf, probeFile: probeFile, makeFile: makeFile, discardEmpty: discardEmpty,
     saveHandle: saveHandle, loadHandle: loadHandle, getPaths: getPaths, setPath: setPath, permission: permission, enabled: enabled
   };

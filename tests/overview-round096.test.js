@@ -64,10 +64,10 @@ test('pick: 40 buttons over 4,000 files are chosen in well under a quarter of a 
 
 test('every step of a folder search has a limit and a name: permission, find, list, walk (folders-ui.js)', () => {
   const ui = app('js/folders-ui.js');
-  assert.ok(/var TIMEOUTS = \{ permission: 45000, find: 45000, list: 60000, walk: 15000, stopLink: 8000, askAgain: 4000, askNext: 3000, queryWait: 1200, probe: 2500, saveQuery: 3000, saveAsk: 15000 \}/.test(ui), 'the limits');
+  assert.ok(/var TIMEOUTS = \{ permission: 45000, find: 45000, list: 60000, walk: 15000, stopLink: 8000, askAgain: 4000, askNext: 3000, queryWait: 1200, probe: 2500, saveQuery: 3000, saveAsk: 15000(, policyFolder: 5000)? \}/.test(ui), 'the limits');
   assert.ok(/function race\(p, ms\)/.test(ui) && /resolve\(SLOW\)/.test(ui), 'a promise that does not answer in time gives SLOW');
   ['slow-permission', 'slow-find', 'slow-list'].forEach(r => assert.ok(ui.indexOf("'" + r + "'") >= 0, r));
-  assert.ok(/race\(requestRoot\(all\[k\]\.handle, function \(t\) \{ why\[k\] = t; \}\), left\(\)\)/.test(ui) && /deadline = Date\.now\(\) \+ T\.permission/.test(ui) && /race\(F\.findClients\(r\.live, info\.sname, info\.fname\), T\.find\)/.test(ui) && /race\(F\.clientDocuments\(clients\[c\]\), T\.list\)/.test(ui) && /race\(F\.clientSubfolder\(clients\[0\], kind\), T\.list\)/.test(ui), 'Load, Upload and the View list all race their waits');
+  assert.ok(/race\(requestRoot\(all\[k\]\.handle, function \(t\) \{ why\[k\] = t; \}\), left\(\)\)/.test(ui) && /deadline = Date\.now\(\) \+ T\.permission/.test(ui) && /race\(F\.findClients\(r\.live, info\.sname, info\.fname\), T\.find\)/.test(ui) && /race\(F\.clientDocuments\(client, \{ sink: docSink, perFolder: T\.policyFolder \}\), T\.list\)/.test(ui) && /race\(F\.clientSubfolder\(clients\[0\], kind\), T\.list\)/.test(ui), 'Load, Upload and the View list all race their waits');
   assert.ok(/say\('permission'\)/.test(ui) && /say\('find'\)/.test(ui) && /say\('list'\)/.test(ui) && /say\('walk'\)/.test(ui), 'each stage is announced');
   assert.ok(/race\(F\.permission\(h, !!ask\), TIMEOUTS\.permission\)/.test(ui), 'the key-points library never waits for ever on a question either');
   assert.ok(/timeouts: TIMEOUTS/.test(ui), 'the limits are in FF.foldersUI.timeouts, for the tests');
@@ -102,5 +102,5 @@ test('a list that covers only some folders never greys a button; a complete one 
 });
 
 test('the page version moves on with the fixes (0.97 now), the layout is still 0.1 and the saved file gains no key', () => {
-  const schema = require('../app/js/ov-schema.js'); assert.ok(/^1\.[01234]$/.test(schema.pageVersion), 'the page version is 1.0 to 1.4'); assert.strictEqual(schema.version, '0.1');
+  const schema = require('../app/js/ov-schema.js'); assert.ok(/^1\.[012345]$/.test(schema.pageVersion), 'the page version is 1.0 to 1.5'); assert.strictEqual(schema.version, '0.1');
 });

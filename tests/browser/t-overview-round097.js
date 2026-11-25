@@ -93,7 +93,7 @@ srv.listen(0, async () => {
 
   /* ---- 0. the version ---- */
   let p = await fresh({});
-  ok(/Version (0\.9[789]|1\.[01234])/.test(await p.evaluate(() => document.body.innerText)), '0. the header says Version 0.97 or later');
+  ok(/Version (0\.9[789]|1\.[012345])/.test(await p.evaluate(() => document.body.innerText)), '0. the header says Version 0.97 or later');
   await p.close();
 
   /* ---- 1. permission already granted: ONE click, the list at once (0.94's behaviour), nothing asked of Chrome ---- */
