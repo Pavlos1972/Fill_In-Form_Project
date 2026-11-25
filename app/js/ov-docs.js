@@ -21,7 +21,7 @@
   function reviewSegs(dirPath) { return String(dirPath == null ? '' : dirPath).split(/\s*\\\s*/).filter(Boolean); }
   /* A path with a segment that says schedule, statement or valuation is a schedule folder ("6. Policy Schedules\2026 - Review"): the folder says what its files are, so the rule does not apply there. */
   function inReviewOrServicing(dirPath) { var s = reviewSegs(dirPath); return s.some(function (g) { return /review|servic/i.test(g); }) && !s.some(function (g) { return /schedule|statement|valuation/i.test(g); }); }
-  var REVIEW_KINDS = { fna: 1, shortfallQuote: 1, reduced: 1, comparative: 1, proposed: 1, investments: 1, policies: 1 };          // the rule may only touch what could be taken for a quote or a current policy / investment: never an e-mail, a pay-out guide, an Astute report, a goal report, follow-up notes or a group statement
+  var REVIEW_KINDS = { fna: 1, shortfallQuote: 1, reduced: 1, comparative: 1, proposed: 1, investments: 1, policies: 1, svFna: 1, svShortfall: 1, svReduced: 1, svIncrease: 1, svReduction: 1 };          // the rule may only touch what could be taken for a quote or a current policy / investment: never an e-mail, a pay-out guide, an Astute report, a goal report, follow-up notes or a group statement
   /* True for a document in a Review or Servicing folder whose name says it is paperwork about a change (never a quote): the list says so. */
   function reviewPaperwork(fileName, dirPath) { var low = String(fileName == null ? '' : fileName).replace(/\.[A-Za-z0-9]{2,5}$/, '').toLowerCase(); return inReviewOrServicing(dirPath) && PAPERWORK.test(low); }
   /* Round 2.0 (Paul, 25 November): a quote inside a policy folder of a LIFE policy is a SERVICING quote, tied to that policy, never a comparative quote. Its name says which: FNA, shortfall and reduced give the servicing FNA, shortfall and reduced quote; Increase gives a straight increase;
@@ -30,6 +30,15 @@
   var NOT_LIFE_FOLDER = /(^|[^a-z])(ra|invest(ment)?s?|tf|tax[\s-]*free|endowment|living annuity|unit trust|provident|pension|preservation|legacy)([^a-z]|$)/i;
   var SV_DEC = /decrease|reduction|(^|[^a-z])reduce([^a-z]|$)/, SV_INC = /increase/, SV_BARE = /(^|[^a-z])(serv|servicing|service|alteration|alterations|amendment)([^a-z]|$)/;
   var SV_OF_BLOCK = { fna: 'svFna', shortfallQuote: 'svShortfall', reduced: 'svReduced' };
+  /* Round 2.1 (Paul, 25 November 18:36): the new BrightRock quote naming guide. A quote is named  BR <Type> - <quote no> - R<premium> - dd.mm.yy - (<Initials Surname>)  with the Type one of FNA, Shortfall, Reduced, Quote, Serv FNA, Serv Shortfall, Serv Reduced, Serv Increase,
+     Serv Decrease, or CMPO (the pay-out guide, with the SAME quote number as its quote), and  - SIGNED  at the end of the name of a signed copy. A name with Serv in front of its type is a servicing quote WHEREVER it sits (a servicing quote has its own block; its policy is tied from the folder's
+     policy number, else the adviser chooses); a plain  BR Quote  is a comparative quote; a signed copy is told apart (classify's signed flag) and the pick list ticks it only when there is no unsigned copy of the same quote in the list. One table. */
+  var SERV_NAMED = /(^|[^a-z])serv(?:ice|icing)?[\s_-]*(fna|shortfall|reduced|increase|decrease|reduction)([^a-z]|$)/;
+  var SERV_NAMED_BLOCK = { fna: 'svFna', shortfall: 'svShortfall', reduced: 'svReduced', increase: 'svIncrease', decrease: 'svReduction', reduction: 'svReduction' };
+  var SIGNED_WORD = /(^|[^a-z])signed([^a-z]|$)/;
+  /* The guide ends a name with the client:  - (<Initials Surname>)  (before  - SIGNED  on a signed copy). A surname is not a word of the name: Vergara and Margaritis contain "rgar", Egarton "egar", a Mr Shortfalls "shortfall", a Mr Letterman "letter", and the
+     substring tests below would class the quote as a goal report, a shortfall quote or paperwork. The bracket (two or more words of letters, never signed, accepted or copy) is cut out of the lower-case name before any test. */
+  function withoutClient(low) { return low.replace(/\s-\s\((?![^)]*(signed|accept|copy))[a-z'\u2019.\-]+(?:\s+[a-z'\u2019.\-]+)+\)(?=\s*(?:-\s*signed\s*)?$)/, ''); }
   function servicingFolder(dirPath) {
     var segs = reviewSegs(dirPath); if (!segs.length) return false;
     var first = segs[0].trim();
@@ -43,17 +52,19 @@
     return w === 'bare' ? { block: 'svIncrease', bare: true } : { block: w };
   }
   function classify(fileName, dirPath) {
-    var n = String(fileName == null ? '' : fileName).replace(/\.[A-Za-z0-9]{2,5}$/, ''), low = n.toLowerCase(), m, date = '', number = '';
+    var n = String(fileName == null ? '' : fileName).replace(/\.[A-Za-z0-9]{2,5}$/, ''), low = withoutClient(n.toLowerCase()), m, date = '', number = '';
     if ((m = /(\d{6,12})/.exec(n))) number = m[1];
     if ((m = /(\d{1,2})[.\/-](\d{1,2})[.\/-](\d{2}|\d{4})(?!\d)/.exec(n))) { var y = +m[3]; if (y < 100) y += 2000; date = two(+m[1]) + '/' + two(+m[2]) + '/' + y; }
     var block = null, viaReview = false;
     if (/\.(eml|msg)$/i.test(String(fileName)) || (/\.txt$/i.test(String(fileName)) && /e-?mail|brightrock|\d{6,}/.test(low)) || /e-?mail/.test(low)) block = 'bremail';              // BrightRock's e-mail with the figures a quote does not print (round 4)
     else if (/cmpo|change[ _-]?moment/.test(low)) block = 'cmp';
+    else if (SERV_NAMED.test(low)) block = SERV_NAMED_BLOCK[SERV_NAMED.exec(low)[2]];                        // round 2.1: BR Serv FNA / Shortfall / Reduced / Increase / Decrease: a servicing quote wherever it sits
     else if (/follow[ _-]?up|summary[ _-]?notes/.test(low)) block = 'followup';                           // the Follow-Up Appointment Summary Notes of a later meeting (2. Fact Find folder)
     else if (/rgar|egar|goal[ _-]?analysis|goal[ _-]?report|retirement goal|education goal/.test(low)) block = 'goals';
     else if (/(^|[^a-z])fna([^a-z]|$)/.test(low)) block = 'fna';
     else if (/shortfall/.test(low)) block = 'shortfallQuote';
     else if (/reduced/.test(low)) block = 'reduced';
+    else if (/^\s*br[\s_-]+quote([^a-z]|$)/.test(low)) block = 'comparative';                                  // round 2.1: BR Quote - ... is a comparative quote (the new naming guide)
     else if (/astute/.test(low)) block = 'astute';
     else if (/group|funds ?at ?work|benefit statement|membership certificate|certificate|provident|pension|preservation/.test(low)) block = 'group';          // a provident, pension or preservation fund statement is a group-block document (Paul, 25 November)
     else if (/(optimal|tax[ _-]?free|retirement annuity|endowment|unit trust|living annuity|investment).*(quote|proposal|illustration)|(quote|proposal|illustration).*(optimal|tax[ _-]?free|retirement annuity|endowment|living annuity)/.test(low)) block = 'proposed';
@@ -78,7 +89,7 @@
       else if (block === 'investments' || block === 'policies') { block = 'comparative'; viaReview = true; }          // its name says investment or policy and nothing says quote: listed as a comparative quote by its folder, NOT ticked (an RA Review, a Review Valuation)
     }
     var sv = servicingOf(low, dirPath, block, number), bare = false; if (sv) { block = sv.block; bare = !!sv.bare; viaReview = false; }                 // round 2.0: a quote in a life policy folder is a servicing quote
-    return block ? { block: block, number: number, date: date, label: BLOCK_LABEL[block], viaReview: viaReview, bare: bare } : null;          // viaReview: it is a comparative quote only because it sits in a Review folder (its name says investment or policy): listed as one, NOT ticked (1.6)
+    return block ? { block: block, number: number, date: date, label: BLOCK_LABEL[block], viaReview: viaReview, bare: bare, signed: SIGNED_WORD.test(low) } : null;          // viaReview: it is a comparative quote only because it sits in a Review folder (its name says investment or policy): listed as one, NOT ticked (1.6)
   }
   /* The items of an overview (this one, or a saved one read from its .json) the policy folders are compared with: current policies (block 1), current investments (block 6), the provident and pension funds of the group block (kind 'group') and the legacy protection plan of
      block 11 (kind 'legacy', only once the Fact Find says the client has one). A folder's statement goes to the block of the item it is compared with (Paul, 25 November). Returns [{ kind: 'policies' | 'investments' | 'group' | 'legacy', who, product, no, ref }]. */
@@ -700,6 +711,6 @@
     return !Object.keys(data).some(function (k) { return has(data[k]) && typeof data[k] !== 'object'; }) && !Object.keys(data).some(function (k) { var v = data[k]; return v && typeof v === 'object' && Object.keys(v).some(function (j) { return has(v[j]); }); });
   }
 
-  return { comparableItems: comparableItems, glyphs: glyphs, applyUwEmail: applyUwEmail, uwReasonLocal: uwReasonLocal, classify: classify, reviewPaperwork: reviewPaperwork, promptFor: promptFor, parseReply: parseReply, readWithClaude: readWithClaude, applyQuote: applyQuote, counterRole: counterRole, applyCounterLetter: applyCounterLetter, enrich: enrich, factNote: factNote, applyPolicy: applyPolicy, applyOther: applyOther, applyFollowUp: applyFollowUp, dm: dm, factNotesText: factNotesText, applyNotesRead: applyNotesRead, emailText: emailText, msgText: msgText, applyBrEmail: applyBrEmail, setAstuteDate: setAstuteDate, brightQuotes: brightQuotes, applyGroup: applyGroup, applyInvestment: applyInvestment, applyAstute: applyAstute, applyAstutePolicies: applyAstutePolicies, applyAstuteGroup: applyAstuteGroup, astuteSrc: astuteSrc, applyProposed: applyProposed, applyGoal: applyGoal, isEmptyRead: isEmptyRead,
+  return { comparableItems: comparableItems, glyphs: glyphs, applyUwEmail: applyUwEmail, uwReasonLocal: uwReasonLocal, classify: classify, withoutClient: withoutClient, servicingFolder: servicingFolder, reviewPaperwork: reviewPaperwork, promptFor: promptFor, parseReply: parseReply, readWithClaude: readWithClaude, applyQuote: applyQuote, counterRole: counterRole, applyCounterLetter: applyCounterLetter, enrich: enrich, factNote: factNote, applyPolicy: applyPolicy, applyOther: applyOther, applyFollowUp: applyFollowUp, dm: dm, factNotesText: factNotesText, applyNotesRead: applyNotesRead, emailText: emailText, msgText: msgText, applyBrEmail: applyBrEmail, setAstuteDate: setAstuteDate, brightQuotes: brightQuotes, applyGroup: applyGroup, applyInvestment: applyInvestment, applyAstute: applyAstute, applyAstutePolicies: applyAstutePolicies, applyAstuteGroup: applyAstuteGroup, astuteSrc: astuteSrc, applyProposed: applyProposed, applyGoal: applyGoal, isEmptyRead: isEmptyRead,
     applyCmp: applyCmp, matchItem: matchItem, logDoc: logDoc, findQuoteByNumber: findQuoteByNumber, quoteIn: quoteIn, quoteRead: quoteRead, SPEC_OF: SPEC_OF, BLOCK_LABEL: BLOCK_LABEL, QUOTE_OF: QUOTE_OF, ENDPOINT: ENDPOINT };
 });

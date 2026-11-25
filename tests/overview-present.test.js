@@ -50,15 +50,15 @@ test('the nine tabs, which page each holds, and a tab with nothing to show is gr
   const full = sample();
   assert.ok(pres.TABS.every(t => t.id === 'goals' || t.id === 'servicing' || t.id === 'proposed' || pres.tabOn(full, t.id) || t.id === 'other' || t.id === 'investments'), 'sample: ' + pres.TABS.filter(t => !pres.tabOn(full, t.id)).map(t => t.id));
   const b = store.blank();
-  assert.deepStrictEqual(pres.TABS.filter(t => pres.tabOn(b, t.id)).map(t => t.id), ['map'], 'an empty overview: only the Overview can be opened, every other tab is greyed');
+  assert.deepStrictEqual(pres.TABS.filter(t => pres.tabOn(b, t.id)).map(t => t.id), ['map', 'policies', 'group', 'investments', 'other', 'shortfall'], 'an empty overview (round 2.1): the Overview and the five tabs of Where the client is now can be opened; every quote and investment tab is greyed');
   assert.strictEqual(pres.firstBlock(b, 'fna'), null); assert.strictEqual(pres.firstBlock(b, 'map'), 'map');
   const s = sample(); assert.strictEqual(pres.firstBlock(s, 'reduced'), 'reduced'); assert.deepStrictEqual(pres.tabBlocks(s, 'reduced'), ['reduced']);
   const c = store.addQuote(s, 'comparative'); c.insurer = 'Old Mutual'; c.number = '5'; assert.deepStrictEqual(pres.tabBlocks(s, 'reduced'), ['reduced', 'comparative'], 'two blocks under one tab, both can be opened');
   assert.deepStrictEqual(pres.tabBlocks(s, 'comparative'), ['reduced', 'comparative']);
   const g = answers({ has_group: 'No' }); const gs = stateOf(g); assert.strictEqual(pres.tabOn(gs, 'group'), true, '"no group benefits" is something to show: three red lines');
   assert.strictEqual(pres.tabOn(stateOf(answers({})), 'group'), true, 'the sample has a group row');
-  const next = sample(); next.blocks.fna.quotes = []; assert.strictEqual(pres.tabOn(next, 'fna'), false); assert.strictEqual(pres.tabOn(next, 'shortfall'), false, 'no FNA, no shortfall');
-  assert.deepStrictEqual(pres.shownOrder(b), ['map']); assert.ok(pres.shownOrder(full).indexOf('shortfall') > pres.shownOrder(full).indexOf('group'));
+  const next = sample(); next.blocks.fna.quotes = []; assert.strictEqual(pres.tabOn(next, 'fna'), false); assert.strictEqual(pres.tabOn(next, 'shortfall'), true, 'round 2.1: the Shortfall tab always opens (it says there is no FNA quote yet)');
+  assert.deepStrictEqual(pres.shownOrder(b), ['map', 'policies', 'group', 'investments', 'other', 'shortfall']); assert.ok(pres.shownOrder(full).indexOf('shortfall') > pres.shownOrder(full).indexOf('group'));
   const js = app('js/ov-present.js');
   assert.ok(!/b\.n \+ '\. '|bl\.n \+|<i>' \+ b\.n/.test(js), 'no block number is drawn on a page title or card');
   assert.ok(/ptab' \+ \(cur \? ' on' : ''\) \+ \(on \? '' : ' off'\)/.test(js) && /disabled title=/.test(js), 'a tab with nothing to show is a disabled, greyed button');
@@ -285,7 +285,7 @@ test('there is no voice in the Presentation: no microphone, no listener, no spok
   assert.ok(at('ov-calc.js') < at('ov-pres.js') && at('ov-pres.js') < at('ov-ui.js') && at('ov-ui.js') < at('ov-present.js') && at('folders-ui.js') < at('ov-present.js'), 'scripts in the right order');
   const ui = app('js/ov-present.js').replace(/\/\*[\s\S]*?\*\//g, '');
   assert.ok(!/anthropic|voiceBackend|voice-ai|messages\.create|api\.openai|fetch\(/i.test(ui), 'the Presentation never calls Claude or any service');
-  assert.ok(/^(1\.[0123456789]|2\.0)$/.test(require('../app/js/ov-schema.js').pageVersion));
+  assert.ok(/^(1\.[0123456789]|2\.[01])$/.test(require('../app/js/ov-schema.js').pageVersion));
 });
 
 test('the Presentation reads the overview and never writes to it', () => {

@@ -25,6 +25,7 @@ const FFJ = { app: 'wr-fact-find', schema: '5.4', f: { fname: { v: 'Test' }, sna
     s.blocks.group.items[0].life.amount = 810000; s.blocks.group.items[0].life.endAge = 'To age 70'; s.blocks.group.items[0].paidBy = 'employer'; s.blocks.group.items[0].statementDate = '28/09/2026';
     s.blocks.policies.items[0].lines.push(OV.store.newLine('other', { label: 'Cover', life: { lump: 1000000, monthly: null }, sev: { lump: 300000 }, lsd: { lump: 500000, monthly: null }, ip: { monthly: 10000 } }));
     const r = OV.store.addQuote(s, 'reduced'); r.number = '2'; r.premium = 1400; r.status = 'accepted'; r.lines[1].life.lump = 500000; r.lines[1].life.monthly = 5000;
+    const sq = OV.store.addQuote(s, 'shortfall'); sq.number = '100000003'; sq.premium = 700; const cq = OV.store.addQuote(s, 'comparative'); cq.number = '100000004'; cq.insurer = 'Other Co'; cq.premium = 1900;          // round 2.1: a quote page is there only when it holds a quote: these two keep the twelve pages
     A.redraw();
   }, JSON.stringify(FFJ));
   /* what the screen shows in its worked-out tables, block by block */

@@ -289,7 +289,7 @@ test('two policy folders may both hold "Policy Schedule.pdf": the View button of
 
 /* ---------- 10. wiring and the record ---------- */
 test('the page is 1.5 or later, the layout stays 0.1, no key is added, the pick list is grouped per policy folder, a file carries its folder and block, and the changed scripts have new tags', () => {
-  assert.ok(/^(1\.[56789]|2\.0)$/.test(schema.pageVersion), 'page 1.5, or 1.6 which came after it'); assert.strictEqual(schema.version, '0.1'); assert.ok(parseFloat(schema.pageVersion) > parseFloat('1.4'), 'compared as decimals');
+  assert.ok(/^(1\.[56789]|2\.[01])$/.test(schema.pageVersion), 'page 1.5, or 1.6 which came after it'); assert.strictEqual(schema.version, '0.1'); assert.ok(parseFloat(schema.pageVersion) > parseFloat('1.4'), 'compared as decimals');
   const ui = app('js/ov-ui.js'), fu = app('js/folders-ui.js'), html = app('overview.html');
   assert.ok(/function pickList\(res, plan\)/.test(ui) && /class="pkh"/.test(ui) && /function tickPlan\(res, plan\)/.test(ui) && /F\.keyedNewest|FF\.folders/.test(ui), 'the grouped list and what is ticked');
   assert.ok(/file\.wrDir = /.test(ui) && /file\.wrBlock = g\.block/.test(ui) && /wrGroup/.test(ui) && /o\.block \|\| file\.wrBlock \|\| \(cls && cls\.block\)/.test(ui), 'a file carries where it was found and the block its policy folder says');

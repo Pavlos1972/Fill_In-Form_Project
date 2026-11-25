@@ -182,7 +182,7 @@ test('every need line (household, child, debt, death-related, additional expense
 
 /* ---------- the contract ---------- */
 test('the contract: revision l, the page version 0.95, the layout still 0.1; new keys are only aciPoints (policy, quote) and via (line)', () => {
-  assert.ok(/^(1\.[0123456789]|2\.0)$/.test(schema.pageVersion), 'the page version is 1.0 to 1.6'); assert.strictEqual(schema.version, '0.1');
+  assert.ok(/^(1\.[0123456789]|2\.[01])$/.test(schema.pageVersion), 'the page version is 1.0 to 1.6'); assert.strictEqual(schema.version, '0.1');
   assert.ok(/Revision l/.test(fs.readFileSync(path.join(__dirname, '..', 'docs', 'OVERVIEW-DATA-CONTRACT.md'), 'utf8')), 'written in the contract');
   const s = withFF(), q = quote(s, 'fna', '100000081', [HOME(null)]); check.settleAll(s); const back = store.fromJSON(store.toJSON(s));
   assert.strictEqual(back.blocks.fna.quotes[0].lines[0].via['life.monthly'], 'from the Fact Find', 'via survives a save and an open');

@@ -99,7 +99,7 @@ srv.listen(0, async () => {
 
   /* ---- 0. the version ---- */
   let p = await fresh({});
-  ok(/Version (0\.99|1\.[0123456789]|2\.0)/.test(await p.evaluate(() => document.body.innerText)), '0. the header says Version 0.99');
+  ok(/Version (0\.99|1\.[0123456789]|2\.[01])/.test(await p.evaluate(() => document.body.innerText)), '0. the header says Version 0.99');
   await p.close();
 
   /* ---- 1. Chrome says nothing at all: the browser's folder window does NOT open by itself; the page's own window does, with the client's folder named and the three actions ---- */

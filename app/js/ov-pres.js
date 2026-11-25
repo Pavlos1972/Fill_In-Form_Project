@@ -54,8 +54,9 @@
     if (id === 'other') return ((B.other && B.other.items) || []).some(function (i) { return !i.removed && (i.company || i.product || i.note || i.policyNo || calc.isNum(i.premium)); });
     return false;
   }
-  /* A block can be opened when the PDF has a page for it (calc.pageShown) and there is something on it. */
-  function blockOn(state, id) { return id === 'map' || (calc.pageShown(state, id) && hasContent(state, id)); }
+  /* A block can be opened when the PDF has a page for it (calc.pageShown) and there is something on it. Round 2.1 (Paul, 25 November): the five blocks of Where the client is now are ALWAYS open (an empty one says so in one line);
+     a quote page opens only when it holds a quote. */
+  function blockOn(state, id) { var bd = schema.blocksById[id]; return id === 'map' || !!(bd && bd.group === 'now') || (calc.pageShown(state, id) && hasContent(state, id)); }
   function tabOn(state, tabId) { var t = TABS.filter(function (x) { return x.id === tabId; })[0]; return !!t && t.blocks.some(function (b) { return blockOn(state, b); }); }
   function firstBlock(state, tabId) { var t = TABS.filter(function (x) { return x.id === tabId; })[0]; return t ? (t.blocks.filter(function (b) { return blockOn(state, b); })[0] || null) : null; }
   function tabBlocks(state, blockId) { var t = TABS.filter(function (x) { return x.id === TAB_OF[blockId]; })[0]; return t ? t.blocks.filter(function (b) { return blockOn(state, b); }) : []; }

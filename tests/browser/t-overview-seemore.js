@@ -113,7 +113,7 @@ srv.listen(0, async () => {
   const pdfInfo = await pg.evaluate(() => { const st = OV.app.state; st.blocks.fna.quotes[0].removed = false; OV.app.setState(st); const d = OV.app.makePdf(); return { pages: d.internal.getNumberOfPages(), ids: OV.pdf.pagesOf(st).ids }; });
   ok(pdfInfo.pages === pdfInfo.ids.length && pdfInfo.ids.length === 12, '7. with a shortfall quote, a comparative quote, a proposal and a goal report asked for, the PDF has all twelve pages');
   const lean = await pg.evaluate(() => { const st = OV.store.blank(); st.header.fname = 'Lean'; st.header.sname = 'Client'; OV.app.setState(st); const d = OV.app.makePdf(); const pdf = d.output('datauristring'); return { pages: d.internal.getNumberOfPages(), ids: OV.pdf.pagesOf(st).ids, pdf }; });
-  ok(lean.pages === 8 && !['shortfallQuote', 'comparative', 'proposed', 'goals'].some(id => lean.ids.includes(id)), '7. with none of those, four pages are left out: ' + lean.ids.join(', '));
+  ok(lean.pages === 6 && lean.ids.join(',') === 'cover,policies,group,investments,other,shortfall', '7. with none of those (round 2.1: no quote, no proposal, no goal report) only the cover and the five pages of Where the client is now are printed: ' + lean.ids.join(', '));
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'seemore-')), pf = path.join(tmp, 'lean.pdf'); fs.writeFileSync(pf, Buffer.from(lean.pdf.split(',')[1], 'base64'));
   const txt = cp.execFileSync('pdftotext', ['-layout', pf, '-'], { encoding: 'utf8' });
   ok(/There are no group benefits in place\./.test(txt) && /There are no personal investments in place\./.test(txt) && /There are no current investments in place\./.test(txt), '7. the empty group page and the empty investments page say so');
@@ -140,10 +140,12 @@ srv.listen(0, async () => {
   });
   ok(pr.bg === 'rgb(255, 255, 255)', '8. the Presentation has a white background: ' + pr.bg);
   ok(pr.logo, '8. the Wealth Revolution logo is in the bar');
-  ok(pr.tabs === 'Overview' && pr.off === 0 && pr.cards === 11, '8. with nothing in the overview only the Overview tab is there (round 2.0: a heading none of whose tabs has anything is not shown), and the Overview still shows its eleven cards: ' + JSON.stringify(pr));
+  ok(pr.tabs === 'Overview,Current policies,Group benefits,Investments,Other,Shortfall' && pr.off === 0 && pr.cards === 11, '8. with nothing in the overview the Overview tab and the five tabs of Where the client is now are there and open (round 2.1; the quote and investment headings are not shown), and the Overview still shows its eleven cards: ' + JSON.stringify(pr));
   await pg.screenshot({ path: out + '/seemore-present-map.png' });
   await pg.keyboard.press('ArrowRight'); await pg.waitForTimeout(150);
-  ok(await pg.evaluate(() => OV.present.ps.tab === 'map' && !document.querySelector('.pcard.bright')), '8. next and back have nowhere to go while no page has anything to show, and no card opens a page');
+  ok(await pg.evaluate(() => OV.present.ps.tab === 'policies'), '8. next goes to Current policies: the five pages of Where the client is now are always open (round 2.1)');
+  await pg.keyboard.press('ArrowLeft'); await pg.waitForTimeout(150);
+  ok(await pg.evaluate(() => OV.present.ps.tab === 'map' && document.querySelectorAll('.pcard.bright').length === 2), '8. back returns to the Overview, where only the two cards of pages that can be opened (Current policies and Shortfall) are bright: no quote, no card for a quote');
   await pg.keyboard.press('Escape');
   await pg.evaluate(ff => { const S = OV.store, D = OV.docs, st = S.blank(); S.fillFromFactFind(st, JSON.stringify(ff), 'ff.json');
     D.applyQuote(st, 'fna', { insurer: 'BrightRock', number: '100000001', aci: 7.5, aciText: '7.5% + age rater', premium: 2900, lines: [{ type: 'household', life: { lump: 800000, monthly: 5000 }, abi: 5 }, { type: 'child', name: 'Amy', sname: 'See', life: { lump: 500000, monthly: 5000 }, abi: 5 }] }, 'fna.pdf'); OV.app.setState(st); }, FFJ);

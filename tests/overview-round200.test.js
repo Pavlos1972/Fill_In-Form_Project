@@ -212,8 +212,8 @@ test('the PDF and the Presentation put the pages and tabs under the same four he
   assert.ok(pres.shownOrder(s).indexOf('svIncrease') > pres.shownOrder(s).indexOf('policies') && pres.shownOrder(s).indexOf('svReduction') > pres.shownOrder(s).indexOf('svIncrease'), 'and the ones that can be opened keep that order');
 });
 
-test('the page is 2.0 (the layout stays 0.1), the contract says revision p with the new keys, the changed scripts carry new tags', () => {
-  assert.strictEqual(schema.pageVersion, '2.0'); assert.strictEqual(schema.version, '0.1'); assert.ok(parseFloat(schema.pageVersion) > parseFloat('1.9'), 'compared as decimals');
+test('the page is 2.0 or later (the layout stays 0.1), the contract says revision p with the new keys, the changed scripts carry new tags', () => {
+  assert.ok(/^2\.[01]$/.test(schema.pageVersion), 'the page is 2.0 or later (2.1 now)'); assert.strictEqual(schema.version, '0.1'); assert.ok(parseFloat(schema.pageVersion) > parseFloat('1.9'), 'compared as decimals');
   const html = app('overview.html');
   ['ov-schema', 'ov-calc', 'ov-store', 'ov-check', 'ov-docs', 'ov-pdf', 'ov-pres', 'ov-ui', 'ov-present', 'folders'].forEach(f => assert.ok(new RegExp(f + '\\.js\\?v=20261125[a-z]').test(html), f));
   ['overview', 'present'].forEach(f => assert.ok(new RegExp('css/' + f + '\\.css\\?v=20261125[a-z]').test(html), f + '.css'));

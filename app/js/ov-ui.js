@@ -1296,19 +1296,24 @@
     others.forEach(function (f) {
       var kd = F && F.dateKey ? kindOf(f) : null; if (!kd) return;
       var k = F.dateKey(f.name, f.rel), nd = F.nameDate ? F.nameDate(f.name) : k.exact;                         // nd: the date, the month or the bare year the NAME carries (0 when none)
-      entries.push({ id: f, kind: kd, sub: schema.blocksById[kd] && schema.blocksById[kd].servicing ? F.norm((f.rel || [])[0] || '') : (F.quoteSub ? F.quoteSub(kd, f.name) : ''), y: k.year || (nd ? Math.floor(nd / 10000) : 0), fy: k.year, ex: nd, no: nkOf(f) });          // sub: the product of a proposal or the kind of a goal report (1.8): the newest of EACH is ticked
+      entries.push({ id: f, kind: kd, sub: schema.blocksById[kd] && schema.blocksById[kd].servicing ? (D.servicingFolder && D.servicingFolder((f.rel || []).join(' \\ ')) ? F.norm((f.rel || [])[0] || '') : 'loose:' + (nkOf(f) || F.norm(f.name))) : (F.quoteSub ? F.quoteSub(kd, f.name) : ''), y: k.year || (nd ? Math.floor(nd / 10000) : 0), fy: k.year, ex: nd, no: nkOf(f) });          // sub: the product of a proposal or the kind of a goal report (1.8): the newest of EACH is ticked
     });
     var older = F && F.ageQuotes ? F.ageQuotes(entries) : new Map();                                            // which are not the newest of their kind, and why (folders.js: the year rule, the date rule of 1.7, a guide follows its quote)
+    /* Round 2.1 (the BrightRock naming guide, "- SIGNED" at the end of a signed copy's name): a signed copy is listed, and ticked only when it is the ONLY copy of its quote: when an unsigned copy of the same quote (the same kind of document and number, else the same name without
+       "signed") is in the list, the signed one is left unticked and says so. A signed copy never decides the client's decision (the adviser sets it). */
+    var clsOf = new Map(); others.forEach(function (f) { clsOf.set(f, D.classify(f.name, (f.rel || []).join(' \\ '))); });
+    var signedTwin = F && F.signedTwins ? F.signedTwins(others.filter(function (f) { var c = clsOf.get(f); return c && QKIND[c.block]; }).map(function (f) { var c = clsOf.get(f); return { id: f, kind: c.block, signed: !!c.signed, no: nkOf(f), base: baseOf(f.name) }; })) : new Map();          // folders.js: the rule is one pure function
     var tick = res.files.map(function (f) {
       if (f.group != null) { var g = groups[f.group], pr = plan && plan.live ? plan.live[f.group] : null; return !!(g && g.block && f.role !== 'manual' && g.pick && g.pick.file === f && !(pr && pr.ff === 'none')); }          // a policy the Fact Find does not list would be read and then refused (this page follows the Fact Find), so it is not ticked: the chip says why
       var c = D.classify(f.name, (f.rel || []).join(' \\ '));
       var base = !!(c && !c.viaReview && (c.block !== 'followup' || f === tickFu) && (c.block !== 'astute' || !tickAs.best || f === tickAs.best));          // a document that is a quote only because it sits in a Review folder (1.6) is listed as one and left for the adviser to tick: nothing says it IS a quote
       if (base && F && F.isManual && F.isManual(f.name)) return false;                                         // the owner's manual is never ticked, wherever it is found
       if (base && older.has(f)) return false;                                                                  // an older year's quote (round 1.6: every kind, the latest year folder first)
+      if (base && signedTwin.get(f) === true) return false;                                                    // round 2.1: a signed copy beside its unsigned quote
       return base && (!kn.tick.has(f) || kn.tick.get(f));
     });
     var tied = kn.tied.slice(); groups.forEach(function (g) { if (g.pick && g.pick.tie) tied.push(g.pick.tied); });
-    return { tick: tick, tied: tied, older: older };
+    return { tick: tick, tied: tied, older: older, signed: signedTwin };
   }
   /* The sentences of the comparison: what the three sources say about each policy folder, and what no folder explains. */
   function ffChip(row, g) {
@@ -1352,7 +1357,7 @@
     if (groups.length && rest.length) html += '<div class="pkh"><b>Other documents</b><span class="pkt">Astute reports, quotes, the schedules of the Policy Schedules folder, notes</span></div>';
     rest.forEach(function (x) {
       var c = D.classify(x.f.name, (x.f.rel || []).join(' \\ '));
-      html += fileRow(x.f, x.i, (c ? c.label + (c.bare ? ' (a straight quote: its premium tells increase from reduction when it is read)' : '') : '') + (c && c.viaReview ? '; in a Review or Servicing folder: not ticked, tick it if it is a quote' : '') + (!c && D.reviewPaperwork && D.reviewPaperwork(x.f.name, (x.f.rel || []).join(' \\ ')) ? 'paperwork about a change (a letter, a signed or accepted copy, an SROA, a schedule, the owner\u2019s manual): not a quote, not ticked' : '') + (tp.older.has(x.f) ? '; ' + tp.older.get(x.f) : '') + (F && F.isManual && F.isManual(x.f.name) ? '; owner’s manual: never ticked' : ''), '', '');
+      html += fileRow(x.f, x.i, (c ? c.label + (c.bare ? ' (a straight quote: its premium tells increase from reduction when it is read)' : '') : '') + (c && c.viaReview ? '; in a Review or Servicing folder: not ticked, tick it if it is a quote' : '') + (!c && D.reviewPaperwork && D.reviewPaperwork(x.f.name, (x.f.rel || []).join(' \\ ')) ? 'paperwork about a change (a letter, a signed or accepted copy, an SROA, a schedule, the owner\u2019s manual): not a quote, not ticked' : '') + (tp.signed && tp.signed.has(x.f) ? (tp.signed.get(x.f) ? '; signed copy: the quote itself is in the list and is the one read, so this is not ticked' : '; signed copy, and the only copy of this quote: read as the quote (the client\u2019s decision is yours to set)') : '') + (tp.older.has(x.f) ? '; ' + tp.older.get(x.f) : '') + (F && F.isManual && F.isManual(x.f.name) ? '; owner’s manual: never ticked' : ''), '', '');
     });
     var notes = [];
     if (plan && plan.ffOnly && plan.ffOnly.length) notes.push({ cls: 'warn', text: 'In the Fact Find, but no policy folder was found for: ' + plan.ffOnly.map(function (it) { return [it.who, it.product].filter(Boolean).join(' '); }).join('; ') + '.' });

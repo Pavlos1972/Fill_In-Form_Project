@@ -262,7 +262,7 @@
   /* ---------- the other blocks ---------- */
   function policiesPage(doc, state, b) {
     var y = pageTitle(doc, pn(state, b) + '. ' + b.title), ps = calc.policies(state), pt = calc.policyTotals(state), age = state.header.disabilityAge ? '\nAge ' + state.header.disabilityAge : '';
-    if (!ps.length) return empty(doc, y, 'No current policies.');
+    if (!ps.length) return empty(doc, y, 'There are no current policies in place.');
     var ri = calc.replacementInfo(state);
     var tickCell = function (e) {
       var it = e.item;
@@ -352,6 +352,8 @@
   }
   function otherPage(doc, state, b) {
     var y = pageTitle(doc, pn(state, b) + '. ' + b.title);
+    var recorded = state.blocks.other.items.some(function (i) { return !i.removed && (i.company || i.product || i.note || i.policyNo || calc.isNum(i.premium)); });
+    if (!recorded) return empty(doc, y, 'No medical aid, gap cover, will, legacy plan or short-term insurance is recorded.');   // round 2.1: an empty page of Where the client is now says so in one line
     return table(doc, y, { head: [['Item', 'Company & product', 'Policy number', 'Broker', 'Premium', 'Notes']], colw: [50, 70, 40, 24, 30, 59], align: ['left', 'left', 'left', 'center'], draw: drawOv,
       body: state.blocks.other.items.filter(function (i) { return !i.removed; }).map(function (i) {
         var nm = (schema.OTHER_KEYS.filter(function (k) { return k.key === i.key; })[0] || { l: i.key }).l;
